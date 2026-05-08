@@ -1,0 +1,28 @@
+#ifndef E87CANBUS_CAN_IDS_H
+#define E87CANBUS_CAN_IDS_H
+
+#include <Arduino.h>
+
+static const unsigned long CAN_ID_BUTTON_EVENT = 0x700;
+static const unsigned long CAN_ID_LED_UPDATE = 0x701;
+
+static const uint8_t BUTTON_EVENT_INDEX_BYTE = 0;
+static const uint8_t BUTTON_EVENT_STATE_BYTE = 1;
+static const uint8_t BUTTON_EVENT_LENGTH = 2;
+
+static const uint8_t LED_UPDATE_INDEX_BYTE = 0;
+static const uint8_t LED_UPDATE_COLOUR_BYTE = 1;
+static const uint8_t LED_UPDATE_LENGTH = 2;
+
+static const uint8_t BUTTON_RELEASED = 0x00;
+static const uint8_t BUTTON_PRESSED = 0x01;
+
+static const uint8_t LED_COLOUR_OFF = 0x00;
+static const uint8_t LED_COLOUR_RED = 0x01;
+static const uint8_t LED_COLOUR_GREEN = 0x02;
+static const uint8_t LED_COLOUR_BLUE = 0x03;
+static const uint8_t LED_COLOUR_AMBER = 0x04;
+static const uint8_t LED_COLOUR_WHITE = 0x05;
+
+#endif
+

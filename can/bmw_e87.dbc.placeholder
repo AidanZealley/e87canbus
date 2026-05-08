@@ -1,0 +1,6 @@
+Placeholder for a future BMW E87/E90-derived DBC.
+
+Do not add decoded BMW messages here until a community DBC has been selected and its definitions have been verified against this car's direct bus captures.
+
+Candidate IDs mentioned in PROJECT_CONTEXT.md remain unverified until confirmed with candump.
+
