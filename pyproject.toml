@@ -11,6 +11,7 @@ dependencies = [
 
 [project.scripts]
 e87canbus = "e87canbus.main:main"
+e87canbus-bench-pingpong = "e87canbus.bench_pingpong:main"
 
 [dependency-groups]
 dev = [
@@ -42,4 +43,3 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["pi/e87canbus"]
-
