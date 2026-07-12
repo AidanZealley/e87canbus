@@ -48,3 +48,36 @@ Bring the bench CAN interface down with:
 ```bash
 sudo ./scripts/bench_can_down.sh
 ```
+
+## No Hardware Available
+
+Run the in-process simulator on macOS, Linux, or CI:
+
+```bash
+uv run e87canbus-sim-bench
+```
+
+The simulator runs the existing Pi bench logic against a simulated NeoTrellis node. It alternates button press and release frames and records the LED updates sent by the Pi.
+
+## Linux vcan
+
+SocketCAN `vcan` is Linux-only. Use it when you want to validate the real SocketCAN adapter without physical CAN hardware.
+
+Terminal 1:
+
+```bash
+./scripts/vcan_up.sh
+uv run e87canbus-bench-pingpong --interface vcan0
+```
+
+Terminal 2:
+
+```bash
+uv run e87canbus-sim-neotrellis-socketcan --interface vcan0 --cycles 4
+```
+
+Bring `vcan0` down with:
+
+```bash
+./scripts/vcan_down.sh
+```

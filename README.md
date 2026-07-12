@@ -27,6 +27,26 @@ Run the dry-run CLI:
 uv run e87canbus --dry-run
 ```
 
+Run the hardware-free bench simulator:
+
+```bash
+uv run e87canbus-sim-bench --cycles 4
+```
+
+Run the visual simulator workbench:
+
+```bash
+uv run e87canbus-sim-api
+cd web
+pnpm install
+pnpm dev
+```
+
+Default URLs:
+
+- Backend: `http://127.0.0.1:8000`
+- Frontend: `http://127.0.0.1:5173`
+
 Run the bench ping-pong app on a Pi with `can0` up:
 
 ```bash
@@ -53,7 +73,7 @@ Deploy Pi code and restart the service:
 ./scripts/pi_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
-See `docs/bench.md`, `docs/pi_bootstrap.md`, and `docs/deployment.md`.
+See `docs/bench.md`, `docs/simulation.md`, `docs/pi_bootstrap.md`, and `docs/deployment.md`.
 
 ## Verification
 
@@ -62,6 +82,13 @@ uv run pytest
 uv run ruff check .
 uv run mypy pi/e87canbus
 bash -n scripts/*.sh
+```
+
+Build the web workbench:
+
+```bash
+cd web
+pnpm build
 ```
 
 Build the Arduino scaffold:

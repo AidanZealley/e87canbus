@@ -18,3 +18,5 @@ __pycache__/
 htmlcov/
 
 .pio/
+
+node_modules/
