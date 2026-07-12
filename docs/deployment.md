@@ -1,27 +1,27 @@
 # Deployment
 
-Development happens on the host. Pi code deploys over SSH with `rsync`; Arduino firmware uploads from the host through PlatformIO.
+Development happens on the host. Coordinator code deploys to the Pi over SSH with `rsync`; device firmware uploads from the host through PlatformIO.
 
-## Arduino Upload
+## Button-pad Upload
 
-Connect the Arduino Micro over USB, then run:
+Connect the button-pad controller over USB, then run:
 
 ```bash
-./scripts/arduino_upload.sh
+./scripts/button_pad_upload.sh
 ```
 
-## Pi Deploy
+## Coordinator Deploy
 
 Deploy and restart the systemd service:
 
 ```bash
-./scripts/pi_deploy.sh pi@e87canbus.local
+./scripts/coordinator_deploy.sh pi@e87canbus.local
 ```
 
 Deploy and tail service logs:
 
 ```bash
-./scripts/pi_deploy.sh pi@e87canbus.local --tail-logs
+./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
 Before syncing, the deploy script runs:
@@ -29,7 +29,7 @@ Before syncing, the deploy script runs:
 ```bash
 uv run pytest
 uv run ruff check .
-uv run mypy pi/e87canbus
+uv run mypy coordinator/src/e87canbus
 ```
 
 It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e87canbus`, runs `uv sync` on the Pi, restarts `e87canbus.service`, and prints service status.
@@ -37,7 +37,7 @@ It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e8
 ## Logs
 
 ```bash
-./scripts/pi_logs.sh pi@e87canbus.local -f
+./scripts/coordinator_logs.sh pi@e87canbus.local -f
 ```
 
 ## Acceptance Test
@@ -49,17 +49,17 @@ It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e8
 ip -details link show can0
 ```
 
-3. Flash Arduino:
+3. Flash the button-pad controller:
 
 ```bash
-./scripts/arduino_upload.sh
+./scripts/button_pad_upload.sh
 ```
 
-4. Deploy Pi app:
+4. Deploy the coordinator:
 
 ```bash
-./scripts/pi_deploy.sh pi@e87canbus.local --tail-logs
+./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
 5. Confirm the Pi logs show alternating press/release button events and green/off LED replies.
-6. Confirm the Arduino serial log shows matching sent button events and received LED updates.
+6. Confirm the button-pad serial log shows matching sent button events and received LED updates.

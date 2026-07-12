@@ -184,31 +184,28 @@ Custom CAN    ──── Arduino + NeoTrellis button matrix
 ### Monorepo Structure
 
 ```
-e87-can-project/
-├── pi/                        # Python — central hub
-│   ├── main.py
-│   ├── can_listener.py        # K-CAN and F-CAN receive loops
-│   ├── steering_control.py    # Servotronic PWM control loop
-│   ├── event_handler.py       # Acts on button/MFL events
-│   ├── strobe.py              # High beam strobe logic
-│   ├── config.py              # Tunable parameters (curves, levels)
-│   └── pyproject.toml
-├── arduino/
-│   └── neotrellis_node/
-│       ├── neotrellis_node.ino
-│       ├── can_ids.h           # Must mirror can/custom_ids.md
-│       └── platformio.ini
-├── can/
-│   ├── bmw_e87.dbc             # Community-sourced, verify against candump
-│   └── custom_ids.md           # Project-specific CAN message definitions
+e87canbus/
+├── coordinator/                   # Central Raspberry Pi application
+│   ├── src/e87canbus/           # Project-specific Python import package
+│   │   ├── application/           # Authoritative state and decisions
+│   │   ├── features/              # Steering, strobe, DSC, button mapping
+│   │   ├── protocol/              # CAN frame encoding and decoding
+│   │   ├── adapters/              # Real hardware and OS integrations
+│   │   ├── simulation/            # Virtual CAN and device implementations
+│   │   ├── api/                   # FastAPI and WebSocket interface
+│   │   └── cli/                   # Executable entry points
+│   └── tests/
+├── devices/
+│   ├── button-pad/                # NeoTrellis/CAN PlatformIO project
+│   └── steering-controller/       # Future actuator-controller firmware
+├── frontend/                      # Simulator and in-car React UI
+├── protocol/                      # Cross-device CAN definitions and DBC notes
 ├── docs/
-│   ├── candump_sessions/       # Raw logs from sniffing sessions
-│   ├── decoded_messages.md     # Human-readable findings from candump
-│   └── wiring.md
-└── PROJECT_CONTEXT.md          # This file
+├── scripts/
+└── deploy/
 ```
 
-### Pi — Python Stack
+### Coordinator — Python Stack
 
 - **Runtime:** Python 3.11+
 - **Dependency management:** `pyproject.toml` (PEP 621)
@@ -256,21 +253,21 @@ lib_deps =
     mcp_can
 ```
 
-**Arduino responsibilities (keep it dumb):**
+**Button-pad responsibilities:**
 - Poll NeoTrellis for button events
 - Send custom CAN message to Pi on button press/release (ID `0x700`, data byte = button index)
 - Receive CAN messages from Pi to update NeoTrellis LED colours/states
 
-### Custom CAN Message Protocol (Pi ↔ Arduino)
+### Custom CAN Message Protocol (Coordinator ↔ Button Pad)
 
 Use IDs in the `0x700–0x7FF` range to avoid collision with BMW IDs.
 
 | ID | Direction | Description |
 |---|---|---|
-| `0x700` | Arduino → Pi | Button event (byte 0 = button index, byte 1 = press/release) |
-| `0x701` | Pi → Arduino | LED state update (byte 0 = button index, byte 1 = colour code) |
+| `0x700` | Button pad → coordinator | Button event (byte 0 = button index, byte 1 = press/release) |
+| `0x701` | Coordinator → button pad | LED state update (byte 0 = button index, byte 1 = colour code) |
 
-*Document full protocol in `can/custom_ids.md` — keep `can_ids.h` in Arduino project in sync manually.*
+*Document full protocol in `protocol/custom_ids.md` — keep `can_ids.h` in the button-pad firmware in sync manually.*
 
 ---
 

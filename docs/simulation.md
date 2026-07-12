@@ -27,11 +27,11 @@ Use another simulated NeoTrellis button index:
 uv run e87canbus-sim-bench --button-index 2
 ```
 
-This simulates the current Arduino firmware behavior:
+This simulates the current button-pad firmware behavior:
 
 - Send project button-event frames on `0x700`.
 - Alternate pressed and released states.
-- Let the Pi bench app reply with LED-update frames on `0x701`.
+- Let the coordinator bench app reply with LED-update frames on `0x701`.
 - Record LED colours inside the simulated NeoTrellis node.
 
 Expected logs alternate:
@@ -54,7 +54,7 @@ uv run e87canbus-sim-api
 Run the browser frontend:
 
 ```bash
-cd web
+cd frontend
 pnpm install
 pnpm dev
 ```
@@ -64,7 +64,9 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket stream. Click NeoTrellis button `0` to send `0x700 0001`; the Pi ping-pong handler replies with `0x701 0002`, and LED `0` turns green. Release or step again to send `0x700 0000`; the reply is `0x701 0000`, and LED `0` turns off.
+The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket stream. The simulator routes button frames through the same hardware-independent application controller intended for the real Pi runtime.
+
+LED `0` starts blue because the authoritative steering mode starts in Auto. Press NeoTrellis button `0` to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and LED `0` becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
 
 ## Linux vcan Simulation
 
@@ -105,7 +107,7 @@ CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
 
 The simulator currently models only the private project protocol:
 
-- `0x700`: Arduino/NeoTrellis button event.
-- `0x701`: Pi LED update.
+- `0x700`: button-pad event.
+- `0x701`: coordinator LED update.
 
 It does not simulate verified BMW vehicle control traffic. Placeholder BMW IDs remain notes only and must not be used as replay commands until real captures, counters, and payload behavior have been verified.

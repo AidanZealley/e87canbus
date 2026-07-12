@@ -18,7 +18,7 @@ Run lint and type checks:
 
 ```bash
 uv run ruff check .
-uv run mypy pi/e87canbus
+uv run mypy coordinator/src/e87canbus
 ```
 
 Run the dry-run CLI:
@@ -33,22 +33,22 @@ Run the bench ping-pong CLI on the Pi:
 uv run e87canbus-bench-pingpong --interface can0
 ```
 
-## Arduino
+## Button-pad device
 
 From the PlatformIO project directory:
 
 ```bash
-cd arduino/neotrellis_node
+cd devices/button-pad
 pio run
 ```
 
-Upload to an Arduino Micro connected over USB:
+Upload to the button-pad controller connected over USB:
 
 ```bash
-./scripts/arduino_upload.sh
+./scripts/button_pad_upload.sh
 ```
 
-## Pi CAN
+## Coordinator CAN
 
 Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT v2.1:
 
@@ -58,7 +58,7 @@ Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT 
 Bootstrap Raspberry Pi OS Lite with:
 
 ```bash
-sudo ./scripts/pi_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
+sudo ./scripts/coordinator_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
 ```
 
 Manually bring up bench CAN:

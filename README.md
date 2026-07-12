@@ -2,18 +2,23 @@
 
 Hardware-aware, locally testable software for a track-only BMW E87 CAN bus project.
 
-Current milestone: bench CAN ping-pong. The Arduino sends project button-event frames, the Pi receives them through SocketCAN, and the Pi replies with LED-update frames. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, Trellis UI, and touchscreen UI remain out of scope.
+Current milestone: the hardware-independent application controller owns runtime state and is exercised through the visual simulator. NeoTrellis button `0` toggles steering mode between Auto and Manual, with blue and amber LED state respectively. The bench CAN ping-pong remains available for hardware validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain out of scope.
 
 ## Layout
 
-- `pi/e87canbus/` - Python package for Pi-side application logic.
-- `pi/tests/` - hardware-free unit tests.
-- `arduino/neotrellis_node/` - PlatformIO scaffold for an ATmega32U4 NeoTrellis/CAN node.
-- `can/` - project CAN IDs and placeholder DBC notes.
+- `coordinator/` - central Raspberry Pi application and its tests.
+- `devices/` - one independently buildable firmware project per physical device.
+- `frontend/` - React UI shared by the development simulator and future in-car display.
+- `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
 - `docs/` - setup, wiring, decoded-message, and future capture notes.
-- `scripts/` - host deploy, Arduino upload, Pi bootstrap, and CAN interface helpers.
-- `deploy/systemd/` - Pi systemd unit.
+- `scripts/` - coordinator deployment, device upload, bootstrap, and CAN helpers.
+- `deploy/systemd/` - coordinator systemd unit.
 - `PROJECT_CONTEXT.md` - source project context.
+
+The Python package uses the conventional `src` layout. Start in
+`coordinator/src/e87canbus/application/` for system behaviour, `features/` for feature
+calculations, `protocol/` for CAN encoding, `adapters/` for real hardware, `simulation/` for
+virtual hardware, and `api/` for the frontend interface.
 
 ## Local Setup
 
@@ -37,7 +42,7 @@ Run the visual simulator workbench:
 
 ```bash
 uv run e87canbus-sim-api
-cd web
+cd frontend
 pnpm install
 pnpm dev
 ```
@@ -47,6 +52,8 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
+In the workbench, press NeoTrellis button `0` to toggle the authoritative steering mode. The application controller changes state, emits an LED command, and the virtual node reflects blue for Auto or amber for Manual.
+
 Run the bench ping-pong app on a Pi with `can0` up:
 
 ```bash
@@ -55,46 +62,46 @@ uv run e87canbus-bench-pingpong --interface can0
 
 ## Bench Workflow
 
-Bootstrap a Raspberry Pi OS Lite install:
+Bootstrap a Raspberry Pi OS Lite coordinator:
 
 ```bash
-sudo ./scripts/pi_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
+sudo ./scripts/coordinator_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
 ```
 
-Upload Arduino firmware from the host:
+Upload button-pad firmware from the host:
 
 ```bash
-./scripts/arduino_upload.sh
+./scripts/button_pad_upload.sh
 ```
 
-Deploy Pi code and restart the service:
+Deploy coordinator code and restart the service:
 
 ```bash
-./scripts/pi_deploy.sh pi@e87canbus.local --tail-logs
+./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
-See `docs/bench.md`, `docs/simulation.md`, `docs/pi_bootstrap.md`, and `docs/deployment.md`.
+See `docs/bench.md`, `docs/simulation.md`, `docs/coordinator_bootstrap.md`, and `docs/deployment.md`.
 
 ## Verification
 
 ```bash
 uv run pytest
 uv run ruff check .
-uv run mypy pi/e87canbus
+uv run mypy coordinator/src/e87canbus
 bash -n scripts/*.sh
 ```
 
-Build the web workbench:
+Build the frontend:
 
 ```bash
-cd web
+cd frontend
 pnpm build
 ```
 
-Build the Arduino scaffold:
+Build the button-pad firmware:
 
 ```bash
-cd arduino/neotrellis_node
+cd devices/button-pad
 pio run
 ```
 
