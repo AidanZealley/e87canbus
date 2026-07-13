@@ -32,7 +32,6 @@ const emptySnapshot: SimulatorSnapshot = {
     steering_mode: "auto",
     manual_assistance_level: 0,
     maximum_assistance_active: false,
-    strobe_active: false,
   },
   next_pressed: true,
   led_colours: {},

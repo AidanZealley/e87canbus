@@ -6,7 +6,7 @@ authoritative application state and coordinates vehicle inputs, project devices,
 ## Source map
 
 - `src/e87canbus/application/` — state, events, and application decisions. Start here when changing what the system does.
-- `src/e87canbus/features/` — isolated feature logic such as steering, strobe, DSC, and button mapping.
+- `src/e87canbus/features/` — pure steering-assistance calculations.
 - `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
 - `src/e87canbus/runtime.py` — transport-neutral per-frame coordinator runtime.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.

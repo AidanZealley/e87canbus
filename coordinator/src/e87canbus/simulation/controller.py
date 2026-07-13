@@ -92,7 +92,6 @@ def snapshot_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
             "maximum_assistance_active": snapshot.application.maximum_assistance_active,
-            "strobe_active": snapshot.application.strobe_active,
         },
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
@@ -190,10 +189,6 @@ class SimulatorController:
             application=self.application,
             router=ProtocolRouter(self.ids),
         )
-
-        # Compatibility aliases for the established single-bus simulator helpers.
-        self.network = self.topology.network(CanNetwork.KCAN)
-        self.pi_bus = self.pi_buses.get(CanNetwork.KCAN)
 
         self.runtime.start()
         self.neotrellis.process_pending_led_updates()

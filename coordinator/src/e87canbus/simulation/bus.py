@@ -89,9 +89,9 @@ class InMemoryCanNetwork:
                 monotonic_s=time.monotonic(),
                 sequence=self._sequence,
             )
+            self._trace.append(entry)
         else:
-            entry = self._recorder(self.network, source, frame)
-        self._trace.append(entry)
+            self._recorder(self.network, source, frame)
 
         for name, bus in self._buses.items():
             if name != source:

@@ -29,7 +29,6 @@ class RuntimeState:
     manual_assistance_level: int = 0
     maximum_assistance_active: bool = False
     can_health: CanHealth = field(default_factory=CanHealth)
-    strobe_active: bool = False
 
     def set_speed(self, speed_kph: float) -> None:
         self.vehicle_speed_kph = max(0.0, speed_kph)

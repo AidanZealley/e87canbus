@@ -1,18 +1,10 @@
 from e87canbus.application.events import (
     ButtonState,
-    MflButton,
-    MflButtonEvent,
     NeoTrellisButtonEvent,
     SpeedUpdateEvent,
     SteeringMode,
 )
-
-
-def test_mfl_event_construction() -> None:
-    event = MflButtonEvent(button=MflButton.VOLUME_UP, state=ButtonState.PRESSED)
-
-    assert event.button is MflButton.VOLUME_UP
-    assert event.state is ButtonState.PRESSED
+from e87canbus.config import CanNetwork
 
 
 def test_neotrellis_event_construction() -> None:
@@ -23,13 +15,12 @@ def test_neotrellis_event_construction() -> None:
 
 
 def test_speed_update_event() -> None:
-    event = SpeedUpdateEvent(speed_kph=42.5, source_bus="fcan")
+    event = SpeedUpdateEvent(speed_kph=42.5, source_network=CanNetwork.FCAN)
 
     assert event.speed_kph == 42.5
-    assert event.source_bus == "fcan"
+    assert event.source_network is CanNetwork.FCAN
 
 
 def test_steering_mode_values() -> None:
     assert SteeringMode.AUTO.value == "auto"
     assert SteeringMode.MANUAL.value == "manual"
-

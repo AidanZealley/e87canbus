@@ -26,7 +26,6 @@ export type ApplicationSnapshot = {
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   maximum_assistance_active: boolean
-  strobe_active: boolean
 }
 
 export type SimulatorSnapshot = {

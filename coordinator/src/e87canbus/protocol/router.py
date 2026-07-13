@@ -6,14 +6,35 @@ from collections.abc import Callable
 from typing import TypeAlias
 
 from e87canbus.application.controller import ApplicationEvent, ApplicationOutput
-from e87canbus.application.events import ButtonLedCommand, ButtonState, NeoTrellisButtonEvent
+from e87canbus.application.events import (
+    ButtonLedCommand,
+    ButtonState,
+    LedColour,
+    NeoTrellisButtonEvent,
+)
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
+    LED_AMBER,
+    LED_BLUE,
+    LED_GREEN,
+    LED_OFF,
+    LED_RED,
+    LED_WHITE,
     CanFrame,
+    LedUpdatePayload,
     RoutedCanFrame,
     decode_button_event,
-    encode_button_led_command,
+    encode_led_update,
 )
+
+LED_COLOUR_CODES = {
+    LedColour.OFF: LED_OFF,
+    LedColour.RED: LED_RED,
+    LedColour.GREEN: LED_GREEN,
+    LedColour.BLUE: LED_BLUE,
+    LedColour.AMBER: LED_AMBER,
+    LedColour.WHITE: LED_WHITE,
+}
 
 FrameDecoder: TypeAlias = Callable[[CanFrame], ApplicationEvent]
 OutputEncoder: TypeAlias = Callable[[ApplicationOutput], RoutedCanFrame]
@@ -65,5 +86,11 @@ class ProtocolRouter:
         assert isinstance(output, ButtonLedCommand)
         return RoutedCanFrame(
             network=CanNetwork.KCAN,
-            frame=encode_button_led_command(output, self.ids),
+            frame=encode_led_update(
+                LedUpdatePayload(
+                    button_index=output.button_index,
+                    colour_code=LED_COLOUR_CODES[output.colour],
+                ),
+                self.ids,
+            ),
         )

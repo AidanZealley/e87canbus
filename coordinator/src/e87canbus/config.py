@@ -52,13 +52,6 @@ class SteeringConfig:
 
 
 @dataclass(frozen=True)
-class StrobeConfig:
-    cycles: int = 5
-    on_duration_s: float = 0.080
-    off_duration_s: float = 0.080
-
-
-@dataclass(frozen=True)
 class PlaceholderBmwIds:
     """Unverified candidate IDs from project context, not replay constants."""
 
@@ -77,7 +70,6 @@ class AppConfig:
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
-    strobe: StrobeConfig = field(default_factory=StrobeConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
 
 

@@ -7,7 +7,7 @@ from e87canbus.application.events import (
     SteeringMode,
 )
 from e87canbus.application.state import RuntimeState
-from e87canbus.config import SteeringConfig
+from e87canbus.config import CanNetwork, SteeringConfig
 
 
 def test_initial_state_is_auto_with_blue_mode_led() -> None:
@@ -167,7 +167,7 @@ def test_button_releases_do_not_adjust_or_toggle_assistance() -> None:
 def test_speed_event_updates_application_state_without_hardware_output() -> None:
     controller = ApplicationController()
 
-    outputs = controller.handle_event(SpeedUpdateEvent(42.5, "simulated-vehicle"))
+    outputs = controller.handle_event(SpeedUpdateEvent(42.5, CanNetwork.FCAN))
 
     assert controller.snapshot().vehicle_speed_kph == 42.5
     assert outputs == ()

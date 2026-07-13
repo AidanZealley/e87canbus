@@ -45,10 +45,3 @@ def target_current_to_normalized_command(
         raise ValueError("max_current_ma must be greater than min_current_ma")
     clamped = min(max(target_current_ma, min_current_ma), max_current_ma)
     return (clamped - min_current_ma) / (max_current_ma - min_current_ma)
-
-
-class PwmSteeringDriver:
-    """Future adapter boundary for pigpio or another PWM/current backend."""
-
-    def set_normalized_command(self, command: float) -> None:
-        raise NotImplementedError("PWM steering output is out of scope for the initial scaffold")

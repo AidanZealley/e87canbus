@@ -110,6 +110,16 @@ def test_topology_trace_is_globally_ordered_across_networks() -> None:
     assert list(trace) == sorted(trace, key=lambda entry: entry.monotonic_s)
 
 
+def test_topology_owned_network_does_not_duplicate_trace_storage() -> None:
+    topology = InMemoryCanTopology()
+    kcan = topology.create_bus(CanNetwork.KCAN, "pi")
+
+    kcan.send(CanFrame(0x100, b""))
+
+    assert len(topology.trace()) == 1
+    assert topology.network(CanNetwork.KCAN).trace() == ()
+
+
 def test_topology_uses_one_global_ring_buffer_and_clear_resets_sequence() -> None:
     topology = InMemoryCanTopology(trace_capacity=2)
     kcan = topology.create_bus(CanNetwork.KCAN, "pi")

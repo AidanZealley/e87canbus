@@ -22,7 +22,6 @@ class ApplicationSnapshot:
     steering_mode: SteeringMode
     manual_assistance_level: int
     maximum_assistance_active: bool
-    strobe_active: bool
 
 
 ApplicationEvent = NeoTrellisButtonEvent | SpeedUpdateEvent
@@ -56,7 +55,6 @@ class ApplicationController:
             steering_mode=self.state.steering_mode,
             manual_assistance_level=self.state.manual_assistance_level,
             maximum_assistance_active=self.state.maximum_assistance_active,
-            strobe_active=self.state.strobe_active,
         )
 
     def handle_event(self, event: ApplicationEvent) -> tuple[ApplicationOutput, ...]:
