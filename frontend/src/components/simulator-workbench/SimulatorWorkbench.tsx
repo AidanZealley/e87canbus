@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AlertTriangleIcon } from "lucide-react"
 
 import {
@@ -13,8 +13,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CanTraceTable } from "./components/can-trace-table"
 import { FrameDetail } from "./components/frame-detail"
-import { LedGrid } from "./components/led-grid"
-import { NeoTrellisPanel } from "./components/neo-trellis-panel"
+import {
+  NeoTrellisPanel,
+  type NeoTrellisButton,
+} from "./components/neo-trellis-panel"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SteeringStatus } from "./components/steering-status"
 import type { CanTraceEntry, SimulatorEvent, SimulatorSnapshot } from "./types"
@@ -52,14 +54,15 @@ export const SimulatorWorkbench = () => {
     }
 
     setSelectedFrame((current) => {
-      if (!current) return normalized.trace.at(-1) ?? null
+      const latest = normalized.trace.at(-1) ?? null
+
+      if (!current) return latest
 
       return (
         normalized.trace.find(
           (entry) => entry.monotonic_s === current.monotonic_s
         ) ??
-        normalized.trace.at(-1) ??
-        null
+        latest
       )
     })
   }, [])
@@ -136,7 +139,26 @@ export const SimulatorWorkbench = () => {
     void runCommand(() => releaseButton(index))
   }
 
-  const ledColours = useMemo(() => snapshot.led_colours, [snapshot.led_colours])
+  const handleToggle = (index: number) => {
+    setPressedButtons((current) => {
+      const next = new Set(current)
+
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+
+      return next
+    })
+    void runCommand(() => toggleButton(index))
+  }
+
+  const neoTrellisButtons: NeoTrellisButton[] = Array.from(
+    { length: 16 },
+    (_, index) => ({
+      index,
+      pressed: pressedButtons.has(index),
+      rgb: rgbForColourCode(snapshot.led_colours[String(index)] ?? 0),
+    })
+  )
 
   return (
     <div className="min-h-svh bg-muted/30">
@@ -162,15 +184,14 @@ export const SimulatorWorkbench = () => {
           </Alert>
         ) : null}
 
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <section className="grid min-w-0 gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
+          <section className="min-w-0">
             <NeoTrellisPanel
-              pressed={pressedButtons}
+              buttons={neoTrellisButtons}
               onPress={handlePress}
               onRelease={handleRelease}
-              onToggle={(index) => void runCommand(() => toggleButton(index))}
+              onToggle={handleToggle}
             />
-            <LedGrid ledColours={ledColours} />
           </section>
           <SteeringStatus application={snapshot.application} />
         </div>
@@ -187,4 +208,23 @@ export const SimulatorWorkbench = () => {
       </main>
     </div>
   )
+}
+
+const rgbForColourCode = (
+  colourCode: number
+): NeoTrellisButton["rgb"] => {
+  switch (colourCode) {
+    case 1:
+      return [255, 0, 0]
+    case 2:
+      return [0, 255, 0]
+    case 3:
+      return [0, 0, 255]
+    case 4:
+      return [255, 191, 0]
+    case 5:
+      return [255, 255, 255]
+    default:
+      return [0, 0, 0]
+  }
 }
