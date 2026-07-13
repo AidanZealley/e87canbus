@@ -8,18 +8,18 @@ export type CanTraceEntry = {
   monotonic_s: number
 }
 
-export type SimulatorSnapshot = {
-  application: ApplicationSnapshot
-  next_pressed: boolean
-  led_colours: Record<string, number>
-  trace: CanTraceEntry[]
-}
-
 export type ApplicationSnapshot = {
   vehicle_speed_kph: number
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   strobe_active: boolean
+}
+
+export type SimulatorSnapshot = {
+  application: ApplicationSnapshot
+  next_pressed: boolean
+  led_colours: Record<string, number>
+  trace: CanTraceEntry[]
 }
 
 export type SnapshotEvent = {
