@@ -23,6 +23,15 @@ def imported_modules(path: Path) -> set[str]:
     return modules
 
 
+def called_names(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(), filename=str(path))
+    return {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+
 def test_domain_and_application_import_inwards_only() -> None:
     forbidden = {
         "e87canbus.protocol",
@@ -92,3 +101,15 @@ def test_pre_kernel_compatibility_names_are_absent() -> None:
     production = "\n".join(path.read_text() for path in PACKAGE.rglob("*.py"))
 
     assert not {name for name in obsolete if name in production}
+
+
+def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
+    paths = (
+        PACKAGE / "application" / "controller.py",
+        PACKAGE / "output.py",
+        PACKAGE / "runtime.py",
+        PACKAGE / "live.py",
+        PACKAGE / "simulation" / "engine.py",
+    )
+
+    assert all("assert_never" in called_names(path) for path in paths)

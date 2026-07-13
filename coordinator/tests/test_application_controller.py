@@ -184,6 +184,23 @@ def test_speed_validity_is_derived_from_sample_age(
     assert value.speed_valid is expected_valid
 
 
+def test_regressing_timer_cannot_make_stale_speed_valid() -> None:
+    state = transition(
+        ApplicationState(),
+        SpeedObserved(SpeedSample(42.5, 1.0, CanNetwork.FCAN)),
+        CONFIG,
+    ).state
+    stale = transition(state, ControlTimerElapsed(5.0), CONFIG).state
+
+    result = transition(stale, ControlTimerElapsed(1.5), CONFIG)
+
+    assert result.state.speed_evaluated_at == 5.0
+    assert snapshot(result.state, CONFIG).speed_valid is False
+    assert result.effects == (
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+    )
+
+
 def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     sample = SpeedSample(-2.0, 12.5, CanNetwork.PTCAN)
 

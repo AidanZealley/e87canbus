@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from typing import assert_never
 
 from e87canbus.application.controller import (
     ApplicationSnapshot,
@@ -55,8 +56,14 @@ class CanReaderFailed:
 
 
 @dataclass(frozen=True)
-class EffectExecutionFailed:
-    network: CanNetwork | None
+class CanEffectExecutionFailed:
+    network: CanNetwork
+    failed_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class SteeringActuatorFailed:
     failed_at: float
     message: str
 
@@ -78,7 +85,8 @@ KernelInput = (
     | ReceivedCanFrame
     | TimerElapsed
     | CanReaderFailed
-    | EffectExecutionFailed
+    | CanEffectExecutionFailed
+    | SteeringActuatorFailed
     | InboxOverflowed
     | ShutdownRequested
 )
@@ -92,7 +100,8 @@ class KernelLifecycle(StrEnum):
 
 class RuntimeFaultKind(StrEnum):
     CAN_READER = "can_reader"
-    EFFECT_EXECUTION = "effect_execution"
+    CAN_EFFECT_EXECUTION = "can_effect_execution"
+    STEERING_ACTUATOR = "steering_actuator"
     INBOX_OVERFLOW = "inbox_overflow"
 
 
@@ -194,53 +203,72 @@ class CoordinatorKernel:
     def dispatch(self, kernel_input: KernelInput) -> Commit | None:
         """Accept the kernel's only state-changing input path."""
 
-        if isinstance(kernel_input, ShutdownRequested):
-            if self._lifecycle is not KernelLifecycle.RUNNING:
-                self._lifecycle = KernelLifecycle.STOPPED
-                return None
-            commit = self._transition(
-                SteeringFallbackRequested(SteeringFallbackReason.SHUTDOWN)
-            )
-            self._lifecycle = KernelLifecycle.STOPPED
-            return commit
-
-        if self._lifecycle is KernelLifecycle.STOPPED:
-            return None
-
-        if isinstance(kernel_input, KernelStarted):
-            if self._lifecycle is not KernelLifecycle.CREATED:
-                return None
-            self._lifecycle = KernelLifecycle.RUNNING
-            return self._commit_startup()
-
-        if isinstance(
-            kernel_input,
-            (CanReaderFailed, EffectExecutionFailed, InboxOverflowed),
+        if (
+            self._lifecycle is KernelLifecycle.STOPPED
+            and not isinstance(kernel_input, ShutdownRequested)
         ):
-            match kernel_input:
-                case CanReaderFailed():
-                    kind = RuntimeFaultKind.CAN_READER
-                case EffectExecutionFailed():
-                    kind = RuntimeFaultKind.EFFECT_EXECUTION
-                case InboxOverflowed():
-                    kind = RuntimeFaultKind.INBOX_OVERFLOW
-            fault = RuntimeFault(kind, kernel_input.failed_at, kernel_input.message)
-            if kernel_input.network is None:
-                self._health = self._health.with_steering_actuator_fault(fault)
-            else:
-                self._health = self._health.with_fault(kernel_input.network, fault)
-            if isinstance(kernel_input, EffectExecutionFailed):
-                return None
-            return self._transition(
-                SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
-            )
-
-        if self._lifecycle is not KernelLifecycle.RUNNING:
             return None
 
-        if isinstance(kernel_input, ReceivedCanFrame):
-            return self._receive(kernel_input)
-        return self._transition(ControlTimerElapsed(kernel_input.now))
+        match kernel_input:
+            case ShutdownRequested():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    self._lifecycle = KernelLifecycle.STOPPED
+                    return None
+                commit = self._transition(
+                    SteeringFallbackRequested(SteeringFallbackReason.SHUTDOWN)
+                )
+                self._lifecycle = KernelLifecycle.STOPPED
+                return commit
+            case KernelStarted():
+                if self._lifecycle is not KernelLifecycle.CREATED:
+                    return None
+                self._lifecycle = KernelLifecycle.RUNNING
+                return self._commit_startup()
+            case CanReaderFailed(network, failed_at, message):
+                self._health = self._health.with_fault(
+                    network,
+                    RuntimeFault(RuntimeFaultKind.CAN_READER, failed_at, message),
+                )
+                return self._transition(
+                    SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
+                )
+            case InboxOverflowed(network, failed_at, message):
+                self._health = self._health.with_fault(
+                    network,
+                    RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, failed_at, message),
+                )
+                return self._transition(
+                    SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
+                )
+            case CanEffectExecutionFailed(network, failed_at, message):
+                self._health = self._health.with_fault(
+                    network,
+                    RuntimeFault(
+                        RuntimeFaultKind.CAN_EFFECT_EXECUTION,
+                        failed_at,
+                        message,
+                    ),
+                )
+                return None
+            case SteeringActuatorFailed(failed_at, message):
+                self._health = self._health.with_steering_actuator_fault(
+                    RuntimeFault(
+                        RuntimeFaultKind.STEERING_ACTUATOR,
+                        failed_at,
+                        message,
+                    )
+                )
+                return None
+            case ReceivedCanFrame():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._receive(kernel_input)
+            case TimerElapsed(now):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(ControlTimerElapsed(now))
+            case _:
+                assert_never(kernel_input)
 
     def _receive(self, received: ReceivedCanFrame) -> Commit | None:
         routed = RoutedCanFrame(network=received.network, frame=received.frame)

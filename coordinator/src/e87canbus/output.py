@@ -7,7 +7,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, assert_never
 
 from e87canbus.application.events import (
     ApplicationEffect,
@@ -23,9 +23,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class EffectFailure:
-    network: CanNetwork | None
+class CanEffectFailure:
+    network: CanNetwork
     message: str
+
+
+@dataclass(frozen=True)
+class SteeringActuatorFailure:
+    message: str
+
+
+EffectFailure = CanEffectFailure | SteeringActuatorFailure
 
 
 class SteeringActuator(Protocol):
@@ -82,45 +90,52 @@ class EffectExecutor:
     def execute(self, effects: tuple[ApplicationEffect, ...]) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
         for effect in effects:
-            if isinstance(effect, SetSteeringAssistance):
-                failure = self._execute_steering(effect)
-                if failure is not None:
-                    failures.append(failure)
-                continue
-
-            assert isinstance(effect, SetButtonLed)
-            routed = self._router.encode(effect)
-            transmitter = self._transmitters.get(routed.network)
-            if transmitter is None:
-                LOGGER.warning(
-                    "dropped effect for unavailable TX capability: network=%s id=0x%03x",
-                    routed.network.value,
-                    routed.frame.arbitration_id,
-                )
-                continue
-            try:
-                transmitter.send(routed.frame)
-            except (OSError, RuntimeError) as exc:
-                LOGGER.warning(
-                    "failed to execute effect: network=%s id=0x%03x error=%s",
-                    routed.network.value,
-                    routed.frame.arbitration_id,
-                    exc,
-                )
-                failures.append(EffectFailure(routed.network, str(exc)))
+            match effect:
+                case SetSteeringAssistance():
+                    steering_failure = self._execute_steering(effect)
+                    if steering_failure is not None:
+                        failures.append(steering_failure)
+                case SetButtonLed():
+                    can_failure = self._execute_can(effect)
+                    if can_failure is not None:
+                        failures.append(can_failure)
+                case _:
+                    assert_never(effect)
         return tuple(failures)
+
+    def _execute_can(self, effect: SetButtonLed) -> CanEffectFailure | None:
+        routed = self._router.encode(effect)
+        transmitter = self._transmitters.get(routed.network)
+        if transmitter is None:
+            LOGGER.warning(
+                "dropped effect for unavailable TX capability: network=%s id=0x%03x",
+                routed.network.value,
+                routed.frame.arbitration_id,
+            )
+            return None
+        try:
+            transmitter.send(routed.frame)
+        except (OSError, RuntimeError) as exc:
+            LOGGER.warning(
+                "failed to execute effect: network=%s id=0x%03x error=%s",
+                routed.network.value,
+                routed.frame.arbitration_id,
+                exc,
+            )
+            return CanEffectFailure(routed.network, str(exc))
+        return None
 
     def _execute_steering(
         self,
         command: SetSteeringAssistance,
-    ) -> EffectFailure | None:
+    ) -> SteeringActuatorFailure | None:
         if self._steering_actuator is None:
             return None
         try:
             self._steering_actuator.set_assistance(command)
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("failed to execute steering effect: error=%s", exc)
-            return EffectFailure(None, str(exc))
+            return SteeringActuatorFailure(str(exc))
         return None
 
 

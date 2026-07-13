@@ -1,6 +1,6 @@
 import asyncio
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from threading import Event
@@ -8,7 +8,9 @@ from typing import Any, cast
 
 import pytest
 from e87canbus.api.simulator import ConnectionManager, create_app
+from e87canbus.application.events import SetSteeringAssistance
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
+from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.engine import SimulationEngine, SimulatorSnapshot
 from fastapi import WebSocket
 from fastapi.testclient import TestClient
@@ -67,6 +69,22 @@ class FakeWebSocket:
         self.sent.append(event)
 
 
+class FailingFirstSessionController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.attempts = 0
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.attempts += 1
+        if self.attempts == 2:
+            raise OSError("timer actuator failure")
+        super().set_assistance(command)
+
+
 def test_health_and_browser_cors(client: TestClient) -> None:
     assert client.get("/api/health").json() == {"status": "ok"}
 
@@ -89,6 +107,7 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert response.status_code == 200
     body = response.json()
     assert (body["session_id"], body["revision"]) == (1, 1)
+    assert body["fatal"] is False
     assert body["trace"] == []
     assert body["application"]["steering_mode"] == "auto"
     assert body["steering_controller"] == {
@@ -234,6 +253,54 @@ def test_command_queue_overflow_returns_503_and_engine_recovers() -> None:
         assert first.result().status_code == 200
         assert second.result().status_code == 200
         assert client.post("/api/buttons/0/press").status_code == 200
+
+
+def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
+    session_count = 0
+
+    def build_controller(
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> SimulatedSteeringController:
+        nonlocal session_count
+        session_count += 1
+        controller_type = (
+            FailingFirstSessionController
+            if session_count == 1
+            else SimulatedSteeringController
+        )
+        return controller_type(watchdog_timeout_s, clock)
+
+    config = replace(
+        simulator_config(),
+        simulation=SimulationConfig(command_queue_capacity=64),
+        tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
+        tick_interval_s=0.01,
+    )
+    app = create_app(
+        SimulationEngine(
+            config=config,
+            steering_controller_factory=build_controller,
+        )
+    )
+    manager = RecordingManager()
+    app.state.manager = manager
+
+    with TestClient(app) as client:
+        deadline = time.monotonic() + 1.0
+        while not any(
+            event["type"] == "snapshot" and event["snapshot"]["fatal"]
+            for events in manager.broadcasts
+            for event in events
+        ):
+            assert time.monotonic() < deadline
+
+        reset = client.post("/api/reset")
+        assert (reset.json()["revision"], reset.json()["fatal"]) == (1, False)
+
+        deadline = time.monotonic() + 1.0
+        while client.get("/api/snapshot").json()["revision"] == 1:
+            assert time.monotonic() < deadline
 
 
 @pytest.mark.asyncio

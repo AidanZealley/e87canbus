@@ -1,7 +1,12 @@
+from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.events import ButtonPressed, SteeringCommandReason
+from e87canbus.application.events import (
+    ButtonPressed,
+    SetSteeringAssistance,
+    SteeringCommandReason,
+)
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 from e87canbus.protocol.generated import (
@@ -10,7 +15,7 @@ from e87canbus.protocol.generated import (
     LED_COLOUR_OFF,
     LED_COLOUR_WHITE,
 )
-from e87canbus.runtime import ReceivedCanFrame
+from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.engine import (
     PressButton,
     ReleaseButton,
@@ -18,6 +23,7 @@ from e87canbus.simulation.engine import (
     RunControlTimer,
     SetVehicleSpeed,
     SimulationEngine,
+    SimulationSessionFailed,
     StepButton,
 )
 
@@ -39,6 +45,22 @@ class MutableClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+class FailingSteeringController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.attempts = 0
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.attempts += 1
+        if self.attempts >= 2:
+            raise OSError(f"actuator failed on attempt {self.attempts}")
+        super().set_assistance(command)
 
 
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
@@ -106,6 +128,43 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert next_snapshot.trace[0].sequence == 1
 
 
+def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy() -> None:
+    clock = MutableClock()
+    controllers: list[FailingSteeringController] = []
+
+    def build_controller(
+        watchdog_timeout_s: float,
+        controller_clock: Callable[[], float],
+    ) -> SimulatedSteeringController:
+        controller = FailingSteeringController(watchdog_timeout_s, controller_clock)
+        controllers.append(controller)
+        return controller
+
+    engine = build_test_engine(
+        clock=clock,
+        steering_controller_factory=build_controller,
+    )
+
+    failure_result = engine.execute(RunControlTimer(1.0))
+    failed = failure_result.snapshot
+
+    assert failed.fatal is True
+    assert failed.revision == engine.kernel.diagnostics().revision == 3
+    assert [event["type"] for event in failure_result.events] == ["snapshot"]
+    assert engine.kernel.health.steering_actuator_fault is not None
+    assert engine.kernel.health.steering_actuator_fault.message == (
+        "actuator failed on attempt 2"
+    )
+    assert controllers[0].attempts == 3
+    with pytest.raises(SimulationSessionFailed, match="reset required"):
+        engine.execute(PressButton(0))
+
+    reset = engine.execute(ResetSimulation()).snapshot
+
+    assert (reset.session_id, reset.revision, reset.fatal) == (2, 1, False)
+    assert reset.revision == engine.kernel.diagnostics().revision
+
+
 def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
     snapshot = build_test_engine().snapshot()
 
@@ -135,23 +194,6 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
     )
     assert ptcan.connected is False
     assert ptcan.nodes == ("simulated-vehicle",)
-
-
-def test_same_button_id_on_other_networks_does_not_change_application() -> None:
-    clock = MutableClock(3.0)
-    controller = build_test_engine(clock=clock)
-    button_frame = controller.neotrellis.send_button_event(0, True)
-    # Drain the real K-CAN event without processing it, then replay its ID on other networks.
-    assert controller.pi_buses[CanNetwork.KCAN].receive(timeout_s=0) == button_frame
-
-    controller.kernel.dispatch(
-        ReceivedCanFrame(CanNetwork.PTCAN, button_frame, received_at=clock())
-    )
-    controller.kernel.dispatch(
-        ReceivedCanFrame(CanNetwork.FCAN, button_frame, received_at=clock())
-    )
-
-    assert controller.kernel.snapshot().steering_mode is SteeringMode.AUTO
 
 
 def test_invalid_button_index_raises() -> None:

@@ -15,7 +15,7 @@ record corrections in the current entry so the migration history remains visible
 | 6 — Simulator and API cutover | done | 2026-07-13 |
 | 7 — Protocol source of truth and cleanup | done | 2026-07-13 |
 | 8 — Steering failsafe groundwork | done with simulator-only deviation | 2026-07-13 |
-| 9 — Correctness and safety truth | pending | — |
+| 9 — Correctness and safety truth | done | 2026-07-13 |
 | 10 — Simulation semantics and observability | pending | — |
 | 11 — Operational hardening and closeout | pending | — |
 
@@ -526,3 +526,69 @@ passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; 
 `pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 6 passed; `git diff --check` — passed.
 No generated protocol artifact or firmware changed, so generation and actuator-firmware build steps
 were not applicable beyond the generator drift check.
+
+## Phase 9 — Correctness and safety truth (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Made both speed observations and control timers preserve the maximum evaluation timestamp; a
+  delayed frame or regressing timer can no longer make stale speed valid.
+- Replaced the optional-network output failure with closed `CanEffectFailure` and
+  `SteeringActuatorFailure` values and corresponding typed kernel inputs. Application effects,
+  execution failures, and kernel inputs now end exhaustive matches with `assert_never`.
+- Made simulator output faults terminal. The engine records each failure after its originating
+  commit, commits and attempts shutdown once, exposes fatal status, and rejects normal commands
+  until reset creates a fresh session.
+- Kept the API timer owner alive while a session is terminal so reset resumes periodic evaluation,
+  and made a timer publish whenever fatal health changes even if application and actuator
+  projections are otherwise unchanged.
+- Deleted the simulator-owned revision mirror. Simulator snapshots now read revision and fatal
+  health together from kernel diagnostics; failure shutdown and reset paths cannot publish a
+  different revision source.
+- Preserved bounded live failure handling while ensuring a failure of a reader/overflow fallback is
+  recorded before the loop exits; the final shutdown effect remains a single non-recursive attempt.
+- Rewrote the authoritative steering context and current root, coordinator, simulation, and wiring
+  guidance to separate desired behavior from unknown command transport, electrical behavior,
+  valve response, feedback, safe state, watchdog, topology, and provisional IDs.
+
+**Deviations from the phase doc:** None.
+
+**Safety invariants verified:** Explicit-time transition tests prove neither a regressing timer nor
+a delayed old frame can move evaluation time backwards. Executor and kernel tests prove CAN and
+actuator failures are distinct frozen values with no optional discriminator. Simulator composition
+tests prove commit-before-effect ordering, fatal health publication, kernel/published revision
+equality, rejection of later normal commands, one bounded shutdown attempt, and healthy reset at
+revision one. Live tests prove CAN output failure remains non-zero, reader and overflow faults
+command fallback before shutdown, and a failing fallback is recorded once without retrying
+shutdown. Existing architecture and full-suite coverage continues to prove default live TX denial,
+bounded ingress, one state owner, capability-controlled effects, and same-path simulated CAN.
+
+**Complexity delta:** Deleted `EffectFailure.network: CanNetwork | None`, the generic
+`EffectExecutionFailed` input and runtime branch, `SimulationEngine._revision`, direct timer-time
+assignment, implicit application-event fallthrough, and the live branch that could discard a
+fallback execution failure. Deleted a simulator test that drained endpoints and dispatched the
+kernel directly; its cross-network decoding rule now lives at the router/runtime boundary. Two
+small failure dataclasses at each I/O boundary replace hidden type tags and make invalid
+actuator/network combinations unrepresentable. Local direct conversion
+helpers keep live and simulation control flow explicit without introducing a shared dispatcher.
+The simulator accepts a small controller-construction callable so each reset still owns a fresh
+external device while failure behavior can be supplied through the real executor capability. No
+compatibility alias, parallel revision, generic event bus, registry, retry loop, or deliberately
+deferred in-scope simplification remains.
+
+**Discovered along the way:** The live loop checked already-fatal reader/overflow health before
+feeding back a failure produced by the committed fallback effect. Reordering pending failures ahead
+of the terminal return closes that gap without recursive kernel entry. Post-completion review also
+found that the periodic API timer returned on terminal health and fatal-only timer changes were not
+published; both lifecycle defects and the remaining simulator-internal test were corrected before
+Phase 10. The existing Starlette `TestClient` deprecation warning remains unrelated. Physical
+steering evidence remains unavailable, so no BMW speed definition, electrical value, actuator
+adapter, or live grant was added.
+
+**Checks:** `uv run pytest -q` — 173 passed, 1 existing Starlette deprecation warning;
+`uv run mypy` — success, no issues in 30 source files; `uv run ruff check coordinator` — all checks
+passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; `git diff --check` —
+passed. Frontend, generated protocol artifacts, and actuator firmware did not change, so frontend
+and firmware checks were not applicable.

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import assert_never
 
 from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
+    ButtonPressed,
     ControlTimerElapsed,
     LedColour,
     SetButtonLed,
@@ -52,42 +54,45 @@ def transition(
 ) -> Transition:
     """Return the complete next state and ordered effects for one event."""
 
-    if isinstance(event, SpeedObserved):
-        return Transition(
-            replace(
+    match event:
+        case SpeedObserved(sample):
+            return Transition(
+                replace(
+                    state,
+                    speed_sample=replace(sample, speed_kph=max(0.0, sample.speed_kph)),
+                    speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
+                )
+            )
+        case ControlTimerElapsed(now):
+            next_state = replace(
                 state,
-                speed_sample=replace(event.sample, speed_kph=max(0.0, event.sample.speed_kph)),
-                speed_evaluated_at=max(
-                    state.speed_evaluated_at,
-                    event.sample.observed_at,
+                speed_evaluated_at=max(state.speed_evaluated_at, now),
+            )
+            return Transition(next_state, (_steering_command(next_state, config),))
+        case SteeringFallbackRequested(reason):
+            return Transition(
+                state,
+                (
+                    SetSteeringAssistance(
+                        0.0,
+                        SteeringCommandReason(reason.value),
+                    ),
                 ),
             )
-        )
-    if isinstance(event, ControlTimerElapsed):
-        next_state = replace(state, speed_evaluated_at=event.now)
-        return Transition(next_state, (_steering_command(next_state, config),))
-    if isinstance(event, SteeringFallbackRequested):
-        return Transition(
-            state,
-            (
-                SetSteeringAssistance(
-                    0.0,
-                    SteeringCommandReason(event.reason.value),
-                ),
-            ),
-        )
-
-    match event.button_index:
-        case 0:
-            return _toggle_steering_mode(state)
-        case 1:
-            return _adjust_assistance(state, -1, config)
-        case 2:
-            return _adjust_assistance(state, 1, config)
-        case 3:
-            return _toggle_maximum_assistance(state)
+        case ButtonPressed(button_index):
+            match button_index:
+                case 0:
+                    return _toggle_steering_mode(state)
+                case 1:
+                    return _adjust_assistance(state, -1, config)
+                case 2:
+                    return _adjust_assistance(state, 1, config)
+                case 3:
+                    return _toggle_maximum_assistance(state)
+                case _:
+                    return Transition(state)
         case _:
-            return Transition(state)
+            assert_never(event)
 
 
 def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:

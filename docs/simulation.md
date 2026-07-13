@@ -71,11 +71,16 @@ decode, transition, commit, effect-execution, and TX-policy path as the live Pi 
 devices emit frames onto the in-memory networks, and the engine timestamps those frames at receipt
 before submitting them through the kernel's sole `dispatch` entry point.
 
-Snapshots carry the committed application revision and simulation session ID. Reset starts a new
-session because trace sequence numbers restart at one; frame identity is therefore the pair of
-session ID and sequence. Initial loads and resets carry the complete trace. Command snapshots omit
-it and WebSocket frame events append only the new trace entries. Periodic timers publish a snapshot
-only when that operation changes the public application projection.
+Snapshots carry the kernel-owned revision, fatal-health status, and simulation session ID. Reset
+starts a new session because trace sequence numbers restart at one; frame identity is therefore the
+pair of session ID and sequence. Initial loads and resets carry the complete trace. Command
+snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
+publish a snapshot only when that operation changes the public application projection.
+
+A CAN or simulated-actuator output failure is fed back through the kernel after its originating
+commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
+normal commands until reset. A failure during that final attempt is not retried. Reset constructs a
+healthy session whose new kernel starts at revision one.
 
 It models three independent CAN broadcast domains:
 
@@ -108,7 +113,9 @@ also select zero assistance with a reason before the live loop exits.
 
 The simulated steering controller is an executor capability rather than a K-CAN node because no
 actuator wire protocol is known. Its 250 ms watchdog derives zero assistance when command refreshes
-stop. Zero is only the simulator's fallback; it is not a verified safe current or electrical state.
+stop. Zero is only the simulator's fallback; it is not a verified physical command or electrical
+safe state. Physical command transport, range and polarity, valve response, feedback, controller
+topology, and watchdog behavior remain unknown.
 
 ## Linux vcan Simulation
 

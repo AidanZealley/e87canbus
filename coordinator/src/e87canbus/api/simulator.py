@@ -25,6 +25,7 @@ from e87canbus.simulation.engine import (
     SimulationCommand,
     SimulationEngine,
     SimulationResult,
+    SimulationSessionFailed,
     SimulatorSnapshot,
     StepButton,
     snapshot_event,
@@ -116,6 +117,8 @@ def create_app(
                 await asyncio.sleep(simulation.config.tick_interval_s)
                 try:
                     await _submit(app, RunControlTimer(clock()))
+                except SimulationSessionFailed:
+                    continue
                 except HTTPException as exc:
                     if exc.status_code != 503:
                         raise
@@ -192,6 +195,8 @@ async def _run_command(app: FastAPI, command: SimulationCommand) -> dict[str, An
         result = await _submit(app, command)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except SimulationSessionFailed as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return snapshot_to_dict(result.snapshot, include_trace=False)
 
 

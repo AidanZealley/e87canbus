@@ -5,21 +5,28 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
-from e87canbus.output import EffectExecutor, SafeCanTransmitter
+from e87canbus.output import (
+    CanEffectFailure,
+    EffectExecutor,
+    EffectFailure,
+    SafeCanTransmitter,
+    SteeringActuatorFailure,
+)
 from e87canbus.runtime import (
+    CanEffectExecutionFailed,
     Commit,
     CoordinatorKernel,
-    EffectExecutionFailed,
     KernelInput,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    SteeringActuatorFailed,
     TimerElapsed,
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
@@ -49,6 +56,7 @@ class SimulatedSteeringSnapshot:
 class SimulatorSnapshot:
     session_id: int
     revision: int
+    fatal: bool
     application: ApplicationSnapshot
     next_pressed: bool
     led_colours: dict[int, int]
@@ -103,6 +111,17 @@ class SimulationResult:
     events: tuple[dict[str, Any], ...]
 
 
+class SimulationSessionFailed(RuntimeError):
+    """Raised when a normal command targets a terminal simulation session."""
+
+
+SteeringControllerFactory = Callable[
+    [float, Callable[[], float]],
+    SimulatedSteeringController,
+]
+EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
+
+
 def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict[str, Any]:
     return {
         "type": "frame",
@@ -137,6 +156,7 @@ def snapshot_to_dict(
     serialized: dict[str, Any] = {
         "session_id": snapshot.session_id,
         "revision": snapshot.revision,
+        "fatal": snapshot.fatal,
         "application": {
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
             "speed_valid": snapshot.application.speed_valid,
@@ -177,6 +197,7 @@ class SimulationEngine:
         *,
         config: AppConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
+        steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
     ) -> None:
         if button_count < 1 or button_count > 256:
             raise ValueError("button_count must be between 1 and 256")
@@ -185,14 +206,16 @@ class SimulationEngine:
             self.config = replace(self.config, custom_can_ids=ids)
         self.button_count = button_count
         self._clock = clock
+        self._steering_controller_factory = steering_controller_factory
         self._session_id = 0
-        self._revision = 0
         self._build_session()
 
     def snapshot(self) -> SimulatorSnapshot:
+        diagnostics = self.kernel.diagnostics()
         return SimulatorSnapshot(
             session_id=self._session_id,
-            revision=self._revision,
+            revision=diagnostics.revision,
+            fatal=diagnostics.health.fatal,
             application=self.kernel.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
             led_colours=dict(self.neotrellis.led_colours),
@@ -209,9 +232,15 @@ class SimulationEngine:
         )
 
     def execute(self, command: SimulationCommand) -> SimulationResult:
+        if self.kernel.health.fatal and not isinstance(command, ResetSimulation):
+            raise SimulationSessionFailed(
+                "simulation session has fatal kernel health; reset required"
+            )
+
         before_sequence = self.topology.latest_sequence
         before_application = self.kernel.snapshot()
         before_steering = self._steering_snapshot()
+        before_fatal = self.kernel.health.fatal
         snapshot_trace: bool | None = False
 
         match command:
@@ -245,6 +274,7 @@ class SimulationEngine:
             and (
                 result.snapshot.application != before_application
                 or result.snapshot.steering_controller != before_steering
+                or result.snapshot.fatal != before_fatal
             )
         ):
             return replace(
@@ -282,9 +312,9 @@ class SimulationEngine:
             bus=self.topology.create_bus(CanNetwork.KCAN, "neotrellis"),
             ids=self.config.custom_can_ids,
         )
-        self.steering_controller = SimulatedSteeringController(
-            watchdog_timeout_s=self.config.simulation.steering_watchdog_timeout_s,
-            clock=self._clock,
+        self.steering_controller = self._steering_controller_factory(
+            self.config.simulation.steering_watchdog_timeout_s,
+            self._clock,
         )
 
         router = SimulationProtocolRouter(self.config.custom_can_ids)
@@ -352,11 +382,18 @@ class SimulationEngine:
         commit = self.kernel.dispatch(kernel_input)
         if commit is None:
             return None
-        self._revision = commit.revision
-        for failure in self.executor.execute(commit.effects):
-            self.kernel.dispatch(
-                EffectExecutionFailed(failure.network, self._clock(), failure.message)
-            )
+        failures = self.executor.execute(commit.effects)
+        if not failures:
+            return commit
+
+        for failure in failures:
+            self.kernel.dispatch(_effect_failure_input(failure, self._clock()))
+
+        shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
+        if shutdown is not None:
+            # The terminal fallback is attempted once. A second actuator failure is not fed
+            # back into the stopped kernel or retried, preserving the original fault.
+            self.executor.execute(shutdown.effects)
         return commit
 
     def _steering_snapshot(self) -> SimulatedSteeringSnapshot:
@@ -369,3 +406,16 @@ class SimulationEngine:
     def _validate_button_index(self, button_index: int) -> None:
         if not 0 <= button_index < self.button_count:
             raise ValueError(f"button_index must be between 0 and {self.button_count - 1}")
+
+
+def _effect_failure_input(
+    failure: EffectFailure,
+    failed_at: float,
+) -> EffectFailureInput:
+    match failure:
+        case CanEffectFailure(network, message):
+            return CanEffectExecutionFailed(network, failed_at, message)
+        case SteeringActuatorFailure(message):
+            return SteeringActuatorFailed(failed_at, message)
+        case _:
+            assert_never(failure)

@@ -15,15 +15,16 @@ from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
+    CanEffectExecutionFailed,
     CanReaderFailed,
     CoordinatorKernel,
-    EffectExecutionFailed,
     InboxOverflowed,
     KernelLifecycle,
     KernelStarted,
     ReceivedCanFrame,
     RuntimeFaultKind,
     ShutdownRequested,
+    SteeringActuatorFailed,
     TimerElapsed,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
@@ -47,6 +48,7 @@ def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() ->
     released = CanFrame(ids.button_event, b"\x00\x00")
 
     assert router.decode(RoutedCanFrame(CanNetwork.PTCAN, pressed), 1.0) is None
+    assert router.decode(RoutedCanFrame(CanNetwork.FCAN, pressed), 1.0) is None
     assert router.decode(RoutedCanFrame(CanNetwork.KCAN, released), 1.0) is None
     assert router.decode(RoutedCanFrame(CanNetwork.KCAN, pressed), 1.0) == ButtonPressed(0)
 
@@ -115,8 +117,8 @@ def test_unknown_and_malformed_frames_create_no_commits(
     [
         (CanReaderFailed(CanNetwork.FCAN, 1.0, "reader"), RuntimeFaultKind.CAN_READER),
         (
-            EffectExecutionFailed(CanNetwork.KCAN, 2.0, "effect"),
-            RuntimeFaultKind.EFFECT_EXECUTION,
+            CanEffectExecutionFailed(CanNetwork.KCAN, 2.0, "effect"),
+            RuntimeFaultKind.CAN_EFFECT_EXECUTION,
         ),
         (
             InboxOverflowed(CanNetwork.PTCAN, 3.0, "overflow"),
@@ -125,7 +127,7 @@ def test_unknown_and_malformed_frames_create_no_commits(
     ],
 )
 def test_fault_inputs_are_visible_in_immutable_runtime_health(
-    kernel_input: CanReaderFailed | EffectExecutionFailed | InboxOverflowed,
+    kernel_input: CanReaderFailed | CanEffectExecutionFailed | InboxOverflowed,
     kind: RuntimeFaultKind,
 ) -> None:
     kernel = CoordinatorKernel()
@@ -138,13 +140,26 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     assert fault is not None
     assert fault.kind is kind
     assert kernel.health.fatal is True
-    if isinstance(kernel_input, EffectExecutionFailed):
+    if isinstance(kernel_input, CanEffectExecutionFailed):
         assert commit is None
     else:
         assert commit is not None
         assert commit.effects == (
             SetSteeringAssistance(0.0, SteeringCommandReason.RUNTIME_FAULT),
         )
+
+
+def test_steering_actuator_failure_has_explicit_fatal_health() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+
+    commit = kernel.dispatch(SteeringActuatorFailed(2.0, "actuator"))
+
+    assert commit is None
+    assert kernel.health.steering_actuator_fault is not None
+    assert kernel.health.steering_actuator_fault.kind is RuntimeFaultKind.STEERING_ACTUATOR
+    assert kernel.health.steering_actuator_fault.message == "actuator"
+    assert kernel.health.fatal is True
 
 
 def test_speed_staleness_uses_explicit_input_times() -> None:

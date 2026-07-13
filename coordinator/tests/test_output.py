@@ -8,7 +8,12 @@ from e87canbus.application.events import (
     SteeringCommandReason,
 )
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.output import EffectExecutor, SafeCanTransmitter
+from e87canbus.output import (
+    CanEffectFailure,
+    EffectExecutor,
+    SafeCanTransmitter,
+    SteeringActuatorFailure,
+)
 from e87canbus.protocol.can import CanFrame
 
 
@@ -41,6 +46,11 @@ class FailingSteeringActuator:
         raise OSError(f"failed {command.assistance}")
 
 
+class FailingTransmitter:
+    def send(self, frame: CanFrame) -> None:
+        raise OSError(f"failed {frame.arbitration_id}")
+
+
 def test_default_executor_has_no_transmit_capability(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -70,16 +80,24 @@ def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
     assert actuator.commands == [command]
 
 
-def test_steering_failure_has_no_fake_can_network() -> None:
+def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
     command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
+    executor = EffectExecutor(
+        {
+            CanNetwork.KCAN: SafeCanTransmitter(
+                FailingTransmitter(),
+                TxPolicyConfig(),
+            )
+        },
+        steering_actuator=FailingSteeringActuator(),
+    )
 
-    failures = EffectExecutor(
-        steering_actuator=FailingSteeringActuator()
-    ).execute((command,))
+    failures = executor.execute((SetButtonLed(0, LedColour.BLUE), command))
 
-    assert len(failures) == 1
-    assert failures[0].network is None
-    assert failures[0].message == "failed 0.5"
+    assert failures == (
+        CanEffectFailure(CanNetwork.KCAN, "failed 1793"),
+        SteeringActuatorFailure("failed 0.5"),
+    )
 
 
 def test_alternating_payloads_on_one_id_share_network_window(

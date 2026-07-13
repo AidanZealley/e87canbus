@@ -29,7 +29,10 @@ verified before physical connection.
 
 ## Servotronic Solenoid Driver
 
-Pending solenoid resistance measurement and current-driver selection. Do not drive the solenoid directly from GPIO.
+No physical steering output is designed or approved. Command transport, electrical range and
+polarity, valve behavior, feedback, safe state, watchdog behavior, and controller topology all
+remain unknown. Keep project hardware disconnected from the actuator until those properties are
+verified and documented; only then can an output circuit be selected and reviewed.
 
 ## Arduino/NeoTrellis Node
 

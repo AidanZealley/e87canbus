@@ -14,13 +14,14 @@ from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
+    CanEffectExecutionFailed,
     CanReaderFailed,
     CoordinatorKernel,
-    EffectExecutionFailed,
     KernelInput,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    SteeringActuatorFailed,
     TimerElapsed,
 )
 
@@ -54,6 +55,18 @@ class RecordingActuator:
 
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         self.commands.append(command)
+
+
+class FailingFallbackActuator(RecordingActuator):
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempts = 0
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.attempts += 1
+        if self.attempts >= 2:
+            raise OSError(f"failed attempt {self.attempts}")
+        super().set_assistance(command)
 
 
 class MutableClock:
@@ -380,8 +393,8 @@ def test_effect_failure_is_dispatched_after_execution_without_reentry() -> None:
 
     assert failed is True
     assert isinstance(kernel.inputs[0], KernelStarted)
-    assert isinstance(kernel.inputs[1], EffectExecutionFailed)
-    assert isinstance(kernel.inputs[2], EffectExecutionFailed)
+    assert isinstance(kernel.inputs[1], CanEffectExecutionFailed)
+    assert isinstance(kernel.inputs[2], CanEffectExecutionFailed)
     assert isinstance(kernel.inputs[3], ShutdownRequested)
     assert len(set(kernel.dispatch_thread_ids)) == 1
 
@@ -472,6 +485,29 @@ def test_reader_fault_commands_fallback_before_shutdown() -> None:
         SteeringCommandReason.SHUTDOWN,
     ]
     assert all(command.assistance == 0.0 for command in actuator.commands[-2:])
+
+
+def test_failure_during_live_fallback_is_recorded_once_before_shutdown() -> None:
+    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox.put(CanReaderFailed(CanNetwork.FCAN, 1.0, "receive failed"))
+    actuator = FailingFallbackActuator()
+    kernel = RecordingKernel()
+
+    failed = run_coordinator_loop(
+        kernel,
+        EffectExecutor(steering_actuator=actuator),
+        inbox,
+        threading.Event(),
+        InboxOverflow(),
+        0.1,
+        1.0,
+    )
+
+    assert failed is True
+    assert any(isinstance(item, SteeringActuatorFailed) for item in kernel.inputs)
+    assert kernel.health.steering_actuator_fault is not None
+    assert kernel.health.steering_actuator_fault.message == "failed attempt 2"
+    assert actuator.attempts == 3
 
 
 def test_inbox_overflow_commands_fallback_before_shutdown() -> None:

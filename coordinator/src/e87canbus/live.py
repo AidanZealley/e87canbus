@@ -7,22 +7,30 @@ import queue
 import threading
 import time
 from collections.abc import Callable
+from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.output import EffectExecutor, SafeCanTransmitter
+from e87canbus.output import (
+    CanEffectFailure,
+    EffectExecutor,
+    EffectFailure,
+    SafeCanTransmitter,
+    SteeringActuatorFailure,
+)
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
+    CanEffectExecutionFailed,
     CanReaderFailed,
     Commit,
     CoordinatorKernel,
-    EffectExecutionFailed,
     InboxOverflowed,
     KernelInput,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    SteeringActuatorFailed,
     TimerElapsed,
 )
 
@@ -35,6 +43,7 @@ MAX_CONSECUTIVE_READER_ERRORS = 3
 INITIAL_READER_ERROR_BACKOFF_S = 0.05
 
 ReaderInput = ReceivedCanFrame | CanReaderFailed
+EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
 
 
 class InboxOverflow:
@@ -150,14 +159,20 @@ def run_coordinator_loop(
     next_tick = clock() + tick_interval_s
     try:
         while True:
-            overflow_input = overflow.kernel_input
-            if overflow_input is not None:
-                _execute(kernel.dispatch(overflow_input), executor, clock)
-                return True
-
             if pending_failures:
                 for failure in pending_failures:
                     kernel.dispatch(failure)
+                return True
+
+            overflow_input = overflow.kernel_input
+            if overflow_input is not None:
+                pending_failures = _execute(
+                    kernel.dispatch(overflow_input),
+                    executor,
+                    clock,
+                )
+                if pending_failures:
+                    continue
                 return True
 
             if stop.is_set():
@@ -184,6 +199,8 @@ def run_coordinator_loop(
                     executor,
                     clock,
                 )
+                if pending_failures:
+                    continue
                 if kernel.health.fatal:
                     return True
 
@@ -208,13 +225,26 @@ def _execute(
     commit: Commit | None,
     executor: EffectExecutor,
     clock: Callable[[], float],
-) -> tuple[EffectExecutionFailed, ...]:
+) -> tuple[EffectFailureInput, ...]:
     if commit is None:
         return ()
     return tuple(
-        EffectExecutionFailed(failure.network, clock(), failure.message)
+        _effect_failure_input(failure, clock())
         for failure in executor.execute(commit.effects)
     )
+
+
+def _effect_failure_input(
+    failure: EffectFailure,
+    failed_at: float,
+) -> EffectFailureInput:
+    match failure:
+        case CanEffectFailure(network, message):
+            return CanEffectExecutionFailed(network, failed_at, message)
+        case SteeringActuatorFailure(message):
+            return SteeringActuatorFailed(failed_at, message)
+        case _:
+            assert_never(failure)
 
 
 def run_live(config: AppConfig) -> int:

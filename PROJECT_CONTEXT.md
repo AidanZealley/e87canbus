@@ -10,7 +10,8 @@
 - **Engine:** N52 (silver top) — DME likely **MSD80**
 - **Use case:** Track only — road legality is not a concern
 - **Interior:** Largely stripped. iDrive controller removed (leaving a dangling K-CAN connector). Interior fusebox exposed. Stereo and associated controls removed.
-- **Steering rack:** Retrofitted E9x M3 rack with **Servotronic** (speed-sensitive hydraulic power steering via solenoid valve)
+- **Steering rack:** Retrofitted E9x M3 rack with **Servotronic**; its valve and electrical
+  interface have not yet been characterized for this project
 
 ### CAN Network Notes
 
@@ -34,7 +35,7 @@ The E87 shares the same CAN architecture as the E90. E90 documentation, DBC file
 | K-CAN | Dangling iDrive connector behind dash | Already disconnected, clean access, twisted pair visible |
 | K-CAN (alternative) | Junction Box (JB) main harness connector | JB is a primary K-CAN node |
 | PT-CAN | Junction Box area / engine bay near DME | JB bridges PT-CAN; also accessible at DME connector |
-| F-CAN | DSC module connector in engine bay | Primary source for wheel speed |
+| F-CAN | DSC module connector in engine bay | Candidate tap for vehicle-speed capture |
 
 ### Wiring / Tap Method
 
@@ -51,27 +52,28 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 
 ### 1. Speed-Sensitive Power Steering (Servotronic Control)
 
-**Goal:** Read vehicle/wheel speed from CAN and dynamically adjust Servotronic solenoid current — more assistance at low speed, less at high speed. Manual override mode selectable from button matrix.
+**Product goal:** Select speed-sensitive assistance in Auto mode, bounded fixed assistance levels in
+Manual mode, and a temporary maximum-assistance selection from the button matrix.
 
-**How Servotronic works:** A solenoid valve on the M3 rack bleeds hydraulic pressure. Higher current = less assistance. Normally driven by an OEM Servotronic module reading speed from CAN.
+The current implementation proves only hardware-independent control behavior. It selects a
+dimensionless `0.0..1.0` assistance value in the simulator. The synthetic simulator speed frame is
+not a BMW definition, and the simulated zero-assistance fallback is not evidence of a physical safe
+state.
 
-**Preferred approach — bypass OEM module, drive solenoid directly:**
-- Pi reads wheel speed from F-CAN (`0x1A0` expected — verify via candump)
-- Pi calculates target current from a tunable assistance curve
-- Pi outputs PWM → current driver IC → solenoid
+**Physical evidence still required:**
 
-**Current driver circuit (do not use raw GPIO):**
-- Solenoid is an inductive load requiring constant-current drive
-- Recommended ICs: **VNH5019** or **DRV8871** (handle inductive kickback internally, accept PWM input)
-- Measure solenoid resistance before choosing driver (expect 5–20Ω on M3 Servotronic solenoid)
-- Add flyback diode if not built into chosen IC
+- Verified vehicle-speed captures, including source network, arbitration ID, payload decoding,
+  cadence, malformed-traffic behavior, and loss behavior.
+- The rack valve's command transport, command range and polarity, response to commands, and any
+  available feedback.
+- The electrical safe state and behavior during power loss, disconnection, coordinator failure, and
+  stale commands.
+- The actuator interface and watchdog architecture. It is not yet known whether output should be
+  driven by the Pi, a separate controller, an existing vehicle module, or another arrangement.
 
-**Control modes:**
-- **Auto mode:** vehicle speed → lookup/curve → target current (e.g. 0 km/h = 800mA, 100 km/h = 200mA, tunable)
-- **Manual mode:** fixed current level set by button presses (8 levels suggested), shown on NeoTrellis LEDs
-- **Pit/override:** button hold for maximum assistance
-
-**Alternative approach (simpler, less control):** Spoof the wheel speed CAN message to trick the OEM Servotronic module into thinking the car is going faster or slower than it is. Reversible, no hardware change, but limited precision and harder to implement manual mode.
+No physical command value, electrical design, driver component, output waveform, BMW speed ID, or
+live actuator grant is selected. Candidate IDs found in old notes remain unverified research and
+must not be added to executable protocol code without named captures from this vehicle.
 
 ---
 
@@ -84,7 +86,9 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 - Identify the CAN frame that the DSC module acts on (appears after the required hold duration)
 - Replay that exact frame from the Pi on button press
 
-**Likely message ID:** Around `0x316` or `0x399` — verify on this specific car.
+**Unverified research:** `0x316` and `0x399` appear in old candidate notes. They are not executable
+definitions or replay instructions; identify the behavior from named captures on this car before
+promoting either value.
 
 **Rolling counter caveat:** Check captured frames for a byte that increments with each transmission. If present, static frame replay won't work — need to implement the counter logic. Inspect 5–10 captures of the same action to identify incrementing bytes.
 
@@ -144,9 +148,7 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 | Raspberry Pi Zero 2W + CAN interfaces | Central hub, runs all logic | K-CAN, PT-CAN, and F-CAN |
 | Arduino (small CAN board) | Button matrix node | K-CAN |
 | Adafruit NeoTrellis | RGB button matrix input/output | Via Arduino (I2C) |
-| Steering controller | Future Servotronic actuator node | K-CAN |
-| Current driver IC (VNH5019 / DRV8871) | Solenoid driver | GPIO PWM from Pi |
-| Servotronic solenoid | Steering assistance actuator | Driven by current driver IC |
+| Future steering actuation boundary | Unknown pending hardware evidence | Not selected |
 
 ### CAN HAT Notes
 
@@ -160,24 +162,25 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 
 - Pi needs stable 5V — use an automotive-grade DC-DC converter (Pololu or DROK) with input capacitance
 - Do not power Pi directly from ignition-switched line until tested — brownout during boot can corrupt SD card
-- Solenoid driver powered from 12V rail with appropriate fusing
+- Steering actuation power and protection are not designed; they depend on the verified actuator
+  boundary and electrical safe state
 
 ### Physical CAN Topology
 
 ```
-K-CAN  (100k) ──── Pi ──── Arduino + NeoTrellis ──── Steering controller
+K-CAN  (100k) ──── Pi ──── Arduino + NeoTrellis
                    │
                    └─────── Vehicle K-CAN nodes
 
 PT-CAN (500k) ──── Pi ──── Vehicle PT-CAN nodes
 
 F-CAN  (500k) ──── Pi ──── Vehicle F-CAN nodes
-
-Pi GPIO (PWM) ──── Current driver IC ──── Servotronic solenoid
 ```
 
 These are three independent physical networks. The coordinator does not automatically forward
 frames between them; future domain-level bridging must be explicit application behavior.
+The physical steering actuation topology is deliberately omitted because it has not been selected
+or verified.
 
 ---
 
@@ -284,9 +287,11 @@ No BMW DBC definition is verified or active in the current milestone.
 3. **Connect Pi HAT to K-CAN via iDrive connector** — verify bus access with `candump`
 4. **Sniff K-CAN session:** press every MFL button (short and long), operate lights. Log everything.
 5. **Cross-reference with E90 DBC files** — confirm message IDs match. Community sources: search GitHub for `e90_can` or `bmw_dbc`
-6. **Connect second CAN interface to F-CAN** — verify wheel speed message at `0x1A0`
+6. **Connect second CAN interface to F-CAN** — capture candidate vehicle-speed traffic and verify
+   its identity and payload from evidence rather than a placeholder ID
 7. **Sniff F-CAN session:** drive at various speeds, hold DSC button for full duration, log DSC-off event
-8. **Build solenoid driver circuit on bench** — measure solenoid resistance first, select IC, test PWM control independently
+8. **Characterize the steering actuator boundary safely** — document command transport, range,
+   polarity, feedback, failure behavior, and electrical safe state before selecting hardware
 9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages Pi ↔ Arduino in loopback
 10. **Integrate** — bring all systems together once each component is bench-tested
 
@@ -302,10 +307,11 @@ per second and is bench-only.
 - [ ] Confirm DME variant is MSD80 (affects PT-CAN message formats)
 - [ ] Confirm DSC module variant (likely Bosch DSC8)
 - [ ] Confirm whether Servotronic module was retained or deleted in rack swap
-- [ ] Measure Servotronic solenoid resistance at connector
-- [ ] Scope solenoid signal wire to confirm PWM vs analog vs CAN-commanded
-- [ ] Verify wheel speed message ID on F-CAN (expect `0x1A0`)
-- [ ] Verify DSC-off command ID (expect `0x316` or `0x399`) and confirm presence/absence of rolling counter
+- [ ] Identify the steering command transport and characterize its electrical range and polarity
+- [ ] Determine valve response, available feedback, electrical safe state, and watchdog requirements
+- [ ] Decide the controller topology only after the actuator evidence is recorded
+- [ ] Verify the vehicle-speed source and payload on F-CAN from named captures
+- [ ] Identify the DSC-off command from named captures and confirm any rolling counter
 - [ ] Identify exact MFL connector pinout and CAN IDs from candump session
 - [ ] Confirm iDrive connector part number from ISTA wiring diagrams
 

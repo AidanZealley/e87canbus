@@ -138,7 +138,7 @@ The default live runner disables application transmission on every CAN network. 
 is granted only by the isolated simulator and bench compositions, where coordinator output remains
 rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
 hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,
-high-beam K-CAN commands, and Servotronic PWM/current output are intentionally not implemented yet.
+high-beam K-CAN commands, and physical Servotronic output are intentionally not implemented yet.
 Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
 as confirmed. The simulator's synthetic speed input is an explicitly simulation-only extended CAN
 frame. It still travels from the simulated vehicle through ingress timestamping, decoding,
@@ -151,7 +151,8 @@ K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transc
 the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
 The current button-pad firmware transmits automatically and must not be connected to the car.
 The simulated steering controller proves dimensionless target selection, stale/fault/shutdown
-fallback, and watchdog timeout behavior. It does not establish a safe current or electrical safe
-state. Real steering actuation remains gated on verified speed captures, actuator hardware and
-commands, safe-current evidence, an independent hardware watchdog, and a validated live grant;
-placeholder BMW IDs remain non-executable.
+fallback, watchdog timeout behavior, and terminal handling of output faults. It does not establish
+a physical command or electrical safe state. Command transport, range and polarity, valve response,
+feedback, controller topology, and physical watchdog behavior remain unknown. Real steering
+actuation remains gated on verified speed captures and actuator evidence, a verified safe state,
+and a validated live grant; placeholder BMW IDs remain non-executable.
