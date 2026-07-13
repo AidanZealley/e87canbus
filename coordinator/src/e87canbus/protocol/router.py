@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from e87canbus.application.events import (
-    ApplicationEffect,
     ApplicationEvent,
     ButtonPressed,
     LedColour,
+    SetButtonLed,
 )
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
@@ -56,7 +56,7 @@ class ProtocolRouter:
             return None
         return ButtonPressed(payload.button_index)
 
-    def encode(self, effect: ApplicationEffect) -> RoutedCanFrame:
+    def encode(self, effect: SetButtonLed) -> RoutedCanFrame:
         return RoutedCanFrame(
             network=CanNetwork.KCAN,
             frame=encode_led_update(

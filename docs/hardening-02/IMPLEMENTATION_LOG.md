@@ -14,7 +14,7 @@ record corrections in the current entry so the migration history remains visible
 | 5 — Single-owner kernel and live cutover | done | 2026-07-13 |
 | 6 — Simulator and API cutover | done | 2026-07-13 |
 | 7 — Protocol source of truth and cleanup | done | 2026-07-13 |
-| 8 — Verified steering failsafe | blocked on verified evidence | — |
+| 8 — Steering failsafe groundwork | done with simulator-only deviation | 2026-07-13 |
 
 ## Entry template
 
@@ -452,3 +452,74 @@ passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; 
 `uv run ruff check scripts/generate_custom_protocol.py` and `bash -n scripts/*.sh` checks passed.
 The button-pad `pio run` build passed after its byte-position constant adopted the generated
 `BUTTON_INDEX` name. Phase 8 actuator firmware checks were not applicable.
+
+## Phase 8 — Steering failsafe groundwork (2026-07-13)
+
+**Result:** done with deviations
+
+**What changed:**
+
+- Replaced the speculative 200–800 mA configuration and conversion helpers with a validated
+  dimensionless `0.0..1.0` assistance curve and effect. Auto, Manual, and Maximum now select their
+  bounded targets in the pure control-timer transition.
+- Added explicit zero-assistance reasons for never-seen/stale speed, runtime fault, and shutdown.
+  Startup, reader failure, inbox overflow, and shutdown commits all carry the command through the
+  existing commit-before-effect path.
+- Extended the effect executor with one optional steering-actuator capability. Live composition
+  supplies none; it has no actuator adapter, simulated decoder, current value, wire command, CAN
+  grant, or other path to steering actuation.
+- Added a simulation-only extended speed frame and router, used only by `SimulationEngine`. The API
+  operates a simulated external vehicle node, which emits the encoded frame on in-memory F-CAN and
+  reaches the ordinary ingress timestamp, decode, transition, commit, and effect path.
+- Replaced the passive K-CAN steering placeholder with a direct simulated actuator that records
+  dimensionless commands and derives zero assistance after a 250 ms fake-clock watchdog timeout.
+  Simulator snapshots expose its assistance, last command reason, and timeout status.
+- Made speed evaluation time monotonic. A delayed old frame processed after a later timer can no
+  longer move evaluation time backward and briefly clear the stale-speed fallback.
+- Updated the root, coordinator, simulation, hardening overview, and phase documents to distinguish
+  simulator groundwork from verified electrical safety and to retain every road-use gate.
+
+**Deviations from the phase doc:** The user explicitly accepted a simulator-only scope because
+verified BMW speed captures, actuator protocol/hardware, safe current data, and definitive vehicle
+IDs cannot currently be obtained. Consequently this phase does not implement a verified BMW
+decoder, current command, physical actuator adapter, independent hardware watchdog, malformed
+verified-traffic threshold, collision validation, deployment grant, road test, or actuator firmware.
+The synthetic extended speed message is isolated to the simulation package and is not a candidate
+BMW definition. Zero assistance is only the simulated controller's fallback; it is not claimed as
+an electrically safe target. The full verified acceptance criteria remain road-use gates.
+
+**Safety invariants verified:** Same-path simulation tests prove speed changes originate at the
+simulated vehicle as encoded CAN and traverse ingress timestamping, the kernel decoder, pure
+transition, ordered commit, executor, and actuator capability. Late-frame tests prove observation
+time governs freshness and cannot regress behind a later timer. Deterministic transition tests
+cover never-seen and stale Auto, fresh interpolation, recovery on the next timer, and bounded Manual
+and Maximum targets without speed. Live-loop tests prove reader failure and inbox overflow command
+the fallback before shutdown, while watchdog tests prove command silence independently derives zero
+simulated assistance without sleeps. Architecture and live-composition tests prove the synthetic
+router and actuator capability are absent live, all default CAN networks remain TX-disabled, and no
+placeholder BMW ID became executable. The kernel remains the sole application-state owner and the
+executor remains the sole effect exit.
+
+**Complexity delta:** Deleted the unverified milliamp bounds, current interpolation/conversion API,
+passive `SimulatedSteeringControllerNode`, its K-CAN endpoint, generic 32-pass cascade loop, reactive
+placeholder tests, and stale documentation. `SetSteeringAssistance` replaces disconnected steering
+math with one validated effect. The small actuator capability isolates the still-unknown hardware
+boundary, while `SimulationProtocolRouter` enforces that synthetic decoding cannot enter live
+composition. `SimulatedVehicleNode` and `SimulatedSteeringController` replace passive placeholders
+with the two stateful external actors required by the scenarios. There is one target-selection path,
+one executor path, one synthetic decoder, and one simulated actuator owner; no compatibility alias,
+parallel event pipeline, callback registry, or deliberate in-scope simplification remains.
+
+**Discovered along the way:** The previous `SpeedObserved` transition reset `speed_evaluated_at` to
+the frame's observation time. If an old queued frame arrived after a later timer, that could make the
+old sample temporarily appear fresh. The transition now preserves the maximum evaluation time. The
+existing Starlette `TestClient` deprecation warning remains unrelated. Real safe-current selection,
+electrical fallback behavior, verified speed decoding, hardware watchdog behavior, malformed-frame
+policy, and deployment/physical recovery procedures remain deferred until evidence exists.
+
+**Checks:** `uv run pytest -q` — 168 passed, 1 existing Starlette deprecation warning;
+`uv run mypy` — success, no issues in 30 source files; `uv run ruff check coordinator` — all checks
+passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; frontend
+`pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 6 passed; `git diff --check` — passed.
+No generated protocol artifact or firmware changed, so generation and actuator-firmware build steps
+were not applicable beyond the generator drift check.

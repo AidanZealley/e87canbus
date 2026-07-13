@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
 from e87canbus.application.controller import ApplicationSnapshot
+from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
-from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     Commit,
     CoordinatorKernel,
@@ -25,13 +24,11 @@ from e87canbus.runtime import (
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
-    SimulatedCar,
     SimulatedNeoTrellisNode,
-    SimulatedSteeringControllerNode,
+    SimulatedSteeringController,
+    SimulatedVehicleNode,
 )
-
-LOGGER = logging.getLogger(__name__)
-MAX_CASCADE_PASSES = 32
+from e87canbus.simulation.protocol import SimulationProtocolRouter
 
 
 @dataclass(frozen=True)
@@ -42,12 +39,20 @@ class SimulatedNetworkStatus:
 
 
 @dataclass(frozen=True)
+class SimulatedSteeringSnapshot:
+    assistance: float
+    reason: SteeringCommandReason
+    watchdog_timed_out: bool
+
+
+@dataclass(frozen=True)
 class SimulatorSnapshot:
     session_id: int
     revision: int
     application: ApplicationSnapshot
     next_pressed: bool
     led_colours: dict[int, int]
+    steering_controller: SimulatedSteeringSnapshot
     networks: tuple[SimulatedNetworkStatus, ...]
     trace: tuple[SimulatedCanTraceEntry, ...]
 
@@ -73,11 +78,23 @@ class RunControlTimer:
 
 
 @dataclass(frozen=True)
+class SetVehicleSpeed:
+    speed_kph: float
+
+
+@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
 
-SimulationCommand = PressButton | ReleaseButton | StepButton | RunControlTimer | ResetSimulation
+SimulationCommand = (
+    PressButton
+    | ReleaseButton
+    | StepButton
+    | RunControlTimer
+    | SetVehicleSpeed
+    | ResetSimulation
+)
 
 
 @dataclass(frozen=True)
@@ -129,6 +146,11 @@ def snapshot_to_dict(
         },
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
+        "steering_controller": {
+            "assistance": snapshot.steering_controller.assistance,
+            "reason": snapshot.steering_controller.reason.value,
+            "watchdog_timed_out": snapshot.steering_controller.watchdog_timed_out,
+        },
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
     }
     if include_trace:
@@ -174,6 +196,7 @@ class SimulationEngine:
             application=self.kernel.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
             led_colours=dict(self.neotrellis.led_colours),
+            steering_controller=self._steering_snapshot(),
             networks=tuple(
                 SimulatedNetworkStatus(
                     config=network_config,
@@ -188,6 +211,7 @@ class SimulationEngine:
     def execute(self, command: SimulationCommand) -> SimulationResult:
         before_sequence = self.topology.latest_sequence
         before_application = self.kernel.snapshot()
+        before_steering = self._steering_snapshot()
         snapshot_trace: bool | None = False
 
         match command:
@@ -202,6 +226,8 @@ class SimulationEngine:
             case RunControlTimer(now):
                 self._dispatch(TimerElapsed(now))
                 snapshot_trace = None
+            case SetVehicleSpeed(speed_kph):
+                self.vehicle.send_speed(speed_kph)
             case ResetSimulation():
                 self._dispatch(ShutdownRequested(self._clock()))
                 self._build_session()
@@ -216,7 +242,10 @@ class SimulationEngine:
         )
         if (
             isinstance(command, RunControlTimer)
-            and result.snapshot.application != before_application
+            and (
+                result.snapshot.application != before_application
+                or result.snapshot.steering_controller != before_steering
+            )
         ):
             return replace(
                 result,
@@ -243,33 +272,37 @@ class SimulationEngine:
                     self.config.tx_policy,
                     self._clock,
                 )
-        car_buses = {
-            item.network: self.topology.create_bus(item.network, "simulated-car")
+        vehicle_buses = {
+            item.network: self.topology.create_bus(item.network, "simulated-vehicle")
             for item in self.config.can_networks
         }
-        self.car = SimulatedCar(car_buses)
+        self.vehicle = SimulatedVehicleNode(vehicle_buses)
 
         self.neotrellis = SimulatedNeoTrellisNode(
             bus=self.topology.create_bus(CanNetwork.KCAN, "neotrellis"),
             ids=self.config.custom_can_ids,
         )
-        self.steering_controller = SimulatedSteeringControllerNode(
-            bus=self.topology.create_bus(CanNetwork.KCAN, "steering-controller")
+        self.steering_controller = SimulatedSteeringController(
+            watchdog_timeout_s=self.config.simulation.steering_watchdog_timeout_s,
+            clock=self._clock,
         )
 
-        router = ProtocolRouter(self.config.custom_can_ids)
+        router = SimulationProtocolRouter(self.config.custom_can_ids)
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             router=router,
         )
-        self.executor = EffectExecutor(transmitters, router)
+        self.executor = EffectExecutor(
+            transmitters,
+            router,
+            steering_actuator=self.steering_controller,
+        )
 
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
             raise RuntimeError("simulation kernel did not start")
         self.neotrellis.process_pending_led_updates()
-        self.steering_controller.drain_pending()
-        self.car.drain_pending()
+        self.vehicle.drain_pending()
         self.topology.clear_trace()
 
     def _send_button(self, button_index: int, pressed: bool) -> None:
@@ -283,18 +316,9 @@ class SimulationEngine:
         *,
         snapshot_trace: bool | None,
     ) -> SimulationResult:
-        for _ in range(MAX_CASCADE_PASSES):
-            processed = self._drain_kernel_inputs()
-            processed += len(self.neotrellis.process_pending_led_updates())
-            processed += self.steering_controller.drain_pending()
-            processed += self.car.drain_pending()
-            if processed == 0:
-                break
-        else:
-            LOGGER.warning(
-                "simulation did not quiesce after %d passes",
-                MAX_CASCADE_PASSES,
-            )
+        self._drain_kernel_inputs()
+        self.neotrellis.process_pending_led_updates()
+        self.vehicle.drain_pending()
 
         snapshot = self.snapshot()
         new_trace = tuple(
@@ -334,6 +358,13 @@ class SimulationEngine:
                 EffectExecutionFailed(failure.network, self._clock(), failure.message)
             )
         return commit
+
+    def _steering_snapshot(self) -> SimulatedSteeringSnapshot:
+        return SimulatedSteeringSnapshot(
+            assistance=self.steering_controller.assistance,
+            reason=self.steering_controller.reason,
+            watchdog_timed_out=self.steering_controller.watchdog_timed_out,
+        )
 
     def _validate_button_index(self, button_index: int) -> None:
         if not 0 <= button_index < self.button_count:

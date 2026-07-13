@@ -26,7 +26,8 @@ that ordered path. Each decoded event runs through a pure transition; the kernel
 state and revision before the calling composition executes the commit's ordered effects. Unknown CAN
 traffic creates no application commit. Reader, effect, and inbox-overflow faults update immutable
 per-network diagnostics; the live runner consumes fatal health and exits non-zero. Speed data is
-marked invalid after its configured timeout; no verified BMW speed decoder is configured yet.
+marked invalid after its configured timeout. The simulator adds a synthetic speed decoder that is
+not imported or enabled by live composition; no verified BMW speed decoder is configured.
 
 The coordinator does not automatically forward frames between networks. Transmission is denied by
 the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.
@@ -37,9 +38,10 @@ Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible 
 stops the runner with a non-zero result.
 
 The browser simulator has a separate bounded command queue. One asynchronous owner serializes
-button-device commands, control timers, resets, kernel commits, and WebSocket publication. Browser
-snapshots expose the kernel revision plus a simulation session ID, and incremental trace frames use
-the session ID with their reset-local sequence number.
+button-device commands, synthetic vehicle-speed frames, control timers, resets, kernel commits, and
+WebSocket publication. Browser snapshots expose the kernel revision, simulation session ID, and
+simulated steering-controller projection. Incremental trace frames use the session ID with their
+reset-local sequence number.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
@@ -61,5 +63,6 @@ in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_i
 `--log-level` to change logging verbosity. `uv run e87canbus --dry-run` prints the configuration
 without opening CAN interfaces.
 
-Phase 8 steering failsafe work cannot begin until speed frames and the actuator boundary are backed
-by named captures and hardware evidence. Placeholder candidate IDs remain non-executable.
+Phase 8 has proved the controller and failure paths against simulation-only speed and actuator
+boundaries. Real steering failsafe work remains blocked until speed frames and the actuator boundary
+are backed by named captures and hardware evidence. Placeholder candidate IDs remain non-executable.

@@ -32,7 +32,28 @@ class ControlTimerElapsed:
     now: float
 
 
-ApplicationEvent = ButtonPressed | SpeedObserved | ControlTimerElapsed
+class SteeringCommandReason(StrEnum):
+    AUTO = "auto"
+    MANUAL = "manual"
+    MAXIMUM = "maximum"
+    SPEED_UNAVAILABLE = "speed_unavailable"
+    RUNTIME_FAULT = "runtime_fault"
+    SHUTDOWN = "shutdown"
+
+
+class SteeringFallbackReason(StrEnum):
+    RUNTIME_FAULT = "runtime_fault"
+    SHUTDOWN = "shutdown"
+
+
+@dataclass(frozen=True)
+class SteeringFallbackRequested:
+    reason: SteeringFallbackReason
+
+
+ApplicationEvent = (
+    ButtonPressed | SpeedObserved | ControlTimerElapsed | SteeringFallbackRequested
+)
 
 
 @dataclass(frozen=True)
@@ -41,4 +62,16 @@ class SetButtonLed:
     colour: LedColour
 
 
-ApplicationEffect = SetButtonLed
+@dataclass(frozen=True)
+class SetSteeringAssistance:
+    """Dimensionless command for a capability supplied by composition."""
+
+    assistance: float
+    reason: SteeringCommandReason
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.assistance <= 1.0:
+            raise ValueError("steering assistance must be between zero and one")
+
+
+ApplicationEffect = SetButtonLed | SetSteeringAssistance

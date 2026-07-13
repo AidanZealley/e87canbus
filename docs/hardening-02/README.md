@@ -91,8 +91,9 @@ implementation log rather than partially building that later phase.
    revision. Trace events remain a separate append-only stream.
 9. **Simulation remains honest.** Browser actions operate simulated external nodes, which emit real
    frames. No simulator-only API injects domain events or state into the coordinator.
-10. **No unverified vehicle behavior.** The steering failsafe phase cannot begin until the speed
-    message and actuator boundary are verified and documented.
+10. **No unverified vehicle behavior.** Real steering decoding or actuation cannot begin until the
+    speed message and actuator boundary are verified and documented. Simulator-only definitions
+    must remain impossible to compose live.
 
 ## Phases
 
@@ -105,11 +106,12 @@ implementation log rather than partially building that later phase.
 | 5 | [Single-owner kernel and live cutover](phase-5-kernel-and-live.md) | Startup, frames, timers, faults, and shutdown use one ordered kernel input path | 4 |
 | 6 | [Simulator and API cutover](phase-6-simulator-and-api.md) | Simulation uses the same kernel; publications are ordered and revisioned | 5 |
 | 7 | [Protocol source of truth and cleanup](phase-7-protocol-and-cleanup.md) | Protocol artifacts cannot drift and migration scaffolding/dead state is gone | 6 |
-| 8 | [Verified steering failsafe](phase-8-steering-failsafe.md) | Stale speed, ingress overload, and bus faults produce a tested safe actuator command | 7 plus verified captures/hardware |
+| 8 | [Steering failsafe groundwork](phase-8-steering-failsafe.md) | Simulator proves stale-speed, overload, fault, shutdown, recovery, and watchdog paths; real actuation remains blocked | 7; verified captures/hardware still gate road use |
 
 Phases 1–7 are architecture work that can be completed with the current verified protocol. Phase 8
-is intentionally gated by external evidence and must not be simulated into existence with a
-placeholder BMW ID or speculative actuator command.
+was reduced to explicitly synthetic, simulator-only groundwork because external evidence is not
+available. It does not add a BMW ID, current value, actuator adapter, or live grant; those parts
+remain gated and must not be simulated into existence.
 
 ## Carried findings
 

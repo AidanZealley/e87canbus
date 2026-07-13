@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
@@ -14,6 +17,7 @@ from e87canbus.protocol.can import (
     decode_led_update,
     encode_button_event,
 )
+from e87canbus.simulation.protocol import encode_simulated_speed
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,10 +76,15 @@ class SimulatedNeoTrellisNode:
 
 
 @dataclass
-class SimulatedCar:
-    """Placeholder car composition with one passive endpoint per BMW network."""
+class SimulatedVehicleNode:
+    """External simulation node with an explicitly synthetic speed message."""
 
     buses: dict[CanNetwork, CanEndpoint]
+
+    def send_speed(self, speed_kph: float) -> CanFrame:
+        frame = encode_simulated_speed(speed_kph)
+        self.buses[CanNetwork.FCAN].send(frame)
+        return frame
 
     def drain_pending(self) -> int:
         drained = 0
@@ -89,13 +98,33 @@ class SimulatedCar:
 
 
 @dataclass
-class SimulatedSteeringControllerNode:
-    """K-CAN placeholder until a verified steering wire protocol exists."""
+class SimulatedSteeringController:
+    """Dimensionless actuator model with an independent command watchdog."""
 
-    bus: CanEndpoint
+    watchdog_timeout_s: float
+    clock: Callable[[], float] = time.monotonic
+    last_command: SetSteeringAssistance | None = None
+    last_command_at: float | None = None
+    commands: list[SetSteeringAssistance] = field(default_factory=list)
 
-    def drain_pending(self) -> int:
-        drained = 0
-        while self.bus.receive(timeout_s=0) is not None:
-            drained += 1
-        return drained
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.last_command = command
+        self.last_command_at = self.clock()
+        self.commands.append(command)
+
+    @property
+    def watchdog_timed_out(self) -> bool:
+        return self.last_command_at is None or (
+            self.clock() - self.last_command_at > self.watchdog_timeout_s
+        )
+
+    @property
+    def assistance(self) -> float:
+        if self.watchdog_timed_out or self.last_command is None:
+            return 0.0
+        return self.last_command.assistance
+
+    @property
+    def reason(self) -> SteeringCommandReason:
+        assert self.last_command is not None
+        return self.last_command.reason

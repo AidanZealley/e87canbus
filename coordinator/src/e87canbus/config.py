@@ -45,14 +45,22 @@ class CustomCanIds:
 @dataclass(frozen=True)
 class SteeringConfig:
     manual_level_count: int = 8
-    min_target_current_ma: int = 200
-    max_target_current_ma: int = 800
     auto_assistance_curve: tuple[tuple[float, float], ...] = (
-        (0.0, 800.0),
-        (30.0, 600.0),
-        (100.0, 200.0),
+        (0.0, 1.0),
+        (30.0, 2.0 / 3.0),
+        (100.0, 0.0),
     )
     speed_timeout_s: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.manual_level_count < 1:
+            raise ValueError("manual_level_count must be positive")
+        if self.speed_timeout_s <= 0:
+            raise ValueError("speed_timeout_s must be positive")
+        if not self.auto_assistance_curve:
+            raise ValueError("auto_assistance_curve must not be empty")
+        if any(not 0.0 <= assistance <= 1.0 for _, assistance in self.auto_assistance_curve):
+            raise ValueError("auto assistance values must be between zero and one")
 
 
 @dataclass(frozen=True)
@@ -67,12 +75,15 @@ class PlaceholderBmwIds:
 class SimulationConfig:
     trace_capacity: int = 2_000
     command_queue_capacity: int = 64
+    steering_watchdog_timeout_s: float = 0.25
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
             raise ValueError("simulation trace capacity must be positive")
         if self.command_queue_capacity < 1:
             raise ValueError("simulation command queue capacity must be positive")
+        if self.steering_watchdog_timeout_s <= 0:
+            raise ValueError("simulation steering watchdog timeout must be positive")
 
 
 @dataclass(frozen=True)

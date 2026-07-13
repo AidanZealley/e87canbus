@@ -4,6 +4,7 @@ import pytest
 from e87canbus.config import (
     CanNetwork,
     SimulationConfig,
+    SteeringConfig,
     TxPolicyConfig,
     default_config,
     simulator_config,
@@ -34,11 +35,15 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
 def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
     assert default_config().simulation.command_queue_capacity == 64
+    assert default_config().simulation.steering_watchdog_timeout_s == 0.25
 
 
-@pytest.mark.parametrize("field", ["trace_capacity", "command_queue_capacity"])
+@pytest.mark.parametrize(
+    "field",
+    ["trace_capacity", "command_queue_capacity", "steering_watchdog_timeout_s"],
+)
 def test_simulation_capacities_must_be_positive(field: str) -> None:
-    with pytest.raises(ValueError, match="capacity"):
+    with pytest.raises(ValueError, match="capacity|watchdog"):
         SimulationConfig(**{field: 0})
 
 
@@ -51,6 +56,40 @@ def test_custom_can_ids() -> None:
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
+    assert default_config().steering.auto_assistance_curve == (
+        (0.0, 1.0),
+        (30.0, 2 / 3),
+        (100.0, 0.0),
+    )
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        SteeringConfig(manual_level_count=1),
+        SteeringConfig(speed_timeout_s=0.1),
+    ],
+)
+def test_valid_steering_configuration(config: SteeringConfig) -> None:
+    assert config.manual_level_count >= 1
+    assert config.speed_timeout_s > 0
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"manual_level_count": 0}, "manual_level_count"),
+        ({"speed_timeout_s": 0.0}, "speed_timeout_s"),
+        ({"auto_assistance_curve": ()}, "auto_assistance_curve"),
+        ({"auto_assistance_curve": ((0.0, 1.1),)}, "between zero and one"),
+    ],
+)
+def test_steering_configuration_rejects_invalid_values(
+    changes: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        SteeringConfig(**changes)  # type: ignore[arg-type]
 
 
 def test_default_tick_and_speed_timeout_intervals() -> None:

@@ -54,7 +54,12 @@ def test_wire_codecs_do_not_import_application_types() -> None:
 def test_simulation_commands_do_not_construct_application_events() -> None:
     path = PACKAGE / "simulation" / "engine.py"
     tree = ast.parse(path.read_text(), filename=str(path))
-    forbidden = {"ButtonPressed", "SpeedObserved", "ControlTimerElapsed"}
+    forbidden = {
+        "ButtonPressed",
+        "SpeedObserved",
+        "ControlTimerElapsed",
+        "SteeringFallbackRequested",
+    }
     constructed = {
         node.func.id
         for node in ast.walk(tree)
@@ -66,6 +71,13 @@ def test_simulation_commands_do_not_construct_application_events() -> None:
 
 def test_default_live_composition_has_no_transmit_grant() -> None:
     assert not any(network.tx_enabled for network in default_config().can_networks)
+
+
+def test_live_composition_cannot_enable_simulated_speed_or_steering_actuation() -> None:
+    live_source = (PACKAGE / "live.py").read_text()
+
+    assert "SimulationProtocolRouter" not in live_source
+    assert "steering_actuator=" not in live_source
 
 
 def test_pre_kernel_compatibility_names_are_absent() -> None:

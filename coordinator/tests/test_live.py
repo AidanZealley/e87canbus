@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
+from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import CanNetwork, CustomCanIds, default_config, simulator_config
 from e87canbus.live import InboxOverflow, read_frames_into_queue, run_coordinator_loop
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -45,6 +46,14 @@ class BlockingFakeBus:
 class FailingTransmitter:
     def send(self, frame: CanFrame) -> None:
         raise OSError(f"failed {frame.arbitration_id}")
+
+
+class RecordingActuator:
+    def __init__(self) -> None:
+        self.commands: list[SetSteeringAssistance] = []
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.commands.append(command)
 
 
 class MutableClock:
@@ -440,6 +449,51 @@ def test_reader_fault_causes_clean_nonzero_loop_shutdown() -> None:
     assert failed is True
     assert kernel.health.for_network(CanNetwork.FCAN).fault is not None
     assert isinstance(kernel.inputs[-1], ShutdownRequested)
+
+
+def test_reader_fault_commands_fallback_before_shutdown() -> None:
+    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox.put(CanReaderFailed(CanNetwork.FCAN, 1.0, "receive failed"))
+    actuator = RecordingActuator()
+
+    failed = run_coordinator_loop(
+        CoordinatorKernel(),
+        EffectExecutor(steering_actuator=actuator),
+        inbox,
+        threading.Event(),
+        InboxOverflow(),
+        0.1,
+        1.0,
+    )
+
+    assert failed is True
+    assert [command.reason for command in actuator.commands[-2:]] == [
+        SteeringCommandReason.RUNTIME_FAULT,
+        SteeringCommandReason.SHUTDOWN,
+    ]
+    assert all(command.assistance == 0.0 for command in actuator.commands[-2:])
+
+
+def test_inbox_overflow_commands_fallback_before_shutdown() -> None:
+    overflow = InboxOverflow()
+    assert overflow.latch(CanNetwork.KCAN, 1.0, 1) is True
+    actuator = RecordingActuator()
+
+    failed = run_coordinator_loop(
+        CoordinatorKernel(),
+        EffectExecutor(steering_actuator=actuator),
+        queue.Queue(),
+        threading.Event(),
+        overflow,
+        0.1,
+        1.0,
+    )
+
+    assert failed is True
+    assert [command.reason for command in actuator.commands[-2:]] == [
+        SteeringCommandReason.RUNTIME_FAULT,
+        SteeringCommandReason.SHUTDOWN,
+    ]
 
 
 def test_default_live_composition_emits_no_startup_frames(

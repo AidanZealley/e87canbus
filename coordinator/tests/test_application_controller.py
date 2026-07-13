@@ -13,7 +13,11 @@ from e87canbus.application.events import (
     ControlTimerElapsed,
     LedColour,
     SetButtonLed,
+    SetSteeringAssistance,
     SpeedObserved,
+    SteeringCommandReason,
+    SteeringFallbackReason,
+    SteeringFallbackRequested,
 )
 from e87canbus.application.state import (
     ApplicationState,
@@ -60,9 +64,10 @@ def test_initial_snapshot_and_effects() -> None:
         maximum_assistance_active=False,
         speed_valid=False,
     )
-    assert initial_effects(state) == (
+    assert initial_effects(state, CONFIG) == (
         SetButtonLed(0, LedColour.BLUE),
         SetButtonLed(3, LedColour.OFF),
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
     )
 
 
@@ -187,6 +192,68 @@ def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     assert result.state.speed_sample == SpeedSample(0.0, 12.5, CanNetwork.PTCAN)
     assert snapshot(result.state, CONFIG).speed_valid is True
     assert result.effects == ()
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        (
+            ApplicationState(),
+            SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+        ),
+        (
+            application_state(SteeringMode.MANUAL, 4),
+            SetSteeringAssistance(4 / 7, SteeringCommandReason.MANUAL),
+        ),
+        (
+            ApplicationState(MaximumAssistance(NormalSteering())),
+            SetSteeringAssistance(1.0, SteeringCommandReason.MAXIMUM),
+        ),
+    ],
+)
+def test_control_timer_selects_bounded_steering_command(
+    state: ApplicationState,
+    expected: SetSteeringAssistance,
+) -> None:
+    result = transition(state, ControlTimerElapsed(1.0), CONFIG)
+
+    assert result.effects == (expected,)
+
+
+def test_fresh_speed_selects_interpolated_auto_assistance() -> None:
+    state = transition(
+        ApplicationState(),
+        SpeedObserved(SpeedSample(15.0, 1.0, CanNetwork.FCAN)),
+        CONFIG,
+    ).state
+
+    result = transition(state, ControlTimerElapsed(1.5), CONFIG)
+
+    assert len(result.effects) == 1
+    command = result.effects[0]
+    assert isinstance(command, SetSteeringAssistance)
+    assert command.assistance == pytest.approx(5 / 6)
+    assert command.reason is SteeringCommandReason.AUTO
+
+
+@pytest.mark.parametrize(
+    ("reason", "command_reason"),
+    [
+        (SteeringFallbackReason.RUNTIME_FAULT, SteeringCommandReason.RUNTIME_FAULT),
+        (SteeringFallbackReason.SHUTDOWN, SteeringCommandReason.SHUTDOWN),
+    ],
+)
+def test_fallback_inputs_select_zero_assistance(
+    reason: SteeringFallbackReason,
+    command_reason: SteeringCommandReason,
+) -> None:
+    result = transition(
+        application_state(SteeringMode.MANUAL, 7),
+        SteeringFallbackRequested(reason),
+        CONFIG,
+    )
+
+    assert result.effects == (SetSteeringAssistance(0.0, command_reason),)
 
 
 def test_transition_is_deterministic_and_does_not_mutate_input() -> None:

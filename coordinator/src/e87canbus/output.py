@@ -7,8 +7,13 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
-from e87canbus.application.events import ApplicationEffect
+from e87canbus.application.events import (
+    ApplicationEffect,
+    SetButtonLed,
+    SetSteeringAssistance,
+)
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.protocol.can import CanFrame
@@ -19,8 +24,13 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class EffectFailure:
-    network: CanNetwork
+    network: CanNetwork | None
     message: str
+
+
+class SteeringActuator(Protocol):
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        """Apply one already-selected, dimensionless assistance command."""
 
 
 class SafeCanTransmitter:
@@ -63,13 +73,22 @@ class EffectExecutor:
         self,
         transmitters: Mapping[CanNetwork, SafeCanTransmitter] | None = None,
         router: ProtocolRouter | None = None,
+        steering_actuator: SteeringActuator | None = None,
     ) -> None:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
+        self._steering_actuator = steering_actuator
 
     def execute(self, effects: tuple[ApplicationEffect, ...]) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
         for effect in effects:
+            if isinstance(effect, SetSteeringAssistance):
+                failure = self._execute_steering(effect)
+                if failure is not None:
+                    failures.append(failure)
+                continue
+
+            assert isinstance(effect, SetButtonLed)
             routed = self._router.encode(effect)
             transmitter = self._transmitters.get(routed.network)
             if transmitter is None:
@@ -90,6 +109,19 @@ class EffectExecutor:
                 )
                 failures.append(EffectFailure(routed.network, str(exc)))
         return tuple(failures)
+
+    def _execute_steering(
+        self,
+        command: SetSteeringAssistance,
+    ) -> EffectFailure | None:
+        if self._steering_actuator is None:
+            return None
+        try:
+            self._steering_actuator.set_assistance(command)
+        except (OSError, RuntimeError) as exc:
+            LOGGER.warning("failed to execute steering effect: error=%s", exc)
+            return EffectFailure(None, str(exc))
+        return None
 
 
 def _discard_expired(send_times: deque[float], cutoff: float) -> None:

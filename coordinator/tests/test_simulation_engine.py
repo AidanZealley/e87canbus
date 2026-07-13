@@ -1,14 +1,9 @@
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.events import ButtonPressed
+from e87canbus.application.events import ButtonPressed, SteeringCommandReason
 from e87canbus.application.state import ApplicationState, SteeringMode
-from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
-from e87canbus.protocol.can import (
-    ArduinoButtonEventPayload,
-    encode_button_event,
-)
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
     LED_COLOUR_BLUE,
@@ -17,11 +12,11 @@ from e87canbus.protocol.generated import (
 )
 from e87canbus.runtime import ReceivedCanFrame
 from e87canbus.simulation.engine import (
-    MAX_CASCADE_PASSES,
     PressButton,
     ReleaseButton,
     ResetSimulation,
     RunControlTimer,
+    SetVehicleSpeed,
     SimulationEngine,
     StepButton,
 )
@@ -46,26 +41,6 @@ class MutableClock:
         return self.now
 
 
-class ReactiveSteeringController:
-    def __init__(self, bus: CanEndpoint, *, reply_once: bool) -> None:
-        self.bus = bus
-        self.reply_once = reply_once
-        self.replied = False
-
-    def drain_pending(self) -> int:
-        drained = 0
-        while self.bus.receive(timeout_s=0) is not None:
-            drained += 1
-        if drained and (not self.reply_once or not self.replied):
-            self.bus.send(
-                encode_button_event(
-                    ArduinoButtonEventPayload(button_index=0, pressed=True),
-                    default_config().custom_can_ids,
-                )
-            )
-            self.replied = True
-        return drained
-
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
     controller = build_test_engine()
 
@@ -75,6 +50,9 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert snapshot.application.speed_valid is False
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
+    assert snapshot.steering_controller.assistance == 0.0
+    assert snapshot.steering_controller.reason is SteeringCommandReason.SPEED_UNAVAILABLE
+    assert snapshot.steering_controller.watchdog_timed_out is False
     assert snapshot.trace == ()
 
 
@@ -135,12 +113,11 @@ def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
     assert list(statuses) == [CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN]
     assert statuses[CanNetwork.KCAN].nodes == (
         "pi",
-        "simulated-car",
+        "simulated-vehicle",
         "neotrellis",
-        "steering-controller",
     )
-    assert statuses[CanNetwork.PTCAN].nodes == ("pi", "simulated-car")
-    assert statuses[CanNetwork.FCAN].nodes == ("pi", "simulated-car")
+    assert statuses[CanNetwork.PTCAN].nodes == ("pi", "simulated-vehicle")
+    assert statuses[CanNetwork.FCAN].nodes == ("pi", "simulated-vehicle")
     assert all(status.connected for status in statuses.values())
 
 
@@ -157,7 +134,7 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
         status for status in snapshot.networks if status.config.network is CanNetwork.PTCAN
     )
     assert ptcan.connected is False
-    assert ptcan.nodes == ("simulated-car",)
+    assert ptcan.nodes == ("simulated-vehicle",)
 
 
 def test_same_button_id_on_other_networks_does_not_change_application() -> None:
@@ -236,7 +213,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert snapshot.led_colours[3] == LED_COLOUR_OFF
 
 
-def test_unchanged_control_timer_does_not_publish_snapshot() -> None:
+def test_timer_publishes_when_it_recovers_a_timed_out_actuator() -> None:
     clock = MutableClock(10.0)
     controller = build_test_engine(clock=clock)
 
@@ -244,17 +221,19 @@ def test_unchanged_control_timer_does_not_publish_snapshot() -> None:
     result = controller.execute(RunControlTimer(clock()))
 
     assert result.snapshot.application.speed_valid is False
-    assert result.events == ()
+    assert [event["type"] for event in result.events] == ["snapshot"]
+    assert result.snapshot.steering_controller.watchdog_timed_out is False
 
 
-def test_command_then_unchanged_timer_produces_one_snapshot_publication() -> None:
+def test_timer_publishes_new_manual_actuator_projection() -> None:
     controller = build_test_engine()
 
     command = controller.execute(PressButton(0))
     timer = controller.execute(RunControlTimer(1.0))
 
     assert [event["type"] for event in command.events].count("snapshot") == 1
-    assert timer.events == ()
+    assert [event["type"] for event in timer.events] == ["snapshot"]
+    assert timer.snapshot.steering_controller.reason is SteeringCommandReason.MANUAL
 
 
 @pytest.mark.parametrize("value", [ButtonPressed(0), ApplicationState()])
@@ -293,40 +272,62 @@ def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events(
     assert sources.count("pi") == 1
 
 
-def test_reactive_device_cascade_is_processed_in_one_command() -> None:
+def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
+    clock = MutableClock(10.0)
+    controller = build_test_engine(clock=clock)
+
+    speed = controller.execute(SetVehicleSpeed(15.0)).snapshot
+    clock.now = 10.1
+    controlled = controller.execute(RunControlTimer(clock())).snapshot
+
+    assert speed.trace[-1].source == "simulated-vehicle"
+    assert speed.trace[-1].network is CanNetwork.FCAN
+    assert speed.application.vehicle_speed_kph == 15.0
+    assert controlled.steering_controller.assistance == pytest.approx(5 / 6)
+    assert controlled.steering_controller.reason is SteeringCommandReason.AUTO
+
+
+def test_stale_speed_selects_fallback_and_fresh_speed_recovers_on_next_timer() -> None:
+    clock = MutableClock(1.0)
+    controller = build_test_engine(clock=clock)
+    controller.execute(SetVehicleSpeed(30.0))
+    controller.execute(RunControlTimer(clock()))
+
+    clock.now = 2.001
+    stale = controller.execute(RunControlTimer(clock())).snapshot
+    controller.execute(SetVehicleSpeed(30.0))
+    recovered = controller.execute(RunControlTimer(clock())).snapshot
+
+    assert stale.application.speed_valid is False
+    assert stale.steering_controller.assistance == 0.0
+    assert stale.steering_controller.reason is SteeringCommandReason.SPEED_UNAVAILABLE
+    assert recovered.application.speed_valid is True
+    assert recovered.steering_controller.assistance == pytest.approx(2 / 3)
+    assert recovered.steering_controller.reason is SteeringCommandReason.AUTO
+
+
+def test_manual_and_maximum_commands_remain_bounded_without_speed() -> None:
     controller = build_test_engine()
-    controller.steering_controller = ReactiveSteeringController(
-        controller.steering_controller.bus,
-        reply_once=True,
-    )
+    controller.execute(PressButton(0))
+    manual = controller.execute(RunControlTimer(0.1)).snapshot
+    controller.execute(PressButton(3))
+    maximum = controller.execute(RunControlTimer(0.2)).snapshot
 
-    result = controller.execute(PressButton(15))
-    snapshot = result.snapshot
-
-    assert snapshot.application.steering_mode is SteeringMode.MANUAL
-    assert any(entry.source == "steering-controller" for entry in snapshot.trace)
-    assert snapshot.led_colours[0] == LED_COLOUR_AMBER
+    assert manual.steering_controller.assistance == 0.0
+    assert manual.steering_controller.reason is SteeringCommandReason.MANUAL
+    assert maximum.steering_controller.assistance == 1.0
+    assert maximum.steering_controller.reason is SteeringCommandReason.MAXIMUM
 
 
-def test_reactive_device_livelock_warns_and_returns(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    config = replace(
-        simulator_config(),
-        tx_policy=TxPolicyConfig(
-            max_frames_per_network_window=1_000,
-        ),
-    )
-    controller = SimulationEngine(config=config)
-    controller.steering_controller = ReactiveSteeringController(
-        controller.steering_controller.bus,
-        reply_once=False,
-    )
+def test_actuator_watchdog_falls_back_when_coordinator_commands_stop() -> None:
+    clock = MutableClock()
+    controller = build_test_engine(clock=clock)
+    controller.execute(PressButton(3))
+    controller.execute(RunControlTimer(clock()))
 
-    snapshot = controller.execute(PressButton(15)).snapshot
+    clock.now = controller.config.simulation.steering_watchdog_timeout_s + 0.001
+    snapshot = controller.snapshot()
 
-    assert snapshot.trace
-    assert (
-        f"simulation did not quiesce after {MAX_CASCADE_PASSES} passes"
-        in caplog.text
-    )
+    assert snapshot.steering_controller.watchdog_timed_out is True
+    assert snapshot.steering_controller.assistance == 0.0
+    assert snapshot.steering_controller.reason is SteeringCommandReason.MAXIMUM

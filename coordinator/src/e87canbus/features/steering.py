@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-SpeedCurrentCurve = Sequence[tuple[float, float]]
+SpeedAssistanceCurve = Sequence[tuple[float, float]]
 
 
 def clamp_manual_level(level: int, level_count: int) -> int:
@@ -11,7 +11,10 @@ def clamp_manual_level(level: int, level_count: int) -> int:
     return min(max(level, 0), level_count - 1)
 
 
-def interpolate_speed_to_current(speed_kph: float, curve: SpeedCurrentCurve) -> float:
+def interpolate_speed_to_assistance(
+    speed_kph: float,
+    curve: SpeedAssistanceCurve,
+) -> float:
     if not curve:
         raise ValueError("curve must contain at least one point")
     points = sorted(curve, key=lambda point: point[0])
@@ -21,7 +24,7 @@ def interpolate_speed_to_current(speed_kph: float, curve: SpeedCurrentCurve) -> 
     if speed_kph >= points[-1][0]:
         return points[-1][1]
 
-    for (left_speed, left_current), (right_speed, right_current) in zip(
+    for (left_speed, left_assistance), (right_speed, right_assistance) in zip(
         points,
         points[1:],
         strict=False,
@@ -29,19 +32,8 @@ def interpolate_speed_to_current(speed_kph: float, curve: SpeedCurrentCurve) -> 
         if left_speed <= speed_kph <= right_speed:
             span = right_speed - left_speed
             if span == 0:
-                return right_current
+                return right_assistance
             ratio = (speed_kph - left_speed) / span
-            return left_current + ratio * (right_current - left_current)
+            return left_assistance + ratio * (right_assistance - left_assistance)
 
     return points[-1][1]
-
-
-def target_current_to_normalized_command(
-    target_current_ma: float,
-    min_current_ma: float,
-    max_current_ma: float,
-) -> float:
-    if max_current_ma <= min_current_ma:
-        raise ValueError("max_current_ma must be greater than min_current_ma")
-    clamped = min(max(target_current_ma, min_current_ma), max_current_ma)
-    return (clamped - min_current_ma) / (max_current_ma - min_current_ma)

@@ -152,7 +152,7 @@ def run_coordinator_loop(
         while True:
             overflow_input = overflow.kernel_input
             if overflow_input is not None:
-                kernel.dispatch(overflow_input)
+                _execute(kernel.dispatch(overflow_input), executor, clock)
                 return True
 
             if pending_failures:
@@ -201,7 +201,7 @@ def run_coordinator_loop(
                 # Catch-up tick bursts delay useful frame processing after a long stall.
                 next_tick = now + tick_interval_s
     finally:
-        kernel.dispatch(ShutdownRequested(clock()))
+        _execute(kernel.dispatch(ShutdownRequested(clock())), executor, clock)
 
 
 def _execute(

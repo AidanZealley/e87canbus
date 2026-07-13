@@ -11,9 +11,10 @@ validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physi
 integration, and the in-car touchscreen UI remain out of scope.
 
 The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
-PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated car have an
-endpoint on all three. The NeoTrellis and placeholder steering controller attach only to K-CAN.
-The simulator does not forward traffic between networks.
+PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated vehicle have an
+endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated steering
+controller is a direct actuator capability because no physical wire protocol is verified. The
+simulator does not forward traffic between networks.
 
 ## Layout
 
@@ -33,8 +34,9 @@ virtual hardware, and `api/` for the frontend interface.
 
 Live readers timestamp CAN frames before placing them in a bounded inbox. One kernel owns immutable
 application state and applies pure transitions in input order; committed effects leave through an
-explicit transmitter capability and one network rate policy. The simulator operates external nodes
-and follows that same path rather than injecting application events or state.
+explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
+The simulator operates external nodes and follows that same path rather than injecting application
+events or state.
 
 ## Local Setup
 
@@ -138,13 +140,18 @@ rate-limited. This application-level RX-only default is separate from configurin
 hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,
 high-beam K-CAN commands, and Servotronic PWM/current output are intentionally not implemented yet.
 Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
-as confirmed. Future simulated speed, RPM, lighting, oil-temperature, and coolant-temperature
-inputs must be represented as real network-specific CAN frames and decoded through the same
-coordinator routing path; there is no simulator-only state injection boundary.
+as confirmed. The simulator's synthetic speed input is an explicitly simulation-only extended CAN
+frame. It still travels from the simulated vehicle through ingress timestamping, decoding,
+transition, commit, and effect execution; the live router cannot decode it. Future verified vehicle
+inputs must replace synthetic definitions with captured network-specific frames. There is no
+simulator-only state injection boundary.
 
 The bench-only `0x700`/`0x701` IDs are provisional and require collision checks against a real
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
 the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
 The current button-pad firmware transmits automatically and must not be connected to the car.
-The steering failsafe remains gated on verified speed captures, verified actuator hardware and
-commands, freshness limits, and safe-output evidence; placeholder BMW IDs are not executable.
+The simulated steering controller proves dimensionless target selection, stale/fault/shutdown
+fallback, and watchdog timeout behavior. It does not establish a safe current or electrical safe
+state. Real steering actuation remains gated on verified speed captures, actuator hardware and
+commands, safe-current evidence, an independent hardware watchdog, and a validated live grant;
+placeholder BMW IDs remain non-executable.

@@ -1,7 +1,12 @@
 import logging
 
 import pytest
-from e87canbus.application.events import LedColour, SetButtonLed
+from e87canbus.application.events import (
+    LedColour,
+    SetButtonLed,
+    SetSteeringAssistance,
+    SteeringCommandReason,
+)
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import CanFrame
@@ -23,6 +28,19 @@ class MutableClock:
         return self.now
 
 
+class FakeSteeringActuator:
+    def __init__(self) -> None:
+        self.commands: list[SetSteeringAssistance] = []
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.commands.append(command)
+
+
+class FailingSteeringActuator:
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        raise OSError(f"failed {command.assistance}")
+
+
 def test_default_executor_has_no_transmit_capability(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -41,6 +59,27 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
     executor.execute((SetButtonLed(0, LedColour.BLUE),))
 
     assert raw.sent == [CanFrame(0x701, b"\x00\x03")]
+
+
+def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
+    actuator = FakeSteeringActuator()
+    command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
+
+    EffectExecutor(steering_actuator=actuator).execute((command,))
+
+    assert actuator.commands == [command]
+
+
+def test_steering_failure_has_no_fake_can_network() -> None:
+    command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
+
+    failures = EffectExecutor(
+        steering_actuator=FailingSteeringActuator()
+    ).execute((command,))
+
+    assert len(failures) == 1
+    assert failures[0].network is None
+    assert failures[0].message == "failed 0.5"
 
 
 def test_alternating_payloads_on_one_id_share_network_window(

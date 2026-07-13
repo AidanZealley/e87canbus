@@ -17,6 +17,8 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ControlTimerElapsed,
+    SteeringFallbackReason,
+    SteeringFallbackRequested,
 )
 from e87canbus.application.state import ApplicationState
 from e87canbus.config import CanNetwork, SteeringConfig
@@ -54,7 +56,7 @@ class CanReaderFailed:
 
 @dataclass(frozen=True)
 class EffectExecutionFailed:
-    network: CanNetwork
+    network: CanNetwork | None
     failed_at: float
     message: str
 
@@ -114,24 +116,31 @@ def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
 @dataclass(frozen=True)
 class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
+    steering_actuator_fault: RuntimeFault | None = None
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
 
     @property
     def fatal(self) -> bool:
-        return any(item.fault is not None for item in self.networks)
+        return self.steering_actuator_fault is not None or any(
+            item.fault is not None for item in self.networks
+        )
 
     def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
         return self._replace(replace(self.for_network(network), fault=fault))
 
     def _replace(self, replacement: NetworkRuntimeHealth) -> RuntimeHealth:
         return RuntimeHealth(
-            tuple(
+            networks=tuple(
                 replacement if item.network is replacement.network else item
                 for item in self.networks
-            )
+            ),
+            steering_actuator_fault=self.steering_actuator_fault,
         )
+
+    def with_steering_actuator_fault(self, fault: RuntimeFault) -> RuntimeHealth:
+        return replace(self, steering_actuator_fault=fault)
 
 
 @dataclass(frozen=True)
@@ -186,8 +195,14 @@ class CoordinatorKernel:
         """Accept the kernel's only state-changing input path."""
 
         if isinstance(kernel_input, ShutdownRequested):
+            if self._lifecycle is not KernelLifecycle.RUNNING:
+                self._lifecycle = KernelLifecycle.STOPPED
+                return None
+            commit = self._transition(
+                SteeringFallbackRequested(SteeringFallbackReason.SHUTDOWN)
+            )
             self._lifecycle = KernelLifecycle.STOPPED
-            return None
+            return commit
 
         if self._lifecycle is KernelLifecycle.STOPPED:
             return None
@@ -209,11 +224,16 @@ class CoordinatorKernel:
                     kind = RuntimeFaultKind.EFFECT_EXECUTION
                 case InboxOverflowed():
                     kind = RuntimeFaultKind.INBOX_OVERFLOW
-            self._health = self._health.with_fault(
-                kernel_input.network,
-                RuntimeFault(kind, kernel_input.failed_at, kernel_input.message),
+            fault = RuntimeFault(kind, kernel_input.failed_at, kernel_input.message)
+            if kernel_input.network is None:
+                self._health = self._health.with_steering_actuator_fault(fault)
+            else:
+                self._health = self._health.with_fault(kernel_input.network, fault)
+            if isinstance(kernel_input, EffectExecutionFailed):
+                return None
+            return self._transition(
+                SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
             )
-            return None
 
         if self._lifecycle is not KernelLifecycle.RUNNING:
             return None
@@ -255,6 +275,6 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=initial_effects(self._state),
+            effects=initial_effects(self._state, self._steering_config),
             state_changed=True,
         )

@@ -21,6 +21,7 @@ from e87canbus.simulation.engine import (
     ReleaseButton,
     ResetSimulation,
     RunControlTimer,
+    SetVehicleSpeed,
     SimulationCommand,
     SimulationEngine,
     SimulationResult,
@@ -35,6 +36,10 @@ LOGGER = logging.getLogger(__name__)
 
 class StepRequest(BaseModel):
     button_index: int = 0
+
+
+class SpeedRequest(BaseModel):
+    speed_kph: float
 
 
 class ConnectionManager:
@@ -165,6 +170,10 @@ def create_app(
     @app.post("/api/step")
     async def step(request: StepRequest) -> dict[str, Any]:
         return await _run_command(app, StepButton(request.button_index))
+
+    @app.post("/api/vehicle/speed")
+    async def set_vehicle_speed(request: SpeedRequest) -> dict[str, Any]:
+        return await _run_command(app, SetVehicleSpeed(request.speed_kph))
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:

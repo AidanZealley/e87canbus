@@ -1,13 +1,21 @@
-# Phase 8 — Verified Steering Failsafe
+# Phase 8 — Steering Failsafe Groundwork
 
 ## Status
 
-**Blocked until verified evidence exists.** Do not start this phase merely because phases 1–7 are
-complete.
+**Simulator scope completed; real actuation remains blocked.** Verified vehicle and actuator
+evidence could not be gathered, so this phase was explicitly reduced to a simulated steering
+controller. The implementation proves the control and failure paths without claiming in-car safety.
+
+The simulator uses an unmistakably synthetic extended CAN speed message and a dimensionless
+`0.0..1.0` actuator capability. Neither exists in live composition. Zero assistance is a simulation
+fallback, not a verified safe current or electrical state.
 
 ## Required evidence
 
-Record all of the following before implementation:
+All items below remain required before a real adapter, vehicle decoder, or deployment grant is
+implemented:
+
+Record all of the following before real vehicle/actuator implementation:
 
 1. Verified BMW speed arbitration ID, source network, payload scaling, update cadence, counters,
    validity bits, and behavior at standstill/fault.
@@ -27,7 +35,10 @@ corresponding value from `PlaceholderBmwIds` only after verification.
 Complete the original safety contract: verified speed input drives an explicit steering-current
 effect, and loss or untrustworthiness of that input produces a safe command within a bounded time.
 
-## Design
+For the reduced scope, prove the same control flow and timing rules with synthetic CAN input and a
+simulated actuator, while leaving every evidence-dependent value and live capability absent.
+
+## Full verified design (still blocked)
 
 - Add the verified speed decoder to the network-and-ID router. It emits `SpeedObserved` with the
   ingress `received_at` timestamp; decoder processing time is never used for freshness.
@@ -45,15 +56,21 @@ effect, and loss or untrustworthiness of that input produces a safe command with
 - Repeated idempotent actuator refreshes have a policy separate from cosmetic LED rate limiting and
   must satisfy the hardware watchdog cadence.
 
-## Simulation
+## Reduced simulation implementation
 
-- Add a simulated vehicle node that emits the verified speed CAN frame on the correct network.
+- A simulated vehicle node emits a synthetic extended speed frame on the in-memory F-CAN. The
+  simulation-only router is never used by live composition.
 - Speed changes and bus silence are controlled through the simulated device, never an application
   injection API.
-- Add a simulated actuator endpoint that records verified commands and models command timeout.
+- A simulated actuator capability records dimensionless commands and derives zero assistance after
+  its command timeout. It encodes no wire protocol or current value.
 - Use the shared fake clock to test silence and overload without real sleeps.
 
 ## Required scenarios
+
+The reduced scope substitutes synthetic speed for verified speed and the simulated watchdog for
+hardware behavior. Scenarios that require verified malformed traffic or electrical behavior remain
+blocked as stated below.
 
 1. No speed has ever been observed: safe target is commanded.
 2. Fresh speed in Auto: the expected interpolated target is commanded.
@@ -86,3 +103,8 @@ Before any in-car actuation:
 - The hardware watchdog independently handles coordinator silence.
 - No placeholder ID or speculative payload appears in executable code.
 - All project, frontend, firmware, and bench checks pass.
+
+For the accepted reduced scope, “safe” in the criteria above means the explicit zero-assistance
+simulator fallback only. The hardware-watchdog, verified-message, safe-current, malformed verified
+traffic threshold, collision-validation, and road/bench acceptance criteria remain unmet and are
+still hard gates for in-car actuation.

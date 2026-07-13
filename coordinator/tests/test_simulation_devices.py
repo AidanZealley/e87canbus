@@ -1,15 +1,29 @@
 import logging
 
 import pytest
-from e87canbus.config import CustomCanIds
+from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     CanFrame,
     LedUpdatePayload,
     encode_led_update,
 )
 from e87canbus.protocol.generated import BUTTON_PRESSED, BUTTON_RELEASED, LED_COLOUR_GREEN
-from e87canbus.simulation.bus import InMemoryCanNetwork
-from e87canbus.simulation.devices import SimulatedNeoTrellisNode
+from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
+from e87canbus.simulation.devices import (
+    SimulatedNeoTrellisNode,
+    SimulatedSteeringController,
+    SimulatedVehicleNode,
+)
+from e87canbus.simulation.protocol import encode_simulated_speed
+
+
+class MutableClock:
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def test_neotrellis_alternates_press_and_release_events() -> None:
@@ -77,3 +91,32 @@ def test_neotrellis_logs_and_ignores_malformed_led_update(
     assert updates == []
     assert node.led_colours == {}
     assert "sim neotrellis ignored malformed led update" in caplog.text
+
+
+def test_simulated_vehicle_emits_speed_as_an_external_fcan_frame() -> None:
+    topology = InMemoryCanTopology()
+    pi_bus = topology.create_bus(CanNetwork.FCAN, "pi")
+    vehicle = SimulatedVehicleNode(
+        {
+            network: topology.create_bus(network, "simulated-vehicle")
+            for network in CanNetwork
+        }
+    )
+
+    frame = vehicle.send_speed(42.5)
+
+    assert frame == encode_simulated_speed(42.5)
+    assert pi_bus.receive(timeout_s=0) == frame
+
+
+def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:
+    clock = MutableClock()
+    controller = SimulatedSteeringController(0.25, clock)
+    command = SetSteeringAssistance(0.75, SteeringCommandReason.AUTO)
+
+    controller.set_assistance(command)
+    clock.now = 0.251
+
+    assert controller.assistance == 0.0
+    assert controller.reason is SteeringCommandReason.AUTO
+    assert controller.watchdog_timed_out is True

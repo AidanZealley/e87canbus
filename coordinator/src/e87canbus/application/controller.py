@@ -10,7 +10,10 @@ from e87canbus.application.events import (
     ControlTimerElapsed,
     LedColour,
     SetButtonLed,
+    SetSteeringAssistance,
     SpeedObserved,
+    SteeringCommandReason,
+    SteeringFallbackRequested,
 )
 from e87canbus.application.state import (
     ApplicationState,
@@ -18,7 +21,10 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 from e87canbus.config import SteeringConfig
-from e87canbus.features.steering import clamp_manual_level
+from e87canbus.features.steering import (
+    clamp_manual_level,
+    interpolate_speed_to_assistance,
+)
 
 STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
@@ -51,11 +57,25 @@ def transition(
             replace(
                 state,
                 speed_sample=replace(event.sample, speed_kph=max(0.0, event.sample.speed_kph)),
-                speed_evaluated_at=event.sample.observed_at,
+                speed_evaluated_at=max(
+                    state.speed_evaluated_at,
+                    event.sample.observed_at,
+                ),
             )
         )
     if isinstance(event, ControlTimerElapsed):
-        return Transition(replace(state, speed_evaluated_at=event.now))
+        next_state = replace(state, speed_evaluated_at=event.now)
+        return Transition(next_state, (_steering_command(next_state, config),))
+    if isinstance(event, SteeringFallbackRequested):
+        return Transition(
+            state,
+            (
+                SetSteeringAssistance(
+                    0.0,
+                    SteeringCommandReason(event.reason.value),
+                ),
+            ),
+        )
 
     match event.button_index:
         case 0:
@@ -78,17 +98,21 @@ def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnap
         steering_mode=mode,
         manual_assistance_level=manual_level,
         maximum_assistance_active=maximum_active,
-        speed_valid=(
-            sample is not None
-            and state.speed_evaluated_at - sample.observed_at <= config.speed_timeout_s
-        ),
+        speed_valid=_speed_is_valid(state, config),
     )
 
 
-def initial_effects(state: ApplicationState) -> tuple[ApplicationEffect, ...]:
-    """Return the complete verified output projection for synchronization."""
+def initial_effects(
+    state: ApplicationState,
+    config: SteeringConfig,
+) -> tuple[ApplicationEffect, ...]:
+    """Return the complete output projection for synchronization."""
 
-    return (_steering_mode_led(state), _maximum_assistance_led(state))
+    return (
+        _steering_mode_led(state),
+        _maximum_assistance_led(state),
+        _steering_command(state, config),
+    )
 
 
 def normalize_state(state: ApplicationState, config: SteeringConfig) -> ApplicationState:
@@ -188,4 +212,38 @@ def _maximum_assistance_led(state: ApplicationState) -> SetButtonLed:
             if isinstance(state.steering, MaximumAssistance)
             else LedColour.OFF
         ),
+    )
+
+
+def _steering_command(
+    state: ApplicationState,
+    config: SteeringConfig,
+) -> SetSteeringAssistance:
+    steering = state.steering
+    if isinstance(steering, MaximumAssistance):
+        return SetSteeringAssistance(1.0, SteeringCommandReason.MAXIMUM)
+    if steering.mode is SteeringMode.MANUAL:
+        denominator = max(config.manual_level_count - 1, 1)
+        return SetSteeringAssistance(
+            steering.manual_level / denominator,
+            SteeringCommandReason.MANUAL,
+        )
+    if not _speed_is_valid(state, config):
+        return SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE)
+
+    assert state.speed_sample is not None
+    return SetSteeringAssistance(
+        interpolate_speed_to_assistance(
+            state.speed_sample.speed_kph,
+            config.auto_assistance_curve,
+        ),
+        SteeringCommandReason.AUTO,
+    )
+
+
+def _speed_is_valid(state: ApplicationState, config: SteeringConfig) -> bool:
+    sample = state.speed_sample
+    return (
+        sample is not None
+        and state.speed_evaluated_at - sample.observed_at <= config.speed_timeout_s
     )

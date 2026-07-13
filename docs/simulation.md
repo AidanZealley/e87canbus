@@ -81,9 +81,9 @@ It models three independent CAN broadcast domains:
 
 | Network | Interface | Bitrate | Nodes |
 |---|---|---:|---|
-| K-CAN | `can0` | 100,000 | Pi, simulated car, NeoTrellis, steering controller |
-| PT-CAN | `can1` | 500,000 | Pi, simulated car |
-| F-CAN | `can2` | 500,000 | Pi, simulated car |
+| K-CAN | `can0` | 100,000 | Pi, simulated vehicle, NeoTrellis |
+| PT-CAN | `can1` | 500,000 | Pi, simulated vehicle |
+| F-CAN | `can2` | 500,000 | Pi, simulated vehicle |
 
 There is no automatic gateway behavior. Every emitted frame is retained in one chronological
 2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
@@ -94,9 +94,21 @@ Button `0` starts blue because the authoritative steering mode starts in Auto. P
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
-No verified BMW speed decoder is configured, so the workbench reports "No speed data". The tick
-path marks previously received speed data stale after the configured timeout when a real decoder is
-added later.
+Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such as
+`{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
+simulation-only CAN frame on the in-memory F-CAN. The engine timestamps and decodes that frame
+through the kernel; the API does not inject `SpeedObserved` or application state. The live router
+does not recognize the synthetic ID.
+
+On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
+assistance curve. Never-seen or stale speed selects zero simulated assistance. Manual levels map
+evenly into the same range and maximum assistance selects `1.0`, including when speed is absent.
+Fresh speed recovers Auto on the next control timer. Reader failure, inbox overflow, and shutdown
+also select zero assistance with a reason before the live loop exits.
+
+The simulated steering controller is an executor capability rather than a K-CAN node because no
+actuator wire protocol is known. Its 250 ms watchdog derives zero assistance when command refreshes
+stop. Zero is only the simulator's fallback; it is not a verified safe current or electrical state.
 
 ## Linux vcan Simulation
 
@@ -145,7 +157,7 @@ same executor and policy path as the live runtime: excess coordinator frames are
 simulated external devices remain unrestricted. The default live composition grants no application
 transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
-The simulator currently decodes only the provisional project protocol on K-CAN:
+The simulator decodes the provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
 - `0x701`: coordinator LED update.
@@ -153,8 +165,9 @@ The simulator currently decodes only the provisional project protocol on K-CAN:
 The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700` and `0x701` require collision
 validation against a real K-CAN capture before any in-car transmission.
 
-It does not simulate verified BMW vehicle control traffic. Placeholder BMW IDs remain notes only
-and must not be used as replay commands until real captures, counters, and payload behavior have
-been verified. Future simulated speed, RPM, lights, oil temperature, and coolant temperature must
-be encoded as real network-specific CAN frames and pass through the central protocol decoder; no
-simulator-only coordinator API may bypass the buses.
+It does not simulate verified BMW vehicle control traffic. Its synthetic extended speed message is
+defined only in `e87canbus.simulation.protocol`, is never installed in live composition, and is not
+a candidate BMW ID. Placeholder BMW IDs remain notes only and must not be used as replay commands
+until real captures, counters, and payload behavior have been verified. Future simulated inputs
+must still pass through an external simulated node, encoded CAN frame, ingress timestamp, and
+central decoder; no simulator API may inject domain events or coordinator state.

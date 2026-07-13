@@ -91,6 +91,11 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert (body["session_id"], body["revision"]) == (1, 1)
     assert body["trace"] == []
     assert body["application"]["steering_mode"] == "auto"
+    assert body["steering_controller"] == {
+        "assistance": 0.0,
+        "reason": "speed_unavailable",
+        "watchdog_timed_out": False,
+    }
     assert body["led_colours"] == {"0": 3, "3": 0}
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
@@ -132,6 +137,23 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
 
     assert response.status_code == 422
     assert "button_index" in response.json()["detail"]
+
+
+def test_vehicle_speed_command_emits_external_frame_and_updates_application(
+    client: TestClient,
+) -> None:
+    response = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+
+    assert response.status_code == 200
+    assert response.json()["application"]["vehicle_speed_kph"] == 42.5
+    assert response.json()["application"]["speed_valid"] is True
+
+
+def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
+    response = client.post("/api/vehicle/speed", json={"speed_kph": -1.0})
+
+    assert response.status_code == 422
+    assert "simulated speed" in response.json()["detail"]
 
 
 def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:
