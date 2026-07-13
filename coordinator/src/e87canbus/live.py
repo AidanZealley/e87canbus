@@ -9,8 +9,10 @@ import time
 from collections.abc import Callable
 
 from e87canbus.adapters.socketcan import SocketCanBus
+from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.protocol.can import CanBus, RateLimitedCanBus
+from e87canbus.output import EffectExecutor, SafeCanTransmitter
+from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
 
 LOGGER = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ class InboxOverflow:
 
 def read_frames_into_queue(
     network: CanNetwork,
-    bus: CanBus,
+    bus: CanReceiver,
     frames: queue.Queue[ReceivedCanFrame],
     stop: threading.Event,
     overflow: InboxOverflow,
@@ -131,22 +133,27 @@ def run_live(config: AppConfig) -> int:
 
     enabled = tuple(item for item in config.can_networks if item.enabled)
     raw_buses: dict[CanNetwork, SocketCanBus] = {}
-    buses: dict[CanNetwork, CanBus] = {}
     try:
         for item in enabled:
-            raw_bus = SocketCanBus(item.interface)
-            raw_buses[item.network] = raw_bus
-            buses[item.network] = (
-                RateLimitedCanBus(raw_bus, config.tx_policy) if item.tx_enabled else raw_bus
-            )
+            raw_buses[item.network] = SocketCanBus(item.interface)
     except OSError as exc:
         LOGGER.error("failed to open SocketCAN interface %s: %s", item.interface, exc)
         for raw_bus in raw_buses.values():
             raw_bus.shutdown()
         return 1
 
-    tx_networks = frozenset(item.network for item in enabled if item.tx_enabled)
-    runtime = CoordinatorRuntime(buses=buses, tx_networks=tx_networks)
+    router = ProtocolRouter(config.custom_can_ids)
+    transmitters = {
+        item.network: SafeCanTransmitter(raw_buses[item.network], config.tx_policy)
+        for item in enabled
+        if item.tx_enabled
+    }
+    runtime = CoordinatorRuntime(
+        receivers=raw_buses,
+        steering_config=config.steering,
+        router=router,
+        executor=EffectExecutor(transmitters, router),
+    )
     frames: queue.Queue[ReceivedCanFrame] = queue.Queue(
         maxsize=config.runtime_inbox_capacity
     )
@@ -155,7 +162,7 @@ def run_live(config: AppConfig) -> int:
     readers = [
         threading.Thread(
             target=read_frames_into_queue,
-            args=(item.network, buses[item.network], frames, stop, overflow),
+            args=(item.network, raw_buses[item.network], frames, stop, overflow),
             daemon=True,
             name=f"{item.network.value}-reader",
         )

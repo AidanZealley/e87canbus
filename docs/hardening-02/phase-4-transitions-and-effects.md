@@ -57,15 +57,16 @@ domain effects to encoded transmit intents; the application does not select a CA
 
 ## Final rate policy
 
-Replace the temporary identical-frame limiter with explicit bounded windows:
+Replace the temporary identical-frame limiter with an explicit per-network bounded window. All IDs
+and payloads on a network share its one-second budget, so neither alternating payloads nor spreading
+traffic across IDs can bypass the flood bound.
 
-- a per-arbitration-ID window allowing at most two frames in 50 ms by default, so the two multiplexed
-  startup LED values can synchronize without letting alternating payloads bypass the ID limit; and
-- the existing per-network one-second budget.
-
-Use named config fields such as `id_window_s`, `max_frames_per_id_window`, and
-`max_frames_per_network_window`. Implement with plain deques and injected time; do not add a token
-bucket library. A dropped effect is logged and never queued for later delivery.
+Do not add a per-ID burst allowance derived from the number of frames in a current application
+transaction. Message-shape migrations belong in their own hardening pass, and actuator refreshes
+will require a separate evidence-derived policy in phase 8. Use named config fields
+`network_window_s` and `max_frames_per_network_window`. Implement with a plain deque and injected
+time; do not add a token-bucket library. A dropped effect is logged and never queued for later
+delivery.
 
 Move this policy out of `protocol/can.py` into a small output-policy module next to the runtime or
 effect executor. `protocol/can.py` returns to frame types and wire codecs only.
@@ -90,14 +91,14 @@ phase 5.
 - Application modules import no CAN frame or adapter types.
 - A default executor has no transmit capability.
 - Explicit simulator TX sends expected LED frames.
-- Three immediate alternating `0x701` payloads allow two and drop the third under the per-ID window.
-- Different IDs share the network budget; both windows refill deterministically.
+- Alternating payloads on one ID and payloads spread across IDs share the network budget.
+- The network window refills deterministically.
 - Receive-only capabilities have no `send` method available to the consumer type.
 
 ## Acceptance criteria
 
 - Application decisions perform no I/O, logging, clock reads, or in-place mutation.
-- Every coordinator transmission passes through one executor and both safety windows.
+- Every coordinator transmission passes through one executor and the network safety window.
 - `protocol/can.py` contains no rate-policy implementation.
 - The misleading `min_identical_frame_gap_s` field and old `RateLimitedCanBus` are deleted.
 - All checks pass.

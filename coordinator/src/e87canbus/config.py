@@ -68,8 +68,14 @@ class SimulationConfig:
 
 @dataclass(frozen=True)
 class TxPolicyConfig:
-    min_identical_frame_gap_s: float = 0.05
-    max_frames_per_s: int = 20
+    network_window_s: float = 1.0
+    max_frames_per_network_window: int = 20
+
+    def __post_init__(self) -> None:
+        if self.network_window_s <= 0:
+            raise ValueError("TX policy window must be positive")
+        if self.max_frames_per_network_window < 1:
+            raise ValueError("TX policy frame limit must be positive")
 
 
 @dataclass(frozen=True)

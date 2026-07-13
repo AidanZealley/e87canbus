@@ -7,8 +7,9 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork
-from e87canbus.protocol.can import CanBus, CanFrame
+from e87canbus.protocol.can import CanFrame
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,7 @@ class InMemoryCanNetwork:
         self._recorder = recorder
         self._clock = clock
 
-    def create_bus(self, name: str) -> CanBus:
+    def create_bus(self, name: str) -> CanEndpoint:
         if name in self._buses:
             raise ValueError(f"bus already exists on {self.network.value}: {name}")
         bus = _InMemoryCanBus(name=name, network=self)
@@ -124,7 +125,7 @@ class InMemoryCanTopology:
             for network in CanNetwork
         }
 
-    def create_bus(self, network: CanNetwork, name: str) -> CanBus:
+    def create_bus(self, network: CanNetwork, name: str) -> CanEndpoint:
         return self._networks[network].create_bus(name)
 
     def network(self, network: CanNetwork) -> InMemoryCanNetwork:

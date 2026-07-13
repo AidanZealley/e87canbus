@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
-from e87canbus.application.events import SteeringMode
 from e87canbus.config import CanNetwork
+
+
+class SteeringMode(StrEnum):
+    AUTO = "auto"
+    MANUAL = "manual"
 
 
 @dataclass(frozen=True)

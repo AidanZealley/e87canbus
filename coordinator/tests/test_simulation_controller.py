@@ -1,7 +1,8 @@
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.events import SpeedUpdateEvent, SteeringMode
+from e87canbus.application.state import SteeringMode
+from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 from e87canbus.protocol.can import (
     LED_AMBER,
@@ -9,11 +10,21 @@ from e87canbus.protocol.can import (
     LED_OFF,
     LED_WHITE,
     ArduinoButtonEventPayload,
-    CanBus,
     encode_button_event,
 )
 from e87canbus.runtime import ReceivedCanFrame
 from e87canbus.simulation.controller import MAX_CASCADE_PASSES, SimulatorController
+
+TEST_SIMULATOR_CONFIG = replace(
+    simulator_config(),
+    tx_policy=TxPolicyConfig(
+        max_frames_per_network_window=1_000,
+    ),
+)
+
+
+def build_test_controller(**kwargs: object) -> SimulatorController:
+    return SimulatorController(config=TEST_SIMULATOR_CONFIG, **kwargs)
 
 
 class MutableClock:
@@ -25,7 +36,7 @@ class MutableClock:
 
 
 class ReactiveSteeringController:
-    def __init__(self, bus: CanBus, *, reply_once: bool) -> None:
+    def __init__(self, bus: CanEndpoint, *, reply_once: bool) -> None:
         self.bus = bus
         self.reply_once = reply_once
         self.replied = False
@@ -45,7 +56,7 @@ class ReactiveSteeringController:
         return drained
 
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
 
     snapshot = controller.snapshot()
 
@@ -57,7 +68,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
 
 
 def test_pressing_button_creates_button_event_frame() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
 
     snapshot = controller.press_button(0)
 
@@ -69,7 +80,7 @@ def test_pressing_button_creates_button_event_frame() -> None:
 
 
 def test_pressing_mode_button_selects_manual_and_causes_amber_led_update() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
 
     snapshot = controller.press_button(0)
 
@@ -81,7 +92,7 @@ def test_pressing_mode_button_selects_manual_and_causes_amber_led_update() -> No
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
     controller.press_button(0)
 
     snapshot = controller.release_button(0)
@@ -92,7 +103,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
     controller.press_button(0)
 
     snapshot = controller.reset()
@@ -106,7 +117,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
 
 
 def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
-    snapshot = SimulatorController().snapshot()
+    snapshot = build_test_controller().snapshot()
 
     statuses = {status.config.network: status for status in snapshot.networks}
     assert list(statuses) == [CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN]
@@ -139,7 +150,7 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
 
 def test_same_button_id_on_other_networks_does_not_change_application() -> None:
     clock = MutableClock(3.0)
-    controller = SimulatorController(clock=clock)
+    controller = build_test_controller(clock=clock)
     button_frame = controller.neotrellis.send_button_event(0, True)
     # Drain the real K-CAN event without processing it, then replay its ID on other networks.
     assert controller.pi_buses[CanNetwork.KCAN].receive(timeout_s=0) == button_frame
@@ -151,18 +162,18 @@ def test_same_button_id_on_other_networks_does_not_change_application() -> None:
         ReceivedCanFrame(CanNetwork.FCAN, button_frame, received_at=clock())
     )
 
-    assert controller.application.snapshot().steering_mode is SteeringMode.AUTO
+    assert controller.runtime.snapshot().steering_mode is SteeringMode.AUTO
 
 
 def test_invalid_button_index_raises() -> None:
-    controller = SimulatorController(button_count=16)
+    controller = build_test_controller(button_count=16)
 
     with pytest.raises(ValueError, match="button_index"):
         controller.press_button(16)
 
 
 def test_step_auto_preserves_alternating_behavior() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
 
     first = controller.step_auto(0)
     second = controller.step_auto(0)
@@ -172,7 +183,7 @@ def test_step_auto_preserves_alternating_behavior() -> None:
 
 
 def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
 
     snapshot = controller.press_button(2)
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
@@ -197,7 +208,7 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
     controller.press_button(2)
     controller.release_button(2)
     controller.press_button(2)
@@ -213,12 +224,9 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert snapshot.led_colours[3] == LED_OFF
 
 
-def test_controller_tick_uses_shared_clock_and_records_snapshot_event() -> None:
+def test_controller_tick_records_snapshot_event() -> None:
     clock = MutableClock(10.0)
-    controller = SimulatorController(clock=clock)
-    controller.application.handle_event(
-        SpeedUpdateEvent(42.0, CanNetwork.FCAN), clock()
-    )
+    controller = build_test_controller(clock=clock)
 
     clock.now = 11.5
     snapshot = controller.tick()
@@ -229,7 +237,7 @@ def test_controller_tick_uses_shared_clock_and_records_snapshot_event() -> None:
 
 def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
     clock = MutableClock(8.5)
-    controller = SimulatorController(clock=clock)
+    controller = build_test_controller(clock=clock)
 
     snapshot = controller.press_button(0)
 
@@ -242,7 +250,9 @@ def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events(
     clock = MutableClock()
     config = replace(
         simulator_config(),
-        tx_policy=TxPolicyConfig(min_identical_frame_gap_s=0.0, max_frames_per_s=3),
+        tx_policy=TxPolicyConfig(
+            max_frames_per_network_window=3,
+        ),
     )
     controller = SimulatorController(config=config, clock=clock)
 
@@ -256,7 +266,7 @@ def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events(
 
 
 def test_reactive_device_cascade_is_processed_in_one_command() -> None:
-    controller = SimulatorController()
+    controller = build_test_controller()
     controller.steering_controller = ReactiveSteeringController(
         controller.steering_controller.bus,
         reply_once=True,
@@ -274,7 +284,9 @@ def test_reactive_device_livelock_warns_and_returns(
 ) -> None:
     config = replace(
         simulator_config(),
-        tx_policy=TxPolicyConfig(min_identical_frame_gap_s=0.0, max_frames_per_s=1_000),
+        tx_policy=TxPolicyConfig(
+            max_frames_per_network_window=1_000,
+        ),
     )
     controller = SimulatorController(config=config)
     controller.steering_controller = ReactiveSteeringController(

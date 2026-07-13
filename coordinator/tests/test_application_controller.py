@@ -1,16 +1,30 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-from e87canbus.application.controller import ApplicationController, ApplicationSnapshot
+from e87canbus.application.controller import (
+    ApplicationSnapshot,
+    initial_effects,
+    normalize_state,
+    snapshot,
+    transition,
+)
 from e87canbus.application.events import (
-    ButtonState,
+    ButtonPressed,
+    ControlTimerElapsed,
     LedColour,
-    NeoTrellisButtonEvent,
-    SpeedUpdateEvent,
+    SetButtonLed,
+    SpeedObserved,
+)
+from e87canbus.application.state import (
+    ApplicationState,
+    MaximumAssistance,
+    NormalSteering,
+    SpeedSample,
     SteeringMode,
 )
-from e87canbus.application.state import ApplicationState, NormalSteering
 from e87canbus.config import CanNetwork, SteeringConfig
+
+CONFIG = SteeringConfig()
 
 
 def application_state(
@@ -20,39 +34,40 @@ def application_state(
     return ApplicationState(steering=NormalSteering(mode, manual_level))
 
 
-def press(controller: ApplicationController, button_index: int) -> tuple[LedColour, ...]:
-    outputs = controller.handle_event(
-        NeoTrellisButtonEvent(button_index, ButtonState.PRESSED), 0.0
-    )
-    return tuple(output.colour for output in outputs)
-
-
-def steering_projection(snapshot: ApplicationSnapshot) -> tuple[SteeringMode, int, bool]:
+def projection(state: ApplicationState) -> tuple[SteeringMode, int, bool]:
+    value = snapshot(state, CONFIG)
     return (
-        snapshot.steering_mode,
-        snapshot.manual_assistance_level,
-        snapshot.maximum_assistance_active,
+        value.steering_mode,
+        value.manual_assistance_level,
+        value.maximum_assistance_active,
     )
 
 
-def test_initial_snapshot_and_desired_outputs() -> None:
-    controller = ApplicationController()
+def colours(state: ApplicationState, button_index: int) -> tuple[LedColour, ...]:
+    return tuple(
+        effect.colour
+        for effect in transition(state, ButtonPressed(button_index), CONFIG).effects
+    )
 
-    assert controller.snapshot() == ApplicationSnapshot(
+
+def test_initial_snapshot_and_effects() -> None:
+    state = ApplicationState()
+
+    assert snapshot(state, CONFIG) == ApplicationSnapshot(
         vehicle_speed_kph=0.0,
         steering_mode=SteeringMode.AUTO,
         manual_assistance_level=0,
         maximum_assistance_active=False,
         speed_valid=False,
     )
-    assert tuple(output.colour for output in controller.desired_outputs()) == (
-        LedColour.BLUE,
-        LedColour.OFF,
+    assert initial_effects(state) == (
+        SetButtonLed(0, LedColour.BLUE),
+        SetButtonLed(3, LedColour.OFF),
     )
 
 
 @pytest.mark.parametrize(
-    ("initial_mode", "button_index", "expected", "output_colours"),
+    ("initial_mode", "button_index", "expected", "effect_colours"),
     [
         (SteeringMode.AUTO, 0, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
         (SteeringMode.AUTO, 1, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
@@ -78,18 +93,18 @@ def test_mapped_buttons_from_normal_modes(
     initial_mode: SteeringMode,
     button_index: int,
     expected: tuple[SteeringMode, int, bool],
-    output_colours: tuple[LedColour, ...],
+    effect_colours: tuple[LedColour, ...],
 ) -> None:
-    controller = ApplicationController(state=application_state(mode=initial_mode))
+    state = application_state(mode=initial_mode)
 
-    colours = press(controller, button_index)
+    result = transition(state, ButtonPressed(button_index), CONFIG)
 
-    assert steering_projection(controller.snapshot()) == expected
-    assert colours == output_colours
+    assert projection(result.state) == expected
+    assert tuple(effect.colour for effect in result.effects) == effect_colours
 
 
 @pytest.mark.parametrize(
-    ("button_index", "expected", "output_colours"),
+    ("button_index", "expected", "effect_colours"),
     [
         (0, (SteeringMode.MANUAL, 7, True), ()),
         (1, (SteeringMode.MANUAL, 3, False), (LedColour.AMBER, LedColour.OFF)),
@@ -100,73 +115,50 @@ def test_mapped_buttons_from_normal_modes(
 def test_mapped_buttons_while_maximum_assistance_is_active(
     button_index: int,
     expected: tuple[SteeringMode, int, bool],
-    output_colours: tuple[LedColour, ...],
+    effect_colours: tuple[LedColour, ...],
 ) -> None:
-    controller = ApplicationController(state=application_state(manual_level=3))
-    press(controller, 3)
+    state = ApplicationState(MaximumAssistance(NormalSteering(manual_level=3)))
 
-    colours = press(controller, button_index)
+    result = transition(state, ButtonPressed(button_index), CONFIG)
 
-    assert steering_projection(controller.snapshot()) == expected
-    assert colours == output_colours
+    assert projection(result.state) == expected
+    assert tuple(effect.colour for effect in result.effects) == effect_colours
 
 
 def test_maximum_assistance_restores_previous_manual_state() -> None:
-    controller = ApplicationController(
-        state=application_state(mode=SteeringMode.MANUAL, manual_level=5)
-    )
+    state = application_state(SteeringMode.MANUAL, 5)
 
-    press(controller, 3)
-    press(controller, 3)
+    enabled = transition(state, ButtonPressed(3), CONFIG).state
+    restored = transition(enabled, ButtonPressed(3), CONFIG).state
 
-    assert steering_projection(controller.snapshot()) == (
-        SteeringMode.MANUAL,
-        5,
-        False,
-    )
+    assert projection(restored) == (SteeringMode.MANUAL, 5, False)
 
 
-def test_first_assistance_press_after_maximum_does_not_adjust_restored_level() -> None:
-    controller = ApplicationController(state=application_state(manual_level=3))
-    press(controller, 3)
+def test_first_assistance_press_after_maximum_only_restores_level() -> None:
+    state = ApplicationState(MaximumAssistance(NormalSteering(manual_level=3)))
 
-    press(controller, 2)
-    assert controller.snapshot().manual_assistance_level == 3
+    restored = transition(state, ButtonPressed(2), CONFIG).state
+    adjusted = transition(restored, ButtonPressed(2), CONFIG).state
 
-    press(controller, 2)
-    assert controller.snapshot().manual_assistance_level == 4
+    assert snapshot(restored, CONFIG).manual_assistance_level == 3
+    assert snapshot(adjusted, CONFIG).manual_assistance_level == 4
 
 
-@pytest.mark.parametrize(
-    "event",
-    [
-        NeoTrellisButtonEvent(0, ButtonState.RELEASED),
-        NeoTrellisButtonEvent(3, ButtonState.RELEASED),
-        NeoTrellisButtonEvent(9, ButtonState.PRESSED),
-    ],
-)
-def test_release_and_unknown_button_events_are_no_ops(event: NeoTrellisButtonEvent) -> None:
-    controller = ApplicationController()
-    before = controller.snapshot()
+def test_unknown_button_is_a_no_op() -> None:
+    state = ApplicationState()
 
-    outputs = controller.handle_event(event, 0.0)
-
-    assert outputs == ()
-    assert controller.snapshot() == before
+    assert transition(state, ButtonPressed(9), CONFIG).state is state
 
 
 def test_manual_assistance_is_clamped_to_configured_bounds() -> None:
-    controller = ApplicationController(
-        state=application_state(mode=SteeringMode.MANUAL, manual_level=-4),
-        steering_config=SteeringConfig(manual_level_count=3),
-    )
+    config = SteeringConfig(manual_level_count=3)
+    state = normalize_state(application_state(SteeringMode.MANUAL, -4), config)
 
-    press(controller, 1)
-    assert controller.snapshot().manual_assistance_level == 0
-
+    state = transition(state, ButtonPressed(1), config).state
     for _ in range(4):
-        press(controller, 2)
-    assert controller.snapshot().manual_assistance_level == 2
+        state = transition(state, ButtonPressed(2), config).state
+
+    assert snapshot(state, config).manual_assistance_level == 2
 
 
 @pytest.mark.parametrize(
@@ -177,50 +169,35 @@ def test_speed_validity_is_derived_from_sample_age(
     evaluation_time: float,
     expected_valid: bool,
 ) -> None:
-    controller = ApplicationController()
-    controller.handle_event(SpeedUpdateEvent(42.5, CanNetwork.FCAN), 10.0)
+    observed = SpeedObserved(SpeedSample(42.5, 10.0, CanNetwork.FCAN))
+    state = transition(ApplicationState(), observed, CONFIG).state
 
-    controller.tick(evaluation_time)
+    state = transition(state, ControlTimerElapsed(evaluation_time), CONFIG).state
 
-    snapshot = controller.snapshot()
-    assert snapshot.vehicle_speed_kph == 42.5
-    assert snapshot.speed_valid is expected_valid
-
-
-def test_speed_is_invalid_before_any_sample() -> None:
-    controller = ApplicationController()
-
-    controller.tick(100.0)
-
-    assert controller.snapshot().vehicle_speed_kph == 0.0
-    assert controller.snapshot().speed_valid is False
+    value = snapshot(state, CONFIG)
+    assert value.vehicle_speed_kph == 42.5
+    assert value.speed_valid is expected_valid
 
 
 def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
-    controller = ApplicationController()
+    sample = SpeedSample(-2.0, 12.5, CanNetwork.PTCAN)
 
-    outputs = controller.handle_event(SpeedUpdateEvent(-2.0, CanNetwork.PTCAN), 12.5)
+    result = transition(ApplicationState(), SpeedObserved(sample), CONFIG)
 
-    sample = controller.state.speed_sample
-    assert sample is not None
-    assert sample.speed_kph == 0.0
-    assert sample.observed_at == 12.5
-    assert sample.source_network is CanNetwork.PTCAN
-    assert controller.snapshot().speed_valid is True
-    assert outputs == ()
+    assert result.state.speed_sample == SpeedSample(0.0, 12.5, CanNetwork.PTCAN)
+    assert snapshot(result.state, CONFIG).speed_valid is True
+    assert result.effects == ()
 
 
-def test_state_is_frozen_and_replaced_atomically() -> None:
-    controller = ApplicationController()
-    before = controller.state
+def test_transition_is_deterministic_and_does_not_mutate_input() -> None:
+    state = ApplicationState()
+    event = ButtonPressed(0)
 
-    press(controller, 0)
+    first = transition(state, event, CONFIG)
+    second = transition(state, event, CONFIG)
 
-    assert controller.state is not before
-    assert steering_projection(controller.snapshot()) == (
-        SteeringMode.MANUAL,
-        0,
-        False,
-    )
+    assert first == second
+    assert first.state is not state
+    assert projection(state) == (SteeringMode.AUTO, 0, False)
     with pytest.raises(FrozenInstanceError):
-        before.speed_evaluated_at = 1.0  # type: ignore[misc]
+        state.speed_evaluated_at = 1.0  # type: ignore[misc]

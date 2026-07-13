@@ -33,9 +33,9 @@ positions. Record that deviation explicitly; checking only IDs and colour values
 
 - Delete compatibility aliases, old controller/runtime entry points, old event unions, and temporary
   adapters left by phases 2–6.
-- Remove `RateLimitedCanBus` and obsolete TX-policy field names.
-- Ensure `protocol/can.py` contains wire values/codecs and capability protocols only, not application
-  types or policy implementation.
+- Verify Phase 4's removed `RateLimitedCanBus` and obsolete TX-policy field names have not returned.
+- Ensure `protocol/can.py` contains only wire values/codecs; capability protocols stay in `can_io.py`
+  and policy stays at the output boundary.
 - Either expose runtime network health through the diagnostic snapshot and use it in live/simulator
   status, or delete any field still written but never read.
 - Update `PROJECT_CONTEXT.md`'s repository map so `features/` describes only code that exists.
@@ -74,4 +74,3 @@ Update the architecture maps and safety sections to describe:
 - Import-direction guards pass.
 - Repository documentation describes the code that actually exists.
 - All backend and frontend checks pass.
-

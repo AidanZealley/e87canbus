@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 import pytest
-from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 
 
 def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
@@ -71,5 +71,17 @@ def test_runtime_inbox_limits_reject_unsafe_values(
 def test_default_tx_policy() -> None:
     policy = default_config().tx_policy
 
-    assert policy.min_identical_frame_gap_s == 0.05
-    assert policy.max_frames_per_s == 20
+    assert policy.network_window_s == 1.0
+    assert policy.max_frames_per_network_window == 20
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"network_window_s": 0.0},
+        {"max_frames_per_network_window": 0},
+    ],
+)
+def test_tx_policy_rejects_non_positive_limits(changes: dict[str, int | float]) -> None:
+    with pytest.raises(ValueError, match="TX policy"):
+        TxPolicyConfig(**changes)

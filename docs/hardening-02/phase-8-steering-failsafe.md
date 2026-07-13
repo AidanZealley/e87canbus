@@ -74,7 +74,8 @@ Before any in-car actuation:
 - verify generated protocol artifacts;
 - validate kernel/hardware listen-only on networks not explicitly writable;
 - bench-test queue overflow, reader disconnect, process kill, and actuator watchdog behavior;
-- capture actual command cadence and confirm both rate-policy windows; and
+- capture actual command cadence and confirm the network window plus the verified actuator refresh
+  policy; and
 - document a physical bypass/recovery procedure.
 
 ## Acceptance criteria
@@ -85,4 +86,3 @@ Before any in-car actuation:
 - The hardware watchdog independently handles coordinator silence.
 - No placeholder ID or speculative payload appears in executable code.
 - All project, frontend, firmware, and bench checks pass.
-

@@ -20,12 +20,14 @@ The outer `coordinator/` directory names the deployable component. The inner `sr
 directory is the project-specific import namespace, following Python's conventional `src` layout.
 This is why code imports `e87canbus.application` even though it is deployed as the coordinator.
 
-The runtime receives buses keyed by K-CAN, PT-CAN, and F-CAN. Protocol decoding is keyed by both
-network and arbitration ID, while application code remains independent of physical bus selection.
-Frames and periodic ticks dispatch application outputs through the same runtime path. Speed data is
-marked invalid after its configured timeout; no verified BMW speed decoder is configured yet. The
+The runtime receives read-only capabilities keyed by K-CAN, PT-CAN, and F-CAN. Protocol decoding is
+keyed by both network and arbitration ID, while application code remains independent of physical bus
+selection. Each decoded event runs through a pure state transition; the runtime commits the returned
+state before sending its ordered effects to the capability-based executor. Speed data is marked
+invalid after its configured timeout; no verified BMW speed decoder is configured yet. The
 coordinator does not automatically forward frames between networks. Runtime transmission is denied
-by default and explicitly enabled per network with `tx_enabled`, behind the limits in `tx_policy`.
+by the absence of a safe transmitter capability and explicitly granted per network with
+`tx_enabled`. Every granted write passes the holistic per-network window in `tx_policy`.
 Live readers timestamp frames immediately after receipt and enqueue them without blocking into the
 configured bounded inbox. Queue latency is logged without changing that observation time; overflow
 stops the current runner with a non-zero result rather than processing an unknowably stale backlog.

@@ -7,9 +7,19 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from e87canbus.application.controller import ApplicationController, ApplicationOutput
-from e87canbus.config import CanNetwork
-from e87canbus.protocol.can import CanBus, CanFrame, RoutedCanFrame
+from e87canbus.application.controller import (
+    ApplicationSnapshot,
+    initial_effects,
+    normalize_state,
+    snapshot,
+    transition,
+)
+from e87canbus.application.events import ApplicationEvent, ControlTimerElapsed
+from e87canbus.application.state import ApplicationState
+from e87canbus.can_io import CanReceiver
+from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.output import EffectExecutor
+from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
@@ -39,35 +49,37 @@ class RuntimeHealth:
 
 
 class CoordinatorRuntime:
-    """Process one received frame at a time and dispatch application outputs."""
+    """Decode, transition, commit, then execute one input at a time."""
 
     def __init__(
         self,
-        buses: Mapping[CanNetwork, CanBus],
-        application: ApplicationController | None = None,
+        receivers: Mapping[CanNetwork, CanReceiver],
+        state: ApplicationState | None = None,
+        steering_config: SteeringConfig | None = None,
         router: ProtocolRouter | None = None,
+        executor: EffectExecutor | None = None,
         monotonic: Callable[[], float] = time.monotonic,
-        tx_networks: frozenset[CanNetwork] = frozenset(),
     ) -> None:
-        self.buses = dict(buses)
-        self.application = application or ApplicationController()
+        self.receivers = dict(receivers)
+        self.steering_config = steering_config or SteeringConfig()
+        self.state = normalize_state(state or ApplicationState(), self.steering_config)
         self.router = router or ProtocolRouter()
+        self.executor = executor or EffectExecutor(router=self.router)
         self.health = RuntimeHealth()
         self._monotonic = monotonic
-        self._tx_networks = tx_networks
 
     def start(self) -> None:
-        """Synchronize the application's authoritative output state."""
+        """Synchronize the verified output projection through the effect boundary."""
 
-        self._send_outputs(self.application.desired_outputs())
+        self.executor.execute(initial_effects(self.state))
 
     def process_frame(self, received: ReceivedCanFrame) -> None:
-        """Process a received input while isolating malformed traffic and output failures."""
+        """Process a received input while isolating malformed traffic."""
 
         routed = RoutedCanFrame(network=received.network, frame=received.frame)
         self.health.record_receive(received.network, received.received_at)
         try:
-            event = self.router.decode(routed)
+            event = self.router.decode(routed, received.received_at)
         except ValueError as exc:
             LOGGER.warning(
                 "ignored malformed recognized frame: network=%s id=0x%03x data=%s error=%s",
@@ -77,23 +89,31 @@ class CoordinatorRuntime:
                 exc,
             )
             return
+        if event is not None:
+            self._apply(event)
 
-        if event is None:
-            return
-        self._send_outputs(self.application.handle_event(event, received.received_at))
+    def _apply(self, event: ApplicationEvent) -> None:
+        result = transition(self.state, event, self.steering_config)
+        self.state = result.state
+        self.executor.execute(result.effects)
 
     def tick(self) -> None:
-        self._send_outputs(self.application.tick(self._monotonic()))
+        self._apply(ControlTimerElapsed(self._monotonic()))
+
+    def snapshot(self) -> ApplicationSnapshot:
+        return snapshot(self.state, self.steering_config)
 
     def drain_pending(self) -> int:
         """Drain endpoint queues in stable round-robin network order."""
 
         processed = 0
-        ordered_networks = tuple(network for network in CanNetwork if network in self.buses)
+        ordered_networks = tuple(
+            network for network in CanNetwork if network in self.receivers
+        )
         while True:
             found_frame = False
             for network in ordered_networks:
-                frame = self.buses[network].receive(timeout_s=0)
+                frame = self.receivers[network].receive(timeout_s=0)
                 if frame is None:
                     continue
                 found_frame = True
@@ -107,37 +127,3 @@ class CoordinatorRuntime:
                 )
             if not found_frame:
                 return processed
-
-    def _send_outputs(self, outputs: tuple[ApplicationOutput, ...]) -> None:
-        for output in outputs:
-            try:
-                routed = self.router.encode(output)
-            except ValueError as exc:
-                LOGGER.warning("ignored unencodable application output: %s", exc)
-                continue
-
-            if routed.network not in self._tx_networks:
-                LOGGER.warning(
-                    "dropped output for tx-disabled network: network=%s id=0x%03x",
-                    routed.network.value,
-                    routed.frame.arbitration_id,
-                )
-                continue
-
-            bus = self.buses.get(routed.network)
-            if bus is None:
-                LOGGER.warning(
-                    "ignored output for unavailable CAN network: network=%s id=0x%03x",
-                    routed.network.value,
-                    routed.frame.arbitration_id,
-                )
-                continue
-            try:
-                bus.send(routed.frame)
-            except (OSError, RuntimeError) as exc:
-                LOGGER.warning(
-                    "failed to send output and continued: network=%s id=0x%03x error=%s",
-                    routed.network.value,
-                    routed.frame.arbitration_id,
-                    exc,
-                )

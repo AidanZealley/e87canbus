@@ -7,8 +7,10 @@ import logging
 from collections.abc import Sequence
 
 from e87canbus.cli.bench_pingpong import handle_frame
-from e87canbus.config import CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
+from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import decode_button_event
+from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.simulation.bus import InMemoryCanNetwork
 from e87canbus.simulation.devices import SimulatedNeoTrellisNode
 
@@ -18,6 +20,11 @@ LOGGER = logging.getLogger(__name__)
 def run_simulated_bench(cycles: int, button_index: int, ids: CustomCanIds) -> None:
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
+    router = ProtocolRouter(ids)
+    executor = EffectExecutor(
+        {CanNetwork.KCAN: SafeCanTransmitter(pi_bus, TxPolicyConfig())},
+        router,
+    )
     neotrellis = SimulatedNeoTrellisNode(
         bus=network.create_bus("neotrellis"),
         ids=ids,
@@ -36,7 +43,7 @@ def run_simulated_bench(cycles: int, button_index: int, ids: CustomCanIds) -> No
 
         frame = pi_bus.receive(timeout_s=0)
         if frame is not None:
-            handle_frame(pi_bus, frame, ids)
+            handle_frame(executor, frame, ids)
 
         for update in neotrellis.process_pending_led_updates():
             LOGGER.info(

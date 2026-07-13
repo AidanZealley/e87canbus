@@ -7,10 +7,11 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
-from e87canbus.application.controller import ApplicationController, ApplicationOutput
 from e87canbus.config import CanNetwork, CustomCanIds, default_config, simulator_config
 from e87canbus.live import InboxOverflow, read_frames_into_queue, run_coordinator_loop
+from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
 
 
@@ -139,18 +140,25 @@ class AdvancingQueue(queue.Queue[ReceivedCanFrame]):
             raise
 
 
-class TickRecordingApplication(ApplicationController):
-    def __init__(self, stop: threading.Event, stop_after: int) -> None:
-        super().__init__()
+class TickRecordingRuntime(CoordinatorRuntime):
+    def __init__(
+        self,
+        stop: threading.Event,
+        stop_after: int,
+        clock: Callable[[], float],
+        receivers: dict[CanNetwork, BlockingFakeBus] | None = None,
+    ) -> None:
+        super().__init__(receivers or {}, monotonic=clock)
+        self.clock = clock
         self.stop = stop
         self.stop_after = stop_after
         self.tick_times: list[float] = []
 
-    def tick(self, now: float) -> tuple[ApplicationOutput, ...]:
-        self.tick_times.append(now)
+    def tick(self) -> None:
+        self.tick_times.append(self.clock())
         if len(self.tick_times) >= self.stop_after:
             self.stop.set()
-        return ()
+        super().tick()
 
 
 def test_reader_timestamps_frame_at_receive_and_stops() -> None:
@@ -220,13 +228,12 @@ def test_coordinator_loop_processes_queued_frames_and_ticks_on_cadence() -> None
     clock = MutableClock()
     frames = AdvancingQueue(clock)
     stop = threading.Event()
-    application = TickRecordingApplication(stop, stop_after=3)
     bus = BlockingFakeBus()
-    runtime = CoordinatorRuntime(
-        {CanNetwork.KCAN: bus},
-        application=application,
-        monotonic=clock,
-        tx_networks=frozenset({CanNetwork.KCAN}),
+    runtime = TickRecordingRuntime(
+        stop,
+        stop_after=3,
+        clock=clock,
+        receivers={CanNetwork.KCAN: bus},
     )
     frames.put(
         ReceivedCanFrame(
@@ -245,16 +252,15 @@ def test_coordinator_loop_processes_queued_frames_and_ticks_on_cadence() -> None
         clock=clock,
     )
 
-    assert runtime.application.snapshot().steering_mode.value == "manual"
-    assert application.tick_times == pytest.approx([0.1, 0.2, 0.3])
+    assert runtime.snapshot().steering_mode.value == "manual"
+    assert runtime.tick_times == pytest.approx([0.1, 0.2, 0.3])
 
 
 def test_coordinator_loop_resynchronizes_after_large_clock_jump() -> None:
     clock = MutableClock()
     frames = AdvancingQueue(clock, jump_s=1.0)
     stop = threading.Event()
-    application = TickRecordingApplication(stop, stop_after=2)
-    runtime = CoordinatorRuntime({}, application=application, monotonic=clock)
+    runtime = TickRecordingRuntime(stop, stop_after=2, clock=clock)
 
     run_coordinator_loop(
         runtime,
@@ -265,7 +271,7 @@ def test_coordinator_loop_resynchronizes_after_large_clock_jump() -> None:
         clock=clock,
     )
 
-    assert application.tick_times == pytest.approx([1.0, 1.1])
+    assert runtime.tick_times == pytest.approx([1.0, 1.1])
 
 
 def test_coordinator_loop_warns_about_latency_without_rewriting_receive_time(
@@ -274,8 +280,7 @@ def test_coordinator_loop_warns_about_latency_without_rewriting_receive_time(
     clock = MutableClock(2.0)
     frames = AdvancingQueue(clock)
     stop = threading.Event()
-    application = TickRecordingApplication(stop, stop_after=1)
-    runtime = CoordinatorRuntime({}, application=application, monotonic=clock)
+    runtime = TickRecordingRuntime(stop, stop_after=1, clock=clock)
     frames.put(ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x01"), 0.5))
 
     with caplog.at_level(logging.WARNING):
@@ -299,9 +304,19 @@ def test_live_threads_route_button_event_to_kcan_led_reply() -> None:
     frames: queue.Queue[ReceivedCanFrame] = queue.Queue()
     stop = threading.Event()
     overflow = InboxOverflow()
+    router = ProtocolRouter()
     runtime = CoordinatorRuntime(
         {CanNetwork.KCAN: bus},
-        tx_networks=frozenset({CanNetwork.KCAN}),
+        router=router,
+        executor=EffectExecutor(
+            {
+                CanNetwork.KCAN: SafeCanTransmitter(
+                    bus,
+                    default_config().tx_policy,
+                )
+            },
+            router,
+        ),
     )
     reader = threading.Thread(
         target=read_frames_into_queue,

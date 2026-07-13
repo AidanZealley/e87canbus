@@ -10,7 +10,7 @@ record corrections in the current entry so the migration history remains visible
 | 1 — Immediate live-safety containment | done | 2026-07-13 |
 | 2 — Timestamped, bounded ingress | done | 2026-07-13 |
 | 3 — Explicit immutable domain state | done | 2026-07-13 |
-| 4 — Pure transitions and controlled effects | planned | — |
+| 4 — Pure transitions and controlled effects | done | 2026-07-13 |
 | 5 — Single-owner kernel and live cutover | planned | — |
 | 6 — Simulator and API cutover | planned | — |
 | 7 — Protocol source of truth and cleanup | planned | — |
@@ -194,4 +194,72 @@ unrelated. No frontend or generated protocol artifacts changed.
 
 **Checks:** `uv run pytest -q` — 129 passed, 1 existing deprecation warning; `uv run mypy` — success,
 no issues in 26 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
+generator, and firmware checks were not applicable.
+
+## Phase 4 — Pure transitions and controlled effects (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Replaced the stateful `ApplicationController` mutation API with a pure `transition(state, event,
+  config)` function returning a frozen `Transition` containing the complete next state and ordered
+  effects; the runtime now commits that state before executing effects.
+- Replaced transport-shaped button and speed events with the closed `ButtonPressed`,
+  `SpeedObserved`, and `ControlTimerElapsed` domain event set. Button releases are discarded by the
+  decoder instead of becoming permanent no-op events.
+- Replaced `ButtonLedCommand` with the verified `SetButtonLed` effect and made the protocol router
+  directly decode and encode the closed event/effect set without dynamic decoder or encoder
+  registries.
+- Split CAN receive, transmit, and unrestricted endpoint protocols. Runtime consumers receive only
+  `CanReceiver`; the executor receives only explicitly composed `SafeCanTransmitter` capabilities.
+- Added the single `EffectExecutor` output path. Missing transmitter capabilities deny TX, output
+  failures are logged after commit without rollback, and live, simulated, and isolated bench
+  coordinator output use the same executor and safety policy.
+- Replaced `RateLimitedCanBus` and the identical-frame rule with one holistic per-network sliding
+  window using an injected clock and plain deque. All IDs and payloads share the budget, and excess
+  output is dropped rather than deferred.
+- Updated coordinator, simulation, and later-phase documentation to describe pure transitions,
+  capability denial, and the bounded-window policy.
+
+**Deviations from the phase doc:** None against the corrected phase document. The first
+implementation briefly included a default per-ID allowance of two frames per 50 ms. Review found
+that value encoded the temporary two-LED startup implementation into a general safety boundary. It
+was removed before phase 5 began, and the phase document was corrected to require only the holistic
+network window.
+
+**Safety invariants verified:** Deterministic transition tests use literal frozen inputs and prove
+equal inputs return equal results without mutating the original state. Runtime tests prove the
+decode → transition → commit → effect order and prove a failed effect does not roll state back.
+Default executor and live-composition tests prove absence of a transmitter capability denies every
+write, while explicit live, simulator, and bench grants encode the expected LED frames.
+Output-policy tests prove alternating payloads on one ID and frames spread across different IDs
+share the same network budget, excess output drops, and the window refills deterministically.
+Receive-only capability tests prove the runtime consumer needs no `send` method. Existing bounded
+ingress, ingress timestamp, same-path simulation, legal-state, and default-live-safety coverage
+remains passing. A source audit also verified application and feature modules import no protocol,
+runtime, simulation, adapter, FastAPI, threading, or queue types.
+
+**Complexity delta:** Deleted the mutable controller class and all handler mutation methods, the
+release event/state branch, the old application event/output unions, router callback dictionaries
+and registration method, runtime `tx_networks` and `_send_outputs` gates, the combined `CanBus`
+consumer protocol, `RateLimitedCanBus`, identical-frame tracking, and obsolete TX-policy fields.
+The corrected implementation also deletes the per-ID timestamp dictionary and its two configuration
+fields rather than tuning their arbitrary allowance. The direct bench endpoint write was deleted.
+The three small structural capability protocols make receive-only access representable without
+wrappers. `SafeCanTransmitter` replaces both the old temporary limiter and runtime TX gate, while
+`EffectExecutor` replaces runtime and bench routing/gating/error branches with one final writable
+boundary. No compatibility alias, parallel mutation path, dynamic registration, duplicate state
+field, or deliberately deferred in-scope simplification remains.
+
+**Discovered along the way:** Indexed `0x701 [button_index, colour]` messages make synchronization
+cost grow with LED count and allow partial device state when a multi-frame update meets a safety
+limit. That protocol migration is deliberately deferred out of hardening-02 and specified in
+[`docs/hardening-03/README.md`](../hardening-03/README.md): one validated 16-colour domain value,
+one effect, and one packed DLC-8 snapshot frame. Physical NeoTrellis rendering remains separately
+gated on verified hardware topology and electrical limits. The existing Starlette `TestClient`
+deprecation warning remains unrelated. No frontend or generated protocol artifacts changed.
+
+**Checks:** `uv run pytest -q` — 125 passed, 1 existing deprecation warning; `uv run mypy` — success,
+no issues in 28 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
 generator, and firmware checks were not applicable.

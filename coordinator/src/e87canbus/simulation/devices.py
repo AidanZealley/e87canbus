@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
-    CanBus,
     CanFrame,
     LedUpdatePayload,
     decode_led_update,
@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 class SimulatedNeoTrellisNode:
     """Simulation of the current Arduino NeoTrellis CAN firmware."""
 
-    bus: CanBus
+    bus: CanEndpoint
     ids: CustomCanIds
     button_index: int = 0
     next_pressed: bool = True
@@ -75,7 +75,7 @@ class SimulatedNeoTrellisNode:
 class SimulatedCar:
     """Placeholder car composition with one passive endpoint per BMW network."""
 
-    buses: dict[CanNetwork, CanBus]
+    buses: dict[CanNetwork, CanEndpoint]
 
     def drain_pending(self) -> int:
         drained = 0
@@ -92,7 +92,7 @@ class SimulatedCar:
 class SimulatedSteeringControllerNode:
     """K-CAN placeholder until a verified steering wire protocol exists."""
 
-    bus: CanBus
+    bus: CanEndpoint
 
     def drain_pending(self) -> int:
         drained = 0

@@ -8,8 +8,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
-from e87canbus.application.controller import ApplicationController, ApplicationSnapshot
+from e87canbus.application.controller import ApplicationSnapshot
+from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
+from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import (
     LED_AMBER,
     LED_BLUE,
@@ -17,9 +19,7 @@ from e87canbus.protocol.can import (
     LED_OFF,
     LED_RED,
     LED_WHITE,
-    CanBus,
     LedUpdatePayload,
-    RateLimitedCanBus,
 )
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import CoordinatorRuntime
@@ -145,7 +145,7 @@ class SimulatorController:
 
     def snapshot(self) -> SimulatorSnapshot:
         return SimulatorSnapshot(
-            application=self.application.snapshot(),
+            application=self.runtime.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
             led_colours=dict(self.neotrellis.led_colours),
             networks=tuple(
@@ -192,17 +192,17 @@ class SimulatorController:
         )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
 
-        tx_networks = frozenset(
-            item.network for item in self.config.can_networks if item.tx_enabled
-        )
-        self.pi_buses: dict[CanNetwork, CanBus] = {}
+        self.pi_buses: dict[CanNetwork, CanReceiver] = {}
+        transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
         for item in enabled:
             bus = self.topology.create_bus(item.network, "pi")
-            self.pi_buses[item.network] = (
-                RateLimitedCanBus(bus, self.config.tx_policy, self._clock)
-                if item.tx_enabled
-                else bus
-            )
+            self.pi_buses[item.network] = bus
+            if item.tx_enabled:
+                transmitters[item.network] = SafeCanTransmitter(
+                    bus,
+                    self.config.tx_policy,
+                    self._clock,
+                )
         car_buses = {
             item.network: self.topology.create_bus(item.network, "simulated-car")
             for item in self.config.can_networks
@@ -217,13 +217,13 @@ class SimulatorController:
             bus=self.topology.create_bus(CanNetwork.KCAN, "steering-controller")
         )
 
-        self.application = ApplicationController(steering_config=self.config.steering)
+        router = ProtocolRouter(self.ids)
         self.runtime = CoordinatorRuntime(
-            buses=self.pi_buses,
-            application=self.application,
-            router=ProtocolRouter(self.ids),
+            receivers=self.pi_buses,
+            steering_config=self.config.steering,
+            router=router,
+            executor=EffectExecutor(transmitters, router),
             monotonic=self._clock,
-            tx_networks=tx_networks,
         )
 
         self.runtime.start()

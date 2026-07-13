@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 from e87canbus.api.simulator import ConnectionManager, create_app
-from e87canbus.config import CanNetwork, default_config
+from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 from e87canbus.protocol.can import CanFrame
 from e87canbus.simulation.controller import SimulatorController
 from fastapi import WebSocket
@@ -13,7 +13,13 @@ from fastapi.testclient import TestClient
 
 
 def make_client() -> TestClient:
-    return TestClient(create_app(SimulatorController()))
+    config = replace(
+        simulator_config(),
+        tx_policy=TxPolicyConfig(
+            max_frames_per_network_window=1_000,
+        ),
+    )
+    return TestClient(create_app(SimulatorController(config=config)))
 
 
 class TickRecordingController(SimulatorController):
