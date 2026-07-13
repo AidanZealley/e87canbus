@@ -40,7 +40,7 @@ def test_snapshot() -> None:
     assert response.status_code == 200
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
-    assert response.json()["led_colours"] == {"0": 3}
+    assert response.json()["led_colours"] == {"0": 3, "3": 0}
 
 
 def test_reset() -> None:
@@ -52,7 +52,7 @@ def test_reset() -> None:
     assert response.status_code == 200
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
-    assert response.json()["led_colours"] == {"0": 3}
+    assert response.json()["led_colours"] == {"0": 3, "3": 0}
 
 
 def test_press_button() -> None:
@@ -62,7 +62,7 @@ def test_press_button() -> None:
 
     assert response.status_code == 200
     assert response.json()["application"]["steering_mode"] == "manual"
-    assert response.json()["led_colours"] == {"0": 4}
+    assert response.json()["led_colours"] == {"0": 4, "3": 0}
     assert response.json()["trace"][0]["arbitration_id_hex"] == "0x700"
 
 
@@ -74,16 +74,7 @@ def test_release_button() -> None:
 
     assert response.status_code == 200
     assert response.json()["application"]["steering_mode"] == "manual"
-    assert response.json()["led_colours"] == {"0": 4}
-
-
-def test_toggle_button() -> None:
-    client = make_client()
-
-    response = client.post("/api/buttons/0/toggle")
-
-    assert response.status_code == 200
-    assert response.json()["trace"][0]["data_hex"] == "0001"
+    assert response.json()["led_colours"] == {"0": 4, "3": 0}
 
 
 def test_step() -> None:

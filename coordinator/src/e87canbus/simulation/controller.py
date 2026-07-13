@@ -67,6 +67,7 @@ def snapshot_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
+            "maximum_assistance_active": snapshot.application.maximum_assistance_active,
             "strobe_active": snapshot.application.strobe_active,
         },
         "next_pressed": snapshot.next_pressed,
@@ -109,10 +110,6 @@ class SimulatorController:
 
     def release_button(self, button_index: int) -> SimulatorSnapshot:
         return self._send_button(button_index, pressed=False)
-
-    def toggle_button(self, button_index: int) -> SimulatorSnapshot:
-        pressed = not self._button_pressed.get(button_index, False)
-        return self._send_button(button_index, pressed=pressed)
 
     def step_auto(self, button_index: int = 0) -> SimulatorSnapshot:
         self._validate_button_index(button_index)

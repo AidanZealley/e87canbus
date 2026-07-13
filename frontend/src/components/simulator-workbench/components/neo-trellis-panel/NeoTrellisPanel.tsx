@@ -21,14 +21,12 @@ type NeoTrellisPanelProps = {
   buttons: NeoTrellisButton[]
   onPress: (index: number) => void
   onRelease: (index: number) => void
-  onToggle: (index: number) => void
 }
 
 export const NeoTrellisPanel = ({
   buttons,
   onPress,
   onRelease,
-  onToggle,
 }: NeoTrellisPanelProps) => (
   <Card className="min-w-0">
     <CardHeader>
@@ -62,9 +60,6 @@ export const NeoTrellisPanel = ({
             >
               <span className="font-heading text-2xl">{index}</span>
             </Button>
-            <Button variant="ghost" size="xs" onClick={() => onToggle(index)}>
-              Toggle
-            </Button>
           </div>
         ))}
       </div>
@@ -72,7 +67,7 @@ export const NeoTrellisPanel = ({
 
     <CardFooter>
       <p className="text-xs text-muted-foreground">
-        Button 0 toggles steering mode in the current milestone.
+        Steering: 0 mode, 1 down, 2 up, 3 maximum override.
       </p>
     </CardFooter>
   </Card>

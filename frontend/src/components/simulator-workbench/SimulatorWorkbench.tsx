@@ -8,7 +8,6 @@ import {
   releaseButton,
   resetSimulator,
   stepSimulator,
-  toggleButton,
 } from "@/api/simulator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CanTraceTable } from "./components/can-trace-table"
@@ -26,6 +25,7 @@ const emptySnapshot: SimulatorSnapshot = {
     vehicle_speed_kph: 0,
     steering_mode: "auto",
     manual_assistance_level: 0,
+    maximum_assistance_active: false,
     strobe_active: false,
   },
   next_pressed: true,
@@ -139,18 +139,6 @@ export const SimulatorWorkbench = () => {
     void runCommand(() => releaseButton(index))
   }
 
-  const handleToggle = (index: number) => {
-    setPressedButtons((current) => {
-      const next = new Set(current)
-
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
-
-      return next
-    })
-    void runCommand(() => toggleButton(index))
-  }
-
   const neoTrellisButtons: NeoTrellisButton[] = Array.from(
     { length: 16 },
     (_, index) => ({
@@ -190,7 +178,6 @@ export const SimulatorWorkbench = () => {
               buttons={neoTrellisButtons}
               onPress={handlePress}
               onRelease={handleRelease}
-              onToggle={handleToggle}
             />
           </section>
           <SteeringStatus application={snapshot.application} />

@@ -85,10 +85,6 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
     async def release_button(button_index: int) -> dict[str, Any]:
         return await _run_command(app, "release_button", button_index)
 
-    @app.post("/api/buttons/{button_index}/toggle")
-    async def toggle_button(button_index: int) -> dict[str, Any]:
-        return await _run_command(app, "toggle_button", button_index)
-
     @app.post("/api/step")
     async def step(request: StepRequest) -> dict[str, Any]:
         return await _run_command(app, "step_auto", request.button_index)
@@ -128,6 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--log-level", default="info")
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Restart the development server when Python source files change.",
+    )
     return parser
 
 
@@ -139,6 +140,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         host=args.host,
         port=args.port,
         log_level=args.log_level,
+        reload=args.reload,
+        reload_dirs=["coordinator/src"] if args.reload else None,
     )
     return 0
 

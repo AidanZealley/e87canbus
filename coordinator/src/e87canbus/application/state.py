@@ -19,6 +19,7 @@ class RuntimeState:
     vehicle_speed_kph: float = 0.0
     steering_mode: SteeringMode = SteeringMode.AUTO
     manual_assistance_level: int = 0
+    maximum_assistance_active: bool = False
     can_health: CanHealth = field(default_factory=CanHealth)
     strobe_active: bool = False
 
@@ -27,4 +28,3 @@ class RuntimeState:
 
     def set_manual_assistance_level(self, level: int, level_count: int) -> None:
         self.manual_assistance_level = min(max(level, 0), level_count - 1)
-

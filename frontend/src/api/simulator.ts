@@ -33,9 +33,6 @@ export const pressButton = (index: number) =>
 export const releaseButton = (index: number) =>
   requestSnapshot(`/api/buttons/${index}/release`, { method: "POST" })
 
-export const toggleButton = (index: number) =>
-  requestSnapshot(`/api/buttons/${index}/toggle`, { method: "POST" })
-
 export const stepSimulator = (index: number) =>
   requestSnapshot("/api/step", {
     method: "POST",

@@ -28,10 +28,10 @@ MFL_PRESS_MAPPINGS: dict[MflButton, ButtonAction] = {
 }
 
 NEOTRELLIS_BUTTON_NOTES: dict[int, str] = {
-    0: "placeholder: steering mode",
-    1: "placeholder: assistance preset",
-    2: "placeholder: strobe",
-    3: "placeholder: DSC request",
+    0: "steering mode",
+    1: "manual assistance down",
+    2: "manual assistance up",
+    3: "maximum assistance override",
 }
 
 

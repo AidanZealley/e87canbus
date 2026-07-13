@@ -48,7 +48,7 @@ sim neotrellis received led update: index=0 colour=2
 Run the FastAPI backend:
 
 ```bash
-uv run e87canbus-sim-api
+uv run e87canbus-sim-api --reload
 ```
 
 Run the browser frontend:
@@ -66,7 +66,9 @@ Default URLs:
 
 The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket stream. The simulator routes button frames through the same hardware-independent application controller intended for the real Pi runtime.
 
-LED `0` starts blue because the authoritative steering mode starts in Auto. Press NeoTrellis button `0` to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and LED `0` becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
+Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and the button becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
+
+Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. This remembered state is not persisted across coordinator restarts.
 
 ## Linux vcan Simulation
 

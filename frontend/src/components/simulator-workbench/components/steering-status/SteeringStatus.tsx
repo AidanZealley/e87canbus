@@ -34,9 +34,14 @@ export const SteeringStatus = ({ application }: SteeringStatusProps) => {
           <>
             <div className="flex items-center justify-between rounded-md bg-muted p-3">
               <span className="text-xs text-muted-foreground">Mode</span>
-              <Badge variant={isAuto ? "default" : "secondary"}>
-                {isAuto ? "Auto" : "Manual"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {application.maximum_assistance_active ? (
+                  <Badge variant="destructive">Maximum</Badge>
+                ) : null}
+                <Badge variant={isAuto ? "default" : "secondary"}>
+                  {isAuto ? "Auto" : "Manual"}
+                </Badge>
+              </div>
             </div>
             <dl className="grid grid-cols-2 gap-2">
               <div className="rounded-md border p-3">
@@ -62,7 +67,7 @@ export const SteeringStatus = ({ application }: SteeringStatusProps) => {
 
       <CardFooter>
         <p className="text-xs text-muted-foreground">
-          Press NeoTrellis button 0 to change mode.
+          Button 0 changes mode; 1/2 adjust; 3 toggles maximum assist.
         </p>
       </CardFooter>
     </Card>
