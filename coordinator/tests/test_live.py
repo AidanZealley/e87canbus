@@ -288,7 +288,7 @@ def test_coordinator_loop_warns_about_latency_without_rewriting_receive_time(
             clock=clock,
         )
 
-    health = runtime.application.state.can_health.latest_rx_monotonic_s
+    health = runtime.health.latest_rx_monotonic_s
     assert health[CanNetwork.FCAN] == 0.5
     assert "network=fcan latency_s=1.500" in caplog.text
 

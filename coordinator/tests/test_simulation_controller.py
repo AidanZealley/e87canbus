@@ -233,7 +233,7 @@ def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
 
     snapshot = controller.press_button(0)
 
-    health = controller.application.state.can_health.latest_rx_monotonic_s
+    health = controller.runtime.health.latest_rx_monotonic_s
     assert health[CanNetwork.KCAN] == 8.5
     assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
 

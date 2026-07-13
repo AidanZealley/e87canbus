@@ -1,4 +1,7 @@
-from e87canbus.application.controller import ApplicationController
+from dataclasses import FrozenInstanceError
+
+import pytest
+from e87canbus.application.controller import ApplicationController, ApplicationSnapshot
 from e87canbus.application.events import (
     ButtonState,
     LedColour,
@@ -6,179 +9,218 @@ from e87canbus.application.events import (
     SpeedUpdateEvent,
     SteeringMode,
 )
-from e87canbus.application.state import RuntimeState
+from e87canbus.application.state import ApplicationState, NormalSteering
 from e87canbus.config import CanNetwork, SteeringConfig
 
 
-def test_initial_state_is_auto_with_blue_mode_led() -> None:
+def application_state(
+    mode: SteeringMode = SteeringMode.AUTO,
+    manual_level: int = 0,
+) -> ApplicationState:
+    return ApplicationState(steering=NormalSteering(mode, manual_level))
+
+
+def press(controller: ApplicationController, button_index: int) -> tuple[LedColour, ...]:
+    outputs = controller.handle_event(
+        NeoTrellisButtonEvent(button_index, ButtonState.PRESSED), 0.0
+    )
+    return tuple(output.colour for output in outputs)
+
+
+def steering_projection(snapshot: ApplicationSnapshot) -> tuple[SteeringMode, int, bool]:
+    return (
+        snapshot.steering_mode,
+        snapshot.manual_assistance_level,
+        snapshot.maximum_assistance_active,
+    )
+
+
+def test_initial_snapshot_and_desired_outputs() -> None:
     controller = ApplicationController()
 
-    assert controller.snapshot().steering_mode is SteeringMode.AUTO
-    assert controller.desired_outputs()[0].colour is LedColour.BLUE
+    assert controller.snapshot() == ApplicationSnapshot(
+        vehicle_speed_kph=0.0,
+        steering_mode=SteeringMode.AUTO,
+        manual_assistance_level=0,
+        maximum_assistance_active=False,
+        speed_valid=False,
+    )
+    assert tuple(output.colour for output in controller.desired_outputs()) == (
+        LedColour.BLUE,
+        LedColour.OFF,
+    )
 
 
-def test_button_zero_press_toggles_steering_mode_and_led() -> None:
-    controller = ApplicationController()
+@pytest.mark.parametrize(
+    ("initial_mode", "button_index", "expected", "output_colours"),
+    [
+        (SteeringMode.AUTO, 0, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
+        (SteeringMode.AUTO, 1, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
+        (SteeringMode.AUTO, 2, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
+        (
+            SteeringMode.AUTO,
+            3,
+            (SteeringMode.MANUAL, 7, True),
+            (LedColour.AMBER, LedColour.WHITE),
+        ),
+        (SteeringMode.MANUAL, 0, (SteeringMode.AUTO, 0, False), (LedColour.BLUE,)),
+        (SteeringMode.MANUAL, 1, (SteeringMode.MANUAL, 0, False), ()),
+        (SteeringMode.MANUAL, 2, (SteeringMode.MANUAL, 1, False), ()),
+        (
+            SteeringMode.MANUAL,
+            3,
+            (SteeringMode.MANUAL, 7, True),
+            (LedColour.AMBER, LedColour.WHITE),
+        ),
+    ],
+)
+def test_mapped_buttons_from_normal_modes(
+    initial_mode: SteeringMode,
+    button_index: int,
+    expected: tuple[SteeringMode, int, bool],
+    output_colours: tuple[LedColour, ...],
+) -> None:
+    controller = ApplicationController(state=application_state(mode=initial_mode))
 
-    outputs = controller.handle_event(NeoTrellisButtonEvent(0, ButtonState.PRESSED), 0.0)
+    colours = press(controller, button_index)
 
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert outputs[0].button_index == 0
-    assert outputs[0].colour is LedColour.AMBER
-
-
-def test_button_zero_release_does_not_change_mode() -> None:
-    controller = ApplicationController()
-    controller.handle_event(NeoTrellisButtonEvent(0, ButtonState.PRESSED), 0.0)
-
-    outputs = controller.handle_event(NeoTrellisButtonEvent(0, ButtonState.RELEASED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert outputs == ()
-
-
-def test_second_button_zero_press_returns_to_auto() -> None:
-    controller = ApplicationController()
-    controller.handle_event(NeoTrellisButtonEvent(0, ButtonState.PRESSED), 0.0)
-
-    outputs = controller.handle_event(NeoTrellisButtonEvent(0, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.AUTO
-    assert outputs[0].colour is LedColour.BLUE
-
-
-def test_unmapped_button_does_not_change_application_state() -> None:
-    controller = ApplicationController()
-
-    outputs = controller.handle_event(NeoTrellisButtonEvent(4, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.AUTO
-    assert outputs == ()
+    assert steering_projection(controller.snapshot()) == expected
+    assert colours == output_colours
 
 
-def test_unknown_button_press_returns_no_outputs_or_state_change() -> None:
-    controller = ApplicationController()
-    snapshot_before = controller.snapshot()
+@pytest.mark.parametrize(
+    ("button_index", "expected", "output_colours"),
+    [
+        (0, (SteeringMode.MANUAL, 7, True), ()),
+        (1, (SteeringMode.MANUAL, 3, False), (LedColour.AMBER, LedColour.OFF)),
+        (2, (SteeringMode.MANUAL, 3, False), (LedColour.AMBER, LedColour.OFF)),
+        (3, (SteeringMode.AUTO, 3, False), (LedColour.BLUE, LedColour.OFF)),
+    ],
+)
+def test_mapped_buttons_while_maximum_assistance_is_active(
+    button_index: int,
+    expected: tuple[SteeringMode, int, bool],
+    output_colours: tuple[LedColour, ...],
+) -> None:
+    controller = ApplicationController(state=application_state(manual_level=3))
+    press(controller, 3)
 
-    outputs = controller.handle_event(NeoTrellisButtonEvent(9, ButtonState.PRESSED), 0.0)
+    colours = press(controller, button_index)
 
-    assert outputs == ()
-    assert controller.snapshot() == snapshot_before
+    assert steering_projection(controller.snapshot()) == expected
+    assert colours == output_colours
 
 
-def test_assistance_button_enters_manual_at_remembered_level_then_adjusts() -> None:
-    controller = ApplicationController(state=RuntimeState(manual_assistance_level=3))
+def test_maximum_assistance_restores_previous_manual_state() -> None:
+    controller = ApplicationController(
+        state=application_state(mode=SteeringMode.MANUAL, manual_level=5)
+    )
 
-    outputs = controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED), 0.0)
+    press(controller, 3)
+    press(controller, 3)
 
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
+    assert steering_projection(controller.snapshot()) == (
+        SteeringMode.MANUAL,
+        5,
+        False,
+    )
+
+
+def test_first_assistance_press_after_maximum_does_not_adjust_restored_level() -> None:
+    controller = ApplicationController(state=application_state(manual_level=3))
+    press(controller, 3)
+
+    press(controller, 2)
     assert controller.snapshot().manual_assistance_level == 3
-    assert outputs == (controller.desired_outputs()[0],)
 
-    controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED), 0.0)
-
+    press(controller, 2)
     assert controller.snapshot().manual_assistance_level == 4
 
 
-def test_manual_assistance_buttons_clamp_to_configured_bounds() -> None:
+@pytest.mark.parametrize(
+    "event",
+    [
+        NeoTrellisButtonEvent(0, ButtonState.RELEASED),
+        NeoTrellisButtonEvent(3, ButtonState.RELEASED),
+        NeoTrellisButtonEvent(9, ButtonState.PRESSED),
+    ],
+)
+def test_release_and_unknown_button_events_are_no_ops(event: NeoTrellisButtonEvent) -> None:
+    controller = ApplicationController()
+    before = controller.snapshot()
+
+    outputs = controller.handle_event(event, 0.0)
+
+    assert outputs == ()
+    assert controller.snapshot() == before
+
+
+def test_manual_assistance_is_clamped_to_configured_bounds() -> None:
     controller = ApplicationController(
-        state=RuntimeState(steering_mode=SteeringMode.MANUAL),
+        state=application_state(mode=SteeringMode.MANUAL, manual_level=-4),
         steering_config=SteeringConfig(manual_level_count=3),
     )
 
-    controller.handle_event(NeoTrellisButtonEvent(1, ButtonState.PRESSED), 0.0)
+    press(controller, 1)
     assert controller.snapshot().manual_assistance_level == 0
 
     for _ in range(4):
-        controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED), 0.0)
+        press(controller, 2)
     assert controller.snapshot().manual_assistance_level == 2
 
 
-def test_maximum_assistance_from_auto_restores_auto_and_remembered_level() -> None:
-    controller = ApplicationController(state=RuntimeState(manual_assistance_level=3))
+@pytest.mark.parametrize(
+    ("evaluation_time", "expected_valid"),
+    [(10.5, True), (11.0, True), (11.000_001, False)],
+)
+def test_speed_validity_is_derived_from_sample_age(
+    evaluation_time: float,
+    expected_valid: bool,
+) -> None:
+    controller = ApplicationController()
+    controller.handle_event(SpeedUpdateEvent(42.5, CanNetwork.FCAN), 10.0)
 
-    outputs = controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
+    controller.tick(evaluation_time)
 
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert controller.snapshot().manual_assistance_level == 7
-    assert controller.snapshot().maximum_assistance_active is True
-    assert outputs[1].button_index == 3
-    assert outputs[1].colour is LedColour.WHITE
-
-    outputs = controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.AUTO
-    assert controller.snapshot().manual_assistance_level == 3
-    assert controller.snapshot().maximum_assistance_active is False
-    assert outputs[0].colour is LedColour.BLUE
-    assert outputs[1].colour is LedColour.OFF
+    snapshot = controller.snapshot()
+    assert snapshot.vehicle_speed_kph == 42.5
+    assert snapshot.speed_valid is expected_valid
 
 
-def test_maximum_assistance_from_manual_restores_previous_manual_level() -> None:
-    controller = ApplicationController(
-        state=RuntimeState(
-            steering_mode=SteeringMode.MANUAL,
-            manual_assistance_level=5,
-        )
-    )
-
-    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
-    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert controller.snapshot().manual_assistance_level == 5
-
-
-def test_assistance_button_exits_maximum_at_saved_manual_level_without_adjusting() -> None:
-    controller = ApplicationController(state=RuntimeState(manual_assistance_level=3))
-    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
-
-    outputs = controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert controller.snapshot().manual_assistance_level == 3
-    assert controller.snapshot().maximum_assistance_active is False
-    assert outputs[0].colour is LedColour.AMBER
-    assert outputs[1].colour is LedColour.OFF
-
-    controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED), 0.0)
-    assert controller.snapshot().manual_assistance_level == 4
-
-
-def test_assistance_button_exits_maximum_started_from_manual_at_saved_level() -> None:
-    controller = ApplicationController(
-        state=RuntimeState(
-            steering_mode=SteeringMode.MANUAL,
-            manual_assistance_level=5,
-        )
-    )
-    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED), 0.0)
-
-    controller.handle_event(NeoTrellisButtonEvent(1, ButtonState.PRESSED), 0.0)
-
-    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
-    assert controller.snapshot().manual_assistance_level == 5
-    assert controller.snapshot().maximum_assistance_active is False
-
-
-def test_button_releases_do_not_adjust_or_toggle_assistance() -> None:
+def test_speed_is_invalid_before_any_sample() -> None:
     controller = ApplicationController()
 
-    for button_index in (1, 2, 3):
-        controller.handle_event(
-            NeoTrellisButtonEvent(button_index, ButtonState.RELEASED), 0.0
-        )
+    controller.tick(100.0)
 
-    assert controller.snapshot().steering_mode is SteeringMode.AUTO
-    assert controller.snapshot().manual_assistance_level == 0
-    assert controller.snapshot().maximum_assistance_active is False
+    assert controller.snapshot().vehicle_speed_kph == 0.0
+    assert controller.snapshot().speed_valid is False
 
 
-def test_speed_event_updates_application_state_without_hardware_output() -> None:
+def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     controller = ApplicationController()
 
-    outputs = controller.handle_event(SpeedUpdateEvent(42.5, CanNetwork.FCAN), 12.5)
+    outputs = controller.handle_event(SpeedUpdateEvent(-2.0, CanNetwork.PTCAN), 12.5)
 
-    assert controller.snapshot().vehicle_speed_kph == 42.5
+    sample = controller.state.speed_sample
+    assert sample is not None
+    assert sample.speed_kph == 0.0
+    assert sample.observed_at == 12.5
+    assert sample.source_network is CanNetwork.PTCAN
     assert controller.snapshot().speed_valid is True
     assert outputs == ()
+
+
+def test_state_is_frozen_and_replaced_atomically() -> None:
+    controller = ApplicationController()
+    before = controller.state
+
+    press(controller, 0)
+
+    assert controller.state is not before
+    assert steering_projection(controller.snapshot()) == (
+        SteeringMode.MANUAL,
+        0,
+        False,
+    )
+    with pytest.raises(FrozenInstanceError):
+        before.speed_evaluated_at = 1.0  # type: ignore[misc]

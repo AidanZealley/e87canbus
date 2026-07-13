@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from e87canbus.application.controller import ApplicationController, ApplicationOutput
 from e87canbus.config import CanNetwork
@@ -24,6 +24,20 @@ class ReceivedCanFrame:
     received_at: float
 
 
+def _empty_can_health() -> dict[CanNetwork, float | None]:
+    return {network: None for network in CanNetwork}
+
+
+@dataclass
+class RuntimeHealth:
+    latest_rx_monotonic_s: dict[CanNetwork, float | None] = field(
+        default_factory=_empty_can_health
+    )
+
+    def record_receive(self, network: CanNetwork, monotonic_s: float) -> None:
+        self.latest_rx_monotonic_s[network] = monotonic_s
+
+
 class CoordinatorRuntime:
     """Process one received frame at a time and dispatch application outputs."""
 
@@ -38,6 +52,7 @@ class CoordinatorRuntime:
         self.buses = dict(buses)
         self.application = application or ApplicationController()
         self.router = router or ProtocolRouter()
+        self.health = RuntimeHealth()
         self._monotonic = monotonic
         self._tx_networks = tx_networks
 
@@ -50,7 +65,7 @@ class CoordinatorRuntime:
         """Process a received input while isolating malformed traffic and output failures."""
 
         routed = RoutedCanFrame(network=received.network, frame=received.frame)
-        self.application.state.can_health.record_receive(received.network, received.received_at)
+        self.health.record_receive(received.network, received.received_at)
         try:
             event = self.router.decode(routed)
         except ValueError as exc:

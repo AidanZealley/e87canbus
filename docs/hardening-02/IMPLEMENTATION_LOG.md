@@ -9,7 +9,7 @@ record corrections in the current entry so the migration history remains visible
 |---|---|---|
 | 1 — Immediate live-safety containment | done | 2026-07-13 |
 | 2 — Timestamped, bounded ingress | done | 2026-07-13 |
-| 3 — Explicit immutable domain state | planned | — |
+| 3 — Explicit immutable domain state | done | 2026-07-13 |
 | 4 — Pure transitions and controlled effects | planned | — |
 | 5 — Single-owner kernel and live cutover | planned | — |
 | 6 — Simulator and API cutover | planned | — |
@@ -137,5 +137,58 @@ second validity mechanism. The existing Starlette `TestClient` deprecation warni
 unrelated. No frontend or generated protocol artifacts changed.
 
 **Checks:** `uv run pytest -q` — 118 passed, 1 existing deprecation warning; `uv run mypy` — success,
+no issues in 26 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
+generator, and firmware checks were not applicable.
+
+## Phase 3 — Explicit immutable domain state (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Replaced mutable `RuntimeState` with frozen `ApplicationState`, `NormalSteering`,
+  `MaximumAssistance`, and `SpeedSample` values; controller handlers now replace the complete state
+  value atomically.
+- Made maximum assistance a tagged steering state that wraps the complete previous normal state;
+  mode, manual level, active status, and LED commands are derived projections.
+- Made vehicle speed and validity projections of one clamped, source-network-aware sample plus the
+  last explicit evaluation time. Speed events and ticks supply that time; no domain clock read was
+  added, and the timeout boundary remains inclusive.
+- Moved mutable CAN receive health out of application state and onto `CoordinatorRuntime`, which is
+  the boundary that observes received frames.
+- Replaced callback-dictionary button routing with a direct local `match` and consolidated the two
+  assistance-button paths.
+- Reworked controller coverage into table-driven behavioral cases for every mapped button from
+  Auto and Manual, every mapped press during maximum assistance, releases, unknown buttons, level
+  bounds, and fresh, boundary-age, stale, and absent speed samples.
+
+**Deviations from the phase doc:** None. The explicit speed evaluation timestamp is stored in the
+frozen application state so the existing no-argument snapshot API and tick-driven serialized
+behavior remain unchanged; validity itself is never stored.
+
+**Safety invariants verified:** Legal steering states are encoded by the `NormalSteering |
+MaximumAssistance` union, and frozen-state tests prove replacement rather than field mutation.
+Timestamp ownership is preserved by runtime tests proving an old queued speed frame retains its
+ingress observation time and becomes stale when evaluated later. Table-driven tests prove speed is
+valid through the configured timeout boundary and invalid when stale or never observed. Existing
+full-suite live-default, bounded-ingress, same-path simulator, TX-policy, and publication behavior
+remains passing.
+
+**Complexity delta:** Deleted `RuntimeState`, its mutation methods, the independently mutable speed
+validity and steering projection fields, `_pre_maximum_assistance_state`, its restore helper and
+assertion, four callback registrations, and separate up/down handlers. The small frozen tagged
+values replace contradictory fields and hidden saved state; `RuntimeHealth` moves the existing CAN
+health responsibility to its actual owner rather than introducing a second path. Steering
+projection and initial normalization remain as focused helpers because each centralizes a repeated
+rule. There is no compatibility alias, parallel state representation, dynamic registration, or
+deliberately deferred in-scope simplification.
+
+**Discovered along the way:** Preserving the external no-argument snapshot contract requires the
+last speed evaluation time to be explicit state until the later kernel phases make evaluation time
+part of pure transition inputs. Phase 4 remains responsible for pure transition/effect return
+values; none were introduced here. The existing Starlette `TestClient` deprecation warning remains
+unrelated. No frontend or generated protocol artifacts changed.
+
+**Checks:** `uv run pytest -q` — 129 passed, 1 existing deprecation warning; `uv run mypy` — success,
 no issues in 26 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
 generator, and firmware checks were not applicable.

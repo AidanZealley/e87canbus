@@ -81,7 +81,7 @@ def test_runtime_processes_kcan_button_and_returns_led_on_kcan() -> None:
     assert runtime.application.snapshot().steering_mode is SteeringMode.MANUAL
     assert kcan.sent == [CanFrame(ids.led_update, b"\x00\x04")]
     assert ptcan.sent == []
-    health = runtime.application.state.can_health.latest_rx_monotonic_s
+    health = runtime.health.latest_rx_monotonic_s
     assert health[CanNetwork.KCAN] == 12.5
     assert health[CanNetwork.PTCAN] is None
 
@@ -192,7 +192,10 @@ def test_old_queued_speed_frame_keeps_ingress_time_when_processed_later() -> Non
     )
     runtime.tick()
 
-    health = runtime.application.state.can_health.latest_rx_monotonic_s
+    health = runtime.health.latest_rx_monotonic_s
     assert health[CanNetwork.FCAN] == 1.0
-    assert runtime.application.state.speed_updated_monotonic_s == 1.0
+    speed_sample = runtime.application.state.speed_sample
+    assert speed_sample is not None
+    assert speed_sample.observed_at == 1.0
+    assert speed_sample.source_network is CanNetwork.FCAN
     assert runtime.application.snapshot().speed_valid is False
