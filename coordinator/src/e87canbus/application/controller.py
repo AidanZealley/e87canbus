@@ -23,6 +23,7 @@ class ApplicationSnapshot:
     steering_mode: SteeringMode
     manual_assistance_level: int
     maximum_assistance_active: bool
+    speed_valid: bool
 
 
 ApplicationEvent = NeoTrellisButtonEvent | SpeedUpdateEvent
@@ -62,11 +63,14 @@ class ApplicationController:
             steering_mode=self.state.steering_mode,
             manual_assistance_level=self.state.manual_assistance_level,
             maximum_assistance_active=self.state.maximum_assistance_active,
+            speed_valid=self.state.speed_valid,
         )
 
-    def handle_event(self, event: ApplicationEvent) -> tuple[ApplicationOutput, ...]:
+    def handle_event(
+        self, event: ApplicationEvent, now: float
+    ) -> tuple[ApplicationOutput, ...]:
         if isinstance(event, SpeedUpdateEvent):
-            self.state.set_speed(event.speed_kph)
+            self.state.set_speed(event.speed_kph, now)
             return ()
 
         if event.state is not ButtonState.PRESSED:
@@ -74,6 +78,14 @@ class ApplicationController:
 
         handler = self._button_handlers.get(event.button_index)
         return handler() if handler is not None else ()
+
+    def tick(self, now: float) -> tuple[ApplicationOutput, ...]:
+        speed_updated = self.state.speed_updated_monotonic_s
+        self.state.speed_valid = (
+            speed_updated is not None
+            and now - speed_updated <= self.steering_config.speed_timeout_s
+        )
+        return ()
 
     def _handle_steering_mode_button(self) -> tuple[ApplicationOutput, ...]:
         if self.state.maximum_assistance_active:

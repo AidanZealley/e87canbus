@@ -50,6 +50,7 @@ class InMemoryCanNetwork:
         network: CanNetwork = CanNetwork.KCAN,
         trace_capacity: int = 2_000,
         recorder: TraceRecorder | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if trace_capacity < 1:
             raise ValueError("trace_capacity must be at least 1")
@@ -58,6 +59,7 @@ class InMemoryCanNetwork:
         self._trace: deque[SimulatedCanTraceEntry] = deque(maxlen=trace_capacity)
         self._sequence = 0
         self._recorder = recorder
+        self._clock = clock
 
     def create_bus(self, name: str) -> CanBus:
         if name in self._buses:
@@ -86,7 +88,7 @@ class InMemoryCanNetwork:
                 network=self.network,
                 source=source,
                 frame=frame,
-                monotonic_s=time.monotonic(),
+                monotonic_s=self._clock(),
                 sequence=self._sequence,
             )
             self._trace.append(entry)
@@ -101,17 +103,23 @@ class InMemoryCanNetwork:
 class InMemoryCanTopology:
     """Three independent broadcast domains sharing one chronological trace."""
 
-    def __init__(self, trace_capacity: int = 2_000) -> None:
+    def __init__(
+        self,
+        trace_capacity: int = 2_000,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         if trace_capacity < 1:
             raise ValueError("trace_capacity must be at least 1")
         self.trace_capacity = trace_capacity
         self._trace: deque[SimulatedCanTraceEntry] = deque(maxlen=trace_capacity)
         self._sequence = 0
+        self._clock = clock
         self._networks = {
             network: InMemoryCanNetwork(
                 network=network,
                 trace_capacity=trace_capacity,
                 recorder=self._record,
+                clock=clock,
             )
             for network in CanNetwork
         }
@@ -149,7 +157,7 @@ class InMemoryCanTopology:
             network=network,
             source=source,
             frame=frame,
-            monotonic_s=time.monotonic(),
+            monotonic_s=self._clock(),
             sequence=self._sequence,
         )
         self._trace.append(entry)

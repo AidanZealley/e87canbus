@@ -1,8 +1,17 @@
 import logging
 
 import pytest
-from e87canbus.application.controller import ApplicationController
-from e87canbus.application.events import SteeringMode
+from e87canbus.application.controller import (
+    ApplicationController,
+    ApplicationEvent,
+    ApplicationOutput,
+)
+from e87canbus.application.events import (
+    ButtonLedCommand,
+    LedColour,
+    SpeedUpdateEvent,
+    SteeringMode,
+)
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
@@ -20,6 +29,25 @@ class FakeBus:
     def receive(self, timeout_s: float | None = None) -> CanFrame | None:
         del timeout_s
         return self.pending.pop(0) if self.pending else None
+
+
+class MutableClock:
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+class SpeedRouter(ProtocolRouter):
+    def decode(self, routed: RoutedCanFrame) -> ApplicationEvent | None:
+        return SpeedUpdateEvent(float(routed.frame.data[0]), routed.network)
+
+
+class TickOutputApplication(ApplicationController):
+    def tick(self, now: float) -> tuple[ApplicationOutput, ...]:
+        del now
+        return (ButtonLedCommand(button_index=0, colour=LedColour.BLUE),)
 
 
 def test_protocol_router_scopes_button_decode_and_led_encode_to_kcan() -> None:
@@ -86,3 +114,41 @@ def test_unavailable_output_network_is_logged_and_does_not_crash(
         runtime.start()
 
     assert caplog.text.count("unavailable CAN network") == 2
+
+
+def test_runtime_tick_sends_application_outputs() -> None:
+    bus = FakeBus()
+    runtime = CoordinatorRuntime(
+        {CanNetwork.KCAN: bus},
+        application=TickOutputApplication(),
+        monotonic=lambda: 4.0,
+    )
+
+    runtime.tick()
+
+    assert bus.sent == [CanFrame(CustomCanIds().led_update, b"\x00\x03")]
+
+
+def test_speed_staleness_transitions_fresh_to_stale_and_fresh_again() -> None:
+    clock = MutableClock()
+    runtime = CoordinatorRuntime(
+        {CanNetwork.FCAN: FakeBus()},
+        router=SpeedRouter(),
+        monotonic=clock,
+    )
+    speed_frame = RoutedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"))
+
+    runtime.process_frame(speed_frame)
+    assert runtime.application.snapshot().speed_valid is True
+
+    clock.now = 0.5
+    runtime.tick()
+    assert runtime.application.snapshot().speed_valid is True
+
+    clock.now = 1.5
+    runtime.tick()
+    assert runtime.application.snapshot().speed_valid is False
+
+    clock.now = 2.0
+    runtime.process_frame(speed_frame)
+    assert runtime.application.snapshot().speed_valid is True

@@ -23,6 +23,7 @@ export type NetworkStatus = {
 
 export type ApplicationSnapshot = {
   vehicle_speed_kph: number
+  speed_valid: boolean
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   maximum_assistance_active: boolean

@@ -29,6 +29,7 @@ import type {
 const emptySnapshot: SimulatorSnapshot = {
   application: {
     vehicle_speed_kph: 0,
+    speed_valid: false,
     steering_mode: "auto",
     manual_assistance_level: 0,
     maximum_assistance_active: false,

@@ -10,7 +10,7 @@ including anywhere reality diverged from a phase doc.
 |---|---|---|
 | 1 — Dead code deletion and boundary cleanup | done | 2026-07-13 |
 | 2 — Button dispatch table | done | 2026-07-13 |
-| 3 — Time axis | not started | — |
+| 3 — Time axis | done | 2026-07-13 |
 | 4 — Transmit safety | not started | — |
 | 5 — Simulator and API robustness | not started | — |
 | 6 — Live runner skeleton | not started | — |
@@ -77,3 +77,29 @@ should know. "Nothing" is a valid answer.
 **Discovered along the way:** Nothing.
 
 **Checks:** pytest 81 passed / mypy clean / ruff clean
+
+## Phase 3 — Time axis (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Added timestamped speed state, speed validity, configured staleness and tick intervals, and the
+  application `tick` entry point.
+- Updated `CoordinatorRuntime` to reuse one injected clock reading per frame and route tick outputs
+  through the existing output sender.
+- Threaded injectable clocks through the in-memory CAN topology and simulator controller, and added
+  simulator tick processing through the normal pending-frame/event path.
+- Added a FastAPI lifespan task that ticks under the simulator lock, broadcasts only application
+  state changes, and cancels cleanly during shutdown.
+- Exposed `speed_valid` through simulator snapshots and the frontend, which now displays "No speed
+  data" while no verified BMW speed decoder exists.
+- Added deterministic coverage for tick output routing, fresh/stale/fresh speed transitions,
+  simulator clocks and ticks, idle API ticks, and the new configuration defaults.
+- Updated `docs/simulation.md` and `coordinator/README.md` for the tick path and absent speed source.
+
+**Deviations from the phase doc:** None.
+
+**Discovered along the way:** Nothing.
+
+**Checks:** pytest 87 passed / mypy clean / ruff clean / frontend typecheck and lint clean

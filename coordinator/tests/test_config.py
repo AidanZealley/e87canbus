@@ -28,3 +28,10 @@ def test_custom_can_ids() -> None:
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
+
+
+def test_default_tick_and_speed_timeout_intervals() -> None:
+    config = default_config()
+
+    assert config.tick_interval_s == 0.1
+    assert config.steering.speed_timeout_s == 1.0

@@ -5,7 +5,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import uvicorn
@@ -46,7 +47,30 @@ class ConnectionManager:
 
 
 def create_app(controller: SimulatorController | None = None) -> FastAPI:
-    app = FastAPI(title="E87 CAN Bus Simulator")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        previous_application = app.state.controller.snapshot().application
+
+        async def tick() -> None:
+            nonlocal previous_application
+            while True:
+                await asyncio.sleep(app.state.controller.config.tick_interval_s)
+                async with app.state.lock:
+                    snapshot = app.state.controller.tick()
+                    application_changed = snapshot.application != previous_application
+                    previous_application = snapshot.application
+                if application_changed:
+                    await app.state.manager.broadcast((snapshot_event(snapshot),))
+
+        task = asyncio.create_task(tick())
+        try:
+            yield
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+    app = FastAPI(title="E87 CAN Bus Simulator", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

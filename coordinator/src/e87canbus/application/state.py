@@ -29,9 +29,13 @@ class RuntimeState:
     manual_assistance_level: int = 0
     maximum_assistance_active: bool = False
     can_health: CanHealth = field(default_factory=CanHealth)
+    speed_updated_monotonic_s: float | None = None
+    speed_valid: bool = False
 
-    def set_speed(self, speed_kph: float) -> None:
+    def set_speed(self, speed_kph: float, now: float) -> None:
         self.vehicle_speed_kph = max(0.0, speed_kph)
+        self.speed_updated_monotonic_s = now
+        self.speed_valid = True
 
     def set_manual_assistance_level(self, level: int, level_count: int) -> None:
         self.manual_assistance_level = min(max(level, 0), level_count - 1)

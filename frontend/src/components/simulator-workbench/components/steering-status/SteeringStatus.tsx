@@ -47,7 +47,11 @@ export const SteeringStatus = ({ application }: SteeringStatusProps) => {
               <div className="rounded-md border p-3">
                 <dt className="text-xs text-muted-foreground">Vehicle speed</dt>
                 <dd className="font-heading text-base font-semibold">
-                  {application.vehicle_speed_kph.toFixed(1)} km/h
+                  {application.speed_valid ? (
+                    `${application.vehicle_speed_kph.toFixed(1)} km/h`
+                  ) : (
+                    <Badge variant="outline">No speed data</Badge>
+                  )}
                 </dd>
               </div>
               <div className="rounded-md border p-3">

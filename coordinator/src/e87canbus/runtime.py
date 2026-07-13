@@ -37,7 +37,8 @@ class CoordinatorRuntime:
     def process_frame(self, routed: RoutedCanFrame) -> None:
         """Process a routed input while isolating malformed traffic and output failures."""
 
-        self.application.state.can_health.record_receive(routed.network, self._monotonic())
+        now = self._monotonic()
+        self.application.state.can_health.record_receive(routed.network, now)
         try:
             event = self.router.decode(routed)
         except ValueError as exc:
@@ -52,7 +53,10 @@ class CoordinatorRuntime:
 
         if event is None:
             return
-        self._send_outputs(self.application.handle_event(event))
+        self._send_outputs(self.application.handle_event(event, now))
+
+    def tick(self) -> None:
+        self._send_outputs(self.application.tick(self._monotonic()))
 
     def drain_pending(self) -> int:
         """Drain endpoint queues in stable round-robin network order."""

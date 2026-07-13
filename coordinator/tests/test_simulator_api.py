@@ -1,10 +1,36 @@
+from collections.abc import Sequence
+from dataclasses import replace
+from threading import Event
+from typing import Any
+
 from e87canbus.api.simulator import create_app
+from e87canbus.config import default_config
 from e87canbus.simulation.controller import SimulatorController
 from fastapi.testclient import TestClient
 
 
 def make_client() -> TestClient:
     return TestClient(create_app(SimulatorController()))
+
+
+class TickRecordingController(SimulatorController):
+    def __init__(self, ticked: Event) -> None:
+        config = replace(default_config(), tick_interval_s=0.001)
+        super().__init__(config=config)
+        self._ticked = ticked
+
+    def tick(self):
+        snapshot = super().tick()
+        self._ticked.set()
+        return snapshot
+
+
+class RecordingManager:
+    def __init__(self) -> None:
+        self.broadcasts: list[Sequence[dict[str, Any]]] = []
+
+    async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
+        self.broadcasts.append(events)
 
 
 def test_health() -> None:
@@ -40,6 +66,7 @@ def test_snapshot() -> None:
     assert response.status_code == 200
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
+    assert response.json()["application"]["speed_valid"] is False
     assert response.json()["led_colours"] == {"0": 3, "3": 0}
     assert response.json()["networks"] == [
         {
@@ -146,3 +173,18 @@ def test_websocket_frame_events_include_network_metadata() -> None:
     assert frame_event["type"] == "frame"
     assert frame_event["sequence"] == 1
     assert frame_event["network"] == "kcan"
+
+
+def test_background_idle_ticks_do_not_broadcast_or_change_endpoint_behavior() -> None:
+    ticked = Event()
+    app = create_app(TickRecordingController(ticked))
+    manager = RecordingManager()
+    app.state.manager = manager
+
+    with TestClient(app) as client:
+        assert ticked.wait(timeout=1.0)
+        response = client.get("/api/snapshot")
+
+    assert response.status_code == 200
+    assert response.json()["application"]["speed_valid"] is False
+    assert manager.broadcasts == []

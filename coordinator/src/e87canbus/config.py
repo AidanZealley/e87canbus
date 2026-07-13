@@ -49,6 +49,7 @@ class SteeringConfig:
         (30.0, 600.0),
         (100.0, 200.0),
     )
+    speed_timeout_s: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,7 @@ class AppConfig:
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
+    tick_interval_s: float = 0.1
 
 
 def default_config() -> AppConfig:

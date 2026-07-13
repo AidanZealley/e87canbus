@@ -1,10 +1,18 @@
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.events import SteeringMode
+from e87canbus.application.events import SpeedUpdateEvent, SteeringMode
 from e87canbus.config import CanNetwork, default_config
 from e87canbus.protocol.can import LED_AMBER, LED_BLUE, LED_OFF, LED_WHITE, RoutedCanFrame
 from e87canbus.simulation.controller import SimulatorController
+
+
+class MutableClock:
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
@@ -13,6 +21,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     snapshot = controller.snapshot()
 
     assert snapshot.next_pressed is True
+    assert snapshot.application.speed_valid is False
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert snapshot.led_colours == {0: LED_BLUE, 3: LED_OFF}
     assert snapshot.trace == ()
@@ -172,3 +181,28 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert snapshot.application.manual_assistance_level == 1
     assert snapshot.application.maximum_assistance_active is False
     assert snapshot.led_colours[3] == LED_OFF
+
+
+def test_controller_tick_uses_shared_clock_and_records_snapshot_event() -> None:
+    clock = MutableClock(10.0)
+    controller = SimulatorController(clock=clock)
+    controller.application.handle_event(
+        SpeedUpdateEvent(42.0, CanNetwork.FCAN), clock()
+    )
+
+    clock.now = 11.5
+    snapshot = controller.tick()
+
+    assert snapshot.application.speed_valid is False
+    assert controller.last_events[0]["type"] == "snapshot"
+
+
+def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
+    clock = MutableClock(8.5)
+    controller = SimulatorController(clock=clock)
+
+    snapshot = controller.press_button(0)
+
+    health = controller.application.state.can_health.latest_rx_monotonic_s
+    assert health[CanNetwork.KCAN] == 8.5
+    assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}

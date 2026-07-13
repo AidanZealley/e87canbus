@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -89,6 +91,7 @@ def snapshot_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
     return {
         "application": {
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
+            "speed_valid": snapshot.application.speed_valid,
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
             "maximum_assistance_active": snapshot.application.maximum_assistance_active,
@@ -111,6 +114,7 @@ class SimulatorController:
         button_count: int = 16,
         *,
         config: AppConfig | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if button_count < 1 or button_count > 256:
             raise ValueError("button_count must be between 1 and 256")
@@ -119,6 +123,7 @@ class SimulatorController:
             self.config = replace(self.config, custom_can_ids=ids)
         self.ids = self.config.custom_can_ids
         self.button_count = button_count
+        self._clock = clock
         self._build_session()
         self._button_pressed: dict[int, bool] = {}
         self.last_events: tuple[dict[str, Any], ...] = ()
@@ -160,9 +165,15 @@ class SimulatorController:
         self._button_pressed[button_index] = bool(sent.data[1])
         return self._process_pending(before_sequence)
 
+    def tick(self) -> SimulatorSnapshot:
+        before_sequence = self.topology.latest_sequence
+        self.runtime.tick()
+        return self._process_pending(before_sequence)
+
     def _build_session(self) -> None:
         self.topology = InMemoryCanTopology(
-            trace_capacity=self.config.simulation.trace_capacity
+            trace_capacity=self.config.simulation.trace_capacity,
+            clock=self._clock,
         )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
 
@@ -188,6 +199,7 @@ class SimulatorController:
             buses=self.pi_buses,
             application=self.application,
             router=ProtocolRouter(self.ids),
+            monotonic=self._clock,
         )
 
         self.runtime.start()

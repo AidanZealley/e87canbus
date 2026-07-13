@@ -66,7 +66,8 @@ Default URLs:
 
 The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket
 stream. Its transport-neutral `CoordinatorRuntime` is the same per-frame routing and application
-boundary intended for a future Pi runner.
+boundary intended for a future Pi runner. A periodic tick follows that same runtime and application
+path, and broadcasts a new snapshot only when authoritative application state changes.
 
 It models three independent CAN broadcast domains:
 
@@ -83,6 +84,10 @@ and reset clears the trace while retaining topology configuration and filter cho
 Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and the button becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
+
+No verified BMW speed decoder is configured, so the workbench reports "No speed data". The tick
+path marks previously received speed data stale after the configured timeout when a real decoder is
+added later.
 
 ## Linux vcan Simulation
 

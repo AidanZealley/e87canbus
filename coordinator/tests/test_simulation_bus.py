@@ -45,7 +45,7 @@ def test_receive_returns_none_when_no_frame_is_queued() -> None:
 
 
 def test_trace_records_source_frame_and_timestamp() -> None:
-    network = InMemoryCanNetwork()
+    network = InMemoryCanNetwork(clock=lambda: 12.5)
     pi_bus = network.create_bus("pi")
     network.create_bus("neotrellis")
     frame = CanFrame(0x700, b"\x00\x01")
@@ -56,7 +56,7 @@ def test_trace_records_source_frame_and_timestamp() -> None:
     assert len(trace) == 1
     assert trace[0].source == "pi"
     assert trace[0].frame == frame
-    assert trace[0].monotonic_s > 0
+    assert trace[0].monotonic_s == 12.5
 
     network.clear_trace()
 
@@ -91,7 +91,8 @@ def test_topology_keeps_networks_isolated_and_allows_same_node_name() -> None:
 
 
 def test_topology_trace_is_globally_ordered_across_networks() -> None:
-    topology = InMemoryCanTopology()
+    timestamps = iter((1.0, 2.0, 3.0))
+    topology = InMemoryCanTopology(clock=lambda: next(timestamps))
     ptcan = topology.create_bus(CanNetwork.PTCAN, "simulated-car")
     kcan = topology.create_bus(CanNetwork.KCAN, "neotrellis")
     fcan = topology.create_bus(CanNetwork.FCAN, "simulated-car")
