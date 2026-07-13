@@ -65,11 +65,11 @@ class RateLimitedCanBus:
         if (
             last_send is not None
             and frame == last_send[0]
-            and now - last_send[1] < self._policy.min_id_gap_s
+            and now - last_send[1] < self._policy.min_identical_frame_gap_s
         ):
             # Dropping avoids hiding a flood or delivering stale commands later.
             LOGGER.warning(
-                "dropped rate-limited CAN frame: id=0x%03x reason=minimum-id-gap",
+                "dropped rate-limited CAN frame: id=0x%03x reason=identical-frame-gap",
                 frame.arbitration_id,
             )
             return

@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.application.events import SpeedUpdateEvent, SteeringMode
-from e87canbus.config import CanNetwork, TxPolicyConfig, default_config
+from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 from e87canbus.protocol.can import (
     LED_AMBER,
     LED_BLUE,
@@ -240,8 +240,8 @@ def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
 def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events() -> None:
     clock = MutableClock()
     config = replace(
-        default_config(),
-        tx_policy=TxPolicyConfig(min_id_gap_s=0.0, max_frames_per_s=3),
+        simulator_config(),
+        tx_policy=TxPolicyConfig(min_identical_frame_gap_s=0.0, max_frames_per_s=3),
     )
     controller = SimulatorController(config=config, clock=clock)
 
@@ -272,8 +272,8 @@ def test_reactive_device_livelock_warns_and_returns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = replace(
-        default_config(),
-        tx_policy=TxPolicyConfig(min_id_gap_s=0.0, max_frames_per_s=1_000),
+        simulator_config(),
+        tx_policy=TxPolicyConfig(min_identical_frame_gap_s=0.0, max_frames_per_s=1_000),
     )
     controller = SimulatorController(config=config)
     controller.steering_controller = ReactiveSteeringController(

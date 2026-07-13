@@ -120,13 +120,15 @@ pio run
 
 ## Safety Status
 
-The live runner is implemented with deny-by-default, rate-limited transmission; only the custom
-K-CAN application outputs are currently enabled. DSC replay, high-beam K-CAN commands, and
-Servotronic PWM/current output are intentionally not implemented yet. Vehicle-specific IDs and
-payloads must be captured and verified with `candump` before being treated as confirmed. Future
-simulated speed, RPM, lighting, oil-temperature, and coolant-temperature inputs must be represented
-as real network-specific CAN frames and decoded through the same coordinator routing path; there is
-no simulator-only state injection boundary.
+The default live runner disables application transmission on every CAN network. K-CAN transmission
+is granted only by the isolated simulator and bench compositions, where coordinator output remains
+rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
+hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,
+high-beam K-CAN commands, and Servotronic PWM/current output are intentionally not implemented yet.
+Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
+as confirmed. Future simulated speed, RPM, lighting, oil-temperature, and coolant-temperature
+inputs must be represented as real network-specific CAN frames and decoded through the same
+coordinator routing path; there is no simulator-only state injection boundary.
 
 The bench-only `0x700`/`0x701` IDs are provisional and require collision checks against a real
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,

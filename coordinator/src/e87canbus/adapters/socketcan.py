@@ -30,19 +30,31 @@ class SocketCanBus:
 
     def __init__(self, interface: str) -> None:
         self.interface = interface
-        self._bus = can.Bus(interface="socketcan", channel=interface)
+        try:
+            self._bus = can.Bus(interface="socketcan", channel=interface)
+        except can.CanError as exc:
+            raise OSError(f"failed to open SocketCAN interface {interface}") from exc
 
     def send(self, frame: CanFrame) -> None:
-        self._bus.send(to_python_can_message(frame))
+        try:
+            self._bus.send(to_python_can_message(frame))
+        except can.CanError as exc:
+            raise OSError(f"failed to send on SocketCAN interface {self.interface}") from exc
 
     def receive(self, timeout_s: float | None = None) -> CanFrame | None:
-        message = self._bus.recv(timeout=timeout_s)
+        try:
+            message = self._bus.recv(timeout=timeout_s)
+        except can.CanError as exc:
+            raise OSError(f"failed to receive on SocketCAN interface {self.interface}") from exc
         if message is None:
             return None
         return from_python_can_message(message)
 
     def shutdown(self) -> None:
-        self._bus.shutdown()
+        try:
+            self._bus.shutdown()
+        except can.CanError as exc:
+            raise OSError(f"failed to close SocketCAN interface {self.interface}") from exc
 
     def __enter__(self) -> SocketCanBus:
         return self

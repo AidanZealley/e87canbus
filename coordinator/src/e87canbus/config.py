@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 
@@ -28,7 +28,7 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
     """Return network settings in stable workbench/interface order."""
 
     return (
-        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000, tx_enabled=True),
+        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000),
         CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "can1", 500_000),
         CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "can2", 500_000),
     )
@@ -68,7 +68,7 @@ class SimulationConfig:
 
 @dataclass(frozen=True)
 class TxPolicyConfig:
-    min_id_gap_s: float = 0.05
+    min_identical_frame_gap_s: float = 0.05
     max_frames_per_s: int = 20
 
 
@@ -85,3 +85,14 @@ class AppConfig:
 
 def default_config() -> AppConfig:
     return AppConfig()
+
+
+def simulator_config() -> AppConfig:
+    """Enable the provisional project protocol for the isolated simulator."""
+
+    config = default_config()
+    networks = tuple(
+        replace(item, tx_enabled=item.network is CanNetwork.KCAN)
+        for item in config.can_networks
+    )
+    return replace(config, can_networks=networks)

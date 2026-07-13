@@ -35,8 +35,10 @@ Bring up every enabled SocketCAN interface at its configured bitrate, then run:
 uv run e87canbus
 ```
 
-The default configuration listens on PT-CAN and F-CAN and permits rate-limited transmission only
-on K-CAN. Custom IDs `0x700` and `0x701` still require collision validation before any in-car
-transmission; see [the custom CAN ID registry](../protocol/custom_ids.md). Use `--log-level` to
-change logging verbosity. `uv run e87canbus --dry-run` prints the configuration without opening
-CAN interfaces.
+The default configuration opens all three networks with application transmission disabled. It does
+not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
+deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
+compositions. Custom IDs `0x700` and `0x701` still require collision validation before any future
+in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md). Use
+`--log-level` to change logging verbosity. `uv run e87canbus --dry-run` prints the configuration
+without opening CAN interfaces.

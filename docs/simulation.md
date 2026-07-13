@@ -133,9 +133,10 @@ CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
 
 Coordinator transmission is denied by default. Each network must opt in with
 `CanNetworkConfig.tx_enabled`, and every TX-enabled coordinator bus is limited by
-`AppConfig.tx_policy.min_id_gap_s` and `max_frames_per_s`. The simulator uses the same gate as the
-runtime: excess coordinator frames are dropped, while simulated external devices remain
-unrestricted.
+`AppConfig.tx_policy.min_identical_frame_gap_s` and `max_frames_per_s`. The simulator explicitly
+grants K-CAN transmission and uses the same gate as the live runtime: excess coordinator frames are
+dropped, while simulated external devices remain unrestricted. The default live composition grants
+no application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
 The simulator currently decodes only the provisional project protocol on K-CAN:
 

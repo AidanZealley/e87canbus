@@ -39,8 +39,11 @@ It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e8
 
 The current systemd unit remains the isolated `can0` bench ping-pong service. To exercise the live
 three-interface runner manually after bringing up all configured interfaces, run
-`uv run e87canbus`. The default live posture is rate-limited TX on K-CAN and listen-only operation
-on PT-CAN and F-CAN.
+`uv run e87canbus`. The default live composition disables application transmission on K-CAN,
+PT-CAN, and F-CAN. This does not put SocketCAN or the CAN controller into kernel/hardware
+listen-only mode; configure that separately before an in-car observation session.
+K-CAN transmission is enabled only in the isolated simulator and bench commands. Their provisional
+`0x700`/`0x701` messages require collision validation before any future live grant.
 
 ## Logs
 

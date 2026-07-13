@@ -3,6 +3,10 @@
 These provisional project messages run on K-CAN; there is no private project bus. They are enabled
 only in simulation and bench tooling in this milestone.
 
+The default live coordinator has application transmission disabled on every network. A future live
+grant for these IDs requires collision validation; SocketCAN kernel or hardware listen-only mode is
+a separate deployment defense.
+
 | ID | Direction | Purpose | Payload |
 |---|---|---|---|
 | `0x700` | Button pad to coordinator | Button event | byte 0 = button index, byte 1 = state |

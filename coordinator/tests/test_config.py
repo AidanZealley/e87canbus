@@ -1,4 +1,4 @@
-from e87canbus.config import CanNetwork, default_config
+from e87canbus.config import CanNetwork, default_config, simulator_config
 
 
 def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
@@ -13,6 +13,12 @@ def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
     assert [item.interface for item in config.can_networks] == ["can0", "can1", "can2"]
     assert [item.bitrate for item in config.can_networks] == [100_000, 500_000, 500_000]
     assert all(item.enabled for item in config.can_networks)
+    assert not any(item.tx_enabled for item in config.can_networks)
+
+
+def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
+    config = simulator_config()
+
     assert [item.network for item in config.can_networks if item.tx_enabled] == [CanNetwork.KCAN]
 
 
@@ -41,5 +47,5 @@ def test_default_tick_and_speed_timeout_intervals() -> None:
 def test_default_tx_policy() -> None:
     policy = default_config().tx_policy
 
-    assert policy.min_id_gap_s == 0.05
+    assert policy.min_identical_frame_gap_s == 0.05
     assert policy.max_frames_per_s == 20

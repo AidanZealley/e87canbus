@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from e87canbus.application.controller import ApplicationController, ApplicationSnapshot
-from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, default_config
+from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
 from e87canbus.protocol.can import (
     LED_AMBER,
     LED_BLUE,
@@ -133,7 +133,7 @@ class SimulatorController:
     ) -> None:
         if button_count < 1 or button_count > 256:
             raise ValueError("button_count must be between 1 and 256")
-        self.config = config or default_config()
+        self.config = config or simulator_config()
         if ids is not None:
             self.config = replace(self.config, custom_can_ids=ids)
         self.ids = self.config.custom_can_ids

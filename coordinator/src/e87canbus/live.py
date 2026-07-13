@@ -9,8 +9,6 @@ import time
 from collections.abc import Callable
 from contextlib import suppress
 
-import can
-
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.protocol.can import CanBus, RateLimitedCanBus, RoutedCanFrame
@@ -21,6 +19,8 @@ LOGGER = logging.getLogger(__name__)
 MIN_QUEUE_TIMEOUT_S = 0.001
 MAX_MISSED_TICKS = 3
 READER_JOIN_TIMEOUT_S = 1.0
+INITIAL_READER_ERROR_BACKOFF_S = 0.05
+MAX_READER_ERROR_BACKOFF_S = 1.0
 
 
 def read_frames_into_queue(
@@ -32,6 +32,7 @@ def read_frames_into_queue(
 ) -> None:
     """Read one CAN interface until shutdown and tag frames with its network."""
 
+    error_backoff_s = INITIAL_READER_ERROR_BACKOFF_S
     while not stop.is_set():
         try:
             frame = bus.receive(timeout_s=receive_timeout_s)
@@ -41,7 +42,10 @@ def read_frames_into_queue(
                 network,
                 exc,
             )
+            stop.wait(error_backoff_s)
+            error_backoff_s = min(error_backoff_s * 2, MAX_READER_ERROR_BACKOFF_S)
             continue
+        error_backoff_s = INITIAL_READER_ERROR_BACKOFF_S
         if frame is not None:
             frames.put(RoutedCanFrame(network=network, frame=frame))
 
@@ -86,7 +90,7 @@ def run_live(config: AppConfig) -> int:
             buses[item.network] = (
                 RateLimitedCanBus(raw_bus, config.tx_policy) if item.tx_enabled else raw_bus
             )
-    except (OSError, can.CanError) as exc:
+    except OSError as exc:
         LOGGER.error("failed to open SocketCAN interface %s: %s", item.interface, exc)
         for raw_bus in raw_buses.values():
             raw_bus.shutdown()
@@ -107,10 +111,10 @@ def run_live(config: AppConfig) -> int:
     ]
 
     tx_names = ", ".join(item.network.value for item in enabled if item.tx_enabled) or "none"
-    listen_names = (
+    rx_only_names = (
         ", ".join(item.network.value for item in enabled if not item.tx_enabled) or "none"
     )
-    LOGGER.info("TX enabled: %s | listen-only: %s", tx_names, listen_names)
+    LOGGER.info("application TX enabled: %s | application TX disabled: %s", tx_names, rx_only_names)
 
     for reader in readers:
         reader.start()

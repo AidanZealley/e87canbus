@@ -76,7 +76,7 @@ def test_reject_invalid_payload_lengths() -> None:
         decode_led_update(CanFrame(ids.led_update, b"\x01"), ids)
 
 
-def test_rate_limiter_drops_same_id_inside_gap_and_allows_it_after_gap(
+def test_rate_limiter_drops_identical_frame_inside_gap_and_allows_it_after_gap(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock()
@@ -92,7 +92,7 @@ def test_rate_limiter_drops_same_id_inside_gap_and_allows_it_after_gap(
     bus.send(frame)
 
     assert underlying.sent == [frame, frame]
-    assert "reason=minimum-id-gap" in caplog.text
+    assert "reason=identical-frame-gap" in caplog.text
 
 
 def test_rate_limiter_allows_distinct_payloads_on_a_shared_id() -> None:
@@ -108,16 +108,16 @@ def test_rate_limiter_allows_distinct_payloads_on_a_shared_id() -> None:
     assert underlying.sent == [first, second]
 
 
-def test_rate_limiter_tracks_id_gaps_independently_but_shares_network_budget(
+def test_alternating_payloads_on_one_id_are_governed_by_network_budget(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock()
     underlying = FakeBus()
-    policy = TxPolicyConfig(min_id_gap_s=0.5, max_frames_per_s=2)
+    policy = TxPolicyConfig(min_identical_frame_gap_s=0.5, max_frames_per_s=2)
     bus = RateLimitedCanBus(underlying, policy, clock)
     first = CanFrame(0x100, b"\x01")
-    second = CanFrame(0x101, b"\x02")
-    over_budget = CanFrame(0x102, b"\x03")
+    second = CanFrame(0x100, b"\x02")
+    over_budget = CanFrame(0x100, b"\x03")
 
     bus.send(first)
     bus.send(second)
@@ -131,7 +131,7 @@ def test_rate_limiter_tracks_id_gaps_independently_but_shares_network_budget(
 def test_rate_limiter_budget_refills_as_window_slides() -> None:
     clock = MutableClock()
     underlying = FakeBus()
-    policy = TxPolicyConfig(min_id_gap_s=0.0, max_frames_per_s=2)
+    policy = TxPolicyConfig(min_identical_frame_gap_s=0.0, max_frames_per_s=2)
     bus = RateLimitedCanBus(underlying, policy, clock)
     frames = [CanFrame(0x100 + index, bytes([index])) for index in range(4)]
 

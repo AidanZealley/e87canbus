@@ -2,9 +2,10 @@ import logging
 import queue
 import threading
 
+import e87canbus.live as live
 import pytest
 from e87canbus.application.controller import ApplicationController, ApplicationOutput
-from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds, default_config, simulator_config
 from e87canbus.live import read_frames_into_queue, run_coordinator_loop
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.runtime import CoordinatorRuntime
@@ -34,6 +35,49 @@ class MutableClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+class RecordingStop(threading.Event):
+    def __init__(self, stop_after_waits: int) -> None:
+        super().__init__()
+        self.stop_after_waits = stop_after_waits
+        self.waits: list[float | None] = []
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self.waits.append(timeout)
+        if len(self.waits) >= self.stop_after_waits:
+            self.set()
+        return self.is_set()
+
+
+class FakeSocketCanBus:
+    instances: list["FakeSocketCanBus"] = []
+
+    def __init__(self, interface: str) -> None:
+        self.interface = interface
+        self.sent: list[CanFrame] = []
+        self.instances.append(self)
+
+    def send(self, frame: CanFrame) -> None:
+        self.sent.append(frame)
+
+    def receive(self, timeout_s: float | None = None) -> CanFrame | None:
+        del timeout_s
+        return None
+
+    def shutdown(self) -> None:
+        pass
+
+
+def start_runtime_then_stop(
+    runtime: CoordinatorRuntime,
+    frames: queue.Queue[RoutedCanFrame],
+    stop: threading.Event,
+    tick_interval_s: float,
+) -> None:
+    del frames, tick_interval_s
+    runtime.start()
+    stop.set()
 
 
 class AdvancingQueue(queue.Queue[RoutedCanFrame]):
@@ -113,6 +157,19 @@ def test_reader_logs_receive_errors_and_continues(
     assert not reader.is_alive()
 
 
+def test_reader_receive_error_backoff_is_capped() -> None:
+    bus = BlockingFakeBus()
+    frames: queue.Queue[RoutedCanFrame] = queue.Queue()
+    stop = RecordingStop(stop_after_waits=6)
+    for _ in range(6):
+        bus.received.put(OSError("receive failed"))
+
+    read_frames_into_queue(CanNetwork.FCAN, bus, frames, stop)
+
+    assert stop.waits == pytest.approx([0.05, 0.1, 0.2, 0.4, 0.8, 1.0])
+    assert frames.empty()
+
+
 def test_coordinator_loop_processes_queued_frames_and_ticks_on_cadence() -> None:
     clock = MutableClock()
     frames = AdvancingQueue(clock)
@@ -181,3 +238,28 @@ def test_live_threads_route_button_event_to_kcan_led_reply() -> None:
     assert reply == CanFrame(ids.led_update, b"\x00\x04")
     assert not reader.is_alive()
     assert not coordinator.is_alive()
+
+
+def test_default_live_composition_emits_no_startup_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSocketCanBus.instances = []
+    monkeypatch.setattr(live, "SocketCanBus", FakeSocketCanBus)
+    monkeypatch.setattr(live, "run_coordinator_loop", start_runtime_then_stop)
+
+    assert live.run_live(default_config()) == 0
+
+    assert all(not bus.sent for bus in FakeSocketCanBus.instances)
+
+
+def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSocketCanBus.instances = []
+    monkeypatch.setattr(live, "SocketCanBus", FakeSocketCanBus)
+    monkeypatch.setattr(live, "run_coordinator_loop", start_runtime_then_stop)
+
+    assert live.run_live(simulator_config()) == 0
+
+    kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+    assert kcan.sent == [CanFrame(0x701, b"\x00\x03"), CanFrame(0x701, b"\x03\x00")]
