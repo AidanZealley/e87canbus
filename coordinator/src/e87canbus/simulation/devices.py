@@ -80,11 +80,23 @@ class SimulatedVehicleNode:
     """External simulation node with an explicitly synthetic speed message."""
 
     buses: dict[CanNetwork, CanEndpoint]
+    speed_kph: float | None = None
 
-    def send_speed(self, speed_kph: float) -> CanFrame:
+    def set_speed(self, speed_kph: float) -> CanFrame:
         frame = encode_simulated_speed(speed_kph)
+        self.speed_kph = speed_kph
         self.buses[CanNetwork.FCAN].send(frame)
         return frame
+
+    def emit_speed(self) -> CanFrame | None:
+        if self.speed_kph is None:
+            return None
+        frame = encode_simulated_speed(self.speed_kph)
+        self.buses[CanNetwork.FCAN].send(frame)
+        return frame
+
+    def silence_speed(self) -> None:
+        self.speed_kph = None
 
     def drain_pending(self) -> int:
         drained = 0
@@ -119,12 +131,12 @@ class SimulatedSteeringController:
         )
 
     @property
-    def assistance(self) -> float:
+    def effective_assistance(self) -> float:
         if self.watchdog_timed_out or self.last_command is None:
             return 0.0
         return self.last_command.assistance
 
     @property
-    def reason(self) -> SteeringCommandReason:
+    def last_command_reason(self) -> SteeringCommandReason:
         assert self.last_command is not None
         return self.last_command.reason

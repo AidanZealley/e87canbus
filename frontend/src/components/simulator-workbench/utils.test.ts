@@ -3,6 +3,8 @@ import test from "node:test"
 
 import type { CanTraceEntry, SimulatorSnapshot } from "./types.ts"
 import {
+  emptySnapshot,
+  formatSteeringReason,
   mergeSnapshot,
   reduceSimulatorEvent,
   type WorkbenchSnapshot,
@@ -15,6 +17,7 @@ const snapshot = (
 ): WorkbenchSnapshot => ({
   session_id,
   revision,
+  fatal: false,
   application: {
     vehicle_speed_kph: 0,
     speed_valid: false,
@@ -22,10 +25,25 @@ const snapshot = (
     manual_assistance_level: 0,
     maximum_assistance_active: false,
   },
+  steering_controller: {
+    effective_assistance: 0,
+    last_command_reason: "speed_never_observed",
+    watchdog_timed_out: false,
+  },
   next_pressed: true,
   led_colours: {},
   networks: [],
   trace,
+})
+
+test("steering command reasons are formatted for display", () => {
+  assert.equal(formatSteeringReason("speed_never_observed"), "speed never observed")
+  assert.equal(formatSteeringReason("inbox_overflow"), "inbox overflow")
+  assert.deepEqual(emptySnapshot.steering_controller, {
+    effective_assistance: 0,
+    last_command_reason: "speed_never_observed",
+    watchdog_timed_out: false,
+  })
 })
 
 const frame = (sequence: number, session_id = 1): CanTraceEntry => ({

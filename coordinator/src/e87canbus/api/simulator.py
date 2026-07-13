@@ -22,6 +22,7 @@ from e87canbus.simulation.engine import (
     ResetSimulation,
     RunControlTimer,
     SetVehicleSpeed,
+    SilenceVehicleSpeed,
     SimulationCommand,
     SimulationEngine,
     SimulationResult,
@@ -177,6 +178,10 @@ def create_app(
     @app.post("/api/vehicle/speed")
     async def set_vehicle_speed(request: SpeedRequest) -> dict[str, Any]:
         return await _run_command(app, SetVehicleSpeed(request.speed_kph))
+
+    @app.post("/api/vehicle/speed/silence")
+    async def silence_vehicle_speed() -> dict[str, Any]:
+        return await _run_command(app, SilenceVehicleSpeed())
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:

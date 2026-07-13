@@ -7,6 +7,32 @@ cleanup, then perform a final Hardening 02 architecture and simplicity audit.
 
 This phase adds no feature behavior and no vehicle or actuator protocol.
 
+## Actuator failure observability
+
+Close two residual cases before the other operational work so every simulated actuator failure can
+produce an honest diagnostic snapshot.
+
+- Make `last_command_reason` optional until the simulated controller has accepted a command. A
+  failed startup command must still produce a fatal snapshot with zero effective assistance,
+  explicit watchdog state, and no fabricated command reason.
+- Serialize the absent reason explicitly and render it in the workbench as “No command accepted”
+  or equally unambiguous text.
+- Allow typed CAN and steering-actuator execution failures to update runtime health after the kernel
+  lifecycle reaches `STOPPED`. Post-stop failure recording must not run an application transition,
+  emit another fallback effect, increment application revision, or restart shutdown.
+- Preserve the bounded terminal rule: when an originating effect fails and the engine makes its one
+  shutdown fallback attempt, a failure of that second attempt is logged and discarded rather than
+  fed back or retried.
+- Treat a failure of the effect produced by an ordinary `ShutdownRequested` as the originating
+  failure, not the second terminal attempt. Record it in the stopped kernel before deciding how the
+  composition proceeds.
+- Choose and document reset semantics explicitly: either publish the replaced session's fatal
+  diagnostic before constructing the new session, or document that reset returns the new healthy
+  session while retaining the old fault only in logs/trace. Do not silently lose the failure.
+
+Keep the fix within the existing controller projection, typed failure inputs, kernel health, and
+ordered publication path. Do not add a second diagnostic store or recursive effect execution.
+
 ## Bounded WebSocket publication
 
 A connected peer that never completes a send must not hold the publication lock and simulation owner
@@ -92,6 +118,14 @@ allowed only when it is a complete mechanical replacement with no compatibility 
 
 ## Tests
 
+- An actuator that rejects its first startup command yields a serializable fatal engine snapshot and
+  API publication with no last command reason.
+- The frontend renders an absent last command reason as “No command accepted.”
+- A controller that accepts startup but rejects an ordinary shutdown command records a steering
+  actuator fault after `STOPPED` without producing another effect or revision.
+- A failure of the one terminal fallback attempt remains bounded, logged, and unrecorded as a new
+  recursive fault.
+- Reset behavior after a shutdown-effect failure matches the documented replaced-session policy.
 - A WebSocket whose send never completes is removed within bounded test time.
 - A stalled peer cannot prevent a healthy peer from receiving the same ordered publication.
 - Initial snapshot send is also bounded.
@@ -121,6 +155,10 @@ or bench verification when no verified hardware boundary exists.
 
 ## Acceptance criteria
 
+- First-command and shutdown-originated actuator failures remain observable without assertion,
+  recursion, retry, or fabricated command metadata.
+- The replaced-session behavior for a reset shutdown failure is explicit and covered by engine and
+  API tests.
 - WebSocket publication and initial connection have a finite failure bound and retain ordering.
 - Scheduling configuration cannot create a zero-delay busy loop.
 - Adapter cleanup is per-interface, bounded, and error-isolated.

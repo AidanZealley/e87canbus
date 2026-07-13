@@ -30,10 +30,26 @@ export type ApplicationSnapshot = {
   maximum_assistance_active: boolean
 }
 
+export type SteeringControllerSnapshot = {
+  effective_assistance: number
+  last_command_reason:
+    | "auto"
+    | "manual"
+    | "maximum"
+    | "speed_never_observed"
+    | "speed_stale"
+    | "can_reader_failure"
+    | "inbox_overflow"
+    | "shutdown"
+  watchdog_timed_out: boolean
+}
+
 export type SimulatorSnapshot = {
   session_id: number
   revision: number
+  fatal: boolean
   application: ApplicationSnapshot
+  steering_controller: SteeringControllerSnapshot
   next_pressed: boolean
   led_colours: Record<string, number>
   networks: NetworkStatus[]

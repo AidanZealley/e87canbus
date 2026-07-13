@@ -75,7 +75,8 @@ Snapshots carry the kernel-owned revision, fatal-health status, and simulation s
 starts a new session because trace sequence numbers restart at one; frame identity is therefore the
 pair of session ID and sequence. Initial loads and resets carry the complete trace. Command
 snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
-publish a snapshot only when that operation changes the public application projection.
+publish a snapshot only when that operation changes the public application, controller, or fatal
+projection; refreshed external speed frames remain ordinary incremental trace events.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
 commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
@@ -103,19 +104,24 @@ Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
 simulation-only CAN frame on the in-memory F-CAN. The engine timestamps and decodes that frame
 through the kernel; the API does not inject `SpeedObserved` or application state. The live router
-does not recognize the synthetic ID.
+does not recognize the synthetic ID. The selected speed persists on the external vehicle. Immediately
+before each queued control timer, the vehicle emits a fresh encoded frame and the engine drains it
+through the kernel before dispatching the timer. `POST /api/vehicle/speed/silence` clears the
+selection; subsequent timers emit no speed frame until another speed is set.
 
 On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
-assistance curve. Never-seen or stale speed selects zero simulated assistance. Manual levels map
-evenly into the same range and maximum assistance selects `1.0`, including when speed is absent.
-Fresh speed recovers Auto on the next control timer. Reader failure, inbox overflow, and shutdown
-also select zero assistance with a reason before the live loop exits.
+assistance curve. Never-seen and stale speed select zero simulated assistance with distinct reasons.
+Manual levels map evenly into the same range and maximum assistance selects `1.0`, including when
+speed is absent. Fresh speed recovers Auto on the next control timer. CAN reader failure, inbox
+overflow, and shutdown also select zero assistance with distinct reasons before the live loop exits.
 
 The simulated steering controller is an executor capability rather than a K-CAN node because no
-actuator wire protocol is known. Its 250 ms watchdog derives zero assistance when command refreshes
-stop. Zero is only the simulator's fallback; it is not a verified physical command or electrical
-safe state. Physical command transport, range and polarity, valve response, feedback, controller
-topology, and watchdog behavior remain unknown.
+actuator wire protocol is known. The workbench displays its effective dimensionless simulation
+projection, last command reason, and watchdog state. Its 250 ms watchdog derives zero effective
+assistance when command refreshes stop while retaining the last command reason for diagnosis. These
+values are not measured feedback. Zero is only the simulator's fallback; it is not a verified
+physical command or electrical safe state. Physical command transport, range and polarity, valve
+response, feedback, controller topology, and watchdog behavior remain unknown.
 
 ## Linux vcan Simulation
 

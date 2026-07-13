@@ -67,7 +67,7 @@ def test_initial_snapshot_and_effects() -> None:
     assert initial_effects(state, CONFIG) == (
         SetButtonLed(0, LedColour.BLUE),
         SetButtonLed(3, LedColour.OFF),
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
 
 
@@ -197,7 +197,7 @@ def test_regressing_timer_cannot_make_stale_speed_valid() -> None:
     assert result.state.speed_evaluated_at == 5.0
     assert snapshot(result.state, CONFIG).speed_valid is False
     assert result.effects == (
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_STALE),
     )
 
 
@@ -216,7 +216,7 @@ def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     [
         (
             ApplicationState(),
-            SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+            SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
         ),
         (
             application_state(SteeringMode.MANUAL, 4),
@@ -256,7 +256,14 @@ def test_fresh_speed_selects_interpolated_auto_assistance() -> None:
 @pytest.mark.parametrize(
     ("reason", "command_reason"),
     [
-        (SteeringFallbackReason.RUNTIME_FAULT, SteeringCommandReason.RUNTIME_FAULT),
+        (
+            SteeringFallbackReason.CAN_READER_FAILURE,
+            SteeringCommandReason.CAN_READER_FAILURE,
+        ),
+        (
+            SteeringFallbackReason.INBOX_OVERFLOW,
+            SteeringCommandReason.INBOX_OVERFLOW,
+        ),
         (SteeringFallbackReason.SHUTDOWN, SteeringCommandReason.SHUTDOWN),
     ],
 )

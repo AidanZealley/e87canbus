@@ -75,7 +75,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert first_commits[0].effects == (
         SetButtonLed(0, LedColour.BLUE),
         SetButtonLed(3, LedColour.OFF),
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE),
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
     assert first_commits[1] is not None
     assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
@@ -113,22 +113,29 @@ def test_unknown_and_malformed_frames_create_no_commits(
 
 
 @pytest.mark.parametrize(
-    ("kernel_input", "kind"),
+    ("kernel_input", "kind", "fallback_reason"),
     [
-        (CanReaderFailed(CanNetwork.FCAN, 1.0, "reader"), RuntimeFaultKind.CAN_READER),
+        (
+            CanReaderFailed(CanNetwork.FCAN, 1.0, "reader"),
+            RuntimeFaultKind.CAN_READER,
+            SteeringCommandReason.CAN_READER_FAILURE,
+        ),
         (
             CanEffectExecutionFailed(CanNetwork.KCAN, 2.0, "effect"),
             RuntimeFaultKind.CAN_EFFECT_EXECUTION,
+            None,
         ),
         (
             InboxOverflowed(CanNetwork.PTCAN, 3.0, "overflow"),
             RuntimeFaultKind.INBOX_OVERFLOW,
+            SteeringCommandReason.INBOX_OVERFLOW,
         ),
     ],
 )
 def test_fault_inputs_are_visible_in_immutable_runtime_health(
     kernel_input: CanReaderFailed | CanEffectExecutionFailed | InboxOverflowed,
     kind: RuntimeFaultKind,
+    fallback_reason: SteeringCommandReason | None,
 ) -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
@@ -140,12 +147,12 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     assert fault is not None
     assert fault.kind is kind
     assert kernel.health.fatal is True
-    if isinstance(kernel_input, CanEffectExecutionFailed):
+    if fallback_reason is None:
         assert commit is None
     else:
         assert commit is not None
         assert commit.effects == (
-            SetSteeringAssistance(0.0, SteeringCommandReason.RUNTIME_FAULT),
+            SetSteeringAssistance(0.0, fallback_reason),
         )
 
 

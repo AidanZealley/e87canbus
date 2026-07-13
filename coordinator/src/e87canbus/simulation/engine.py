@@ -47,8 +47,8 @@ class SimulatedNetworkStatus:
 
 @dataclass(frozen=True)
 class SimulatedSteeringSnapshot:
-    assistance: float
-    reason: SteeringCommandReason
+    effective_assistance: float
+    last_command_reason: SteeringCommandReason
     watchdog_timed_out: bool
 
 
@@ -91,6 +91,11 @@ class SetVehicleSpeed:
 
 
 @dataclass(frozen=True)
+class SilenceVehicleSpeed:
+    pass
+
+
+@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
@@ -101,6 +106,7 @@ SimulationCommand = (
     | StepButton
     | RunControlTimer
     | SetVehicleSpeed
+    | SilenceVehicleSpeed
     | ResetSimulation
 )
 
@@ -167,8 +173,8 @@ def snapshot_to_dict(
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
         "steering_controller": {
-            "assistance": snapshot.steering_controller.assistance,
-            "reason": snapshot.steering_controller.reason.value,
+            "effective_assistance": snapshot.steering_controller.effective_assistance,
+            "last_command_reason": snapshot.steering_controller.last_command_reason.value,
             "watchdog_timed_out": snapshot.steering_controller.watchdog_timed_out,
         },
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
@@ -253,10 +259,14 @@ class SimulationEngine:
                 self.neotrellis.button_index = index
                 self.neotrellis.send_next_button_event()
             case RunControlTimer(now):
+                self.vehicle.emit_speed()
+                self._drain_kernel_inputs()
                 self._dispatch(TimerElapsed(now))
                 snapshot_trace = None
             case SetVehicleSpeed(speed_kph):
-                self.vehicle.send_speed(speed_kph)
+                self.vehicle.set_speed(speed_kph)
+            case SilenceVehicleSpeed():
+                self.vehicle.silence_speed()
             case ResetSimulation():
                 self._dispatch(ShutdownRequested(self._clock()))
                 self._build_session()
@@ -398,8 +408,8 @@ class SimulationEngine:
 
     def _steering_snapshot(self) -> SimulatedSteeringSnapshot:
         return SimulatedSteeringSnapshot(
-            assistance=self.steering_controller.assistance,
-            reason=self.steering_controller.reason,
+            effective_assistance=self.steering_controller.effective_assistance,
+            last_command_reason=self.steering_controller.last_command_reason,
             watchdog_timed_out=self.steering_controller.watchdog_timed_out,
         )
 

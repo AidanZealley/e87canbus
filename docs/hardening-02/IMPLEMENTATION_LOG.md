@@ -16,7 +16,7 @@ record corrections in the current entry so the migration history remains visible
 | 7 — Protocol source of truth and cleanup | done | 2026-07-13 |
 | 8 — Steering failsafe groundwork | done with simulator-only deviation | 2026-07-13 |
 | 9 — Correctness and safety truth | done | 2026-07-13 |
-| 10 — Simulation semantics and observability | pending | — |
+| 10 — Simulation semantics and observability | done | 2026-07-13 |
 | 11 — Operational hardening and closeout | pending | — |
 
 ## Entry template
@@ -592,3 +592,72 @@ adapter, or live grant was added.
 passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; `git diff --check` —
 passed. Frontend, generated protocol artifacts, and actuator firmware did not change, so frontend
 and firmware checks were not applicable.
+
+## Phase 10 — Simulation semantics and observability (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Made `SimulatedVehicleNode` the sole owner of selected speed. Setting validates, stores, and
+  immediately emits synthetic F-CAN; `SilenceVehicleSpeed` clears the selection, and each control
+  timer re-emits and drains selected speed before timer dispatch.
+- Added `POST /api/vehicle/speed/silence` through the existing bounded simulation command queue;
+  speed and silence responses remain revisioned slim snapshots on the ordered publication path.
+- Split never-observed speed, stale speed, CAN reader failure, inbox overflow, and shutdown into
+  distinct steering command reasons. The kernel maps concrete runtime faults to closed fallback
+  inputs, and the pure transition uses an explicit exhaustive mapping.
+- Renamed the ideal controller projection to `effective_assistance` and
+  `last_command_reason`, retaining explicit watchdog timeout semantics and the last command across
+  watchdog fallback.
+- Extended the existing frontend snapshot type, empty state, selector, reducer fixtures, and
+  steering panel to show effective simulated assistance as a percentage, last command reason, and
+  watchdog state without adding a control path or event stream.
+- Updated root, coordinator, and simulation documentation for persistent cadence, explicit bus
+  silence, diagnostic reasons, and the distinction between ideal simulation projection and measured
+  physical feedback.
+
+**Deviations from the phase doc:** None.
+
+**Safety invariants verified:** Same-path simulation tests prove every immediate and timer-refreshed
+speed observation originates as an encoded frame from the unrestricted external vehicle, receives
+an ingress timestamp, and traverses decode, transition, commit, effect, and the existing actuator
+capability. One-state-owner tests prove selected speed exists only on the vehicle and reset replaces
+that node with no selection. Deterministic tests prove silence becomes stale after the configured
+timeout, setting speed recovers Auto through CAN, Manual and Maximum remain bounded without speed,
+and watchdog timeout derives zero effective assistance without rewriting last-command metadata.
+Runtime/live tests prove reader and overflow fallbacks are distinct, actuator execution failure
+has a distinct typed fatal diagnostic, and shutdown is explicit. Architecture guards continue to
+prove the synthetic router and actuator are absent from live composition and default live CAN
+transmission remains disabled. Frontend tests preserve revision, session, trace capacity/order, and
+slim-snapshot behavior.
+
+**Complexity delta:** Deleted the one-shot `send_speed` behavior, generic `speed_unavailable` and
+`runtime_fault` reasons, ambiguous controller `assistance`/`reason` fields, and string-value enum
+coercion. The vehicle's one optional speed field plus one silence command encode the required
+persistent external state without duplicating it in the engine, API, or application. An explicit
+three-case fallback mapping prevents invalid coincidental enum conversion. The frontend adds one
+selector to the existing snapshot store and extends the existing panel; no scheduler, store,
+WebSocket event, compatibility alias, old field, registry, callback chain, or parallel control path
+remains. The production increase enforces persistent external-node ownership and exposes a
+previously absent safety projection; no deliberate in-scope simplification was deferred.
+
+**Discovered along the way:** The frontend TypeScript contract had omitted the already-published
+`fatal` field as well as the controller projection; both now match the backend snapshot. The
+collaborative browser preview timed out during initialization, so visual automation could not be
+performed; compile, lint, and behavioral frontend checks passed. The existing Starlette
+`TestClient` deprecation warning and Node experimental type-stripping warnings remain unrelated.
+Post-completion review found two residual actuator-failure publication cases: a controller that
+rejects its first command leaves `last_command_reason` unavailable and currently makes snapshot
+construction assert, while a failure of an ordinary shutdown effect is fed back only after the
+kernel has stopped and is therefore discarded. Phase 11 now starts by making absent command
+metadata serializable, allowing typed failures to update stopped health without effects, and
+explicitly choosing how reset reports a fault from the replaced session. The intentionally bounded
+failure of the second terminal fallback attempt remains discarded. No generated protocol artifact
+or actuator firmware changed.
+
+**Checks:** `uv run pytest -q` — 176 passed, 1 existing Starlette deprecation warning;
+`uv run mypy` — success, no issues in 30 source files; `uv run ruff check coordinator` — all checks
+passed; frontend `pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 7 passed;
+`git diff --check` — passed. Generator and actuator-firmware checks were not applicable because no
+generated protocol artifact or firmware changed.

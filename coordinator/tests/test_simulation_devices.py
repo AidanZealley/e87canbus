@@ -93,7 +93,7 @@ def test_neotrellis_logs_and_ignores_malformed_led_update(
     assert "sim neotrellis ignored malformed led update" in caplog.text
 
 
-def test_simulated_vehicle_emits_speed_as_an_external_fcan_frame() -> None:
+def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() -> None:
     topology = InMemoryCanTopology()
     pi_bus = topology.create_bus(CanNetwork.FCAN, "pi")
     vehicle = SimulatedVehicleNode(
@@ -103,10 +103,19 @@ def test_simulated_vehicle_emits_speed_as_an_external_fcan_frame() -> None:
         }
     )
 
-    frame = vehicle.send_speed(42.5)
+    frame = vehicle.set_speed(42.5)
 
+    assert vehicle.speed_kph == 42.5
     assert frame == encode_simulated_speed(42.5)
     assert pi_bus.receive(timeout_s=0) == frame
+
+    assert vehicle.emit_speed() == frame
+    assert pi_bus.receive(timeout_s=0) == frame
+
+    vehicle.silence_speed()
+    assert vehicle.speed_kph is None
+    assert vehicle.emit_speed() is None
+    assert pi_bus.receive(timeout_s=0) is None
 
 
 def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:
@@ -117,6 +126,6 @@ def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:
     controller.set_assistance(command)
     clock.now = 0.251
 
-    assert controller.assistance == 0.0
-    assert controller.reason is SteeringCommandReason.AUTO
+    assert controller.effective_assistance == 0.0
+    assert controller.last_command_reason is SteeringCommandReason.AUTO
     assert controller.watchdog_timed_out is True

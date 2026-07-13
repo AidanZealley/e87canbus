@@ -129,6 +129,7 @@ hardening. They do not relax any physical evidence gate or extend the live steer
 | Optional network fields implicitly distinguish CAN from actuator failures | Phase 9 |
 | `SetVehicleSpeed` emits once rather than setting external simulated-vehicle state | Phase 10 |
 | Fallback reasons and steering-controller projection are ambiguous or absent from the UI | Phase 10 |
+| First-command and shutdown-originated actuator failures can escape simulator publication | Phase 11 |
 | A non-failing slow WebSocket can block the simulation owner indefinitely | Phase 11 |
 | Tick configuration and per-interface SocketCAN cleanup lack complete validation/isolation | Phase 11 |
 | Reactive simulated CAN devices will require bounded quiescence processing | Phase 11 gate; implement with the first reactive device |

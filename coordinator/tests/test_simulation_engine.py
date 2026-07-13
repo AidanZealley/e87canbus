@@ -22,6 +22,7 @@ from e87canbus.simulation.engine import (
     ResetSimulation,
     RunControlTimer,
     SetVehicleSpeed,
+    SilenceVehicleSpeed,
     SimulationEngine,
     SimulationSessionFailed,
     StepButton,
@@ -72,8 +73,11 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert snapshot.application.speed_valid is False
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
-    assert snapshot.steering_controller.assistance == 0.0
-    assert snapshot.steering_controller.reason is SteeringCommandReason.SPEED_UNAVAILABLE
+    assert snapshot.steering_controller.effective_assistance == 0.0
+    assert (
+        snapshot.steering_controller.last_command_reason
+        is SteeringCommandReason.SPEED_NEVER_OBSERVED
+    )
     assert snapshot.steering_controller.watchdog_timed_out is False
     assert snapshot.trace == ()
 
@@ -116,10 +120,12 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     controller = build_test_engine()
     controller.execute(PressButton(0))
+    controller.execute(SetVehicleSpeed(42.5))
 
     snapshot = controller.execute(ResetSimulation()).snapshot
 
     assert snapshot.application.steering_mode is SteeringMode.AUTO
+    assert controller.vehicle.speed_kph is None
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
     assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
     assert snapshot.trace == ()
@@ -275,7 +281,10 @@ def test_timer_publishes_new_manual_actuator_projection() -> None:
 
     assert [event["type"] for event in command.events].count("snapshot") == 1
     assert [event["type"] for event in timer.events] == ["snapshot"]
-    assert timer.snapshot.steering_controller.reason is SteeringCommandReason.MANUAL
+    assert (
+        timer.snapshot.steering_controller.last_command_reason
+        is SteeringCommandReason.MANUAL
+    )
 
 
 @pytest.mark.parametrize("value", [ButtonPressed(0), ApplicationState()])
@@ -325,15 +334,33 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     assert speed.trace[-1].source == "simulated-vehicle"
     assert speed.trace[-1].network is CanNetwork.FCAN
     assert speed.application.vehicle_speed_kph == 15.0
-    assert controlled.steering_controller.assistance == pytest.approx(5 / 6)
-    assert controlled.steering_controller.reason is SteeringCommandReason.AUTO
+    assert controller.vehicle.speed_kph == 15.0
+    assert controlled.steering_controller.effective_assistance == pytest.approx(5 / 6)
+    assert controlled.steering_controller.last_command_reason is SteeringCommandReason.AUTO
 
 
-def test_stale_speed_selects_fallback_and_fresh_speed_recovers_on_next_timer() -> None:
+def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     clock = MutableClock(1.0)
     controller = build_test_engine(clock=clock)
     controller.execute(SetVehicleSpeed(30.0))
-    controller.execute(RunControlTimer(clock()))
+
+    clock.now = 2.001
+    first = controller.execute(RunControlTimer(clock())).snapshot
+    clock.now = 3.5
+    second = controller.execute(RunControlTimer(clock())).snapshot
+
+    assert [entry.source for entry in second.trace].count("simulated-vehicle") == 3
+    assert first.application.speed_valid is True
+    assert second.application.speed_valid is True
+    assert second.steering_controller.effective_assistance == pytest.approx(2 / 3)
+    assert second.steering_controller.last_command_reason is SteeringCommandReason.AUTO
+
+
+def test_speed_silence_becomes_stale_and_setting_speed_recovers_auto() -> None:
+    clock = MutableClock(1.0)
+    controller = build_test_engine(clock=clock)
+    controller.execute(SetVehicleSpeed(30.0))
+    controller.execute(SilenceVehicleSpeed())
 
     clock.now = 2.001
     stale = controller.execute(RunControlTimer(clock())).snapshot
@@ -341,11 +368,11 @@ def test_stale_speed_selects_fallback_and_fresh_speed_recovers_on_next_timer() -
     recovered = controller.execute(RunControlTimer(clock())).snapshot
 
     assert stale.application.speed_valid is False
-    assert stale.steering_controller.assistance == 0.0
-    assert stale.steering_controller.reason is SteeringCommandReason.SPEED_UNAVAILABLE
+    assert stale.steering_controller.effective_assistance == 0.0
+    assert stale.steering_controller.last_command_reason is SteeringCommandReason.SPEED_STALE
     assert recovered.application.speed_valid is True
-    assert recovered.steering_controller.assistance == pytest.approx(2 / 3)
-    assert recovered.steering_controller.reason is SteeringCommandReason.AUTO
+    assert recovered.steering_controller.effective_assistance == pytest.approx(2 / 3)
+    assert recovered.steering_controller.last_command_reason is SteeringCommandReason.AUTO
 
 
 def test_manual_and_maximum_commands_remain_bounded_without_speed() -> None:
@@ -355,10 +382,10 @@ def test_manual_and_maximum_commands_remain_bounded_without_speed() -> None:
     controller.execute(PressButton(3))
     maximum = controller.execute(RunControlTimer(0.2)).snapshot
 
-    assert manual.steering_controller.assistance == 0.0
-    assert manual.steering_controller.reason is SteeringCommandReason.MANUAL
-    assert maximum.steering_controller.assistance == 1.0
-    assert maximum.steering_controller.reason is SteeringCommandReason.MAXIMUM
+    assert manual.steering_controller.effective_assistance == 0.0
+    assert manual.steering_controller.last_command_reason is SteeringCommandReason.MANUAL
+    assert maximum.steering_controller.effective_assistance == 1.0
+    assert maximum.steering_controller.last_command_reason is SteeringCommandReason.MAXIMUM
 
 
 def test_actuator_watchdog_falls_back_when_coordinator_commands_stop() -> None:
@@ -371,5 +398,5 @@ def test_actuator_watchdog_falls_back_when_coordinator_commands_stop() -> None:
     snapshot = controller.snapshot()
 
     assert snapshot.steering_controller.watchdog_timed_out is True
-    assert snapshot.steering_controller.assistance == 0.0
-    assert snapshot.steering_controller.reason is SteeringCommandReason.MAXIMUM
+    assert snapshot.steering_controller.effective_assistance == 0.0
+    assert snapshot.steering_controller.last_command_reason is SteeringCommandReason.MAXIMUM

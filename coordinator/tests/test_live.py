@@ -481,7 +481,7 @@ def test_reader_fault_commands_fallback_before_shutdown() -> None:
 
     assert failed is True
     assert [command.reason for command in actuator.commands[-2:]] == [
-        SteeringCommandReason.RUNTIME_FAULT,
+        SteeringCommandReason.CAN_READER_FAILURE,
         SteeringCommandReason.SHUTDOWN,
     ]
     assert all(command.assistance == 0.0 for command in actuator.commands[-2:])
@@ -527,7 +527,7 @@ def test_inbox_overflow_commands_fallback_before_shutdown() -> None:
 
     assert failed is True
     assert [command.reason for command in actuator.commands[-2:]] == [
-        SteeringCommandReason.RUNTIME_FAULT,
+        SteeringCommandReason.INBOX_OVERFLOW,
         SteeringCommandReason.SHUTDOWN,
     ]
 

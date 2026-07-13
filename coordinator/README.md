@@ -39,12 +39,14 @@ Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible 
 stops the runner with a non-zero result.
 
 The browser simulator has a separate bounded command queue. One asynchronous owner serializes
-button-device commands, synthetic vehicle-speed frames, control timers, resets, kernel commits, and
-WebSocket publication. Browser snapshots expose the kernel-owned revision, simulation session ID,
-fatal-health status, and simulated steering-controller projection. An output fault terminates the
-session after one committed shutdown attempt; normal commands are rejected until reset creates a
-fresh kernel at revision one. Incremental trace frames use the session ID with their reset-local
-sequence number.
+button-device commands, persistent synthetic vehicle-speed selection and silence, control timers,
+resets, kernel commits, and WebSocket publication. Before each control timer, a selected speed is
+re-emitted by the external vehicle and decoded through the kernel. Browser snapshots expose the
+kernel-owned revision, simulation session ID, fatal-health status, and the ideal simulated
+controller's effective dimensionless assistance, last command reason, and watchdog state. An output
+fault terminates the session after one committed shutdown attempt; normal commands are rejected
+until reset creates a fresh kernel at revision one. Incremental trace frames use the session ID with
+their reset-local sequence number.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject

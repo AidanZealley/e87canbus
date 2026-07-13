@@ -230,7 +230,9 @@ class CoordinatorKernel:
                     RuntimeFault(RuntimeFaultKind.CAN_READER, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
+                    SteeringFallbackRequested(
+                        SteeringFallbackReason.CAN_READER_FAILURE
+                    )
                 )
             case InboxOverflowed(network, failed_at, message):
                 self._health = self._health.with_fault(
@@ -238,7 +240,7 @@ class CoordinatorKernel:
                     RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(SteeringFallbackReason.RUNTIME_FAULT)
+                    SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW)
                 )
             case CanEffectExecutionFailed(network, failed_at, message):
                 self._health = self._health.with_fault(

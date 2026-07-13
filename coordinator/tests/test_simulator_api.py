@@ -111,8 +111,8 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert body["trace"] == []
     assert body["application"]["steering_mode"] == "auto"
     assert body["steering_controller"] == {
-        "assistance": 0.0,
-        "reason": "speed_unavailable",
+        "effective_assistance": 0.0,
+        "last_command_reason": "speed_never_observed",
         "watchdog_timed_out": False,
     }
     assert body["led_colours"] == {"0": 3, "3": 0}
@@ -173,6 +173,19 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
 
     assert response.status_code == 422
     assert "simulated speed" in response.json()["detail"]
+
+
+def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
+    client: TestClient,
+) -> None:
+    selected = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+
+    response = client.post("/api/vehicle/speed/silence")
+
+    assert response.status_code == 200
+    assert response.json()["session_id"] == selected.json()["session_id"]
+    assert response.json()["revision"] == selected.json()["revision"]
+    assert "trace" not in response.json()
 
 
 def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:

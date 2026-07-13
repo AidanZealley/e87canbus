@@ -36,13 +36,16 @@ class SteeringCommandReason(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
     MAXIMUM = "maximum"
-    SPEED_UNAVAILABLE = "speed_unavailable"
-    RUNTIME_FAULT = "runtime_fault"
+    SPEED_NEVER_OBSERVED = "speed_never_observed"
+    SPEED_STALE = "speed_stale"
+    CAN_READER_FAILURE = "can_reader_failure"
+    INBOX_OVERFLOW = "inbox_overflow"
     SHUTDOWN = "shutdown"
 
 
 class SteeringFallbackReason(StrEnum):
-    RUNTIME_FAULT = "runtime_fault"
+    CAN_READER_FAILURE = "can_reader_failure"
+    INBOX_OVERFLOW = "inbox_overflow"
     SHUTDOWN = "shutdown"
 
 

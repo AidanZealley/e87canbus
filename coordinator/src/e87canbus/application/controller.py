@@ -15,6 +15,7 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
+    SteeringFallbackReason,
     SteeringFallbackRequested,
 )
 from e87canbus.application.state import (
@@ -75,7 +76,7 @@ def transition(
                 (
                     SetSteeringAssistance(
                         0.0,
-                        SteeringCommandReason(reason.value),
+                        _fallback_command_reason(reason),
                     ),
                 ),
             )
@@ -233,13 +234,18 @@ def _steering_command(
             steering.manual_level / denominator,
             SteeringCommandReason.MANUAL,
         )
+    sample = state.speed_sample
+    if sample is None:
+        return SetSteeringAssistance(
+            0.0,
+            SteeringCommandReason.SPEED_NEVER_OBSERVED,
+        )
     if not _speed_is_valid(state, config):
-        return SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_UNAVAILABLE)
+        return SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_STALE)
 
-    assert state.speed_sample is not None
     return SetSteeringAssistance(
         interpolate_speed_to_assistance(
-            state.speed_sample.speed_kph,
+            sample.speed_kph,
             config.auto_assistance_curve,
         ),
         SteeringCommandReason.AUTO,
@@ -252,3 +258,17 @@ def _speed_is_valid(state: ApplicationState, config: SteeringConfig) -> bool:
         sample is not None
         and state.speed_evaluated_at - sample.observed_at <= config.speed_timeout_s
     )
+
+
+def _fallback_command_reason(
+    reason: SteeringFallbackReason,
+) -> SteeringCommandReason:
+    match reason:
+        case SteeringFallbackReason.CAN_READER_FAILURE:
+            return SteeringCommandReason.CAN_READER_FAILURE
+        case SteeringFallbackReason.INBOX_OVERFLOW:
+            return SteeringCommandReason.INBOX_OVERFLOW
+        case SteeringFallbackReason.SHUTDOWN:
+            return SteeringCommandReason.SHUTDOWN
+        case _:
+            assert_never(reason)

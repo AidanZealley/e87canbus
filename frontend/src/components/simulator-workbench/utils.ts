@@ -1,4 +1,9 @@
-import type { CanTraceEntry, SimulatorEvent, SimulatorSnapshot } from "./types"
+import type {
+  CanTraceEntry,
+  SimulatorEvent,
+  SimulatorSnapshot,
+  SteeringControllerSnapshot,
+} from "./types"
 
 const TRACE_CAPACITY = 2_000
 
@@ -9,6 +14,7 @@ export type WorkbenchSnapshot = SimulatorSnapshot & {
 export const emptySnapshot: WorkbenchSnapshot = {
   session_id: 0,
   revision: 0,
+  fatal: false,
   application: {
     vehicle_speed_kph: 0,
     speed_valid: false,
@@ -16,11 +22,21 @@ export const emptySnapshot: WorkbenchSnapshot = {
     manual_assistance_level: 0,
     maximum_assistance_active: false,
   },
+  steering_controller: {
+    effective_assistance: 0,
+    last_command_reason: "speed_never_observed",
+    watchdog_timed_out: false,
+  },
   next_pressed: true,
   led_colours: {},
   networks: [],
   trace: [],
 }
+
+export const formatSteeringReason = (
+  reason: SteeringControllerSnapshot["last_command_reason"]
+) =>
+  reason.replaceAll("_", " ")
 
 export const mergeSnapshot = (
   current: WorkbenchSnapshot,
