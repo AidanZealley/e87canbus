@@ -10,25 +10,27 @@ from e87canbus.application.events import (
 )
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
-    LED_AMBER,
-    LED_BLUE,
-    LED_GREEN,
-    LED_OFF,
-    LED_RED,
-    LED_WHITE,
     LedUpdatePayload,
     RoutedCanFrame,
     decode_button_event,
     encode_led_update,
 )
+from e87canbus.protocol.generated import (
+    LED_COLOUR_AMBER,
+    LED_COLOUR_BLUE,
+    LED_COLOUR_GREEN,
+    LED_COLOUR_OFF,
+    LED_COLOUR_RED,
+    LED_COLOUR_WHITE,
+)
 
 LED_COLOUR_CODES = {
-    LedColour.OFF: LED_OFF,
-    LedColour.RED: LED_RED,
-    LedColour.GREEN: LED_GREEN,
-    LedColour.BLUE: LED_BLUE,
-    LedColour.AMBER: LED_AMBER,
-    LedColour.WHITE: LED_WHITE,
+    LedColour.OFF: LED_COLOUR_OFF,
+    LedColour.RED: LED_COLOUR_RED,
+    LedColour.GREEN: LED_COLOUR_GREEN,
+    LedColour.BLUE: LED_COLOUR_BLUE,
+    LedColour.AMBER: LED_COLOUR_AMBER,
+    LedColour.WHITE: LED_COLOUR_WHITE,
 }
 
 

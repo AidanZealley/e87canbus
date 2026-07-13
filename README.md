@@ -23,13 +23,18 @@ The simulator does not forward traffic between networks.
 - `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
 - `docs/` - setup, wiring, decoded-message, and future capture notes.
 - `scripts/` - coordinator deployment, device upload, bootstrap, and CAN helpers.
-- `deploy/systemd/` - coordinator systemd unit.
+- `deploy/systemd/` - current single-interface bench ping-pong systemd unit.
 - `PROJECT_CONTEXT.md` - source project context.
 
 The Python package uses the conventional `src` layout. Start in
 `coordinator/src/e87canbus/application/` for system behaviour, `features/` for feature
 calculations, `protocol/` for CAN encoding, `adapters/` for real hardware, `simulation/` for
 virtual hardware, and `api/` for the frontend interface.
+
+Live readers timestamp CAN frames before placing them in a bounded inbox. One kernel owns immutable
+application state and applies pure transitions in input order; committed effects leave through an
+explicit transmitter capability and one network rate policy. The simulator operates external nodes
+and follows that same path rather than injecting application events or state.
 
 ## Local Setup
 
@@ -107,6 +112,7 @@ See `docs/bench.md`, `docs/simulation.md`, `docs/coordinator_bootstrap.md`, and 
 uv run pytest
 uv run ruff check .
 uv run mypy coordinator/src/e87canbus
+uv run python scripts/generate_custom_protocol.py --check
 bash -n scripts/*.sh
 ```
 
@@ -140,3 +146,5 @@ The bench-only `0x700`/`0x701` IDs are provisional and require collision checks 
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
 the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
 The current button-pad firmware transmits automatically and must not be connected to the car.
+The steering failsafe remains gated on verified speed captures, verified actuator hardware and
+commands, freshness limits, and safe-output evidence; placeholder BMW IDs are not executable.

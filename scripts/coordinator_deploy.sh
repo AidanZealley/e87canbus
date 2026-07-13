@@ -39,6 +39,7 @@ cd "${REPO_ROOT}"
 uv run pytest
 uv run ruff check .
 uv run mypy coordinator/src/e87canbus
+uv run python scripts/generate_custom_protocol.py --check
 
 ssh "${TARGET}" "sudo mkdir -p /opt/e87canbus && sudo chown \$(id -un):\$(id -gn) /opt/e87canbus"
 rsync -az --delete \

@@ -1,0 +1,31 @@
+[button_event]
+can_id = 0x700
+length = 2
+direction = "Button pad to coordinator"
+purpose = "Button event"
+
+[button_event.bytes]
+button_index = 0
+state = 1
+
+[button_event.values]
+released = 0x00
+pressed = 0x01
+
+[led_update]
+can_id = 0x701
+length = 2
+direction = "Coordinator to button pad"
+purpose = "LED update"
+
+[led_update.bytes]
+button_index = 0
+colour = 1
+
+[led_update.values]
+off = 0x00
+red = 0x01
+green = 0x02
+blue = 0x03
+amber = 0x04
+white = 0x05

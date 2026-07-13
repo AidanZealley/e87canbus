@@ -41,6 +41,11 @@ class ReceivedCanFrame:
 
 
 @dataclass(frozen=True)
+class TimerElapsed:
+    now: float
+
+
+@dataclass(frozen=True)
 class CanReaderFailed:
     network: CanNetwork
     failed_at: float
@@ -69,7 +74,7 @@ class ShutdownRequested:
 KernelInput = (
     KernelStarted
     | ReceivedCanFrame
-    | ControlTimerElapsed
+    | TimerElapsed
     | CanReaderFailed
     | EffectExecutionFailed
     | InboxOverflowed
@@ -99,7 +104,6 @@ class RuntimeFault:
 @dataclass(frozen=True)
 class NetworkRuntimeHealth:
     network: CanNetwork
-    latest_rx_monotonic_s: float | None = None
     fault: RuntimeFault | None = None
 
 
@@ -117,10 +121,6 @@ class RuntimeHealth:
     @property
     def fatal(self) -> bool:
         return any(item.fault is not None for item in self.networks)
-
-    def with_receive(self, network: CanNetwork, observed_at: float) -> RuntimeHealth:
-        current = self.for_network(network)
-        return self._replace(replace(current, latest_rx_monotonic_s=observed_at))
 
     def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
         return self._replace(replace(self.for_network(network), fault=fault))
@@ -220,11 +220,10 @@ class CoordinatorKernel:
 
         if isinstance(kernel_input, ReceivedCanFrame):
             return self._receive(kernel_input)
-        return self._transition(kernel_input)
+        return self._transition(ControlTimerElapsed(kernel_input.now))
 
     def _receive(self, received: ReceivedCanFrame) -> Commit | None:
         routed = RoutedCanFrame(network=received.network, frame=received.frame)
-        self._health = self._health.with_receive(received.network, received.received_at)
         try:
             event = self._router.decode(routed, received.received_at)
         except ValueError as exc:

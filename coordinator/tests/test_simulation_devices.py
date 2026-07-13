@@ -3,13 +3,11 @@ import logging
 import pytest
 from e87canbus.config import CustomCanIds
 from e87canbus.protocol.can import (
-    BUTTON_PRESSED,
-    BUTTON_RELEASED,
-    LED_GREEN,
     CanFrame,
     LedUpdatePayload,
     encode_led_update,
 )
+from e87canbus.protocol.generated import BUTTON_PRESSED, BUTTON_RELEASED, LED_COLOUR_GREEN
 from e87canbus.simulation.bus import InMemoryCanNetwork
 from e87canbus.simulation.devices import SimulatedNeoTrellisNode
 
@@ -39,12 +37,16 @@ def test_neotrellis_led_update_changes_led_colours() -> None:
     pi_bus = network.create_bus("pi")
     node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
 
-    pi_bus.send(encode_led_update(LedUpdatePayload(button_index=2, colour_code=LED_GREEN), ids))
+    pi_bus.send(
+        encode_led_update(
+            LedUpdatePayload(button_index=2, colour_code=LED_COLOUR_GREEN), ids
+        )
+    )
 
     updates = node.process_pending_led_updates()
 
-    assert updates == [LedUpdatePayload(button_index=2, colour_code=LED_GREEN)]
-    assert node.led_colours == {2: LED_GREEN}
+    assert updates == [LedUpdatePayload(button_index=2, colour_code=LED_COLOUR_GREEN)]
+    assert node.led_colours == {2: LED_COLOUR_GREEN}
 
 
 def test_neotrellis_ignores_unknown_frame_id() -> None:

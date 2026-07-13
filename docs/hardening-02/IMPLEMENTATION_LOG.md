@@ -13,7 +13,7 @@ record corrections in the current entry so the migration history remains visible
 | 4 — Pure transitions and controlled effects | done | 2026-07-13 |
 | 5 — Single-owner kernel and live cutover | done | 2026-07-13 |
 | 6 — Simulator and API cutover | done | 2026-07-13 |
-| 7 — Protocol source of truth and cleanup | planned | — |
+| 7 — Protocol source of truth and cleanup | done | 2026-07-13 |
 | 8 — Verified steering failsafe | blocked on verified evidence | — |
 
 ## Entry template
@@ -393,3 +393,62 @@ unrelated. No generated protocol or firmware artifacts changed.
 no issues in 28 source files; `uv run ruff check coordinator` — all checks passed; frontend
 `pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 6 passed. Generator and firmware
 checks were not applicable.
+
+## Phase 7 — Protocol source of truth and migration cleanup (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Added `protocol/custom.toml` as the sole definition of provisional custom CAN IDs, payload
+  lengths, byte positions, button states, and LED colours. A standard-library generator now owns
+  the Python constants module, button-pad header, and a marked section of the Markdown registry.
+- Made the codecs and `CustomCanIds` consume generated values, including generated lengths and byte
+  positions, and replaced the partial header-regex drift test with direct parser/renderer tests that
+  detect an independent change to any generated artifact.
+- Added standard-library AST architecture guards for domain imports, wire-codec imports, simulation
+  command construction, default live TX denial, and removed pre-kernel names. Added a CI workflow
+  that runs the generator check and all backend/frontend gates.
+- Replaced the application timer event at live/simulation ingress with a frozen runtime
+  `TimerElapsed` input; the kernel alone translates it to the domain event. Browser simulation
+  commands therefore cannot construct application events.
+- Deleted the per-network latest-receive health timestamp and its write path because no production
+  status or safety decision consumed it. Fault health remains immutable and is consumed by the live
+  runner to fail closed.
+- Reconciled the root, coordinator, protocol, setup, deployment, and project-context documentation
+  around the current kernel flow, generated protocol, bench-only systemd unit, live TX defaults,
+  same-path simulation, and Phase 8 evidence gates.
+
+**Deviations from the phase doc:** None.
+
+**Safety invariants verified:** Generated-artifact tests and `--check` cover IDs, lengths, byte
+positions, button values, and colour values without rewriting surrounding Markdown prose. Import
+guards prove application/features do not import protocol/runtime/simulation/adapters/FastAPI/thread
+or queue boundaries, wire codecs do not import application types, and simulation commands cannot
+construct domain events. The default-composition guard proves every live network still denies TX.
+Existing full-suite tests continue to prove ingress timestamp ownership, bounded queues, immutable
+single-owner commits, commit-before-effect ordering, capability and network-window enforcement,
+fault fail-closed behavior, and the production-equivalent simulated CAN path.
+
+**Complexity delta:** Deleted the manually duplicated Python wire constants, the partial firmware
+regex drift test, all test imports of obsolete wire aliases, the unused latest-RX health field and
+its replacement helper, and the direct live/simulation dependency on the application timer event.
+The two frozen generator schema values validate the only source file and feed three plain render
+functions; they replace three manually synchronized artifacts rather than adding another protocol
+representation. `TimerElapsed` replaces a layer-crossing input with one explicit runtime value and
+one visible kernel conversion. There is one protocol generation path, one timer ingress path, one
+kernel mutation path, and one effect exit; no compatibility alias, temporary adapter, dynamic
+registration, unused runtime field, or deliberate in-scope exception remains.
+
+**Discovered along the way:** The repository had no CI workflow, so Phase 7 added the first one
+rather than assuming an external job would run `--check`. The current systemd unit and bootstrap
+script intentionally remain the isolated `can0` bench ping-pong deployment; the three-network live
+runner remains manual and RX-only by default. No frontend source or actuator firmware changed.
+
+**Checks:** `uv run pytest -q` — 143 passed, 1 existing Starlette deprecation warning;
+`uv run mypy` — success, no issues in 29 source files; `uv run ruff check coordinator` — all checks
+passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; frontend
+`pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 6 passed. Additional
+`uv run ruff check scripts/generate_custom_protocol.py` and `bash -n scripts/*.sh` checks passed.
+The button-pad `pio run` build passed after its byte-position constant adopted the generated
+`BUTTON_INDEX` name. Phase 8 actuator firmware checks were not applicable.

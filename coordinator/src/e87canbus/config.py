@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
+from e87canbus.protocol.generated import CAN_ID_BUTTON_EVENT, CAN_ID_LED_UPDATE
+
 
 class CanNetwork(StrEnum):
     """Stable logical identities for the three physical BMW CAN networks."""
@@ -36,8 +38,8 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
 
 @dataclass(frozen=True)
 class CustomCanIds:
-    button_event: int = 0x700
-    led_update: int = 0x701
+    button_event: int = CAN_ID_BUTTON_EVENT
+    led_update: int = CAN_ID_LED_UPDATE
 
 
 @dataclass(frozen=True)

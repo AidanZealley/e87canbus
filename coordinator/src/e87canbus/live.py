@@ -9,7 +9,6 @@ import time
 from collections.abc import Callable
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -24,6 +23,7 @@ from e87canbus.runtime import (
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    TimerElapsed,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ def run_coordinator_loop(
                 continue
 
             pending_failures = _execute(
-                kernel.dispatch(ControlTimerElapsed(now)),
+                kernel.dispatch(TimerElapsed(now)),
                 executor,
                 clock,
             )

@@ -188,10 +188,10 @@ frames between them; future domain-level bridging must be explicit application b
 ```
 e87canbus/
 ├── coordinator/                   # Central Raspberry Pi application
-│   ├── src/e87canbus/           # Project-specific Python import package
+│   ├── src/e87canbus/             # Project-specific Python import package
 │   │   ├── application/           # Authoritative state and decisions
-│   │   ├── features/              # Steering, strobe, DSC, button mapping
-│   │   ├── protocol/              # CAN frame encoding and decoding
+│   │   ├── features/              # Pure steering-assistance calculations
+│   │   ├── protocol/              # Generated wire values and CAN codecs
 │   │   ├── adapters/              # Real hardware and OS integrations
 │   │   ├── simulation/            # Virtual CAN and device implementations
 │   │   ├── api/                   # FastAPI and WebSocket interface
@@ -201,7 +201,7 @@ e87canbus/
 │   ├── button-pad/                # NeoTrellis/CAN PlatformIO project
 │   └── steering-controller/       # Future actuator-controller firmware
 ├── frontend/                      # Simulator and in-car React UI
-├── protocol/                      # Cross-device CAN definitions and DBC notes
+├── protocol/                      # Protocol source TOML, generated docs, and DBC notes
 ├── docs/
 ├── scripts/
 └── deploy/
@@ -211,34 +211,19 @@ e87canbus/
 
 - **Runtime:** Python 3.11+
 - **Dependency management:** `pyproject.toml` (PEP 621)
-- **Key libraries:**
-  - `python-can` — CAN interface abstraction
-  - `cantools` — DBC file decoding, symbolic message access
-  - `RPi.GPIO` or `pigpio` — PWM output to solenoid driver
+- **Key libraries:** `python-can` for SocketCAN, FastAPI/Uvicorn for the simulator API, and
+  `cantools` reserved for verified DBC work
 - **Concurrency model:** one synchronous `python-can` reader thread per interface feeding a shared
-  queue; the main thread is the sole application/runtime consumer and runs periodic ticks
+  bounded queue; the main thread is the sole kernel owner and runs periodic timers
 
-**Future concurrent tasks:**
+Readers timestamp frames at receipt. The kernel decodes each ordered input, applies a pure immutable
+state transition, commits a revision, then returns effects to the composition. Effects can write
+only through explicitly granted, rate-limited transmitter capabilities. The visual simulator uses
+the same decode, transition, commit, effect, and policy path through simulated external CAN nodes.
 
-```python
-# Task 1 — CAN listener
-# K-CAN: watch for MFL button frames → push to event queue
-# PT-CAN: receive verified powertrain signals
-# F-CAN: read wheel speed → update shared state
-
-# Task 2 — Steering control loop (10–50ms tick)
-# Read current speed from shared state
-# Auto mode: map speed → target current via curve
-# Manual mode: use fixed level from button events
-# Write PWM duty cycle to GPIO
-
-# Task 3 — Event handler
-# Pop events from queue
-# MFL vol+/- → adjust manual assistance level
-# MFL phone pickup → trigger strobe coroutine
-# MFL phone hangup → send DSC-off CAN frame
-# Button matrix events → same actions + mode toggle
-```
+Verified speed decoding and an isolated actuator boundary are prerequisites for the later steering
+failsafe. No speed ID, DSC replay, strobe command, or Servotronic output is executable without
+capture or hardware evidence.
 
 ### Arduino — PlatformIO
 
@@ -272,7 +257,8 @@ collision-free merely because they are in the high standard-ID range.
 | `0x700` | Button pad → coordinator | Button event (byte 0 = button index, byte 1 = press/release) |
 | `0x701` | Coordinator → button pad | LED state update (byte 0 = button index, byte 1 = colour code) |
 
-*Document full protocol in `protocol/custom_ids.md` — keep `can_ids.h` in the button-pad firmware in sync manually.*
+`protocol/custom.toml` is the source of truth. Its generator updates the Python constants, firmware
+header, and the marked table section in `protocol/custom_ids.md`; `--check` detects drift.
 
 Validate both IDs against a real K-CAN capture before any in-car transmission. Future simulated
 speed, RPM, lighting, oil-temperature, and coolant-temperature signals must be encoded as real

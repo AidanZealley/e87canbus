@@ -19,6 +19,7 @@ Run lint and type checks:
 ```bash
 uv run ruff check .
 uv run mypy coordinator/src/e87canbus
+uv run python scripts/generate_custom_protocol.py --check
 ```
 
 Run the dry-run CLI:

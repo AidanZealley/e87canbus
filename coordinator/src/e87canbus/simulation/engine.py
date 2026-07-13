@@ -9,7 +9,6 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -22,6 +21,7 @@ from e87canbus.runtime import (
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    TimerElapsed,
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
@@ -200,7 +200,7 @@ class SimulationEngine:
                 self.neotrellis.button_index = index
                 self.neotrellis.send_next_button_event()
             case RunControlTimer(now):
-                self._dispatch(ControlTimerElapsed(now))
+                self._dispatch(TimerElapsed(now))
                 snapshot_trace = None
             case ResetSimulation():
                 self._dispatch(ShutdownRequested(self._clock()))

@@ -33,6 +33,7 @@ Before syncing, the deploy script runs:
 uv run pytest
 uv run ruff check .
 uv run mypy coordinator/src/e87canbus
+uv run python scripts/generate_custom_protocol.py --check
 ```
 
 It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e87canbus`, runs `uv sync` on the Pi, restarts `e87canbus.service`, and prints service status.

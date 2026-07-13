@@ -7,7 +7,6 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
-from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.config import CanNetwork, CustomCanIds, default_config, simulator_config
 from e87canbus.live import InboxOverflow, read_frames_into_queue, run_coordinator_loop
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -21,6 +20,7 @@ from e87canbus.runtime import (
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
+    TimerElapsed,
 )
 
 
@@ -150,7 +150,7 @@ class RecordingKernel(CoordinatorKernel):
         result = super().dispatch(kernel_input)
         if isinstance(kernel_input, ReceivedCanFrame) and self.after_frame is not None:
             self.after_frame()
-        if isinstance(kernel_input, ControlTimerElapsed):
+        if isinstance(kernel_input, TimerElapsed):
             self.tick_times.append(kernel_input.now)
             if (
                 self.stop is not None
@@ -342,7 +342,6 @@ def test_queue_latency_warning_does_not_rewrite_receive_time(
             clock=clock,
         )
 
-    assert kernel.health.for_network(CanNetwork.FCAN).latest_rx_monotonic_s == 0.5
     assert "network=fcan latency_s=1.500" in caplog.text
 
 

@@ -4,7 +4,6 @@ import pytest
 from e87canbus.application.events import (
     ApplicationEvent,
     ButtonPressed,
-    ControlTimerElapsed,
     LedColour,
     SetButtonLed,
     SpeedObserved,
@@ -23,6 +22,7 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     RuntimeFaultKind,
     ShutdownRequested,
+    TimerElapsed,
 )
 
 
@@ -56,7 +56,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
             CanFrame(CustomCanIds().button_event, b"\x00\x01"),
             0.1,
         ),
-        ControlTimerElapsed(0.2),
+        TimerElapsed(0.2),
     )
     first = CoordinatorKernel()
     second = CoordinatorKernel()
@@ -79,7 +79,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert first_commits[2].state_changed is False
 
 
-def test_unknown_and_malformed_frames_update_health_without_commits(
+def test_unknown_and_malformed_frames_create_no_commits(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     ids = CustomCanIds()
@@ -101,7 +101,6 @@ def test_unknown_and_malformed_frames_update_health_without_commits(
     assert unknown is None
     assert malformed is None
     assert kernel.diagnostics().revision == 1
-    assert kernel.health.for_network(CanNetwork.KCAN).latest_rx_monotonic_s == 2.0
     assert "ignored malformed recognized frame" in caplog.text
 
 
@@ -142,10 +141,10 @@ def test_speed_staleness_uses_explicit_input_times() -> None:
     kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 0.0))
     assert kernel.snapshot().speed_valid is True
 
-    kernel.dispatch(ControlTimerElapsed(0.5))
+    kernel.dispatch(TimerElapsed(0.5))
     assert kernel.snapshot().speed_valid is True
 
-    kernel.dispatch(ControlTimerElapsed(1.5))
+    kernel.dispatch(TimerElapsed(1.5))
     assert kernel.snapshot().speed_valid is False
 
     kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 2.0))
@@ -159,9 +158,8 @@ def test_old_queued_speed_frame_keeps_ingress_time_when_processed_later() -> Non
     kernel.dispatch(
         ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"), received_at=1.0)
     )
-    kernel.dispatch(ControlTimerElapsed(5.0))
+    kernel.dispatch(TimerElapsed(5.0))
 
-    assert kernel.health.for_network(CanNetwork.FCAN).latest_rx_monotonic_s == 1.0
     assert kernel.state.speed_sample == SpeedSample(42.0, 1.0, CanNetwork.FCAN)
     assert kernel.snapshot().speed_valid is False
 
@@ -173,6 +171,6 @@ def test_startup_and_shutdown_are_idempotent() -> None:
     assert kernel.dispatch(KernelStarted(2.0)) is None
     assert kernel.dispatch(ShutdownRequested(3.0)) is None
     assert kernel.dispatch(ShutdownRequested(4.0)) is None
-    assert kernel.dispatch(ControlTimerElapsed(5.0)) is None
+    assert kernel.dispatch(TimerElapsed(5.0)) is None
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
     assert kernel.diagnostics().revision == 1

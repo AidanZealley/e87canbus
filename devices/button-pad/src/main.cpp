@@ -38,7 +38,7 @@ void handleLedUpdate(const uint8_t *payload, uint8_t length) {
         return;
     }
 
-    const uint8_t buttonIndex = payload[LED_UPDATE_INDEX_BYTE];
+    const uint8_t buttonIndex = payload[LED_UPDATE_BUTTON_INDEX_BYTE];
     const uint8_t colourCode = payload[LED_UPDATE_COLOUR_BYTE];
 
     Serial.print("received led update index=");

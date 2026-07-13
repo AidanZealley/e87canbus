@@ -6,12 +6,14 @@ from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
 from e87canbus.protocol.can import (
-    LED_AMBER,
-    LED_BLUE,
-    LED_OFF,
-    LED_WHITE,
     ArduinoButtonEventPayload,
     encode_button_event,
+)
+from e87canbus.protocol.generated import (
+    LED_COLOUR_AMBER,
+    LED_COLOUR_BLUE,
+    LED_COLOUR_OFF,
+    LED_COLOUR_WHITE,
 )
 from e87canbus.runtime import ReceivedCanFrame
 from e87canbus.simulation.engine import (
@@ -72,7 +74,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert snapshot.next_pressed is True
     assert snapshot.application.speed_valid is False
     assert snapshot.application.steering_mode is SteeringMode.AUTO
-    assert snapshot.led_colours == {0: LED_BLUE, 3: LED_OFF}
+    assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
     assert snapshot.trace == ()
 
 
@@ -97,7 +99,7 @@ def test_pressing_mode_button_selects_manual_and_causes_amber_led_update() -> No
     assert snapshot.trace[1].frame.arbitration_id == 0x701
     assert snapshot.trace[1].frame.data == b"\x00\x04"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
-    assert snapshot.led_colours == {0: LED_AMBER, 3: LED_OFF}
+    assert snapshot.led_colours == {0: LED_COLOUR_AMBER, 3: LED_COLOUR_OFF}
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
@@ -108,7 +110,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     assert snapshot.trace[-1].frame.data == b"\x00\x00"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
-    assert snapshot.led_colours == {0: LED_AMBER, 3: LED_OFF}
+    assert snapshot.led_colours == {0: LED_COLOUR_AMBER, 3: LED_COLOUR_OFF}
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
@@ -119,7 +121,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
 
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
-    assert snapshot.led_colours == {0: LED_BLUE, 3: LED_OFF}
+    assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
     assert snapshot.trace == ()
 
     next_snapshot = controller.execute(PressButton(0)).snapshot
@@ -207,14 +209,14 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     snapshot = controller.execute(PressButton(3)).snapshot
     assert snapshot.application.maximum_assistance_active is True
     assert snapshot.application.manual_assistance_level == 7
-    assert snapshot.led_colours[3] == LED_WHITE
+    assert snapshot.led_colours[3] == LED_COLOUR_WHITE
 
     controller.execute(ReleaseButton(3))
     snapshot = controller.execute(PressButton(3)).snapshot
     assert snapshot.application.maximum_assistance_active is False
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert snapshot.application.manual_assistance_level == 1
-    assert snapshot.led_colours[3] == LED_OFF
+    assert snapshot.led_colours[3] == LED_COLOUR_OFF
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
@@ -231,7 +233,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert snapshot.application.manual_assistance_level == 1
     assert snapshot.application.maximum_assistance_active is False
-    assert snapshot.led_colours[3] == LED_OFF
+    assert snapshot.led_colours[3] == LED_COLOUR_OFF
 
 
 def test_unchanged_control_timer_does_not_publish_snapshot() -> None:
@@ -263,14 +265,12 @@ def test_engine_rejects_domain_events_and_application_state(value: object) -> No
         controller.execute(value)  # type: ignore[arg-type]
 
 
-def test_engine_clock_is_used_for_runtime_health_and_trace() -> None:
+def test_engine_clock_is_used_for_ingress_and_trace() -> None:
     clock = MutableClock(8.5)
     controller = build_test_engine(clock=clock)
 
     snapshot = controller.execute(PressButton(0)).snapshot
 
-    health = controller.kernel.health
-    assert health.for_network(CanNetwork.KCAN).latest_rx_monotonic_s == 8.5
     assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
 
 
@@ -305,7 +305,7 @@ def test_reactive_device_cascade_is_processed_in_one_command() -> None:
 
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert any(entry.source == "steering-controller" for entry in snapshot.trace)
-    assert snapshot.led_colours[0] == LED_AMBER
+    assert snapshot.led_colours[0] == LED_COLOUR_AMBER
 
 
 def test_reactive_device_livelock_warns_and_returns(

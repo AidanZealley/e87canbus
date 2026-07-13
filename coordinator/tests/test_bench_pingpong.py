@@ -5,7 +5,8 @@ from e87canbus.application.events import LedColour, SetButtonLed
 from e87canbus.cli.bench_pingpong import handle_frame, led_effect_for_button_event, run_pingpong
 from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
-from e87canbus.protocol.can import BUTTON_PRESSED, BUTTON_RELEASED, CanFrame
+from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.generated import BUTTON_PRESSED, BUTTON_RELEASED
 from e87canbus.protocol.router import ProtocolRouter
 
 
