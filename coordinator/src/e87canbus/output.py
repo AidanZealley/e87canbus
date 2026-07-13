@@ -6,6 +6,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 
 from e87canbus.application.events import ApplicationEffect
 from e87canbus.can_io import CanTransmitter
@@ -14,6 +15,12 @@ from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EffectFailure:
+    network: CanNetwork
+    message: str
 
 
 class SafeCanTransmitter:
@@ -60,7 +67,8 @@ class EffectExecutor:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
 
-    def execute(self, effects: tuple[ApplicationEffect, ...]) -> None:
+    def execute(self, effects: tuple[ApplicationEffect, ...]) -> tuple[EffectFailure, ...]:
+        failures: list[EffectFailure] = []
         for effect in effects:
             routed = self._router.encode(effect)
             transmitter = self._transmitters.get(routed.network)
@@ -75,11 +83,13 @@ class EffectExecutor:
                 transmitter.send(routed.frame)
             except (OSError, RuntimeError) as exc:
                 LOGGER.warning(
-                    "failed to execute effect and continued: network=%s id=0x%03x error=%s",
+                    "failed to execute effect: network=%s id=0x%03x error=%s",
                     routed.network.value,
                     routed.frame.arbitration_id,
                     exc,
                 )
+                failures.append(EffectFailure(routed.network, str(exc)))
+        return tuple(failures)
 
 
 def _discard_expired(send_times: deque[float], cutoff: float) -> None:

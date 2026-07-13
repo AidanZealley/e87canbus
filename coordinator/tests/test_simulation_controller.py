@@ -155,14 +155,14 @@ def test_same_button_id_on_other_networks_does_not_change_application() -> None:
     # Drain the real K-CAN event without processing it, then replay its ID on other networks.
     assert controller.pi_buses[CanNetwork.KCAN].receive(timeout_s=0) == button_frame
 
-    controller.runtime.process_frame(
+    controller.kernel.dispatch(
         ReceivedCanFrame(CanNetwork.PTCAN, button_frame, received_at=clock())
     )
-    controller.runtime.process_frame(
+    controller.kernel.dispatch(
         ReceivedCanFrame(CanNetwork.FCAN, button_frame, received_at=clock())
     )
 
-    assert controller.runtime.snapshot().steering_mode is SteeringMode.AUTO
+    assert controller.kernel.snapshot().steering_mode is SteeringMode.AUTO
 
 
 def test_invalid_button_index_raises() -> None:
@@ -241,8 +241,8 @@ def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
 
     snapshot = controller.press_button(0)
 
-    health = controller.runtime.health.latest_rx_monotonic_s
-    assert health[CanNetwork.KCAN] == 8.5
+    health = controller.kernel.health
+    assert health.for_network(CanNetwork.KCAN).latest_rx_monotonic_s == 8.5
     assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
 
 

@@ -1,11 +1,10 @@
-"""Transport-neutral coordinator runtime shared by simulated and live runners."""
+"""Single-owner coordinator kernel shared by simulated and live runners."""
 
 from __future__ import annotations
 
 import logging
-import time
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from enum import StrEnum
 
 from e87canbus.application.controller import (
     ApplicationSnapshot,
@@ -14,15 +13,22 @@ from e87canbus.application.controller import (
     snapshot,
     transition,
 )
-from e87canbus.application.events import ApplicationEvent, ControlTimerElapsed
+from e87canbus.application.events import (
+    ApplicationEffect,
+    ApplicationEvent,
+    ControlTimerElapsed,
+)
 from e87canbus.application.state import ApplicationState
-from e87canbus.can_io import CanReceiver
 from e87canbus.config import CanNetwork, SteeringConfig
-from e87canbus.output import EffectExecutor
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class KernelStarted:
+    now: float
 
 
 @dataclass(frozen=True)
@@ -34,52 +40,193 @@ class ReceivedCanFrame:
     received_at: float
 
 
-def _empty_can_health() -> dict[CanNetwork, float | None]:
-    return {network: None for network in CanNetwork}
+@dataclass(frozen=True)
+class CanReaderFailed:
+    network: CanNetwork
+    failed_at: float
+    message: str
 
 
-@dataclass
+@dataclass(frozen=True)
+class EffectExecutionFailed:
+    network: CanNetwork
+    failed_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class InboxOverflowed:
+    network: CanNetwork
+    failed_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class ShutdownRequested:
+    now: float
+
+
+KernelInput = (
+    KernelStarted
+    | ReceivedCanFrame
+    | ControlTimerElapsed
+    | CanReaderFailed
+    | EffectExecutionFailed
+    | InboxOverflowed
+    | ShutdownRequested
+)
+
+
+class KernelLifecycle(StrEnum):
+    CREATED = "created"
+    RUNNING = "running"
+    STOPPED = "stopped"
+
+
+class RuntimeFaultKind(StrEnum):
+    CAN_READER = "can_reader"
+    EFFECT_EXECUTION = "effect_execution"
+    INBOX_OVERFLOW = "inbox_overflow"
+
+
+@dataclass(frozen=True)
+class RuntimeFault:
+    kind: RuntimeFaultKind
+    occurred_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class NetworkRuntimeHealth:
+    network: CanNetwork
+    latest_rx_monotonic_s: float | None = None
+    fault: RuntimeFault | None = None
+
+
+def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
+    return tuple(NetworkRuntimeHealth(network) for network in CanNetwork)
+
+
+@dataclass(frozen=True)
 class RuntimeHealth:
-    latest_rx_monotonic_s: dict[CanNetwork, float | None] = field(
-        default_factory=_empty_can_health
-    )
+    networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
 
-    def record_receive(self, network: CanNetwork, monotonic_s: float) -> None:
-        self.latest_rx_monotonic_s[network] = monotonic_s
+    def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
+        return next(item for item in self.networks if item.network is network)
+
+    @property
+    def fatal(self) -> bool:
+        return any(item.fault is not None for item in self.networks)
+
+    def with_receive(self, network: CanNetwork, observed_at: float) -> RuntimeHealth:
+        current = self.for_network(network)
+        return self._replace(replace(current, latest_rx_monotonic_s=observed_at))
+
+    def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
+        return self._replace(replace(self.for_network(network), fault=fault))
+
+    def _replace(self, replacement: NetworkRuntimeHealth) -> RuntimeHealth:
+        return RuntimeHealth(
+            tuple(
+                replacement if item.network is replacement.network else item
+                for item in self.networks
+            )
+        )
 
 
-class CoordinatorRuntime:
-    """Decode, transition, commit, then execute one input at a time."""
+@dataclass(frozen=True)
+class Commit:
+    revision: int
+    snapshot: ApplicationSnapshot
+    effects: tuple[ApplicationEffect, ...]
+    state_changed: bool
+
+
+@dataclass(frozen=True)
+class DiagnosticSnapshot:
+    lifecycle: KernelLifecycle
+    revision: int
+    health: RuntimeHealth
+
+
+class CoordinatorKernel:
+    """Decode and commit one explicitly timed input at a time."""
 
     def __init__(
         self,
-        receivers: Mapping[CanNetwork, CanReceiver],
         state: ApplicationState | None = None,
         steering_config: SteeringConfig | None = None,
         router: ProtocolRouter | None = None,
-        executor: EffectExecutor | None = None,
-        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.receivers = dict(receivers)
-        self.steering_config = steering_config or SteeringConfig()
-        self.state = normalize_state(state or ApplicationState(), self.steering_config)
-        self.router = router or ProtocolRouter()
-        self.executor = executor or EffectExecutor(router=self.router)
-        self.health = RuntimeHealth()
-        self._monotonic = monotonic
+        self._steering_config = steering_config or SteeringConfig()
+        self._state = normalize_state(
+            state or ApplicationState(),
+            self._steering_config,
+        )
+        self._router = router or ProtocolRouter()
+        self._revision = 0
+        self._lifecycle = KernelLifecycle.CREATED
+        self._health = RuntimeHealth()
 
-    def start(self) -> None:
-        """Synchronize the verified output projection through the effect boundary."""
+    @property
+    def state(self) -> ApplicationState:
+        return self._state
 
-        self.executor.execute(initial_effects(self.state))
+    @property
+    def health(self) -> RuntimeHealth:
+        return self._health
 
-    def process_frame(self, received: ReceivedCanFrame) -> None:
-        """Process a received input while isolating malformed traffic."""
+    def snapshot(self) -> ApplicationSnapshot:
+        return snapshot(self._state, self._steering_config)
 
+    def diagnostics(self) -> DiagnosticSnapshot:
+        return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
+
+    def dispatch(self, kernel_input: KernelInput) -> Commit | None:
+        """Accept the kernel's only state-changing input path."""
+
+        if isinstance(kernel_input, ShutdownRequested):
+            self._lifecycle = KernelLifecycle.STOPPED
+            return None
+
+        if self._lifecycle is KernelLifecycle.STOPPED:
+            return None
+
+        if isinstance(kernel_input, KernelStarted):
+            if self._lifecycle is not KernelLifecycle.CREATED:
+                return None
+            self._lifecycle = KernelLifecycle.RUNNING
+            return self._commit_startup()
+
+        if isinstance(
+            kernel_input,
+            (CanReaderFailed, EffectExecutionFailed, InboxOverflowed),
+        ):
+            match kernel_input:
+                case CanReaderFailed():
+                    kind = RuntimeFaultKind.CAN_READER
+                case EffectExecutionFailed():
+                    kind = RuntimeFaultKind.EFFECT_EXECUTION
+                case InboxOverflowed():
+                    kind = RuntimeFaultKind.INBOX_OVERFLOW
+            self._health = self._health.with_fault(
+                kernel_input.network,
+                RuntimeFault(kind, kernel_input.failed_at, kernel_input.message),
+            )
+            return None
+
+        if self._lifecycle is not KernelLifecycle.RUNNING:
+            return None
+
+        if isinstance(kernel_input, ReceivedCanFrame):
+            return self._receive(kernel_input)
+        return self._transition(kernel_input)
+
+    def _receive(self, received: ReceivedCanFrame) -> Commit | None:
         routed = RoutedCanFrame(network=received.network, frame=received.frame)
-        self.health.record_receive(received.network, received.received_at)
+        self._health = self._health.with_receive(received.network, received.received_at)
         try:
-            event = self.router.decode(routed, received.received_at)
+            event = self._router.decode(routed, received.received_at)
         except ValueError as exc:
             LOGGER.warning(
                 "ignored malformed recognized frame: network=%s id=0x%03x data=%s error=%s",
@@ -88,42 +235,27 @@ class CoordinatorRuntime:
                 routed.frame.data.hex(),
                 exc,
             )
-            return
-        if event is not None:
-            self._apply(event)
+            return None
+        return None if event is None else self._transition(event)
 
-    def _apply(self, event: ApplicationEvent) -> None:
-        result = transition(self.state, event, self.steering_config)
-        self.state = result.state
-        self.executor.execute(result.effects)
-
-    def tick(self) -> None:
-        self._apply(ControlTimerElapsed(self._monotonic()))
-
-    def snapshot(self) -> ApplicationSnapshot:
-        return snapshot(self.state, self.steering_config)
-
-    def drain_pending(self) -> int:
-        """Drain endpoint queues in stable round-robin network order."""
-
-        processed = 0
-        ordered_networks = tuple(
-            network for network in CanNetwork if network in self.receivers
+    def _transition(self, event: ApplicationEvent) -> Commit:
+        previous_snapshot = self.snapshot()
+        result = transition(self._state, event, self._steering_config)
+        self._state = result.state
+        self._revision += 1
+        committed_snapshot = self.snapshot()
+        return Commit(
+            revision=self._revision,
+            snapshot=committed_snapshot,
+            effects=result.effects,
+            state_changed=committed_snapshot != previous_snapshot,
         )
-        while True:
-            found_frame = False
-            for network in ordered_networks:
-                frame = self.receivers[network].receive(timeout_s=0)
-                if frame is None:
-                    continue
-                found_frame = True
-                processed += 1
-                self.process_frame(
-                    ReceivedCanFrame(
-                        network=network,
-                        frame=frame,
-                        received_at=self._monotonic(),
-                    )
-                )
-            if not found_frame:
-                return processed
+
+    def _commit_startup(self) -> Commit:
+        self._revision = 1
+        return Commit(
+            revision=self._revision,
+            snapshot=self.snapshot(),
+            effects=initial_effects(self._state),
+            state_changed=True,
+        )

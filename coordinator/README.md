@@ -8,7 +8,7 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/application/` — state, events, and application decisions. Start here when changing what the system does.
 - `src/e87canbus/features/` — pure steering-assistance calculations.
 - `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
-- `src/e87canbus/runtime.py` — transport-neutral per-frame and periodic-tick coordinator runtime.
+- `src/e87canbus/runtime.py` — single-owner kernel, ordered input values, commits, and diagnostics.
 - `src/e87canbus/live.py` — threaded SocketCAN readers and the single-consumer live loop.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
@@ -20,17 +20,20 @@ The outer `coordinator/` directory names the deployable component. The inner `sr
 directory is the project-specific import namespace, following Python's conventional `src` layout.
 This is why code imports `e87canbus.application` even though it is deployed as the coordinator.
 
-The runtime receives read-only capabilities keyed by K-CAN, PT-CAN, and F-CAN. Protocol decoding is
-keyed by both network and arbitration ID, while application code remains independent of physical bus
-selection. Each decoded event runs through a pure state transition; the runtime commits the returned
-state before sending its ordered effects to the capability-based executor. Speed data is marked
-invalid after its configured timeout; no verified BMW speed decoder is configured yet. The
-coordinator does not automatically forward frames between networks. Runtime transmission is denied
-by the absence of a safe transmitter capability and explicitly granted per network with
-`tx_enabled`. Every granted write passes the holistic per-network window in `tx_policy`.
-Live readers timestamp frames immediately after receipt and enqueue them without blocking into the
-configured bounded inbox. Queue latency is logged without changing that observation time; overflow
-stops the current runner with a non-zero result rather than processing an unknowably stale backlog.
+The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
+periodic timers, reader and effect faults, inbox overflow, and shutdown all carry explicit times into
+that ordered path. Each decoded event runs through a pure transition; the kernel commits the returned
+state and revision before the calling composition executes the commit's ordered effects. Unknown CAN
+traffic updates immutable per-network diagnostics without creating an application commit. Speed data
+is marked invalid after its configured timeout; no verified BMW speed decoder is configured yet.
+
+The coordinator does not automatically forward frames between networks. Transmission is denied by
+the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.
+Every granted write passes the holistic per-network window in `tx_policy`. Live reader threads only
+receive, timestamp, and enqueue into the configured bounded inbox; the main thread alone dispatches
+kernel inputs and executes effects. Queue latency is logged without changing observation time.
+Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
+stops the runner with a non-zero result.
 
 ## Running live
 

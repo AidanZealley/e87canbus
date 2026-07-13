@@ -1,45 +1,29 @@
 import logging
 
 import pytest
-from e87canbus.application.events import ApplicationEvent, ButtonPressed, SpeedObserved
+from e87canbus.application.events import (
+    ApplicationEvent,
+    ButtonPressed,
+    ControlTimerElapsed,
+    LedColour,
+    SetButtonLed,
+    SpeedObserved,
+)
 from e87canbus.application.state import SpeedSample, SteeringMode
-from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
-from e87canbus.output import EffectExecutor, SafeCanTransmitter
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
-
-
-class FakeEndpoint:
-    def __init__(self, pending: list[CanFrame] | None = None) -> None:
-        self.pending = pending or []
-        self.sent: list[CanFrame] = []
-
-    def send(self, frame: CanFrame) -> None:
-        self.sent.append(frame)
-
-    def receive(self, timeout_s: float | None = None) -> CanFrame | None:
-        del timeout_s
-        return self.pending.pop(0) if self.pending else None
-
-
-class ReceiveOnly:
-    def receive(self, timeout_s: float | None = None) -> CanFrame | None:
-        del timeout_s
-        return None
-
-
-class FailingTransmitter:
-    def send(self, frame: CanFrame) -> None:
-        raise OSError(f"failed {frame.arbitration_id}")
-
-
-class MutableClock:
-    def __init__(self, now: float = 0.0) -> None:
-        self.now = now
-
-    def __call__(self) -> float:
-        return self.now
+from e87canbus.runtime import (
+    CanReaderFailed,
+    CoordinatorKernel,
+    EffectExecutionFailed,
+    InboxOverflowed,
+    KernelLifecycle,
+    KernelStarted,
+    ReceivedCanFrame,
+    RuntimeFaultKind,
+    ShutdownRequested,
+)
 
 
 class SpeedRouter(ProtocolRouter):
@@ -53,25 +37,6 @@ class SpeedRouter(ProtocolRouter):
         )
 
 
-def runtime_with_kcan(endpoint: FakeEndpoint) -> CoordinatorRuntime:
-    router = ProtocolRouter()
-    return CoordinatorRuntime(
-        {CanNetwork.KCAN: endpoint},
-        router=router,
-        executor=EffectExecutor(
-            {
-                CanNetwork.KCAN: SafeCanTransmitter(
-                    endpoint,
-                    TxPolicyConfig(),
-                    lambda: 0.0,
-                )
-            },
-            router,
-        ),
-        monotonic=lambda: 12.5,
-    )
-
-
 def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() -> None:
     ids = CustomCanIds()
     router = ProtocolRouter(ids)
@@ -83,128 +48,131 @@ def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() ->
     assert router.decode(RoutedCanFrame(CanNetwork.KCAN, pressed), 1.0) == ButtonPressed(0)
 
 
-def test_runtime_processes_kcan_button_and_returns_led_on_kcan() -> None:
-    ids = CustomCanIds()
-    kcan = FakeEndpoint([CanFrame(ids.button_event, b"\x00\x01")])
-    runtime = runtime_with_kcan(kcan)
-
-    assert runtime.drain_pending() == 1
-
-    assert runtime.snapshot().steering_mode is SteeringMode.MANUAL
-    assert kcan.sent == [CanFrame(ids.led_update, b"\x00\x04")]
-    assert runtime.health.latest_rx_monotonic_s[CanNetwork.KCAN] == 12.5
-
-
-def test_unknown_and_malformed_frames_do_not_stop_runtime(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    ids = CustomCanIds()
-    bus = FakeEndpoint(
-        [
-            CanFrame(0x123, b"\x00"),
-            CanFrame(ids.button_event, b"\x00"),
-            CanFrame(ids.button_event, b"\x00\x01"),
-        ]
-    )
-    runtime = runtime_with_kcan(bus)
-
-    with caplog.at_level(logging.WARNING):
-        assert runtime.drain_pending() == 3
-
-    assert runtime.snapshot().steering_mode is SteeringMode.MANUAL
-    assert "ignored malformed recognized frame" in caplog.text
-
-
-def test_default_runtime_has_no_transmit_capability(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    bus = FakeEndpoint()
-    runtime = CoordinatorRuntime({CanNetwork.KCAN: bus})
-
-    with caplog.at_level(logging.WARNING):
-        runtime.start()
-
-    assert bus.sent == []
-    assert caplog.text.count("unavailable TX capability") == 2
-
-
-def test_effect_failure_does_not_roll_back_committed_state(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    router = ProtocolRouter()
-    runtime = CoordinatorRuntime(
-        {CanNetwork.KCAN: ReceiveOnly()},
-        router=router,
-        executor=EffectExecutor(
-            {
-                CanNetwork.KCAN: SafeCanTransmitter(
-                    FailingTransmitter(),
-                    TxPolicyConfig(),
-                )
-            },
-            router,
+def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() -> None:
+    inputs = (
+        KernelStarted(0.0),
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            CanFrame(CustomCanIds().button_event, b"\x00\x01"),
+            0.1,
         ),
+        ControlTimerElapsed(0.2),
     )
+    first = CoordinatorKernel()
+    second = CoordinatorKernel()
+
+    first_commits = tuple(first.dispatch(kernel_input) for kernel_input in inputs)
+    second_commits = tuple(second.dispatch(kernel_input) for kernel_input in inputs)
+
+    assert first_commits == second_commits
+    assert [commit.revision for commit in first_commits if commit is not None] == [1, 2, 3]
+    assert first_commits[0] is not None
+    assert first_commits[0].effects == (
+        SetButtonLed(0, LedColour.BLUE),
+        SetButtonLed(3, LedColour.OFF),
+    )
+    assert first_commits[1] is not None
+    assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
+    assert first_commits[1].effects == (SetButtonLed(0, LedColour.AMBER),)
+    assert first_commits[2] is not None
+    assert first_commits[2].effects == ()
+    assert first_commits[2].state_changed is False
+
+
+def test_unknown_and_malformed_frames_update_health_without_commits(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ids = CustomCanIds()
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
 
     with caplog.at_level(logging.WARNING):
-        runtime.process_frame(
+        unknown = kernel.dispatch(
+            ReceivedCanFrame(CanNetwork.KCAN, CanFrame(0x123, b"\x00"), 1.0)
+        )
+        malformed = kernel.dispatch(
             ReceivedCanFrame(
                 CanNetwork.KCAN,
-                CanFrame(CustomCanIds().button_event, b"\x00\x01"),
-                1.0,
+                CanFrame(ids.button_event, b"\x00"),
+                2.0,
             )
         )
 
-    assert runtime.snapshot().steering_mode is SteeringMode.MANUAL
-    assert "failed to execute effect and continued" in caplog.text
+    assert unknown is None
+    assert malformed is None
+    assert kernel.diagnostics().revision == 1
+    assert kernel.health.for_network(CanNetwork.KCAN).latest_rx_monotonic_s == 2.0
+    assert "ignored malformed recognized frame" in caplog.text
 
 
-def test_receive_only_runtime_capability_has_no_send_method() -> None:
-    receiver = ReceiveOnly()
+@pytest.mark.parametrize(
+    ("kernel_input", "kind"),
+    [
+        (CanReaderFailed(CanNetwork.FCAN, 1.0, "reader"), RuntimeFaultKind.CAN_READER),
+        (
+            EffectExecutionFailed(CanNetwork.KCAN, 2.0, "effect"),
+            RuntimeFaultKind.EFFECT_EXECUTION,
+        ),
+        (
+            InboxOverflowed(CanNetwork.PTCAN, 3.0, "overflow"),
+            RuntimeFaultKind.INBOX_OVERFLOW,
+        ),
+    ],
+)
+def test_fault_inputs_are_visible_in_immutable_runtime_health(
+    kernel_input: CanReaderFailed | EffectExecutionFailed | InboxOverflowed,
+    kind: RuntimeFaultKind,
+) -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
 
-    runtime = CoordinatorRuntime({CanNetwork.KCAN: receiver})
+    assert kernel.dispatch(kernel_input) is None
 
-    assert runtime.receivers[CanNetwork.KCAN] is receiver
-    assert not hasattr(receiver, "send")
+    fault = kernel.health.for_network(kernel_input.network).fault
+    assert fault is not None
+    assert fault.kind is kind
+    assert kernel.health.fatal is True
 
 
-def test_speed_staleness_transitions_fresh_to_stale_and_fresh_again() -> None:
-    clock = MutableClock()
-    runtime = CoordinatorRuntime(
-        {CanNetwork.FCAN: FakeEndpoint()},
-        router=SpeedRouter(),
-        monotonic=clock,
-    )
+def test_speed_staleness_uses_explicit_input_times() -> None:
+    kernel = CoordinatorKernel(router=SpeedRouter())
     speed_frame = CanFrame(0x123, b"\x2a")
+    kernel.dispatch(KernelStarted(0.0))
 
-    runtime.process_frame(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 0.0))
-    assert runtime.snapshot().speed_valid is True
+    kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 0.0))
+    assert kernel.snapshot().speed_valid is True
 
-    clock.now = 0.5
-    runtime.tick()
-    assert runtime.snapshot().speed_valid is True
+    kernel.dispatch(ControlTimerElapsed(0.5))
+    assert kernel.snapshot().speed_valid is True
 
-    clock.now = 1.5
-    runtime.tick()
-    assert runtime.snapshot().speed_valid is False
+    kernel.dispatch(ControlTimerElapsed(1.5))
+    assert kernel.snapshot().speed_valid is False
 
-    runtime.process_frame(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 2.0))
-    assert runtime.snapshot().speed_valid is True
+    kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 2.0))
+    assert kernel.snapshot().speed_valid is True
 
 
 def test_old_queued_speed_frame_keeps_ingress_time_when_processed_later() -> None:
-    clock = MutableClock(5.0)
-    runtime = CoordinatorRuntime(
-        {CanNetwork.FCAN: FakeEndpoint()},
-        router=SpeedRouter(),
-        monotonic=clock,
-    )
+    kernel = CoordinatorKernel(router=SpeedRouter())
+    kernel.dispatch(KernelStarted(0.0))
 
-    runtime.process_frame(
+    kernel.dispatch(
         ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"), received_at=1.0)
     )
-    runtime.tick()
+    kernel.dispatch(ControlTimerElapsed(5.0))
 
-    assert runtime.health.latest_rx_monotonic_s[CanNetwork.FCAN] == 1.0
-    assert runtime.state.speed_sample == SpeedSample(42.0, 1.0, CanNetwork.FCAN)
-    assert runtime.snapshot().speed_valid is False
+    assert kernel.health.for_network(CanNetwork.FCAN).latest_rx_monotonic_s == 1.0
+    assert kernel.state.speed_sample == SpeedSample(42.0, 1.0, CanNetwork.FCAN)
+    assert kernel.snapshot().speed_valid is False
+
+
+def test_startup_and_shutdown_are_idempotent() -> None:
+    kernel = CoordinatorKernel()
+
+    assert kernel.dispatch(KernelStarted(1.0)) is not None
+    assert kernel.dispatch(KernelStarted(2.0)) is None
+    assert kernel.dispatch(ShutdownRequested(3.0)) is None
+    assert kernel.dispatch(ShutdownRequested(4.0)) is None
+    assert kernel.dispatch(ControlTimerElapsed(5.0)) is None
+    assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
+    assert kernel.diagnostics().revision == 1

@@ -11,7 +11,7 @@ record corrections in the current entry so the migration history remains visible
 | 2 — Timestamped, bounded ingress | done | 2026-07-13 |
 | 3 — Explicit immutable domain state | done | 2026-07-13 |
 | 4 — Pure transitions and controlled effects | done | 2026-07-13 |
-| 5 — Single-owner kernel and live cutover | planned | — |
+| 5 — Single-owner kernel and live cutover | done | 2026-07-13 |
 | 6 — Simulator and API cutover | planned | — |
 | 7 — Protocol source of truth and cleanup | planned | — |
 | 8 — Verified steering failsafe | blocked on verified evidence | — |
@@ -261,5 +261,75 @@ gated on verified hardware topology and electrical limits. The existing Starlett
 deprecation warning remains unrelated. No frontend or generated protocol artifacts changed.
 
 **Checks:** `uv run pytest -q` — 125 passed, 1 existing deprecation warning; `uv run mypy` — success,
+no issues in 28 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
+generator, and firmware checks were not applicable.
+
+## Phase 5 — Single-owner kernel and live cutover (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Replaced `CoordinatorRuntime` with `CoordinatorKernel`; its closed `dispatch` input union is now
+  the only application-state and runtime-health mutation path, and it owns the immutable current
+  state, lifecycle, health, and monotonically increasing application revision.
+- Added frozen `Commit` and diagnostic values. Startup creates revision 1, every decoded domain
+  transition increments the revision even when its public snapshot is unchanged, and unknown or
+  malformed CAN traffic creates no application commit.
+- Moved effect execution outside the kernel. The live main thread now dispatches a commit before
+  executing its effects, and executor I/O errors become `EffectExecutionFailed` on the next loop
+  turn without rollback or recursive kernel entry.
+- Extended immutable per-network runtime health with receive timestamps and reader, effect, or
+  inbox-overflow fault status; faults remain diagnostic state rather than application decision
+  state.
+- Made repeated reader errors fatal after three consecutive normalized failures. Readers emit a
+  timestamped `CanReaderFailed` and exit; a successful receive or timeout resets the consecutive
+  count. Overflow that cannot fit in the bounded inbox is atomically retained as an
+  `InboxOverflowed` input.
+- Kept live readers limited to receive, ingress timestamp, and non-blocking enqueue. The calling
+  thread alone dispatches startup, frames, timers, faults, and shutdown, retains drift-resistant
+  tick scheduling, and returns non-zero for reader, effect, or overflow failure.
+- Replaced the simulator's removed runtime methods with a small composition-local adapter that
+  drains real in-memory CAN endpoints into `dispatch`, executes returned effects through the same
+  TX policy, and explicitly shuts down the old kernel on reset. Browser publication and revision
+  consumption remain unchanged for Phase 6.
+- Updated coordinator and simulation documentation for the single-owner kernel and fatal fault
+  behavior.
+
+**Deviations from the phase doc:** None. The simulator adapter is the temporary Phase 5 bridge
+explicitly required before the Phase 6 publication cutover; it does not inject domain events or
+mutate kernel state outside `dispatch`.
+
+**Safety invariants verified:** One state owner and deterministic transitions are covered by mixed
+startup/frame/timer tests proving stable revisions, snapshots, and effects. Observation-time tests
+prove queue latency and delayed processing never replace ingress timestamps. Effect tests prove
+commit precedes execution, failures return as later fault inputs without re-entry, and only the
+coordinator thread calls `dispatch`. Overload and fault tests prove bounded non-blocking ingress,
+visible per-network overflow/reader/effect status, clean bounded thread shutdown, and non-zero live
+results. Scheduling tests prove large jumps produce one resynchronized tick and sustained unknown
+traffic cannot starve timers. Existing live-default and simulator tests prove absent capabilities
+still deny TX and simulated external frames retain the production decode, transition, commit,
+effect, and TX-policy path. A source audit found no threading or queue imports in application,
+feature, or kernel modules.
+
+**Complexity delta:** Deleted `CoordinatorRuntime`, its four mutation methods (`start`,
+`process_frame`, `tick`, and `drain_pending`), its receiver map, ambient clock, executor ownership,
+mutable health dictionary, and every compatibility caller. The live loop now has one dispatch path
+instead of separate startup/frame/timer calls, and the simulator's direct endpoint drain is only a
+temporary input adapter around that same path. `Commit`, the closed frozen input values, and frozen
+runtime-health values add production structure required to encode ordering, ownership, revisions,
+and fatal status; they replace duplicated mutation entry points and swallowed failures rather than
+layering beside them. `EffectFailure` is the minimal executor-to-composition value that makes I/O
+failure observable. Duplicate fault branches and an unnecessary simulator pending-fault list were
+removed during the simplification audit. There is no compatibility alias, dynamic registration,
+callback chain, parallel event pipeline, or deliberately deferred in-scope simplification.
+
+**Discovered along the way:** Three consecutive receive errors provide a bounded fatal-reader rule
+while preserving recovery from a transient error; the successful receive/timeout reset prevents
+non-consecutive faults from accumulating. Phase 6 still owns commit-driven browser publication and
+API revision exposure. The existing Starlette `TestClient` deprecation warning remains unrelated.
+No frontend or generated protocol artifacts changed.
+
+**Checks:** `uv run pytest -q` — 129 passed, 1 existing deprecation warning; `uv run mypy` — success,
 no issues in 28 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
 generator, and firmware checks were not applicable.

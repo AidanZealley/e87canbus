@@ -7,12 +7,21 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
+from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.config import CanNetwork, CustomCanIds, default_config, simulator_config
 from e87canbus.live import InboxOverflow, read_frames_into_queue, run_coordinator_loop
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
+from e87canbus.runtime import (
+    CanReaderFailed,
+    CoordinatorKernel,
+    EffectExecutionFailed,
+    KernelInput,
+    KernelStarted,
+    ReceivedCanFrame,
+    ShutdownRequested,
+)
 
 
 class BlockingFakeBus:
@@ -33,25 +42,17 @@ class BlockingFakeBus:
         return received
 
 
+class FailingTransmitter:
+    def send(self, frame: CanFrame) -> None:
+        raise OSError(f"failed {frame.arbitration_id}")
+
+
 class MutableClock:
     def __init__(self, now: float = 0.0) -> None:
         self.now = now
 
     def __call__(self) -> float:
         return self.now
-
-
-class RecordingStop(threading.Event):
-    def __init__(self, stop_after_waits: int) -> None:
-        super().__init__()
-        self.stop_after_waits = stop_after_waits
-        self.waits: list[float | None] = []
-
-    def wait(self, timeout: float | None = None) -> bool:
-        self.waits.append(timeout)
-        if len(self.waits) >= self.stop_after_waits:
-            self.set()
-        return self.is_set()
 
 
 class FakeSocketCanBus:
@@ -110,25 +111,13 @@ class ImmediateThread:
         del timeout
 
 
-def start_runtime_then_stop(
-    runtime: CoordinatorRuntime,
-    frames: queue.Queue[ReceivedCanFrame],
-    stop: threading.Event,
-    tick_interval_s: float,
-    queue_latency_warning_s: float,
-) -> None:
-    del frames, tick_interval_s, queue_latency_warning_s
-    runtime.start()
-    stop.set()
-
-
-class AdvancingQueue(queue.Queue[ReceivedCanFrame]):
+class AdvancingQueue(queue.Queue[KernelInput]):
     def __init__(self, clock: MutableClock, jump_s: float | None = None) -> None:
         super().__init__()
         self.clock = clock
         self.jump_s = jump_s
 
-    def get(self, block: bool = True, timeout: float | None = None) -> ReceivedCanFrame:
+    def get(self, block: bool = True, timeout: float | None = None) -> KernelInput:
         try:
             return super().get(block=False)
         except queue.Empty:
@@ -140,102 +129,127 @@ class AdvancingQueue(queue.Queue[ReceivedCanFrame]):
             raise
 
 
-class TickRecordingRuntime(CoordinatorRuntime):
+class RecordingKernel(CoordinatorKernel):
     def __init__(
         self,
-        stop: threading.Event,
-        stop_after: int,
-        clock: Callable[[], float],
-        receivers: dict[CanNetwork, BlockingFakeBus] | None = None,
+        stop: threading.Event | None = None,
+        stop_after_ticks: int | None = None,
+        after_frame: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__(receivers or {}, monotonic=clock)
-        self.clock = clock
+        super().__init__()
         self.stop = stop
-        self.stop_after = stop_after
+        self.stop_after_ticks = stop_after_ticks
+        self.after_frame = after_frame
+        self.inputs: list[KernelInput] = []
+        self.dispatch_thread_ids: list[int] = []
         self.tick_times: list[float] = []
 
-    def tick(self) -> None:
-        self.tick_times.append(self.clock())
-        if len(self.tick_times) >= self.stop_after:
-            self.stop.set()
-        super().tick()
+    def dispatch(self, kernel_input: KernelInput):
+        self.inputs.append(kernel_input)
+        self.dispatch_thread_ids.append(threading.get_ident())
+        result = super().dispatch(kernel_input)
+        if isinstance(kernel_input, ReceivedCanFrame) and self.after_frame is not None:
+            self.after_frame()
+        if isinstance(kernel_input, ControlTimerElapsed):
+            self.tick_times.append(kernel_input.now)
+            if (
+                self.stop is not None
+                and self.stop_after_ticks is not None
+                and len(self.tick_times) >= self.stop_after_ticks
+            ):
+                self.stop.set()
+        return result
+
+
+def start_kernel_then_stop(
+    kernel: CoordinatorKernel,
+    executor: EffectExecutor,
+    inbox: queue.Queue[KernelInput],
+    stop: threading.Event,
+    overflow: InboxOverflow,
+    tick_interval_s: float,
+    queue_latency_warning_s: float,
+) -> bool:
+    del inbox, overflow, tick_interval_s, queue_latency_warning_s
+    commit = kernel.dispatch(KernelStarted(0.0))
+    assert commit is not None
+    executor.execute(commit.effects)
+    stop.set()
+    kernel.dispatch(ShutdownRequested(0.0))
+    return False
 
 
 def test_reader_timestamps_frame_at_receive_and_stops() -> None:
     bus = BlockingFakeBus()
-    frames: queue.Queue[ReceivedCanFrame] = queue.Queue()
+    inbox: queue.Queue[KernelInput] = queue.Queue()
     stop = threading.Event()
     overflow = InboxOverflow()
     clock = MutableClock(12.5)
     frame = CanFrame(0x123, b"\x01")
     reader = threading.Thread(
         target=read_frames_into_queue,
-        args=(CanNetwork.PTCAN, bus, frames, stop, overflow, clock, 0.01),
+        args=(CanNetwork.PTCAN, bus, inbox, stop, overflow, clock, 0.01),
     )
 
     reader.start()
     bus.received.put(frame)
-    received = frames.get(timeout=0.2)
+    received = inbox.get(timeout=0.2)
     stop.set()
     reader.join(timeout=0.2)
 
     assert received == ReceivedCanFrame(CanNetwork.PTCAN, frame, 12.5)
-    assert not overflow.occurred
+    assert overflow.kernel_input is None
     assert not reader.is_alive()
 
 
-def test_reader_logs_receive_errors_and_continues(
+def test_reader_recovers_after_one_receive_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     bus = BlockingFakeBus()
-    frames: queue.Queue[ReceivedCanFrame] = queue.Queue()
+    inbox: queue.Queue[KernelInput] = queue.Queue()
     stop = threading.Event()
-    overflow = InboxOverflow()
     frame = CanFrame(0x123, b"\x01")
     reader = threading.Thread(
         target=read_frames_into_queue,
-        args=(CanNetwork.FCAN, bus, frames, stop, overflow, time.monotonic, 0.01),
+        args=(CanNetwork.FCAN, bus, inbox, stop, InboxOverflow(), time.monotonic, 0.01),
     )
 
     with caplog.at_level(logging.WARNING):
         reader.start()
         bus.received.put(OSError("receive failed"))
         bus.received.put(frame)
-        received = frames.get(timeout=0.2)
+        received = inbox.get(timeout=0.3)
         stop.set()
         reader.join(timeout=0.2)
 
-    assert received.network is CanNetwork.FCAN
+    assert isinstance(received, ReceivedCanFrame)
     assert received.frame == frame
     assert "failed to receive CAN frame and continued" in caplog.text
     assert not reader.is_alive()
 
 
-def test_reader_receive_error_backoff_is_capped() -> None:
+def test_repeated_reader_errors_become_one_kernel_input_and_reader_exits() -> None:
     bus = BlockingFakeBus()
-    frames: queue.Queue[ReceivedCanFrame] = queue.Queue()
-    stop = RecordingStop(stop_after_waits=6)
-    for _ in range(6):
+    inbox: queue.Queue[KernelInput] = queue.Queue()
+    stop = threading.Event()
+    for _ in range(live.MAX_CONSECUTIVE_READER_ERRORS):
         bus.received.put(OSError("receive failed"))
 
-    read_frames_into_queue(CanNetwork.FCAN, bus, frames, stop, InboxOverflow())
+    read_frames_into_queue(CanNetwork.FCAN, bus, inbox, stop, InboxOverflow())
 
-    assert stop.waits == pytest.approx([0.05, 0.1, 0.2, 0.4, 0.8, 1.0])
-    assert frames.empty()
+    failure = inbox.get_nowait()
+    assert isinstance(failure, CanReaderFailed)
+    assert failure.network is CanNetwork.FCAN
+    assert failure.message == "receive failed"
+    assert inbox.empty()
 
 
-def test_coordinator_loop_processes_queued_frames_and_ticks_on_cadence() -> None:
+def test_coordinator_loop_processes_frames_and_ticks_on_cadence() -> None:
     clock = MutableClock()
-    frames = AdvancingQueue(clock)
+    inbox = AdvancingQueue(clock)
     stop = threading.Event()
-    bus = BlockingFakeBus()
-    runtime = TickRecordingRuntime(
-        stop,
-        stop_after=3,
-        clock=clock,
-        receivers={CanNetwork.KCAN: bus},
-    )
-    frames.put(
+    kernel = RecordingKernel(stop, stop_after_ticks=3)
+    inbox.put(
         ReceivedCanFrame(
             CanNetwork.KCAN,
             CanFrame(CustomCanIds().button_event, b"\x00\x01"),
@@ -243,88 +257,153 @@ def test_coordinator_loop_processes_queued_frames_and_ticks_on_cadence() -> None
         )
     )
 
-    run_coordinator_loop(
-        runtime,
-        frames,
+    failed = run_coordinator_loop(
+        kernel,
+        EffectExecutor(),
+        inbox,
         stop,
+        InboxOverflow(),
         tick_interval_s=0.1,
         queue_latency_warning_s=1.0,
         clock=clock,
     )
 
-    assert runtime.snapshot().steering_mode.value == "manual"
-    assert runtime.tick_times == pytest.approx([0.1, 0.2, 0.3])
+    assert failed is False
+    assert kernel.snapshot().steering_mode.value == "manual"
+    assert kernel.tick_times == pytest.approx([0.1, 0.2, 0.3])
 
 
 def test_coordinator_loop_resynchronizes_after_large_clock_jump() -> None:
     clock = MutableClock()
-    frames = AdvancingQueue(clock, jump_s=1.0)
+    inbox = AdvancingQueue(clock, jump_s=1.0)
     stop = threading.Event()
-    runtime = TickRecordingRuntime(stop, stop_after=2, clock=clock)
+    kernel = RecordingKernel(stop, stop_after_ticks=2)
 
     run_coordinator_loop(
-        runtime,
-        frames,
+        kernel,
+        EffectExecutor(),
+        inbox,
         stop,
+        InboxOverflow(),
         tick_interval_s=0.1,
         queue_latency_warning_s=1.0,
         clock=clock,
     )
 
-    assert runtime.tick_times == pytest.approx([1.0, 1.1])
+    assert kernel.tick_times == pytest.approx([1.0, 1.1])
 
 
-def test_coordinator_loop_warns_about_latency_without_rewriting_receive_time(
+def test_sustained_unknown_traffic_cannot_starve_timer_dispatch() -> None:
+    clock = MutableClock()
+    inbox = AdvancingQueue(clock)
+    stop = threading.Event()
+    kernel = RecordingKernel(
+        stop,
+        stop_after_ticks=1,
+        after_frame=lambda: setattr(clock, "now", clock.now + 0.01),
+    )
+    for _ in range(100):
+        inbox.put(ReceivedCanFrame(CanNetwork.KCAN, CanFrame(0x123, b""), clock()))
+
+    run_coordinator_loop(
+        kernel,
+        EffectExecutor(),
+        inbox,
+        stop,
+        InboxOverflow(),
+        tick_interval_s=0.1,
+        queue_latency_warning_s=1.0,
+        clock=clock,
+    )
+
+    assert len(kernel.tick_times) == 1
+    assert kernel.tick_times[0] <= 0.11
+    assert not inbox.empty()
+
+
+def test_queue_latency_warning_does_not_rewrite_receive_time(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock(2.0)
-    frames = AdvancingQueue(clock)
+    inbox = AdvancingQueue(clock)
     stop = threading.Event()
-    runtime = TickRecordingRuntime(stop, stop_after=1, clock=clock)
-    frames.put(ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x01"), 0.5))
+    kernel = RecordingKernel(stop, stop_after_ticks=1)
+    inbox.put(ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x01"), 0.5))
 
     with caplog.at_level(logging.WARNING):
         run_coordinator_loop(
-            runtime,
-            frames,
+            kernel,
+            EffectExecutor(),
+            inbox,
             stop,
+            InboxOverflow(),
             tick_interval_s=0.1,
             queue_latency_warning_s=1.0,
             clock=clock,
         )
 
-    health = runtime.health.latest_rx_monotonic_s
-    assert health[CanNetwork.FCAN] == 0.5
+    assert kernel.health.for_network(CanNetwork.FCAN).latest_rx_monotonic_s == 0.5
     assert "network=fcan latency_s=1.500" in caplog.text
 
 
-def test_live_threads_route_button_event_to_kcan_led_reply() -> None:
+def test_effect_failure_is_dispatched_after_execution_without_reentry() -> None:
+    stop = threading.Event()
+    kernel = RecordingKernel(stop)
+    router = ProtocolRouter()
+    executor = EffectExecutor(
+        {
+            CanNetwork.KCAN: SafeCanTransmitter(
+                FailingTransmitter(),
+                default_config().tx_policy,
+            )
+        },
+        router,
+    )
+
+    failed = run_coordinator_loop(
+        kernel,
+        executor,
+        queue.Queue(),
+        stop,
+        InboxOverflow(),
+        tick_interval_s=0.1,
+        queue_latency_warning_s=1.0,
+    )
+
+    assert failed is True
+    assert isinstance(kernel.inputs[0], KernelStarted)
+    assert isinstance(kernel.inputs[1], EffectExecutionFailed)
+    assert isinstance(kernel.inputs[2], EffectExecutionFailed)
+    assert isinstance(kernel.inputs[3], ShutdownRequested)
+    assert len(set(kernel.dispatch_thread_ids)) == 1
+
+
+def test_live_threads_use_one_dispatch_thread_and_stop_boundedly() -> None:
     ids = CustomCanIds()
     bus = BlockingFakeBus()
-    frames: queue.Queue[ReceivedCanFrame] = queue.Queue()
+    inbox: queue.Queue[KernelInput] = queue.Queue()
     stop = threading.Event()
     overflow = InboxOverflow()
     router = ProtocolRouter()
-    runtime = CoordinatorRuntime(
-        {CanNetwork.KCAN: bus},
-        router=router,
-        executor=EffectExecutor(
-            {
-                CanNetwork.KCAN: SafeCanTransmitter(
-                    bus,
-                    default_config().tx_policy,
-                )
-            },
-            router,
-        ),
+    kernel = RecordingKernel(stop)
+    executor = EffectExecutor(
+        {
+            CanNetwork.KCAN: SafeCanTransmitter(
+                bus,
+                default_config().tx_policy,
+            )
+        },
+        router,
     )
     reader = threading.Thread(
         target=read_frames_into_queue,
-        args=(CanNetwork.KCAN, bus, frames, stop, overflow, time.monotonic, 0.01),
+        args=(CanNetwork.KCAN, bus, inbox, stop, overflow, time.monotonic, 0.01),
     )
+    result: list[bool] = []
     coordinator = threading.Thread(
-        target=run_coordinator_loop,
-        args=(runtime, frames, stop, 0.1, 1.0),
+        target=lambda: result.append(
+            run_coordinator_loop(kernel, executor, inbox, stop, overflow, 0.1, 1.0)
+        )
     )
 
     reader.start()
@@ -334,12 +413,34 @@ def test_live_threads_route_button_event_to_kcan_led_reply() -> None:
     bus.received.put(CanFrame(ids.button_event, b"\x00\x01"))
     reply = bus.sent.get(timeout=0.2)
     stop.set()
-    reader.join(timeout=0.2)
-    coordinator.join(timeout=0.2)
+    reader.join(timeout=0.3)
+    coordinator.join(timeout=0.3)
 
     assert reply == CanFrame(ids.led_update, b"\x00\x04")
+    assert result == [False]
+    assert len(set(kernel.dispatch_thread_ids)) == 1
     assert not reader.is_alive()
     assert not coordinator.is_alive()
+
+
+def test_reader_fault_causes_clean_nonzero_loop_shutdown() -> None:
+    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox.put(CanReaderFailed(CanNetwork.FCAN, 1.0, "receive failed"))
+    kernel = RecordingKernel()
+
+    failed = run_coordinator_loop(
+        kernel,
+        EffectExecutor(),
+        inbox,
+        threading.Event(),
+        InboxOverflow(),
+        0.1,
+        1.0,
+    )
+
+    assert failed is True
+    assert kernel.health.for_network(CanNetwork.FCAN).fault is not None
+    assert isinstance(kernel.inputs[-1], ShutdownRequested)
 
 
 def test_default_live_composition_emits_no_startup_frames(
@@ -347,7 +448,7 @@ def test_default_live_composition_emits_no_startup_frames(
 ) -> None:
     FakeSocketCanBus.instances = []
     monkeypatch.setattr(live, "SocketCanBus", FakeSocketCanBus)
-    monkeypatch.setattr(live, "run_coordinator_loop", start_runtime_then_stop)
+    monkeypatch.setattr(live, "run_coordinator_loop", start_kernel_then_stop)
 
     assert live.run_live(default_config()) == 0
 
@@ -359,7 +460,7 @@ def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames(
 ) -> None:
     FakeSocketCanBus.instances = []
     monkeypatch.setattr(live, "SocketCanBus", FakeSocketCanBus)
-    monkeypatch.setattr(live, "run_coordinator_loop", start_runtime_then_stop)
+    monkeypatch.setattr(live, "run_coordinator_loop", start_kernel_then_stop)
 
     assert live.run_live(simulator_config()) == 0
 

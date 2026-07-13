@@ -65,9 +65,11 @@ Default URLs:
 - Frontend: `http://127.0.0.1:5173`
 
 The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket
-stream. Its transport-neutral `CoordinatorRuntime` is the same per-frame routing and application
-boundary intended for a future Pi runner. A periodic tick follows that same runtime and application
-path, and broadcasts a new snapshot only when authoritative application state changes. Initial
+stream. Its `CoordinatorKernel` uses the same decode, transition, commit, effect-execution, and TX
+policy path as the live Pi runner. Simulated devices emit frames onto the in-memory networks; the
+controller timestamps those frames at receipt and submits them through the kernel's sole `dispatch`
+entry point. Periodic ticks follow that same path and broadcast a new snapshot only when authoritative
+application state changes. Initial
 loads and resets carry the complete trace; command and tick snapshots omit it, while incremental
 WebSocket frame events append new entries and LED-update events keep the button display current.
 

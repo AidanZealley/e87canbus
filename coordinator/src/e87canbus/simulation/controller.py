@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from e87canbus.application.controller import ApplicationSnapshot
+from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -22,7 +23,15 @@ from e87canbus.protocol.can import (
     LedUpdatePayload,
 )
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.runtime import CoordinatorRuntime
+from e87canbus.runtime import (
+    Commit,
+    CoordinatorKernel,
+    EffectExecutionFailed,
+    KernelInput,
+    KernelStarted,
+    ReceivedCanFrame,
+    ShutdownRequested,
+)
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
     SimulatedCar,
@@ -145,7 +154,7 @@ class SimulatorController:
 
     def snapshot(self) -> SimulatorSnapshot:
         return SimulatorSnapshot(
-            application=self.runtime.snapshot(),
+            application=self.kernel.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
             led_colours=dict(self.neotrellis.led_colours),
             networks=tuple(
@@ -160,6 +169,7 @@ class SimulatorController:
         )
 
     def reset(self) -> SimulatorSnapshot:
+        self._dispatch(ShutdownRequested(self._clock()))
         self._build_session()
         self._button_pressed = {}
         snapshot = self.snapshot()
@@ -182,7 +192,7 @@ class SimulatorController:
 
     def tick(self) -> SimulatorSnapshot:
         before_sequence = self.topology.latest_sequence
-        self.runtime.tick()
+        self._dispatch(ControlTimerElapsed(self._clock()))
         return self._process_pending(before_sequence)
 
     def _build_session(self) -> None:
@@ -218,15 +228,13 @@ class SimulatorController:
         )
 
         router = ProtocolRouter(self.ids)
-        self.runtime = CoordinatorRuntime(
-            receivers=self.pi_buses,
+        self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             router=router,
-            executor=EffectExecutor(transmitters, router),
-            monotonic=self._clock,
         )
+        self.executor = EffectExecutor(transmitters, router)
 
-        self.runtime.start()
+        self._dispatch(KernelStarted(self._clock()))
         self.neotrellis.process_pending_led_updates()
         self.steering_controller.drain_pending()
         self.car.drain_pending()
@@ -243,7 +251,7 @@ class SimulatorController:
     def _process_pending(self, before_sequence: int) -> SimulatorSnapshot:
         updates: list[LedUpdatePayload] = []
         for _ in range(MAX_CASCADE_PASSES):
-            processed = self.runtime.drain_pending()
+            processed = self._drain_kernel_inputs()
             pass_updates = self.neotrellis.process_pending_led_updates()
             updates.extend(pass_updates)
             processed += len(pass_updates)
@@ -266,6 +274,34 @@ class SimulatorController:
         events.extend(led_update_to_event(update) for update in updates)
         self.last_events = tuple(events)
         return snapshot
+
+    def _drain_kernel_inputs(self) -> int:
+        processed = 0
+        ordered_networks = tuple(
+            network for network in CanNetwork if network in self.pi_buses
+        )
+        while True:
+            found_frame = False
+            for network in ordered_networks:
+                frame = self.pi_buses[network].receive(timeout_s=0)
+                if frame is None:
+                    continue
+                found_frame = True
+                processed += 1
+                observed_at = self._clock()
+                self._dispatch(ReceivedCanFrame(network, frame, observed_at))
+            if not found_frame:
+                return processed
+
+    def _dispatch(self, kernel_input: KernelInput) -> Commit | None:
+        commit = self.kernel.dispatch(kernel_input)
+        if commit is None:
+            return None
+        for failure in self.executor.execute(commit.effects):
+            self.kernel.dispatch(
+                EffectExecutionFailed(failure.network, self._clock(), failure.message)
+            )
+        return commit
 
     def _validate_button_index(self, button_index: int) -> None:
         if not 0 <= button_index < self.button_count:
