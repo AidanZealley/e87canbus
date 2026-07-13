@@ -99,3 +99,20 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert snapshot.application.manual_assistance_level == 1
     assert snapshot.led_colours[3] == LED_OFF
+
+
+def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
+    controller = SimulatorController()
+    controller.press_button(2)
+    controller.release_button(2)
+    controller.press_button(2)
+    controller.release_button(2)
+    controller.press_button(3)
+    controller.release_button(3)
+
+    snapshot = controller.press_button(1)
+
+    assert snapshot.application.steering_mode is SteeringMode.MANUAL
+    assert snapshot.application.manual_assistance_level == 1
+    assert snapshot.application.maximum_assistance_active is False
+    assert snapshot.led_colours[3] == LED_OFF

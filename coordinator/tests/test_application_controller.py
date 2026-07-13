@@ -119,6 +119,38 @@ def test_maximum_assistance_from_manual_restores_previous_manual_level() -> None
     assert controller.snapshot().manual_assistance_level == 5
 
 
+def test_assistance_button_exits_maximum_at_saved_manual_level_without_adjusting() -> None:
+    controller = ApplicationController(state=RuntimeState(manual_assistance_level=3))
+    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED))
+
+    outputs = controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED))
+
+    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
+    assert controller.snapshot().manual_assistance_level == 3
+    assert controller.snapshot().maximum_assistance_active is False
+    assert outputs[0].colour is LedColour.AMBER
+    assert outputs[1].colour is LedColour.OFF
+
+    controller.handle_event(NeoTrellisButtonEvent(2, ButtonState.PRESSED))
+    assert controller.snapshot().manual_assistance_level == 4
+
+
+def test_assistance_button_exits_maximum_started_from_manual_at_saved_level() -> None:
+    controller = ApplicationController(
+        state=RuntimeState(
+            steering_mode=SteeringMode.MANUAL,
+            manual_assistance_level=5,
+        )
+    )
+    controller.handle_event(NeoTrellisButtonEvent(3, ButtonState.PRESSED))
+
+    controller.handle_event(NeoTrellisButtonEvent(1, ButtonState.PRESSED))
+
+    assert controller.snapshot().steering_mode is SteeringMode.MANUAL
+    assert controller.snapshot().manual_assistance_level == 5
+    assert controller.snapshot().maximum_assistance_active is False
+
+
 def test_button_releases_do_not_adjust_or_toggle_assistance() -> None:
     controller = ApplicationController()
 

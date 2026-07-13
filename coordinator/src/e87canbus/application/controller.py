@@ -70,9 +70,19 @@ class ApplicationController:
         if event.button_index == self.MAXIMUM_ASSISTANCE_BUTTON_INDEX:
             return self._toggle_maximum_assistance()
 
-        # Maximum assistance is a reversible override. Other steering controls do
-        # not mutate the state that will be restored when it is switched off.
         if self.state.maximum_assistance_active:
+            if event.button_index in (
+                self.MANUAL_ASSISTANCE_DOWN_BUTTON_INDEX,
+                self.MANUAL_ASSISTANCE_UP_BUTTON_INDEX,
+            ):
+                self._restore_pre_maximum_assistance_state()
+                self.state.steering_mode = SteeringMode.MANUAL
+                return (
+                    self._steering_mode_led_command(),
+                    self._maximum_assistance_led_command(),
+                )
+
+            # The mode control does not mutate the state that button 4 will restore.
             return ()
 
         if event.button_index == self.STEERING_MODE_BUTTON_INDEX:
@@ -112,15 +122,7 @@ class ApplicationController:
 
     def _toggle_maximum_assistance(self) -> tuple[ButtonLedCommand, ...]:
         if self.state.maximum_assistance_active:
-            assert self._pre_maximum_assistance_state is not None
-            mode, manual_level = self._pre_maximum_assistance_state
-            self.state.steering_mode = mode
-            self.state.set_manual_assistance_level(
-                manual_level,
-                self.steering_config.manual_level_count,
-            )
-            self.state.maximum_assistance_active = False
-            self._pre_maximum_assistance_state = None
+            self._restore_pre_maximum_assistance_state()
         else:
             self._pre_maximum_assistance_state = (
                 self.state.steering_mode,
@@ -137,6 +139,17 @@ class ApplicationController:
             self._steering_mode_led_command(),
             self._maximum_assistance_led_command(),
         )
+
+    def _restore_pre_maximum_assistance_state(self) -> None:
+        assert self._pre_maximum_assistance_state is not None
+        mode, manual_level = self._pre_maximum_assistance_state
+        self.state.steering_mode = mode
+        self.state.set_manual_assistance_level(
+            manual_level,
+            self.steering_config.manual_level_count,
+        )
+        self.state.maximum_assistance_active = False
+        self._pre_maximum_assistance_state = None
 
     def _steering_mode_led_command(self) -> ButtonLedCommand:
         colour = (
