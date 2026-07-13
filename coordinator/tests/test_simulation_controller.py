@@ -10,9 +10,9 @@ from e87canbus.protocol.can import (
     LED_WHITE,
     ArduinoButtonEventPayload,
     CanBus,
-    RoutedCanFrame,
     encode_button_event,
 )
+from e87canbus.runtime import ReceivedCanFrame
 from e87canbus.simulation.controller import MAX_CASCADE_PASSES, SimulatorController
 
 
@@ -138,16 +138,17 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
 
 
 def test_same_button_id_on_other_networks_does_not_change_application() -> None:
-    controller = SimulatorController()
+    clock = MutableClock(3.0)
+    controller = SimulatorController(clock=clock)
     button_frame = controller.neotrellis.send_button_event(0, True)
     # Drain the real K-CAN event without processing it, then replay its ID on other networks.
     assert controller.pi_buses[CanNetwork.KCAN].receive(timeout_s=0) == button_frame
 
     controller.runtime.process_frame(
-        RoutedCanFrame(CanNetwork.PTCAN, button_frame)
+        ReceivedCanFrame(CanNetwork.PTCAN, button_frame, received_at=clock())
     )
     controller.runtime.process_frame(
-        RoutedCanFrame(CanNetwork.FCAN, button_frame)
+        ReceivedCanFrame(CanNetwork.FCAN, button_frame, received_at=clock())
     )
 
     assert controller.application.snapshot().steering_mode is SteeringMode.AUTO

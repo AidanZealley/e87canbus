@@ -5,17 +5,27 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 
 from e87canbus.application.controller import ApplicationController, ApplicationOutput
 from e87canbus.config import CanNetwork
-from e87canbus.protocol.can import CanBus, RoutedCanFrame
+from e87canbus.protocol.can import CanBus, CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class ReceivedCanFrame:
+    """A CAN frame paired with its network and ingress observation time."""
+
+    network: CanNetwork
+    frame: CanFrame
+    received_at: float
+
+
 class CoordinatorRuntime:
-    """Process one routed frame at a time and dispatch application outputs."""
+    """Process one received frame at a time and dispatch application outputs."""
 
     def __init__(
         self,
@@ -36,11 +46,11 @@ class CoordinatorRuntime:
 
         self._send_outputs(self.application.desired_outputs())
 
-    def process_frame(self, routed: RoutedCanFrame) -> None:
-        """Process a routed input while isolating malformed traffic and output failures."""
+    def process_frame(self, received: ReceivedCanFrame) -> None:
+        """Process a received input while isolating malformed traffic and output failures."""
 
-        now = self._monotonic()
-        self.application.state.can_health.record_receive(routed.network, now)
+        routed = RoutedCanFrame(network=received.network, frame=received.frame)
+        self.application.state.can_health.record_receive(received.network, received.received_at)
         try:
             event = self.router.decode(routed)
         except ValueError as exc:
@@ -55,7 +65,7 @@ class CoordinatorRuntime:
 
         if event is None:
             return
-        self._send_outputs(self.application.handle_event(event, now))
+        self._send_outputs(self.application.handle_event(event, received.received_at))
 
     def tick(self) -> None:
         self._send_outputs(self.application.tick(self._monotonic()))
@@ -73,7 +83,13 @@ class CoordinatorRuntime:
                     continue
                 found_frame = True
                 processed += 1
-                self.process_frame(RoutedCanFrame(network=network, frame=frame))
+                self.process_frame(
+                    ReceivedCanFrame(
+                        network=network,
+                        frame=frame,
+                        received_at=self._monotonic(),
+                    )
+                )
             if not found_frame:
                 return processed
 

@@ -8,7 +8,7 @@ record corrections in the current entry so the migration history remains visible
 | Phase | Status | Completed |
 |---|---|---|
 | 1 — Immediate live-safety containment | done | 2026-07-13 |
-| 2 — Timestamped, bounded ingress | planned | — |
+| 2 — Timestamped, bounded ingress | done | 2026-07-13 |
 | 3 — Explicit immutable domain state | planned | — |
 | 4 — Pure transitions and controlled effects | planned | — |
 | 5 — Single-owner kernel and live cutover | planned | — |
@@ -87,5 +87,55 @@ from FastAPI's `TestClient` compatibility import. It is unrelated to Phase 1. No
 generated protocol artifacts changed.
 
 **Checks:** `uv run pytest -q` — 112 passed, 1 existing deprecation warning; `uv run mypy` — success,
+no issues in 26 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
+generator, and firmware checks were not applicable.
+
+## Phase 2 — Timestamped, bounded ingress (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Added frozen `ReceivedCanFrame` ingress envelopes and made them the only input accepted by
+  `CoordinatorRuntime.process_frame`; `RoutedCanFrame` now exists only at the protocol-routing
+  boundary.
+- Made live readers stamp frames immediately after `receive()` with an injected monotonic clock,
+  and made simulator endpoint draining construct the same envelope with its injected clock.
+- Added validated `runtime_inbox_capacity` and `runtime_queue_latency_warning_s` configuration
+  defaults; live composition now creates a finite queue and logs dequeue latency without changing
+  observation time.
+- Replaced blocking reader insertion with `put_nowait`. The first full-queue result is atomically
+  latched and logged with its network, stops all readers and the consumer, discards any frame
+  dequeued after the stop, and makes `run_live` return non-zero after joining readers and closing
+  buses.
+- Documented the bounded live-ingress and overflow behavior in the coordinator README.
+
+**Deviations from the phase doc:** None.
+
+**Safety invariants verified:** Observation time is captured at ingress: fake-clock reader,
+runtime, and simulator tests prove health and speed sample timestamps retain receive time across
+processing delay, while latency logging does not rewrite it. Overload is explicit: configuration
+rejects unbounded capacity, and a deterministic capacity-one live composition proves overflow logs
+once, stops, cleans up every bus, and returns non-zero. Simulation honesty remains intact because
+in-memory endpoints still emit real CAN frames which are drained into the same runtime decode,
+application, and TX-policy path. Safe live defaults and the single TX exit remain covered by the
+unchanged default and explicit-grant startup tests.
+
+**Complexity delta:** Deleted the bare-`RoutedCanFrame` runtime mutation path, unbounded live queue,
+blocking reader `put`, dequeue-time timestamp substitution, and the old suppress-based dequeue
+branch. `ReceivedCanFrame` is the single immutable time-owning input shape. The small live-only
+`InboxOverflow` class replaces racy per-reader flags by enforcing atomic first-failure ownership and
+is the sole added stateful abstraction. No compatibility overload, alternate ingress path, dynamic
+registration, or duplicate timestamp field remains. The changed flow is direct: receive → stamp →
+non-blocking enqueue → observe latency → process with original timestamp. No deliberate in-scope
+simplification was deferred.
+
+**Discovered along the way:** The existing mutable `speed_valid` flag is still reevaluated on the
+periodic tick; Phase 3 already owns replacing that duplicated state with validity derived from the
+sample timestamp and evaluation time. Phase 2 preserves the correct sample time and does not add a
+second validity mechanism. The existing Starlette `TestClient` deprecation warning remains
+unrelated. No frontend or generated protocol artifacts changed.
+
+**Checks:** `uv run pytest -q` — 118 passed, 1 existing deprecation warning; `uv run mypy` — success,
 no issues in 26 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
 generator, and firmware checks were not applicable.

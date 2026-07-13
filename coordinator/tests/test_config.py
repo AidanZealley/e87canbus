@@ -1,3 +1,6 @@
+from dataclasses import replace
+
+import pytest
 from e87canbus.config import CanNetwork, default_config, simulator_config
 
 
@@ -42,6 +45,27 @@ def test_default_tick_and_speed_timeout_intervals() -> None:
 
     assert config.tick_interval_s == 0.1
     assert config.steering.speed_timeout_s == 1.0
+
+
+def test_default_runtime_inbox_limits() -> None:
+    config = default_config()
+
+    assert config.runtime_inbox_capacity == 1_024
+    assert config.runtime_queue_latency_warning_s == 0.1
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"runtime_inbox_capacity": 0}, "runtime_inbox_capacity"),
+        ({"runtime_queue_latency_warning_s": -0.1}, "runtime_queue_latency_warning_s"),
+    ],
+)
+def test_runtime_inbox_limits_reject_unsafe_values(
+    changes: dict[str, int | float], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        replace(default_config(), **changes)
 
 
 def test_default_tx_policy() -> None:

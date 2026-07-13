@@ -81,6 +81,14 @@ class AppConfig:
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
     tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1
+    runtime_inbox_capacity: int = 1_024
+    runtime_queue_latency_warning_s: float = 0.1
+
+    def __post_init__(self) -> None:
+        if self.runtime_inbox_capacity < 1:
+            raise ValueError("runtime_inbox_capacity must be positive")
+        if self.runtime_queue_latency_warning_s < 0:
+            raise ValueError("runtime_queue_latency_warning_s must be non-negative")
 
 
 def default_config() -> AppConfig:

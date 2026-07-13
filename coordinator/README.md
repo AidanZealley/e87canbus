@@ -26,6 +26,9 @@ Frames and periodic ticks dispatch application outputs through the same runtime 
 marked invalid after its configured timeout; no verified BMW speed decoder is configured yet. The
 coordinator does not automatically forward frames between networks. Runtime transmission is denied
 by default and explicitly enabled per network with `tx_enabled`, behind the limits in `tx_policy`.
+Live readers timestamp frames immediately after receipt and enqueue them without blocking into the
+configured bounded inbox. Queue latency is logged without changing that observation time; overflow
+stops the current runner with a non-zero result rather than processing an unknowably stale backlog.
 
 ## Running live
 

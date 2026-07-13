@@ -15,7 +15,7 @@ from e87canbus.application.events import (
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.runtime import CoordinatorRuntime
+from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
 
 
 class FakeBus:
@@ -161,9 +161,9 @@ def test_speed_staleness_transitions_fresh_to_stale_and_fresh_again() -> None:
         router=SpeedRouter(),
         monotonic=clock,
     )
-    speed_frame = RoutedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"))
+    speed_frame = CanFrame(0x123, b"\x2a")
 
-    runtime.process_frame(speed_frame)
+    runtime.process_frame(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 0.0))
     assert runtime.application.snapshot().speed_valid is True
 
     clock.now = 0.5
@@ -175,5 +175,24 @@ def test_speed_staleness_transitions_fresh_to_stale_and_fresh_again() -> None:
     assert runtime.application.snapshot().speed_valid is False
 
     clock.now = 2.0
-    runtime.process_frame(speed_frame)
+    runtime.process_frame(ReceivedCanFrame(CanNetwork.FCAN, speed_frame, 2.0))
     assert runtime.application.snapshot().speed_valid is True
+
+
+def test_old_queued_speed_frame_keeps_ingress_time_when_processed_later() -> None:
+    clock = MutableClock(5.0)
+    runtime = CoordinatorRuntime(
+        {CanNetwork.FCAN: FakeBus()},
+        router=SpeedRouter(),
+        monotonic=clock,
+    )
+
+    runtime.process_frame(
+        ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"), received_at=1.0)
+    )
+    runtime.tick()
+
+    health = runtime.application.state.can_health.latest_rx_monotonic_s
+    assert health[CanNetwork.FCAN] == 1.0
+    assert runtime.application.state.speed_updated_monotonic_s == 1.0
+    assert runtime.application.snapshot().speed_valid is False

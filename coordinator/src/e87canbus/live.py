@@ -7,12 +7,11 @@ import queue
 import threading
 import time
 from collections.abc import Callable
-from contextlib import suppress
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.protocol.can import CanBus, RateLimitedCanBus, RoutedCanFrame
-from e87canbus.runtime import CoordinatorRuntime
+from e87canbus.protocol.can import CanBus, RateLimitedCanBus
+from e87canbus.runtime import CoordinatorRuntime, ReceivedCanFrame
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,14 +22,36 @@ INITIAL_READER_ERROR_BACKOFF_S = 0.05
 MAX_READER_ERROR_BACKOFF_S = 1.0
 
 
+class InboxOverflow:
+    """Atomically record the first network that overflows the live inbox."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._network: CanNetwork | None = None
+
+    def latch(self, network: CanNetwork) -> bool:
+        with self._lock:
+            if self._network is not None:
+                return False
+            self._network = network
+            return True
+
+    @property
+    def occurred(self) -> bool:
+        with self._lock:
+            return self._network is not None
+
+
 def read_frames_into_queue(
     network: CanNetwork,
     bus: CanBus,
-    frames: queue.Queue[RoutedCanFrame],
+    frames: queue.Queue[ReceivedCanFrame],
     stop: threading.Event,
+    overflow: InboxOverflow,
+    clock: Callable[[], float] = time.monotonic,
     receive_timeout_s: float = 0.2,
 ) -> None:
-    """Read one CAN interface until shutdown and tag frames with its network."""
+    """Read and timestamp one CAN interface until shutdown."""
 
     error_backoff_s = INITIAL_READER_ERROR_BACKOFF_S
     while not stop.is_set():
@@ -46,15 +67,29 @@ def read_frames_into_queue(
             error_backoff_s = min(error_backoff_s * 2, MAX_READER_ERROR_BACKOFF_S)
             continue
         error_backoff_s = INITIAL_READER_ERROR_BACKOFF_S
-        if frame is not None:
-            frames.put(RoutedCanFrame(network=network, frame=frame))
+        if frame is None:
+            continue
+
+        received = ReceivedCanFrame(network=network, frame=frame, received_at=clock())
+        try:
+            frames.put_nowait(received)
+        except queue.Full:
+            if overflow.latch(network):
+                LOGGER.error(
+                    "live CAN inbox overflow; stopping: network=%s capacity=%d",
+                    network.value,
+                    frames.maxsize,
+                )
+            stop.set()
+            return
 
 
 def run_coordinator_loop(
     runtime: CoordinatorRuntime,
-    frames: queue.Queue[RoutedCanFrame],
+    frames: queue.Queue[ReceivedCanFrame],
     stop: threading.Event,
     tick_interval_s: float,
+    queue_latency_warning_s: float,
     clock: Callable[[], float] = time.monotonic,
 ) -> None:
     """Process live frames and periodic ticks on the calling thread."""
@@ -63,8 +98,22 @@ def run_coordinator_loop(
     next_tick = clock() + tick_interval_s
     while not stop.is_set():
         timeout_s = max(next_tick - clock(), MIN_QUEUE_TIMEOUT_S)
-        with suppress(queue.Empty):
-            runtime.process_frame(frames.get(timeout=timeout_s))
+        try:
+            received = frames.get(timeout=timeout_s)
+        except queue.Empty:
+            pass
+        else:
+            if stop.is_set():
+                break
+            processing_started_at = clock()
+            queue_latency_s = processing_started_at - received.received_at
+            if queue_latency_s > queue_latency_warning_s:
+                LOGGER.warning(
+                    "CAN frame waited in live inbox: network=%s latency_s=%.3f",
+                    received.network.value,
+                    queue_latency_s,
+                )
+            runtime.process_frame(received)
 
         now = clock()
         if now < next_tick:
@@ -98,12 +147,15 @@ def run_live(config: AppConfig) -> int:
 
     tx_networks = frozenset(item.network for item in enabled if item.tx_enabled)
     runtime = CoordinatorRuntime(buses=buses, tx_networks=tx_networks)
-    frames: queue.Queue[RoutedCanFrame] = queue.Queue()
+    frames: queue.Queue[ReceivedCanFrame] = queue.Queue(
+        maxsize=config.runtime_inbox_capacity
+    )
     stop = threading.Event()
+    overflow = InboxOverflow()
     readers = [
         threading.Thread(
             target=read_frames_into_queue,
-            args=(item.network, buses[item.network], frames, stop),
+            args=(item.network, buses[item.network], frames, stop, overflow),
             daemon=True,
             name=f"{item.network.value}-reader",
         )
@@ -120,7 +172,13 @@ def run_live(config: AppConfig) -> int:
         reader.start()
 
     try:
-        run_coordinator_loop(runtime, frames, stop, config.tick_interval_s)
+        run_coordinator_loop(
+            runtime,
+            frames,
+            stop,
+            config.tick_interval_s,
+            config.runtime_queue_latency_warning_s,
+        )
     except KeyboardInterrupt:
         LOGGER.info("stopping live coordinator")
     finally:
@@ -129,4 +187,4 @@ def run_live(config: AppConfig) -> int:
             reader.join(timeout=READER_JOIN_TIMEOUT_S)
         for raw_bus in raw_buses.values():
             raw_bus.shutdown()
-    return 0
+    return 1 if overflow.occurred else 0
