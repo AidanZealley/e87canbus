@@ -12,7 +12,7 @@ including anywhere reality diverged from a phase doc.
 | 2 — Button dispatch table | done | 2026-07-13 |
 | 3 — Time axis | done | 2026-07-13 |
 | 4 — Transmit safety | done | 2026-07-13 |
-| 5 — Simulator and API robustness | not started | — |
+| 5 — Simulator and API robustness | done | 2026-07-13 |
 | 6 — Live runner skeleton | not started | — |
 
 ## Entry template
@@ -133,3 +133,32 @@ provides the hard aggregate flood limit.
 one arbitration ID, which the phase doc's literal per-ID gap did not account for.
 
 **Checks:** pytest 95 passed / mypy clean / ruff clean
+
+## Phase 5 — Simulator and API robustness (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Reworked simulator pending-frame processing into a bounded 32-pass quiescence loop that
+  accumulates LED updates and warns without raising when a reactive-device cascade does not stop.
+- Hardened websocket broadcasts so any per-client send exception disconnects only that client and
+  delivery continues to the remaining connections.
+- Split simulator serialization into explicit full and slim snapshots: initial loads, websocket
+  greetings, and resets include trace data, while commands and tick broadcasts omit it and send
+  incremental frame events.
+- Added a pure frontend event reducer that preserves trace data across slim snapshots, applies LED
+  updates, and sequence-deduplicates a 2,000-entry rolling frame trace.
+- Removed the obsolete nullable application-state compatibility path from the workbench and
+  steering status component.
+- Added deterministic backend coverage for cascades, the pass cap, socket isolation, and 2,000-row
+  payload hygiene, plus frontend reducer tests for trace retention, deduplication, capping, and LED
+  updates.
+- Updated `docs/simulation.md` to describe full reset snapshots and incremental workbench events.
+
+**Deviations from the phase doc:** None.
+
+**Discovered along the way:** Nothing.
+
+**Checks:** pytest 99 passed / mypy clean / ruff clean / frontend typecheck, lint, and 3 reducer
+tests clean

@@ -10,14 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { ApplicationSnapshot } from "../../types"
+import { useApplicationSnapshot } from "../../query"
 
-type SteeringStatusProps = {
-  application?: ApplicationSnapshot
-}
-
-export const SteeringStatus = ({ application }: SteeringStatusProps) => {
-  const isAuto = application?.steering_mode === "auto"
+export const SteeringStatus = () => {
+  const application = useApplicationSnapshot()
+  const isAuto = application.steering_mode === "auto"
 
   return (
     <Card className="min-w-0">
@@ -30,43 +27,35 @@ export const SteeringStatus = ({ application }: SteeringStatusProps) => {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3">
-        {application ? (
-          <>
-            <div className="flex items-center justify-between rounded-md bg-muted p-3">
-              <span className="text-xs text-muted-foreground">Mode</span>
-              <div className="flex items-center gap-2">
-                {application.maximum_assistance_active ? (
-                  <Badge variant="destructive">Maximum</Badge>
-                ) : null}
-                <Badge variant={isAuto ? "default" : "secondary"}>
-                  {isAuto ? "Auto" : "Manual"}
-                </Badge>
-              </div>
-            </div>
-            <dl className="grid grid-cols-2 gap-2">
-              <div className="rounded-md border p-3">
-                <dt className="text-xs text-muted-foreground">Vehicle speed</dt>
-                <dd className="font-heading text-base font-semibold">
-                  {application.speed_valid ? (
-                    `${application.vehicle_speed_kph.toFixed(1)} km/h`
-                  ) : (
-                    <Badge variant="outline">No speed data</Badge>
-                  )}
-                </dd>
-              </div>
-              <div className="rounded-md border p-3">
-                <dt className="text-xs text-muted-foreground">Manual level</dt>
-                <dd className="font-heading text-base font-semibold">
-                  {application.manual_assistance_level}
-                </dd>
-              </div>
-            </dl>
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Application state unavailable. Restart the simulator backend.
-          </p>
-        )}
+        <div className="flex items-center justify-between rounded-md bg-muted p-3">
+          <span className="text-xs text-muted-foreground">Mode</span>
+          <div className="flex items-center gap-2">
+            {application.maximum_assistance_active ? (
+              <Badge variant="destructive">Maximum</Badge>
+            ) : null}
+            <Badge variant={isAuto ? "default" : "secondary"}>
+              {isAuto ? "Auto" : "Manual"}
+            </Badge>
+          </div>
+        </div>
+        <dl className="grid grid-cols-2 gap-2">
+          <div className="rounded-md border p-3">
+            <dt className="text-xs text-muted-foreground">Vehicle speed</dt>
+            <dd className="font-heading text-base font-semibold">
+              {application.speed_valid ? (
+                `${application.vehicle_speed_kph.toFixed(1)} km/h`
+              ) : (
+                <Badge variant="outline">No speed data</Badge>
+              )}
+            </dd>
+          </div>
+          <div className="rounded-md border p-3">
+            <dt className="text-xs text-muted-foreground">Manual level</dt>
+            <dd className="font-heading text-base font-semibold">
+              {application.manual_assistance_level}
+            </dd>
+          </div>
+        </dl>
       </CardContent>
 
       <CardFooter>

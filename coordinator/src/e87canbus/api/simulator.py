@@ -40,7 +40,7 @@ class ConnectionManager:
             try:
                 for event in events:
                     await websocket.send_json(event)
-            except RuntimeError:
+            except Exception:
                 disconnected.append(websocket)
         for websocket in disconnected:
             self.disconnect(websocket)
@@ -60,7 +60,9 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
                     application_changed = snapshot.application != previous_application
                     previous_application = snapshot.application
                 if application_changed:
-                    await app.state.manager.broadcast((snapshot_event(snapshot),))
+                    await app.state.manager.broadcast(
+                        (snapshot_event(snapshot, include_trace=False),)
+                    )
 
         task = asyncio.create_task(tick())
         try:
@@ -91,7 +93,10 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
     @app.get("/api/snapshot")
     async def snapshot() -> dict[str, Any]:
         async with app.state.lock:
-            return snapshot_to_dict(app.state.controller.snapshot())
+            return snapshot_to_dict(
+                app.state.controller.snapshot(),
+                include_trace=True,
+            )
 
     @app.post("/api/reset")
     async def reset() -> dict[str, Any]:
@@ -99,7 +104,7 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
             result = app.state.controller.reset()
             events = app.state.controller.last_events
         await app.state.manager.broadcast(events)
-        return snapshot_to_dict(result)
+        return snapshot_to_dict(result, include_trace=True)
 
     @app.post("/api/buttons/{button_index}/press")
     async def press_button(button_index: int) -> dict[str, Any]:
@@ -118,7 +123,12 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
         await app.state.manager.connect(websocket)
         try:
             async with app.state.lock:
-                await websocket.send_json(snapshot_event(app.state.controller.snapshot()))
+                await websocket.send_json(
+                    snapshot_event(
+                        app.state.controller.snapshot(),
+                        include_trace=True,
+                    )
+                )
             while True:
                 await websocket.receive_text()
         except WebSocketDisconnect:
@@ -137,7 +147,7 @@ async def _run_command(app: FastAPI, method_name: str, button_index: int) -> dic
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         events = controller.last_events
     await app.state.manager.broadcast(events)
-    return snapshot_to_dict(result)
+    return snapshot_to_dict(result, include_trace=False)
 
 
 app = create_app()

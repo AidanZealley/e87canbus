@@ -3,8 +3,17 @@ from dataclasses import replace
 import pytest
 from e87canbus.application.events import SpeedUpdateEvent, SteeringMode
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config
-from e87canbus.protocol.can import LED_AMBER, LED_BLUE, LED_OFF, LED_WHITE, RoutedCanFrame
-from e87canbus.simulation.controller import SimulatorController
+from e87canbus.protocol.can import (
+    LED_AMBER,
+    LED_BLUE,
+    LED_OFF,
+    LED_WHITE,
+    ArduinoButtonEventPayload,
+    CanBus,
+    RoutedCanFrame,
+    encode_button_event,
+)
+from e87canbus.simulation.controller import MAX_CASCADE_PASSES, SimulatorController
 
 
 class MutableClock:
@@ -14,6 +23,26 @@ class MutableClock:
     def __call__(self) -> float:
         return self.now
 
+
+class ReactiveSteeringController:
+    def __init__(self, bus: CanBus, *, reply_once: bool) -> None:
+        self.bus = bus
+        self.reply_once = reply_once
+        self.replied = False
+
+    def drain_pending(self) -> int:
+        drained = 0
+        while self.bus.receive(timeout_s=0) is not None:
+            drained += 1
+        if drained and (not self.reply_once or not self.replied):
+            self.bus.send(
+                encode_button_event(
+                    ArduinoButtonEventPayload(button_index=0, pressed=True),
+                    default_config().custom_can_ids,
+                )
+            )
+            self.replied = True
+        return drained
 
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
     controller = SimulatorController()
@@ -223,3 +252,39 @@ def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events(
     sources = [entry.source for entry in snapshot.trace]
     assert sources.count("neotrellis") == 8
     assert sources.count("pi") == 1
+
+
+def test_reactive_device_cascade_is_processed_in_one_command() -> None:
+    controller = SimulatorController()
+    controller.steering_controller = ReactiveSteeringController(
+        controller.steering_controller.bus,
+        reply_once=True,
+    )
+
+    snapshot = controller.press_button(15)
+
+    assert snapshot.application.steering_mode is SteeringMode.MANUAL
+    assert any(entry.source == "steering-controller" for entry in snapshot.trace)
+    assert any(event["type"] == "led_update" for event in controller.last_events)
+
+
+def test_reactive_device_livelock_warns_and_returns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = replace(
+        default_config(),
+        tx_policy=TxPolicyConfig(min_id_gap_s=0.0, max_frames_per_s=1_000),
+    )
+    controller = SimulatorController(config=config)
+    controller.steering_controller = ReactiveSteeringController(
+        controller.steering_controller.bus,
+        reply_once=False,
+    )
+
+    snapshot = controller.press_button(15)
+
+    assert snapshot.trace
+    assert (
+        f"simulation did not quiesce after {MAX_CASCADE_PASSES} passes"
+        in caplog.text
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -28,6 +29,9 @@ from e87canbus.simulation.devices import (
     SimulatedNeoTrellisNode,
     SimulatedSteeringControllerNode,
 )
+
+LOGGER = logging.getLogger(__name__)
+MAX_CASCADE_PASSES = 32
 
 LED_COLOUR_NAMES = {
     LED_OFF: "off",
@@ -89,8 +93,12 @@ def network_status_to_dict(status: SimulatedNetworkStatus) -> dict[str, Any]:
     }
 
 
-def snapshot_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
-    return {
+def snapshot_to_dict(
+    snapshot: SimulatorSnapshot,
+    *,
+    include_trace: bool,
+) -> dict[str, Any]:
+    serialized: dict[str, Any] = {
         "application": {
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
             "speed_valid": snapshot.application.speed_valid,
@@ -101,12 +109,17 @@ def snapshot_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
-        "trace": [trace_entry_to_event(entry) for entry in snapshot.trace],
     }
+    if include_trace:
+        serialized["trace"] = [trace_entry_to_event(entry) for entry in snapshot.trace]
+    return serialized
 
 
-def snapshot_event(snapshot: SimulatorSnapshot) -> dict[str, Any]:
-    return {"type": "snapshot", "snapshot": snapshot_to_dict(snapshot)}
+def snapshot_event(snapshot: SimulatorSnapshot, *, include_trace: bool) -> dict[str, Any]:
+    return {
+        "type": "snapshot",
+        "snapshot": snapshot_to_dict(snapshot, include_trace=include_trace),
+    }
 
 
 class SimulatorController:
@@ -150,7 +163,7 @@ class SimulatorController:
         self._build_session()
         self._button_pressed = {}
         snapshot = self.snapshot()
-        self.last_events = (snapshot_event(snapshot),)
+        self.last_events = (snapshot_event(snapshot, include_trace=True),)
         return snapshot
 
     def press_button(self, button_index: int) -> SimulatorSnapshot:
@@ -228,16 +241,27 @@ class SimulatorController:
         return self._process_pending(before_sequence)
 
     def _process_pending(self, before_sequence: int) -> SimulatorSnapshot:
-        self.runtime.drain_pending()
-        updates = self.neotrellis.process_pending_led_updates()
-        self.steering_controller.drain_pending()
-        self.car.drain_pending()
+        updates: list[LedUpdatePayload] = []
+        for _ in range(MAX_CASCADE_PASSES):
+            processed = self.runtime.drain_pending()
+            pass_updates = self.neotrellis.process_pending_led_updates()
+            updates.extend(pass_updates)
+            processed += len(pass_updates)
+            processed += self.steering_controller.drain_pending()
+            processed += self.car.drain_pending()
+            if processed == 0:
+                break
+        else:
+            LOGGER.warning(
+                "simulation did not quiesce after %d passes",
+                MAX_CASCADE_PASSES,
+            )
 
         snapshot = self.snapshot()
         new_trace = tuple(
             entry for entry in self.topology.trace() if entry.sequence > before_sequence
         )
-        events = [snapshot_event(snapshot)]
+        events = [snapshot_event(snapshot, include_trace=False)]
         events.extend(trace_entry_to_event(entry) for entry in new_trace)
         events.extend(led_update_to_event(update) for update in updates)
         self.last_events = tuple(events)

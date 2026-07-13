@@ -34,7 +34,7 @@ export type SimulatorSnapshot = {
   next_pressed: boolean
   led_colours: Record<string, number>
   networks: NetworkStatus[]
-  trace: CanTraceEntry[]
+  trace?: CanTraceEntry[]
 }
 
 export type SnapshotEvent = {
