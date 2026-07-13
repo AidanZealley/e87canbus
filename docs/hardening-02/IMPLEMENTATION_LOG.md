@@ -161,6 +161,8 @@ generator, and firmware checks were not applicable.
 - Reworked controller coverage into table-driven behavioral cases for every mapped button from
   Auto and Manual, every mapped press during maximum assistance, releases, unknown buttons, level
   bounds, and fresh, boundary-age, stale, and absent speed samples.
+- Reconciled the Phase 5 runtime-health plan with the runtime-owned `RuntimeHealth` boundary moved
+  into place by this phase.
 
 **Deviations from the phase doc:** None. The explicit speed evaluation timestamp is stored in the
 frozen application state so the existing no-argument snapshot API and tick-driven serialized
@@ -186,7 +188,8 @@ deliberately deferred in-scope simplification.
 **Discovered along the way:** Preserving the external no-argument snapshot contract requires the
 last speed evaluation time to be explicit state until the later kernel phases make evaluation time
 part of pure transition inputs. Phase 4 remains responsible for pure transition/effect return
-values; none were introduced here. The existing Starlette `TestClient` deprecation warning remains
+values; none were introduced here. Phase 5 must extend the runtime-health value rather than create
+a second health representation. The existing Starlette `TestClient` deprecation warning remains
 unrelated. No frontend or generated protocol artifacts changed.
 
 **Checks:** `uv run pytest -q` — 129 passed, 1 existing deprecation warning; `uv run mypy` — success,

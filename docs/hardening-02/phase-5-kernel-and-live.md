@@ -57,9 +57,9 @@ class Commit:
 
 ## Runtime health
 
-Define a small explicit runtime-health value rather than leaving `CanHealth` as unread mutable data.
-At minimum it records last observation time and current fault/overflow status per network. It is
-available in a diagnostic snapshot without becoming application decision state.
+Extend the runtime-owned `RuntimeHealth` value introduced in Phase 3. At minimum it records last
+observation time and current fault/overflow status per network. It is available in a diagnostic
+snapshot without becoming application decision state.
 
 Do not broadcast continuously changing "age" values. Publish timestamps and status transitions;
 consumers can derive age from their own current time.
@@ -89,4 +89,3 @@ consumers can derive age from their own current time.
 - `start`, `process_frame`, and `tick` are not public mutation paths.
 - A dead reader cannot fail silently while the coordinator reports normal operation.
 - All checks pass.
-
