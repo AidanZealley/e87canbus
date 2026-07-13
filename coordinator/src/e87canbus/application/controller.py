@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from e87canbus.application.events import (
@@ -48,6 +49,12 @@ class ApplicationController:
             self.steering_config.manual_level_count,
         )
         self._pre_maximum_assistance_state: tuple[SteeringMode, int] | None = None
+        self._button_handlers: dict[int, Callable[[], tuple[ApplicationOutput, ...]]] = {
+            self.STEERING_MODE_BUTTON_INDEX: self._handle_steering_mode_button,
+            self.MANUAL_ASSISTANCE_DOWN_BUTTON_INDEX: self._handle_assistance_down_button,
+            self.MANUAL_ASSISTANCE_UP_BUTTON_INDEX: self._handle_assistance_up_button,
+            self.MAXIMUM_ASSISTANCE_BUTTON_INDEX: self._toggle_maximum_assistance,
+        }
 
     def snapshot(self) -> ApplicationSnapshot:
         return ApplicationSnapshot(
@@ -65,51 +72,52 @@ class ApplicationController:
         if event.state is not ButtonState.PRESSED:
             return ()
 
-        if event.button_index == self.MAXIMUM_ASSISTANCE_BUTTON_INDEX:
-            return self._toggle_maximum_assistance()
+        handler = self._button_handlers.get(event.button_index)
+        return handler() if handler is not None else ()
 
+    def _handle_steering_mode_button(self) -> tuple[ApplicationOutput, ...]:
         if self.state.maximum_assistance_active:
-            if event.button_index in (
-                self.MANUAL_ASSISTANCE_DOWN_BUTTON_INDEX,
-                self.MANUAL_ASSISTANCE_UP_BUTTON_INDEX,
-            ):
-                self._restore_pre_maximum_assistance_state()
-                self.state.steering_mode = SteeringMode.MANUAL
-                return (
-                    self._steering_mode_led_command(),
-                    self._maximum_assistance_led_command(),
-                )
-
-            # The mode control does not mutate the state that button 4 will restore.
             return ()
 
-        if event.button_index == self.STEERING_MODE_BUTTON_INDEX:
-            self.state.steering_mode = (
-                SteeringMode.MANUAL
-                if self.state.steering_mode is SteeringMode.AUTO
-                else SteeringMode.AUTO
-            )
+        self.state.steering_mode = (
+            SteeringMode.MANUAL
+            if self.state.steering_mode is SteeringMode.AUTO
+            else SteeringMode.AUTO
+        )
+        return (self._steering_mode_led_command(),)
+
+    def _handle_assistance_down_button(self) -> tuple[ApplicationOutput, ...]:
+        if self.state.maximum_assistance_active:
+            return self._exit_maximum_assistance_for_manual_control()
+
+        return self._nudge_manual_assistance(-1)
+
+    def _handle_assistance_up_button(self) -> tuple[ApplicationOutput, ...]:
+        if self.state.maximum_assistance_active:
+            return self._exit_maximum_assistance_for_manual_control()
+
+        return self._nudge_manual_assistance(1)
+
+    def _nudge_manual_assistance(self, delta: int) -> tuple[ApplicationOutput, ...]:
+        if self.state.steering_mode is SteeringMode.AUTO:
+            self.state.steering_mode = SteeringMode.MANUAL
             return (self._steering_mode_led_command(),)
 
-        if event.button_index in (
-            self.MANUAL_ASSISTANCE_DOWN_BUTTON_INDEX,
-            self.MANUAL_ASSISTANCE_UP_BUTTON_INDEX,
-        ):
-            if self.state.steering_mode is SteeringMode.AUTO:
-                self.state.steering_mode = SteeringMode.MANUAL
-                return (self._steering_mode_led_command(),)
-
-            delta = (
-                -1
-                if event.button_index == self.MANUAL_ASSISTANCE_DOWN_BUTTON_INDEX
-                else 1
-            )
-            self.state.set_manual_assistance_level(
-                self.state.manual_assistance_level + delta,
-                self.steering_config.manual_level_count,
-            )
-
+        self.state.set_manual_assistance_level(
+            self.state.manual_assistance_level + delta,
+            self.steering_config.manual_level_count,
+        )
         return ()
+
+    def _exit_maximum_assistance_for_manual_control(
+        self,
+    ) -> tuple[ApplicationOutput, ...]:
+        self._restore_pre_maximum_assistance_state()
+        self.state.steering_mode = SteeringMode.MANUAL
+        return (
+            self._steering_mode_led_command(),
+            self._maximum_assistance_led_command(),
+        )
 
     def desired_outputs(self) -> tuple[ApplicationOutput, ...]:
         """Return a full output snapshot for startup and reconnection."""

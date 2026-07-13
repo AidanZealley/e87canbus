@@ -56,6 +56,16 @@ def test_unmapped_button_does_not_change_application_state() -> None:
     assert outputs == ()
 
 
+def test_unknown_button_press_returns_no_outputs_or_state_change() -> None:
+    controller = ApplicationController()
+    snapshot_before = controller.snapshot()
+
+    outputs = controller.handle_event(NeoTrellisButtonEvent(9, ButtonState.PRESSED))
+
+    assert outputs == ()
+    assert controller.snapshot() == snapshot_before
+
+
 def test_assistance_button_enters_manual_at_remembered_level_then_adjusts() -> None:
     controller = ApplicationController(state=RuntimeState(manual_assistance_level=3))
 

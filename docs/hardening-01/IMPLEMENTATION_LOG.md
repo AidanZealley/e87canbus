@@ -9,7 +9,7 @@ including anywhere reality diverged from a phase doc.
 | Phase | Status | Completed |
 |---|---|---|
 | 1 — Dead code deletion and boundary cleanup | done | 2026-07-13 |
-| 2 — Button dispatch table | not started | — |
+| 2 — Button dispatch table | done | 2026-07-13 |
 | 3 — Time axis | not started | — |
 | 4 — Transmit safety | not started | — |
 | 5 — Simulator and API robustness | not started | — |
@@ -58,3 +58,22 @@ should know. "Nothing" is a valid answer.
 **Discovered along the way:** Nothing.
 
 **Checks:** pytest 80 passed / mypy clean / ruff clean / frontend typecheck and lint clean
+
+## Phase 2 — Button dispatch table (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Replaced button-index conditionals in `application/controller.py` with a typed dispatch table
+  built from the existing button constants and bound handler methods.
+- Split mode, assistance-down, and assistance-up behavior into small named handlers, with shared
+  manual-assistance and maximum-assistance exit helpers preserving the existing behavior.
+- Added explicit coverage that an unknown pressed button returns no outputs and leaves the full
+  application snapshot unchanged.
+
+**Deviations from the phase doc:** None.
+
+**Discovered along the way:** Nothing.
+
+**Checks:** pytest 81 passed / mypy clean / ruff clean
