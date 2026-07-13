@@ -81,6 +81,8 @@ cd frontend && pnpm typecheck && pnpm lint
   application output → routed frame.
 - `coordinator/src/e87canbus/runtime.py` — transport-neutral `CoordinatorRuntime`; processes one
   `RoutedCanFrame` at a time and dispatches outputs to per-network buses.
+- `coordinator/src/e87canbus/live.py` — threaded SocketCAN readers feeding the single-consumer
+  runtime loop and periodic ticks.
 - `coordinator/src/e87canbus/adapters/socketcan.py` — the only real-hardware CAN adapter.
 - `coordinator/src/e87canbus/simulation/` — in-memory broadcast domains (`bus.py`), simulated
   devices (`devices.py`), and the workbench `SimulatorController` (`controller.py`).

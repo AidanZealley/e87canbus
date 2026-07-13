@@ -36,3 +36,7 @@ After reboot, confirm SocketCAN exists:
 ```bash
 ip -details link show can0
 ```
+
+This bootstrap path configures the current single-interface bench service. The live coordinator's
+default configuration also expects `can1` and `can2`; provision and bring up those interfaces
+before running `uv run e87canbus`.

@@ -13,7 +13,7 @@ including anywhere reality diverged from a phase doc.
 | 3 — Time axis | done | 2026-07-13 |
 | 4 — Transmit safety | done | 2026-07-13 |
 | 5 — Simulator and API robustness | done | 2026-07-13 |
-| 6 — Live runner skeleton | not started | — |
+| 6 — Live runner skeleton | done | 2026-07-13 |
 
 ## Entry template
 
@@ -162,3 +162,32 @@ one arbitration ID, which the phase doc's literal per-ID gap did not account for
 
 **Checks:** pytest 99 passed / mypy clean / ruff clean / frontend typecheck, lint, and 3 reducer
 tests clean
+
+## Phase 6 — Live runner skeleton (2026-07-13)
+
+**Result:** done with deviations
+
+**What changed:**
+
+- Added `live.py` with one synchronous reader thread per enabled interface, a shared routed-frame
+  queue, and a main-thread runtime/tick loop with bounded tick resynchronization after stalls.
+- Composed enabled SocketCAN buses with rate limiting only on TX-enabled networks, logged the
+  startup TX posture, and added bounded reader shutdown and interface-open failure handling.
+- Wired the main CLI to the live runner, added `--log-level`, and preserved the dry-run output.
+- Added deterministic coverage for routed reads, receive-error isolation, tick cadence and
+  resynchronization, threaded button-to-LED flow, CLI failure propagation, and SocketCAN opening.
+- Updated the coordinator, deployment, bootstrap, project-context, root, and hardening docs for
+  the live path, thread/queue concurrency decision, and default transmit posture.
+
+**Deviations from the phase doc:** Corrected the existing `SocketCanBus` constructor to pass
+`interface="socketcan"` and the configured CAN name as `channel`; current python-can rejects the
+old simultaneous `interface=<can name>` and deprecated `bustype="socketcan"` arguments before the
+runner can report a missing interface cleanly.
+
+**Discovered along the way:** The chosen threads-and-queue model keeps python-can's mature
+synchronous API, needs no application/runtime locks, and avoids an asyncio rewrite with no useful
+gain for three Pi interfaces. The existing systemd unit remains the single-interface bench
+ping-pong service as explicitly left out of scope.
+
+**Checks:** pytest 106 passed / mypy clean / ruff clean / manual dry-run exit 0 with unchanged
+configuration output / manual live run exit 1 naming missing interface `can0`

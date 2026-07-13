@@ -37,6 +37,11 @@ uv run mypy coordinator/src/e87canbus
 
 It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e87canbus`, runs `uv sync` on the Pi, restarts `e87canbus.service`, and prints service status.
 
+The current systemd unit remains the isolated `can0` bench ping-pong service. To exercise the live
+three-interface runner manually after bringing up all configured interfaces, run
+`uv run e87canbus`. The default live posture is rate-limited TX on K-CAN and listen-only operation
+on PT-CAN and F-CAN.
+
 ## Logs
 
 ```bash

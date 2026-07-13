@@ -215,7 +215,8 @@ e87canbus/
   - `python-can` — CAN interface abstraction
   - `cantools` — DBC file decoding, symbolic message access
   - `RPi.GPIO` or `pigpio` — PWM output to solenoid driver
-- **Concurrency model:** `asyncio` with `python-can`'s async interface (preferred over raw threads)
+- **Concurrency model:** one synchronous `python-can` reader thread per interface feeding a shared
+  queue; the main thread is the sole application/runtime consumer and runs periodic ticks
 
 **Future concurrent tasks:**
 

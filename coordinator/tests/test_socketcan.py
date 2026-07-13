@@ -1,6 +1,33 @@
 import can
-from e87canbus.adapters.socketcan import from_python_can_message, to_python_can_message
+import pytest
+from e87canbus.adapters.socketcan import (
+    SocketCanBus,
+    from_python_can_message,
+    to_python_can_message,
+)
 from e87canbus.protocol.can import CanFrame
+
+
+class FakePythonCanBus:
+    def shutdown(self) -> None:
+        pass
+
+
+def test_socketcan_opens_configured_channel_with_socketcan_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened_with: dict[str, str] = {}
+
+    def open_bus(*, interface: str, channel: str) -> FakePythonCanBus:
+        opened_with.update(interface=interface, channel=channel)
+        return FakePythonCanBus()
+
+    monkeypatch.setattr(can, "Bus", open_bus)
+
+    bus = SocketCanBus("can2")
+    bus.shutdown()
+
+    assert opened_with == {"interface": "socketcan", "channel": "can2"}
 
 
 def test_socketcan_frame_conversion_round_trip() -> None:

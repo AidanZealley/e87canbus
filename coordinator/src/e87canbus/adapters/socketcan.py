@@ -30,7 +30,7 @@ class SocketCanBus:
 
     def __init__(self, interface: str) -> None:
         self.interface = interface
-        self._bus = can.Bus(interface=interface, channel=interface, bustype="socketcan")
+        self._bus = can.Bus(interface="socketcan", channel=interface)
 
     def send(self, frame: CanFrame) -> None:
         self._bus.send(to_python_can_message(frame))

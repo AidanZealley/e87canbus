@@ -1,11 +1,14 @@
-"""Minimal dry-run CLI."""
+"""Coordinator command-line entry point."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
+from collections.abc import Sequence
 from dataclasses import asdict
 
+from e87canbus import live
 from e87canbus.config import default_config
 
 
@@ -16,15 +19,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print configuration without opening CAN",
     )
+    parser.add_argument("--log-level", default="INFO")
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     config = default_config()
     if not args.dry_run:
-        print("Live CAN startup is not implemented yet. Re-run with --dry-run.")
-        return 2
+        return live.run_live(config)
 
     print(json.dumps(asdict(config), indent=2, sort_keys=True))
     return 0

@@ -1,4 +1,4 @@
-"""Transport-neutral coordinator runtime shared by simulated and future live runners."""
+"""Transport-neutral coordinator runtime shared by simulated and live runners."""
 
 from __future__ import annotations
 

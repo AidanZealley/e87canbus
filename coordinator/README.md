@@ -9,6 +9,7 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/features/` — pure steering-assistance calculations.
 - `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
 - `src/e87canbus/runtime.py` — transport-neutral per-frame and periodic-tick coordinator runtime.
+- `src/e87canbus/live.py` — threaded SocketCAN readers and the single-consumer live loop.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
 - `src/e87canbus/api/` — HTTP and WebSocket interface used by the frontend.
@@ -22,7 +23,20 @@ This is why code imports `e87canbus.application` even though it is deployed as t
 The runtime receives buses keyed by K-CAN, PT-CAN, and F-CAN. Protocol decoding is keyed by both
 network and arbitration ID, while application code remains independent of physical bus selection.
 Frames and periodic ticks dispatch application outputs through the same runtime path. Speed data is
-marked invalid after its configured timeout; no verified BMW speed decoder is configured yet. No
-live three-interface runner or automatic network gateway is included in this milestone. Runtime
-transmission is denied by default and explicitly enabled per network with `tx_enabled`, behind the
-limits in `tx_policy`.
+marked invalid after its configured timeout; no verified BMW speed decoder is configured yet. The
+coordinator does not automatically forward frames between networks. Runtime transmission is denied
+by default and explicitly enabled per network with `tx_enabled`, behind the limits in `tx_policy`.
+
+## Running live
+
+Bring up every enabled SocketCAN interface at its configured bitrate, then run:
+
+```bash
+uv run e87canbus
+```
+
+The default configuration listens on PT-CAN and F-CAN and permits rate-limited transmission only
+on K-CAN. Custom IDs `0x700` and `0x701` still require collision validation before any in-car
+transmission; see [the custom CAN ID registry](../protocol/custom_ids.md). Use `--log-level` to
+change logging verbosity. `uv run e87canbus --dry-run` prints the configuration without opening
+CAN interfaces.
