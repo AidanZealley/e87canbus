@@ -19,7 +19,7 @@ export const SimulatorToolbar = ({
   onReset,
   onStep,
 }: SimulatorToolbarProps) => (
-  <header className="sticky top-0 border-b bg-background/95 backdrop-blur-sm">
+  <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
     <div className="mx-auto flex min-h-14 w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
       <div className="flex items-center gap-3">
         <div className="flex flex-col">
