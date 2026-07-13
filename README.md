@@ -2,7 +2,13 @@
 
 Hardware-aware, locally testable software for a track-only BMW E87 CAN bus project.
 
-Current milestone: the hardware-independent application controller owns runtime state and is exercised through the visual simulator. NeoTrellis button `0` toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered manual level, and button `3` toggles a reversible maximum-assistance override. Together these steering controls populate the full top row. The bench CAN ping-pong remains available for hardware validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain out of scope.
+Current milestone: the hardware-independent coordinator kernel owns application state and is
+exercised through the visual simulator's bounded, single-owner command path. NeoTrellis button `0`
+toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
+manual level, and button `3` toggles a reversible maximum-assistance override. Together these
+steering controls populate the full top row. The bench CAN ping-pong remains available for hardware
+validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physical Trellis
+integration, and the in-car touchscreen UI remain out of scope.
 
 The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
 PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated car have an

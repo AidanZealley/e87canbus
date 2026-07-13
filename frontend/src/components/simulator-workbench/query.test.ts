@@ -11,6 +11,7 @@ test("frame events update only the cached trace slice", () => {
 
   applySimulatorEvent(queryClient, {
     type: "frame",
+    session_id: 0,
     sequence: 1,
     network: "kcan",
     source: "neotrellis",

@@ -8,7 +8,13 @@ import {
   type WorkbenchSnapshot,
 } from "./utils.ts"
 
-const snapshot = (trace: CanTraceEntry[] = []): WorkbenchSnapshot => ({
+const snapshot = (
+  trace: CanTraceEntry[] = [],
+  session_id = 1,
+  revision = 1
+): WorkbenchSnapshot => ({
+  session_id,
+  revision,
   application: {
     vehicle_speed_kph: 0,
     speed_valid: false,
@@ -22,8 +28,9 @@ const snapshot = (trace: CanTraceEntry[] = []): WorkbenchSnapshot => ({
   trace,
 })
 
-const frame = (sequence: number): CanTraceEntry => ({
+const frame = (sequence: number, session_id = 1): CanTraceEntry => ({
   type: "frame",
+  session_id,
   sequence,
   network: "kcan",
   source: "neotrellis",
@@ -59,15 +66,41 @@ test("frame events append once and remain capped", () => {
   assert.deepEqual(duplicate.trace, appended.trace)
 })
 
-test("LED update events change only the addressed colour", () => {
-  const current = { ...snapshot(), led_colours: { 0: 3 } }
+test("older snapshots cannot regress state within a session", () => {
+  const current = {
+    ...snapshot([], 1, 3),
+    application: { ...snapshot().application, steering_mode: "manual" as const },
+  }
+  const stale = snapshot([], 1, 2)
 
-  const result = reduceSimulatorEvent(current, {
-    type: "led_update",
-    button_index: 3,
-    colour_code: 5,
-    colour_name: "white",
-  })
+  assert.equal(reduceSimulatorEvent(current, staleEvent(stale)), current)
+})
 
-  assert.deepEqual(result.led_colours, { 0: 3, 3: 5 })
+test("a new session replaces state and clears trace", () => {
+  const current = snapshot([frame(4)], 1, 4)
+  const reset = snapshot([], 2, 1)
+
+  assert.deepEqual(reduceSimulatorEvent(current, staleEvent(reset)), reset)
+})
+
+test("out-of-order and duplicate frames remain ordered once", () => {
+  const current = snapshot([frame(1)], 1, 1)
+  const later = reduceSimulatorEvent(current, frame(3))
+  const ordered = reduceSimulatorEvent(later, frame(2))
+  const duplicate = reduceSimulatorEvent(ordered, frame(2))
+  const oldSession = reduceSimulatorEvent(duplicate, frame(4, 0))
+
+  assert.deepEqual(
+    ordered.trace.map((entry) => entry.sequence),
+    [1, 2, 3]
+  )
+  assert.equal(duplicate, ordered)
+  assert.equal(oldSession, ordered)
+})
+
+const staleEvent = (value: SimulatorSnapshot) => ({
+  type: "snapshot" as const,
+  session_id: value.session_id,
+  revision: value.revision,
+  snapshot: value,
 })

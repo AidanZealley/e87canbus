@@ -1,4 +1,4 @@
-"""Stateful controller for the browser simulator workbench."""
+"""Single-owner simulation engine for the browser workbench."""
 
 from __future__ import annotations
 
@@ -13,15 +13,6 @@ from e87canbus.application.events import ControlTimerElapsed
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
-from e87canbus.protocol.can import (
-    LED_AMBER,
-    LED_BLUE,
-    LED_GREEN,
-    LED_OFF,
-    LED_RED,
-    LED_WHITE,
-    LedUpdatePayload,
-)
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     Commit,
@@ -42,15 +33,6 @@ from e87canbus.simulation.devices import (
 LOGGER = logging.getLogger(__name__)
 MAX_CASCADE_PASSES = 32
 
-LED_COLOUR_NAMES = {
-    LED_OFF: "off",
-    LED_RED: "red",
-    LED_GREEN: "green",
-    LED_BLUE: "blue",
-    LED_AMBER: "amber",
-    LED_WHITE: "white",
-}
-
 
 @dataclass(frozen=True)
 class SimulatedNetworkStatus:
@@ -61,6 +43,8 @@ class SimulatedNetworkStatus:
 
 @dataclass(frozen=True)
 class SimulatorSnapshot:
+    session_id: int
+    revision: int
     application: ApplicationSnapshot
     next_pressed: bool
     led_colours: dict[int, int]
@@ -68,9 +52,44 @@ class SimulatorSnapshot:
     trace: tuple[SimulatedCanTraceEntry, ...]
 
 
-def trace_entry_to_event(entry: SimulatedCanTraceEntry) -> dict[str, Any]:
+@dataclass(frozen=True)
+class PressButton:
+    index: int
+
+
+@dataclass(frozen=True)
+class ReleaseButton:
+    index: int
+
+
+@dataclass(frozen=True)
+class StepButton:
+    index: int
+
+
+@dataclass(frozen=True)
+class RunControlTimer:
+    now: float
+
+
+@dataclass(frozen=True)
+class ResetSimulation:
+    pass
+
+
+SimulationCommand = PressButton | ReleaseButton | StepButton | RunControlTimer | ResetSimulation
+
+
+@dataclass(frozen=True)
+class SimulationResult:
+    snapshot: SimulatorSnapshot
+    events: tuple[dict[str, Any], ...]
+
+
+def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict[str, Any]:
     return {
         "type": "frame",
+        "session_id": session_id,
         "sequence": entry.sequence,
         "network": entry.network.value,
         "source": entry.source,
@@ -79,15 +98,6 @@ def trace_entry_to_event(entry: SimulatedCanTraceEntry) -> dict[str, Any]:
         "data_hex": entry.frame.data.hex(),
         "is_extended_id": entry.frame.is_extended_id,
         "monotonic_s": entry.monotonic_s,
-    }
-
-
-def led_update_to_event(update: LedUpdatePayload) -> dict[str, Any]:
-    return {
-        "type": "led_update",
-        "button_index": update.button_index,
-        "colour_code": update.colour_code,
-        "colour_name": LED_COLOUR_NAMES.get(update.colour_code, f"unknown-{update.colour_code}"),
     }
 
 
@@ -108,6 +118,8 @@ def snapshot_to_dict(
     include_trace: bool,
 ) -> dict[str, Any]:
     serialized: dict[str, Any] = {
+        "session_id": snapshot.session_id,
+        "revision": snapshot.revision,
         "application": {
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
             "speed_valid": snapshot.application.speed_valid,
@@ -120,18 +132,22 @@ def snapshot_to_dict(
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
     }
     if include_trace:
-        serialized["trace"] = [trace_entry_to_event(entry) for entry in snapshot.trace]
+        serialized["trace"] = [
+            trace_entry_to_event(entry, snapshot.session_id) for entry in snapshot.trace
+        ]
     return serialized
 
 
 def snapshot_event(snapshot: SimulatorSnapshot, *, include_trace: bool) -> dict[str, Any]:
     return {
         "type": "snapshot",
+        "session_id": snapshot.session_id,
+        "revision": snapshot.revision,
         "snapshot": snapshot_to_dict(snapshot, include_trace=include_trace),
     }
 
 
-class SimulatorController:
+class SimulationEngine:
     def __init__(
         self,
         ids: CustomCanIds | None = None,
@@ -145,15 +161,16 @@ class SimulatorController:
         self.config = config or simulator_config()
         if ids is not None:
             self.config = replace(self.config, custom_can_ids=ids)
-        self.ids = self.config.custom_can_ids
         self.button_count = button_count
         self._clock = clock
+        self._session_id = 0
+        self._revision = 0
         self._build_session()
-        self._button_pressed: dict[int, bool] = {}
-        self.last_events: tuple[dict[str, Any], ...] = ()
 
     def snapshot(self) -> SimulatorSnapshot:
         return SimulatorSnapshot(
+            session_id=self._session_id,
+            revision=self._revision,
             application=self.kernel.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
             led_colours=dict(self.neotrellis.led_colours),
@@ -168,34 +185,47 @@ class SimulatorController:
             trace=self.topology.trace(),
         )
 
-    def reset(self) -> SimulatorSnapshot:
-        self._dispatch(ShutdownRequested(self._clock()))
-        self._build_session()
-        self._button_pressed = {}
-        snapshot = self.snapshot()
-        self.last_events = (snapshot_event(snapshot, include_trace=True),)
-        return snapshot
-
-    def press_button(self, button_index: int) -> SimulatorSnapshot:
-        return self._send_button(button_index, pressed=True)
-
-    def release_button(self, button_index: int) -> SimulatorSnapshot:
-        return self._send_button(button_index, pressed=False)
-
-    def step_auto(self, button_index: int = 0) -> SimulatorSnapshot:
-        self._validate_button_index(button_index)
-        self.neotrellis.button_index = button_index
+    def execute(self, command: SimulationCommand) -> SimulationResult:
         before_sequence = self.topology.latest_sequence
-        sent = self.neotrellis.send_next_button_event()
-        self._button_pressed[button_index] = bool(sent.data[1])
-        return self._process_pending(before_sequence)
+        before_application = self.kernel.snapshot()
+        snapshot_trace: bool | None = False
 
-    def tick(self) -> SimulatorSnapshot:
-        before_sequence = self.topology.latest_sequence
-        self._dispatch(ControlTimerElapsed(self._clock()))
-        return self._process_pending(before_sequence)
+        match command:
+            case PressButton(index):
+                self._send_button(index, pressed=True)
+            case ReleaseButton(index):
+                self._send_button(index, pressed=False)
+            case StepButton(index):
+                self._validate_button_index(index)
+                self.neotrellis.button_index = index
+                self.neotrellis.send_next_button_event()
+            case RunControlTimer(now):
+                self._dispatch(ControlTimerElapsed(now))
+                snapshot_trace = None
+            case ResetSimulation():
+                self._dispatch(ShutdownRequested(self._clock()))
+                self._build_session()
+                before_sequence = 0
+                snapshot_trace = True
+            case _:
+                raise TypeError(f"unsupported simulation command: {command!r}")
+
+        result = self._process_pending(
+            before_sequence,
+            snapshot_trace=snapshot_trace,
+        )
+        if (
+            isinstance(command, RunControlTimer)
+            and result.snapshot.application != before_application
+        ):
+            return replace(
+                result,
+                events=(snapshot_event(result.snapshot, include_trace=False), *result.events),
+            )
+        return result
 
     def _build_session(self) -> None:
+        self._session_id += 1
         self.topology = InMemoryCanTopology(
             trace_capacity=self.config.simulation.trace_capacity,
             clock=self._clock,
@@ -221,40 +251,41 @@ class SimulatorController:
 
         self.neotrellis = SimulatedNeoTrellisNode(
             bus=self.topology.create_bus(CanNetwork.KCAN, "neotrellis"),
-            ids=self.ids,
+            ids=self.config.custom_can_ids,
         )
         self.steering_controller = SimulatedSteeringControllerNode(
             bus=self.topology.create_bus(CanNetwork.KCAN, "steering-controller")
         )
 
-        router = ProtocolRouter(self.ids)
+        router = ProtocolRouter(self.config.custom_can_ids)
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             router=router,
         )
         self.executor = EffectExecutor(transmitters, router)
 
-        self._dispatch(KernelStarted(self._clock()))
+        startup = self._dispatch(KernelStarted(self._clock()))
+        if startup is None:
+            raise RuntimeError("simulation kernel did not start")
         self.neotrellis.process_pending_led_updates()
         self.steering_controller.drain_pending()
         self.car.drain_pending()
         self.topology.clear_trace()
 
-    def _send_button(self, button_index: int, pressed: bool) -> SimulatorSnapshot:
+    def _send_button(self, button_index: int, pressed: bool) -> None:
         self._validate_button_index(button_index)
-        before_sequence = self.topology.latest_sequence
         self.neotrellis.send_button_event(button_index, pressed)
-        self._button_pressed[button_index] = pressed
         self.neotrellis.next_pressed = not pressed
-        return self._process_pending(before_sequence)
 
-    def _process_pending(self, before_sequence: int) -> SimulatorSnapshot:
-        updates: list[LedUpdatePayload] = []
+    def _process_pending(
+        self,
+        before_sequence: int,
+        *,
+        snapshot_trace: bool | None,
+    ) -> SimulationResult:
         for _ in range(MAX_CASCADE_PASSES):
             processed = self._drain_kernel_inputs()
-            pass_updates = self.neotrellis.process_pending_led_updates()
-            updates.extend(pass_updates)
-            processed += len(pass_updates)
+            processed += len(self.neotrellis.process_pending_led_updates())
             processed += self.steering_controller.drain_pending()
             processed += self.car.drain_pending()
             if processed == 0:
@@ -269,11 +300,11 @@ class SimulatorController:
         new_trace = tuple(
             entry for entry in self.topology.trace() if entry.sequence > before_sequence
         )
-        events = [snapshot_event(snapshot, include_trace=False)]
-        events.extend(trace_entry_to_event(entry) for entry in new_trace)
-        events.extend(led_update_to_event(update) for update in updates)
-        self.last_events = tuple(events)
-        return snapshot
+        events: list[dict[str, Any]] = []
+        if snapshot_trace is not None:
+            events.append(snapshot_event(snapshot, include_trace=snapshot_trace))
+        events.extend(trace_entry_to_event(entry, self._session_id) for entry in new_trace)
+        return SimulationResult(snapshot, tuple(events))
 
     def _drain_kernel_inputs(self) -> int:
         processed = 0
@@ -297,6 +328,7 @@ class SimulatorController:
         commit = self.kernel.dispatch(kernel_input)
         if commit is None:
             return None
+        self._revision = commit.revision
         for failure in self.executor.execute(commit.effects):
             self.kernel.dispatch(
                 EffectExecutionFailed(failure.network, self._clock(), failure.message)

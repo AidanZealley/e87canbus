@@ -64,14 +64,18 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket
-stream. Its `CoordinatorKernel` uses the same decode, transition, commit, effect-execution, and TX
-policy path as the live Pi runner. Simulated devices emit frames onto the in-memory networks; the
-controller timestamps those frames at receipt and submits them through the kernel's sole `dispatch`
-entry point. Periodic ticks follow that same path and broadcast a new snapshot only when authoritative
-application state changes. Initial
-loads and resets carry the complete trace; command and tick snapshots omit it, while incremental
-WebSocket frame events append new entries and LED-update events keep the button display current.
+The workbench exposes one in-memory simulation engine through REST plus a WebSocket stream. A
+bounded command queue serializes button actions, periodic control timers, and resets through one
+owner task; an overloaded API request receives HTTP 503. Its `CoordinatorKernel` uses the same
+decode, transition, commit, effect-execution, and TX-policy path as the live Pi runner. Simulated
+devices emit frames onto the in-memory networks, and the engine timestamps those frames at receipt
+before submitting them through the kernel's sole `dispatch` entry point.
+
+Snapshots carry the committed application revision and simulation session ID. Reset starts a new
+session because trace sequence numbers restart at one; frame identity is therefore the pair of
+session ID and sequence. Initial loads and resets carry the complete trace. Command snapshots omit
+it and WebSocket frame events append only the new trace entries. Periodic timers publish a snapshot
+only when that operation changes the public application projection.
 
 It models three independent CAN broadcast domains:
 

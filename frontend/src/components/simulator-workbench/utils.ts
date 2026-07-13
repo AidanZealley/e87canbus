@@ -7,6 +7,8 @@ export type WorkbenchSnapshot = SimulatorSnapshot & {
 }
 
 export const emptySnapshot: WorkbenchSnapshot = {
+  session_id: 0,
+  revision: 0,
   application: {
     vehicle_speed_kph: 0,
     speed_valid: false,
@@ -23,21 +25,41 @@ export const emptySnapshot: WorkbenchSnapshot = {
 export const mergeSnapshot = (
   current: WorkbenchSnapshot,
   next: SimulatorSnapshot
-): WorkbenchSnapshot => ({
-  ...next,
-  trace: next.trace ?? current.trace,
-})
+): WorkbenchSnapshot => {
+  if (
+    next.session_id < current.session_id ||
+    (next.session_id === current.session_id &&
+      next.revision < current.revision)
+  ) {
+    return current
+  }
+  return {
+    ...next,
+    trace:
+      next.trace ??
+      (next.session_id === current.session_id ? current.trace : []),
+  }
+}
 
 const appendFrame = (
   current: WorkbenchSnapshot,
   frame: CanTraceEntry
 ): WorkbenchSnapshot => {
-  if (current.trace.some((entry) => entry.sequence === frame.sequence)) {
+  if (
+    frame.session_id !== current.session_id ||
+    current.trace.some(
+      (entry) =>
+        entry.session_id === frame.session_id &&
+        entry.sequence === frame.sequence
+    )
+  ) {
     return current
   }
   return {
     ...current,
-    trace: [...current.trace, frame].slice(-TRACE_CAPACITY),
+    trace: [...current.trace, frame]
+      .sort((left, right) => left.sequence - right.sequence)
+      .slice(-TRACE_CAPACITY),
   }
 }
 
@@ -50,13 +72,5 @@ export const reduceSimulatorEvent = (
       return mergeSnapshot(current, event.snapshot)
     case "frame":
       return appendFrame(current, event)
-    case "led_update":
-      return {
-        ...current,
-        led_colours: {
-          ...current.led_colours,
-          [event.button_index]: event.colour_code,
-        },
-      }
   }
 }

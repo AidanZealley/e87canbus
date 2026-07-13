@@ -2,6 +2,7 @@ export type CanNetwork = "kcan" | "ptcan" | "fcan"
 
 export type CanTraceEntry = {
   type: "frame"
+  session_id: number
   sequence: number
   network: CanNetwork
   source: string
@@ -30,6 +31,8 @@ export type ApplicationSnapshot = {
 }
 
 export type SimulatorSnapshot = {
+  session_id: number
+  revision: number
   application: ApplicationSnapshot
   next_pressed: boolean
   led_colours: Record<string, number>
@@ -39,14 +42,9 @@ export type SimulatorSnapshot = {
 
 export type SnapshotEvent = {
   type: "snapshot"
+  session_id: number
+  revision: number
   snapshot: SimulatorSnapshot
 }
 
-export type LedUpdateEvent = {
-  type: "led_update"
-  button_index: number
-  colour_code: number
-  colour_name: string
-}
-
-export type SimulatorEvent = SnapshotEvent | CanTraceEntry | LedUpdateEvent
+export type SimulatorEvent = SnapshotEvent | CanTraceEntry

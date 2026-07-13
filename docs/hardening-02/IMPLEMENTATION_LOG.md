@@ -12,7 +12,7 @@ record corrections in the current entry so the migration history remains visible
 | 3 — Explicit immutable domain state | done | 2026-07-13 |
 | 4 — Pure transitions and controlled effects | done | 2026-07-13 |
 | 5 — Single-owner kernel and live cutover | done | 2026-07-13 |
-| 6 — Simulator and API cutover | planned | — |
+| 6 — Simulator and API cutover | done | 2026-07-13 |
 | 7 — Protocol source of truth and cleanup | planned | — |
 | 8 — Verified steering failsafe | blocked on verified evidence | — |
 
@@ -333,3 +333,63 @@ No frontend or generated protocol artifacts changed.
 **Checks:** `uv run pytest -q` — 129 passed, 1 existing deprecation warning; `uv run mypy` — success,
 no issues in 28 source files; `uv run ruff check coordinator` — all checks passed. Frontend,
 generator, and firmware checks were not applicable.
+
+## Phase 6 — Simulator and API cutover (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Replaced the temporary `SimulatorController` and its separate press, release, step, reset, and
+  tick mutation methods with one `SimulationEngine.execute` command path over frozen simulation
+  command values. The existing bounded quiescence loop, real simulated-device frames, kernel
+  dispatch, effect executor, and TX policy remain the operation path.
+- Added a bounded simulation command queue and one FastAPI lifespan owner task. REST mutations and
+  the periodic control timer enqueue commands; the owner executes each operation and completes its
+  ordered WebSocket publication before resolving the submitting request. Saturation returns HTTP
+  503, while an unchanged timer emits no snapshot.
+- Added kernel revision and monotonic simulation session ID fields to REST and WebSocket snapshots.
+  Reset starts a new session and trace sequence at one; every incremental frame now carries its
+  session ID.
+- Serialized initial WebSocket snapshots with operation publication. A failed socket is logged and
+  removed without interrupting delivery to healthy clients.
+- Made frontend reduction reject older same-session snapshots and old-session frames, replace state
+  on a newer session, and sort/deduplicate trace rows by `(session_id, sequence)`.
+- Updated current architecture and simulation documentation for command ownership, backpressure,
+  revisioned snapshots, trace sessions, and timer publication behavior.
+
+**Deviations from the phase doc:** None.
+
+**Safety invariants verified:** One state owner and publication-after-commit order are covered by
+concurrent API command and reset tests that prove operations and their events remain contiguous and
+session ordered. Same-path simulation tests prove browser commands can only operate simulated
+devices, reject domain events and application state, and retain receive timestamp, router,
+transition, commit, effect, and TX-policy behavior. Revision/session tests prove reset-local frame
+identity and frontend rejection of stale or duplicated inputs. Bounded command-queue coverage proves
+overflow returns 503 without wedging the owner. Existing live-default, bounded CAN ingress,
+capability denial, network TX budget, and external-device unrestricted-output tests remain passing.
+
+**Complexity delta:** Deleted `SimulatorController`, its five public mutation methods, `last_events`,
+the unused `_button_pressed` dictionary, the API-wide mutation lock, dynamic method lookup, the
+task-local timer baseline, and the parallel LED-update WebSocket/frontend reducer path. Renamed the
+module around its actual engine responsibility. The frozen command/result values and one queued
+command envelope add the structure required for bounded serialization and request results; the
+single engine class replaces the temporary adapter rather than wrapping it. The WebSocket
+publication lock enforces initial-snapshot/broadcast ordering and isolates connection membership; it
+does not guard engine mutation. Snapshot emission uses one optional trace mode instead of
+independent flags, so the invalid combination of a trace-bearing non-publication is not
+representable. No compatibility alias, old controller module, alternate event pipeline, dynamic
+registration, or deliberately deferred in-scope simplification remains.
+
+**Discovered along the way:** Kernel revision can advance on an unchanged timer without a browser
+publication; the next changed snapshot carries the newer committed revision, while GET observes the
+latest immutable snapshot. WebSocket sends remain sequential and have no configured timeout, so a
+connected peer that neither completes nor fails a send can delay the owner until the bounded command
+queue returns 503; choosing a disconnect timeout is deferred because Phase 6 specifies failed-peer
+isolation but no latency threshold. The existing Starlette `TestClient` deprecation warning remains
+unrelated. No generated protocol or firmware artifacts changed.
+
+**Checks:** `uv run pytest -q` — 133 passed, 1 existing deprecation warning; `uv run mypy` — success,
+no issues in 28 source files; `uv run ruff check coordinator` — all checks passed; frontend
+`pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 6 passed. Generator and firmware
+checks were not applicable.

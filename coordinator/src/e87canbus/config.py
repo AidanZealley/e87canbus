@@ -64,6 +64,13 @@ class PlaceholderBmwIds:
 @dataclass(frozen=True)
 class SimulationConfig:
     trace_capacity: int = 2_000
+    command_queue_capacity: int = 64
+
+    def __post_init__(self) -> None:
+        if self.trace_capacity < 1:
+            raise ValueError("simulation trace capacity must be positive")
+        if self.command_queue_capacity < 1:
+            raise ValueError("simulation command queue capacity must be positive")
 
 
 @dataclass(frozen=True)

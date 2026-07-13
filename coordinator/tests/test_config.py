@@ -1,7 +1,13 @@
 from dataclasses import replace
 
 import pytest
-from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
+from e87canbus.config import (
+    CanNetwork,
+    SimulationConfig,
+    TxPolicyConfig,
+    default_config,
+    simulator_config,
+)
 
 
 def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
@@ -27,6 +33,13 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
 
 def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
+    assert default_config().simulation.command_queue_capacity == 64
+
+
+@pytest.mark.parametrize("field", ["trace_capacity", "command_queue_capacity"])
+def test_simulation_capacities_must_be_positive(field: str) -> None:
+    with pytest.raises(ValueError, match="capacity"):
+        SimulationConfig(**{field: 0})
 
 
 def test_custom_can_ids() -> None:

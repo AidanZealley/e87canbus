@@ -35,6 +35,11 @@ kernel inputs and executes effects. Queue latency is logged without changing obs
 Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
 stops the runner with a non-zero result.
 
+The browser simulator has a separate bounded command queue. One asynchronous owner serializes
+button-device commands, control timers, resets, kernel commits, and WebSocket publication. Browser
+snapshots expose the kernel revision plus a simulation session ID, and incremental trace frames use
+the session ID with their reset-local sequence number.
+
 ## Running live
 
 Bring up every enabled SocketCAN interface at its configured bitrate, then run:

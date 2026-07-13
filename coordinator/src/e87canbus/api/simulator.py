@@ -5,16 +5,30 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Sequence
+import time
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager, suppress
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, cast
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from e87canbus.simulation.controller import SimulatorController, snapshot_event, snapshot_to_dict
+from e87canbus.simulation.engine import (
+    PressButton,
+    ReleaseButton,
+    ResetSimulation,
+    RunControlTimer,
+    SimulationCommand,
+    SimulationEngine,
+    SimulationResult,
+    SimulatorSnapshot,
+    StepButton,
+    snapshot_event,
+    snapshot_to_dict,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,51 +40,93 @@ class StepRequest(BaseModel):
 class ConnectionManager:
     def __init__(self) -> None:
         self._connections: set[WebSocket] = set()
+        self._publication_lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self._connections.add(websocket)
+    async def connect(
+        self,
+        websocket: WebSocket,
+        get_snapshot: Callable[[], SimulatorSnapshot],
+    ) -> None:
+        async with self._publication_lock:
+            await websocket.accept()
+            await websocket.send_json(snapshot_event(get_snapshot(), include_trace=True))
+            self._connections.add(websocket)
 
     def disconnect(self, websocket: WebSocket) -> None:
         self._connections.discard(websocket)
 
     async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
-        disconnected: list[WebSocket] = []
-        for websocket in self._connections:
-            try:
-                for event in events:
-                    await websocket.send_json(event)
-            except Exception:
-                disconnected.append(websocket)
-        for websocket in disconnected:
-            self.disconnect(websocket)
+        async with self._publication_lock:
+            disconnected: list[WebSocket] = []
+            for websocket in self._connections:
+                try:
+                    for event in events:
+                        await websocket.send_json(event)
+                except Exception:
+                    LOGGER.warning("removing failed simulator WebSocket", exc_info=True)
+                    disconnected.append(websocket)
+            for websocket in disconnected:
+                self.disconnect(websocket)
 
 
-def create_app(controller: SimulatorController | None = None) -> FastAPI:
+@dataclass(frozen=True)
+class QueuedCommand:
+    command: SimulationCommand
+    future: asyncio.Future[SimulationResult]
+
+
+def create_app(
+    engine: SimulationEngine | None = None,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+) -> FastAPI:
+    simulation = engine or SimulationEngine(clock=clock)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        previous_application = app.state.controller.snapshot().application
+        queue: asyncio.Queue[QueuedCommand] = asyncio.Queue(
+            maxsize=simulation.config.simulation.command_queue_capacity
+        )
+        app.state.command_queue = queue
 
-        async def tick() -> None:
-            nonlocal previous_application
+        async def own_engine() -> None:
             while True:
-                await asyncio.sleep(app.state.controller.config.tick_interval_s)
-                async with app.state.lock:
-                    snapshot = app.state.controller.tick()
-                    application_changed = snapshot.application != previous_application
-                    previous_application = snapshot.application
-                if application_changed:
-                    await app.state.manager.broadcast(
-                        (snapshot_event(snapshot, include_trace=False),)
-                    )
+                queued = await queue.get()
+                try:
+                    result = simulation.execute(queued.command)
+                    app.state.latest_snapshot = result.snapshot
+                    if result.events:
+                        await app.state.manager.broadcast(result.events)
+                except Exception as exc:
+                    if not queued.future.done():
+                        queued.future.set_exception(exc)
+                else:
+                    if not queued.future.done():
+                        queued.future.set_result(result)
+                finally:
+                    queue.task_done()
 
-        task = asyncio.create_task(tick())
+        async def run_timer() -> None:
+            while True:
+                await asyncio.sleep(simulation.config.tick_interval_s)
+                try:
+                    await _submit(app, RunControlTimer(clock()))
+                except HTTPException as exc:
+                    if exc.status_code != 503:
+                        raise
+                    LOGGER.warning("skipped control timer because simulation queue is full")
+
+        owner_task = asyncio.create_task(own_engine())
+        timer_task = asyncio.create_task(run_timer())
         try:
             yield
         finally:
-            task.cancel()
+            timer_task.cancel()
             with suppress(asyncio.CancelledError):
-                await task
+                await timer_task
+            owner_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await owner_task
 
     app = FastAPI(title="E87 CAN Bus Simulator", lifespan=lifespan)
     app.add_middleware(
@@ -82,9 +138,8 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
     )
-    app.state.controller = controller or SimulatorController()
     app.state.manager = ConnectionManager()
-    app.state.lock = asyncio.Lock()
+    app.state.latest_snapshot = simulation.snapshot()
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
@@ -92,43 +147,29 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
 
     @app.get("/api/snapshot")
     async def snapshot() -> dict[str, Any]:
-        async with app.state.lock:
-            return snapshot_to_dict(
-                app.state.controller.snapshot(),
-                include_trace=True,
-            )
+        return snapshot_to_dict(app.state.latest_snapshot, include_trace=True)
 
     @app.post("/api/reset")
     async def reset() -> dict[str, Any]:
-        async with app.state.lock:
-            result = app.state.controller.reset()
-            events = app.state.controller.last_events
-        await app.state.manager.broadcast(events)
-        return snapshot_to_dict(result, include_trace=True)
+        result = await _submit(app, ResetSimulation())
+        return snapshot_to_dict(result.snapshot, include_trace=True)
 
     @app.post("/api/buttons/{button_index}/press")
     async def press_button(button_index: int) -> dict[str, Any]:
-        return await _run_command(app, "press_button", button_index)
+        return await _run_command(app, PressButton(button_index))
 
     @app.post("/api/buttons/{button_index}/release")
     async def release_button(button_index: int) -> dict[str, Any]:
-        return await _run_command(app, "release_button", button_index)
+        return await _run_command(app, ReleaseButton(button_index))
 
     @app.post("/api/step")
     async def step(request: StepRequest) -> dict[str, Any]:
-        return await _run_command(app, "step_auto", request.button_index)
+        return await _run_command(app, StepButton(request.button_index))
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
-        await app.state.manager.connect(websocket)
+        await app.state.manager.connect(websocket, lambda: app.state.latest_snapshot)
         try:
-            async with app.state.lock:
-                await websocket.send_json(
-                    snapshot_event(
-                        app.state.controller.snapshot(),
-                        include_trace=True,
-                    )
-                )
             while True:
                 await websocket.receive_text()
         except WebSocketDisconnect:
@@ -137,17 +178,21 @@ def create_app(controller: SimulatorController | None = None) -> FastAPI:
     return app
 
 
-async def _run_command(app: FastAPI, method_name: str, button_index: int) -> dict[str, Any]:
-    async with app.state.lock:
-        controller: SimulatorController = app.state.controller
-        method = getattr(controller, method_name)
-        try:
-            result = method(button_index)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        events = controller.last_events
-    await app.state.manager.broadcast(events)
-    return snapshot_to_dict(result, include_trace=False)
+async def _run_command(app: FastAPI, command: SimulationCommand) -> dict[str, Any]:
+    try:
+        result = await _submit(app, command)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return snapshot_to_dict(result.snapshot, include_trace=False)
+
+
+async def _submit(app: FastAPI, command: SimulationCommand) -> SimulationResult:
+    future = asyncio.get_running_loop().create_future()
+    try:
+        app.state.command_queue.put_nowait(QueuedCommand(command, future))
+    except asyncio.QueueFull as exc:
+        raise HTTPException(status_code=503, detail="simulation command queue is full") from exc
+    return cast(SimulationResult, await future)
 
 
 app = create_app()
