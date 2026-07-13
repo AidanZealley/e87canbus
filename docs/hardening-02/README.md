@@ -107,11 +107,31 @@ implementation log rather than partially building that later phase.
 | 6 | [Simulator and API cutover](phase-6-simulator-and-api.md) | Simulation uses the same kernel; publications are ordered and revisioned | 5 |
 | 7 | [Protocol source of truth and cleanup](phase-7-protocol-and-cleanup.md) | Protocol artifacts cannot drift and migration scaffolding/dead state is gone | 6 |
 | 8 | [Steering failsafe groundwork](phase-8-steering-failsafe.md) | Simulator proves stale-speed, overload, fault, shutdown, recovery, and watchdog paths; real actuation remains blocked | 7; verified captures/hardware still gate road use |
+| 9 | [Correctness and safety truth](phase-9-correctness-and-safety-truth.md) | Physical claims match available evidence; time, failures, fatal health, and revisions are internally consistent | 8 |
+| 10 | [Simulation semantics and observability](phase-10-simulation-semantics-and-observability.md) | Vehicle speed and controller projections have honest semantics and are visible in the workbench | 9 |
+| 11 | [Operational hardening and closeout](phase-11-operational-hardening-and-closeout.md) | Publication and cleanup are bounded; simulation-only boundaries and final simplicity are verified | 10 |
 
 Phases 1–7 are architecture work that can be completed with the current verified protocol. Phase 8
 was reduced to explicitly synthetic, simulator-only groundwork because external evidence is not
 available. It does not add a BMW ID, current value, actuator adapter, or live grant; those parts
 remain gated and must not be simulated into existence.
+
+Phases 9–11 close findings from the post-Phase-8 review. They correct evidence and event-system
+invariants, make the reduced simulation honest and observable, and finish bounded operational
+hardening. They do not relax any physical evidence gate or extend the live steering scope.
+
+## Post-Phase-8 follow-ups
+
+| Review finding | Addressed in |
+|---|---|
+| Authoritative context still contains unsupported current, hardware, and control claims | Phase 9 |
+| Timer time can regress and a fatal simulator output fault does not stop the session | Phase 9 |
+| Optional network fields implicitly distinguish CAN from actuator failures | Phase 9 |
+| `SetVehicleSpeed` emits once rather than setting external simulated-vehicle state | Phase 10 |
+| Fallback reasons and steering-controller projection are ambiguous or absent from the UI | Phase 10 |
+| A non-failing slow WebSocket can block the simulation owner indefinitely | Phase 11 |
+| Tick configuration and per-interface SocketCAN cleanup lack complete validation/isolation | Phase 11 |
+| Reactive simulated CAN devices will require bounded quiescence processing | Phase 11 gate; implement with the first reactive device |
 
 ## Carried findings
 
@@ -163,5 +183,6 @@ pnpm lint
 pnpm test
 ```
 
-Phases changing generated protocol artifacts must run the generator's `--check` mode. Phase 8 must
-also run any actuator firmware tests introduced with the verified hardware boundary.
+Phases changing generated protocol artifacts must run the generator's `--check` mode. Any phase
+that changes actuator firmware must also run its documented firmware checks; phases 8–11 must not
+claim those checks apply while the verified hardware boundary remains absent.

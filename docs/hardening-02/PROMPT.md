@@ -100,7 +100,7 @@ the implementation log's **Complexity delta** section.
    - `uv run ruff check coordinator`
    - If the frontend changed: `cd frontend && pnpm typecheck && pnpm lint && pnpm test`
    - If generated protocol artifacts changed: run the generator's `--check` mode.
-   - If phase 8 changes actuator firmware: run its documented firmware checks.
+   - If the phase changes actuator firmware: run its documented firmware checks.
 2. Verify every acceptance criterion in the phase document.
 3. Append a factual entry to `docs/hardening-02/IMPLEMENTATION_LOG.md`, update the status table, and
    include:

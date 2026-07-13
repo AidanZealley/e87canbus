@@ -15,6 +15,9 @@ record corrections in the current entry so the migration history remains visible
 | 6 — Simulator and API cutover | done | 2026-07-13 |
 | 7 — Protocol source of truth and cleanup | done | 2026-07-13 |
 | 8 — Steering failsafe groundwork | done with simulator-only deviation | 2026-07-13 |
+| 9 — Correctness and safety truth | pending | — |
+| 10 — Simulation semantics and observability | pending | — |
+| 11 — Operational hardening and closeout | pending | — |
 
 ## Entry template
 
