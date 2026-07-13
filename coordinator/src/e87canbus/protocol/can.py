@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from e87canbus.application.events import ButtonLedCommand, LedColour
-from e87canbus.config import CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds
 
 BUTTON_RELEASED = 0x00
 BUTTON_PRESSED = 0x01
@@ -31,6 +31,14 @@ class CanFrame:
     arbitration_id: int
     data: bytes
     is_extended_id: bool = False
+
+
+@dataclass(frozen=True)
+class RoutedCanFrame:
+    """A transport frame paired with the network on which it was observed."""
+
+    network: CanNetwork
+    frame: CanFrame
 
 
 class CanBus(Protocol):

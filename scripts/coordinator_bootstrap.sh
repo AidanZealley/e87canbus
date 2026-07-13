@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_URL=""
 BRANCH="main"
 CAN_INTERFACE="can0"
-BITRATE="500000"
+BITRATE="100000"
 OSCILLATOR="12000000"
 INTERRUPT="25"
 SPI_MAX_FREQUENCY="2000000"
@@ -18,7 +18,7 @@ usage: $0 --repo-url <url> [options]
 options:
   --branch <name>                 default: main
   --can-interface <name>          default: can0
-  --bitrate <value>               default: 500000
+  --bitrate <value>               default: 100000
   --oscillator <hz>               default: 12000000
   --interrupt <bcm>               default: 25
   --spi-max-frequency <hz>        default: 2000000

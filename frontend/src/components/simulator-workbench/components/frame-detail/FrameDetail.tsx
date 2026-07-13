@@ -38,6 +38,18 @@ export const FrameDetail = ({ frame }: FrameDetailProps) => (
         <div className="flex flex-col gap-3 text-xs">
           <dl className="flex flex-col gap-2">
             <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+              <dt className="font-medium text-muted-foreground">Network</dt>
+              <dd className="min-w-0 font-mono break-words">
+                {frame.network}
+              </dd>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+              <dt className="font-medium text-muted-foreground">Sequence</dt>
+              <dd className="min-w-0 font-mono break-words">
+                {frame.sequence}
+              </dd>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
               <dt className="font-medium text-muted-foreground">Source</dt>
               <dd className="min-w-0 font-mono break-words">{frame.source}</dd>
             </div>

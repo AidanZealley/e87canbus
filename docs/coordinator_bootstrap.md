@@ -9,7 +9,7 @@ sudo ./scripts/coordinator_bootstrap.sh \
   --repo-url git@github.com:<owner>/<repo>.git \
   --branch main \
   --can-interface can0 \
-  --bitrate 500000 \
+  --bitrate 100000 \
   --oscillator 12000000 \
   --interrupt 25 \
   --spi-max-frequency 2000000
@@ -18,7 +18,7 @@ sudo ./scripts/coordinator_bootstrap.sh \
 Defaults:
 
 - CAN interface: `can0`.
-- Bitrate: `500000`.
+- Bitrate: `100000` (the eventual K-CAN rate).
 - MCP2515 overlay: `oscillator=12000000`, `interrupt=25`, `spimaxfrequency=2000000`.
 - Repo directory: `/opt/e87canbus`.
 - Service user: `pi`.

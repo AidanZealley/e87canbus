@@ -10,6 +10,9 @@ Connect the button-pad controller over USB, then run:
 ./scripts/button_pad_upload.sh
 ```
 
+The uploaded milestone firmware automatically emits a test frame every second. It is bench-only;
+never attach it to the vehicle CAN wiring.
+
 ## Coordinator Deploy
 
 Deploy and restart the systemd service:
@@ -41,6 +44,8 @@ It excludes `.git`, `.venv`, `.pio`, and common Python caches, syncs to `/opt/e8
 ```
 
 ## Acceptance Test
+
+This acceptance test is for an isolated, correctly terminated bench at 100 kbit/s only.
 
 1. Bootstrap the Pi, then reboot.
 2. Confirm `can0`:

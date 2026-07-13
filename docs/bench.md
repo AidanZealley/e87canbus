@@ -7,9 +7,13 @@ This milestone validates Pi-to-Arduino CAN transport before any car wiring.
 - Raspberry Pi 4 with Waveshare RS485 CAN HAT v2.1.
 - HAT oscillator marking `12000`: use `oscillator=12000000`.
 - Overlay interrupt: BCM `25`.
-- Bench CAN bitrate: `500000`.
+- Bench CAN bitrate: `100000` (the eventual K-CAN rate).
 - Arduino Micro / ATmega32U4 with MCP2515 on CS pin `10`.
 - Arduino MCP2515 firmware clock setting: `MCP_16MHZ`.
+
+> **Bench only:** the current firmware transmits a test button frame every second without user
+> input. Never attach this firmware to the car. Remove and verify all automatic transmission
+> behavior before any in-car connection.
 
 ## Protocol
 

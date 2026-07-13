@@ -1,6 +1,9 @@
+from dataclasses import replace
+
 import pytest
 from e87canbus.application.events import SteeringMode
-from e87canbus.protocol.can import LED_AMBER, LED_BLUE, LED_OFF, LED_WHITE
+from e87canbus.config import CanNetwork, default_config
+from e87canbus.protocol.can import LED_AMBER, LED_BLUE, LED_OFF, LED_WHITE, RoutedCanFrame
 from e87canbus.simulation.controller import SimulatorController
 
 
@@ -23,6 +26,8 @@ def test_pressing_button_creates_button_event_frame() -> None:
     assert snapshot.trace[0].source == "neotrellis"
     assert snapshot.trace[0].frame.arbitration_id == 0x700
     assert snapshot.trace[0].frame.data == b"\x00\x01"
+    assert snapshot.trace[0].network is CanNetwork.KCAN
+    assert snapshot.trace[0].sequence == 1
 
 
 def test_pressing_mode_button_selects_manual_and_causes_amber_led_update() -> None:
@@ -57,6 +62,57 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert snapshot.led_colours == {0: LED_BLUE, 3: LED_OFF}
     assert snapshot.trace == ()
+
+    next_snapshot = controller.press_button(0)
+    assert next_snapshot.trace[0].sequence == 1
+
+
+def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
+    snapshot = SimulatorController().snapshot()
+
+    statuses = {status.config.network: status for status in snapshot.networks}
+    assert list(statuses) == [CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN]
+    assert statuses[CanNetwork.KCAN].nodes == (
+        "pi",
+        "simulated-car",
+        "neotrellis",
+        "steering-controller",
+    )
+    assert statuses[CanNetwork.PTCAN].nodes == ("pi", "simulated-car")
+    assert statuses[CanNetwork.FCAN].nodes == ("pi", "simulated-car")
+    assert all(status.connected for status in statuses.values())
+
+
+def test_connected_means_coordinator_endpoint_is_attached() -> None:
+    config = default_config()
+    networks = tuple(
+        replace(item, enabled=False) if item.network is CanNetwork.PTCAN else item
+        for item in config.can_networks
+    )
+
+    snapshot = SimulatorController(config=replace(config, can_networks=networks)).snapshot()
+
+    ptcan = next(
+        status for status in snapshot.networks if status.config.network is CanNetwork.PTCAN
+    )
+    assert ptcan.connected is False
+    assert ptcan.nodes == ("simulated-car",)
+
+
+def test_same_button_id_on_other_networks_does_not_change_application() -> None:
+    controller = SimulatorController()
+    button_frame = controller.neotrellis.send_button_event(0, True)
+    # Drain the real K-CAN event without processing it, then replay its ID on other networks.
+    assert controller.pi_buses[CanNetwork.KCAN].receive(timeout_s=0) == button_frame
+
+    controller.runtime.process_frame(
+        RoutedCanFrame(CanNetwork.PTCAN, button_frame)
+    )
+    controller.runtime.process_frame(
+        RoutedCanFrame(CanNetwork.FCAN, button_frame)
+    )
+
+    assert controller.application.snapshot().steering_mode is SteeringMode.AUTO
 
 
 def test_invalid_button_index_raises() -> None:

@@ -1,20 +1,36 @@
-"""Default configuration for the local-testable project scaffold."""
+"""Typed configuration boundary for coordinator and simulator composition."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+class CanNetwork(StrEnum):
+    """Stable logical identities for the three physical BMW CAN networks."""
+
+    KCAN = "kcan"
+    PTCAN = "ptcan"
+    FCAN = "fcan"
 
 
 @dataclass(frozen=True)
-class CanInterfaces:
-    kcan_interface: str = "can0"
-    fcan_interface: str = "can1"
+class CanNetworkConfig:
+    network: CanNetwork
+    label: str
+    interface: str
+    bitrate: int
+    enabled: bool = True
 
 
-@dataclass(frozen=True)
-class CanBitrates:
-    kcan: int = 100_000
-    fcan: int = 500_000
+def default_can_networks() -> tuple[CanNetworkConfig, ...]:
+    """Return network settings in stable workbench/interface order."""
+
+    return (
+        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000),
+        CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "can1", 500_000),
+        CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "can2", 500_000),
+    )
 
 
 @dataclass(frozen=True)
@@ -51,9 +67,14 @@ class PlaceholderBmwIds:
 
 
 @dataclass(frozen=True)
+class SimulationConfig:
+    trace_capacity: int = 2_000
+
+
+@dataclass(frozen=True)
 class AppConfig:
-    can_interfaces: CanInterfaces = field(default_factory=CanInterfaces)
-    can_bitrates: CanBitrates = field(default_factory=CanBitrates)
+    can_networks: tuple[CanNetworkConfig, ...] = field(default_factory=default_can_networks)
+    simulation: SimulationConfig = field(default_factory=SimulationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     strobe: StrobeConfig = field(default_factory=StrobeConfig)
@@ -62,4 +83,3 @@ class AppConfig:
 
 def default_config() -> AppConfig:
     return AppConfig()
-

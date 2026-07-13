@@ -5,13 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from e87canbus.application.events import SteeringMode
+from e87canbus.config import CanNetwork
+
+
+def _empty_can_health() -> dict[CanNetwork, float | None]:
+    return {network: None for network in CanNetwork}
 
 
 @dataclass
 class CanHealth:
-    latest_kcan_rx_monotonic_s: float | None = None
-    latest_fcan_rx_monotonic_s: float | None = None
-    latest_custom_rx_monotonic_s: float | None = None
+    latest_rx_monotonic_s: dict[CanNetwork, float | None] = field(
+        default_factory=_empty_can_health
+    )
+
+    def record_receive(self, network: CanNetwork, monotonic_s: float) -> None:
+        self.latest_rx_monotonic_s[network] = monotonic_s
 
 
 @dataclass

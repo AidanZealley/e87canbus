@@ -1,11 +1,22 @@
-from e87canbus.config import default_config
+from e87canbus.config import CanNetwork, default_config
 
 
-def test_default_can_bitrates() -> None:
+def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
     config = default_config()
 
-    assert config.can_bitrates.kcan == 100_000
-    assert config.can_bitrates.fcan == 500_000
+    assert [item.network for item in config.can_networks] == [
+        CanNetwork.KCAN,
+        CanNetwork.PTCAN,
+        CanNetwork.FCAN,
+    ]
+    assert [item.label for item in config.can_networks] == ["K-CAN", "PT-CAN", "F-CAN"]
+    assert [item.interface for item in config.can_networks] == ["can0", "can1", "can2"]
+    assert [item.bitrate for item in config.can_networks] == [100_000, 500_000, 500_000]
+    assert all(item.enabled for item in config.can_networks)
+
+
+def test_default_simulation_trace_capacity() -> None:
+    assert default_config().simulation.trace_capacity == 2_000
 
 
 def test_custom_can_ids() -> None:
@@ -17,4 +28,3 @@ def test_custom_can_ids() -> None:
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
-

@@ -4,6 +4,11 @@ Hardware-aware, locally testable software for a track-only BMW E87 CAN bus proje
 
 Current milestone: the hardware-independent application controller owns runtime state and is exercised through the visual simulator. NeoTrellis button `0` toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered manual level, and button `3` toggles a reversible maximum-assistance override. Together these steering controls populate the full top row. The bench CAN ping-pong remains available for hardware validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain out of scope.
 
+The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
+PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated car have an
+endpoint on all three. The NeoTrellis and placeholder steering controller attach only to K-CAN.
+The simulator does not forward traffic between networks.
+
 ## Layout
 
 - `coordinator/` - central Raspberry Pi application and its tests.
@@ -52,7 +57,15 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-In the workbench, press NeoTrellis button `0` to toggle the authoritative steering mode. Buttons `1` and `2` enter Manual at the last runtime manual level, then decrement or increment within the configured bounds. Button `3` enters Manual at maximum assistance and pressing it again restores the prior mode and manual level. Pressing `1` or `2` during the maximum override instead returns to Manual at the saved level; the next press adjusts it normally. The mode LED is blue for Auto or amber for Manual, while button `3` is white when its override is active. Manual level memory is currently process-local and is reset on coordinator or Pi restart.
+In the workbench, the topology panel shows all three networks and the chronological trace can be
+filtered by network without another API request. Press NeoTrellis button `0` to toggle the
+authoritative steering mode. Buttons `1` and `2` enter Manual at the last runtime manual level,
+then decrement or increment within the configured bounds. Button `3` enters Manual at maximum
+assistance and pressing it again restores the prior mode and manual level. Pressing `1` or `2`
+during the maximum override instead returns to Manual at the saved level; the next press adjusts
+it normally. The mode LED is blue for Auto or amber for Manual, while button `3` is white when its
+override is active. Manual level memory is currently process-local and is reset on coordinator or
+Pi restart.
 
 Run the bench ping-pong app on a Pi with `can0` up:
 
@@ -107,4 +120,9 @@ pio run
 
 ## Safety Status
 
-Live CAN transmit, DSC replay, high-beam K-CAN commands, and Servotronic PWM/current output are intentionally not implemented yet. Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated as confirmed.
+Live CAN transmit, DSC replay, high-beam K-CAN commands, and Servotronic PWM/current output are intentionally not implemented yet. Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated as confirmed. Future simulated speed, RPM, lighting, oil-temperature, and coolant-temperature inputs must be represented as real network-specific CAN frames and decoded through the same coordinator routing path; there is no simulator-only state injection boundary.
+
+The bench-only `0x700`/`0x701` IDs are provisional and require collision checks against a real
+K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
+the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
+The current button-pad firmware transmits automatically and must not be connected to the car.

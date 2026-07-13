@@ -1,14 +1,25 @@
 import pytest
-from e87canbus.config import CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     CanFrame,
     LedUpdatePayload,
+    RoutedCanFrame,
     decode_button_event,
     decode_led_update,
     encode_button_event,
     encode_led_update,
 )
+
+
+def test_routed_envelope_preserves_network_without_mutating_frame() -> None:
+    frame = CanFrame(0x123, b"\x01\x02")
+
+    routed = RoutedCanFrame(CanNetwork.PTCAN, frame)
+
+    assert routed.network is CanNetwork.PTCAN
+    assert routed.frame is frame
+    assert not hasattr(frame, "network")
 
 
 def test_encode_and_decode_arduino_button_event() -> None:

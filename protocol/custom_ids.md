@@ -1,6 +1,7 @@
 # Custom CAN IDs
 
-These IDs are for the private coordinator-to-device project bus. They are not BMW bus IDs.
+These provisional project messages run on K-CAN; there is no private project bus. They are enabled
+only in simulation and bench tooling in this milestone.
 
 | ID | Direction | Purpose | Payload |
 |---|---|---|---|
@@ -26,3 +27,7 @@ These IDs are for the private coordinator-to-device project bus. They are not BM
 | `0x05` | white |
 
 `devices/button-pad/include/can_ids.h` must manually mirror this document.
+
+`0x700` and `0x701` require collision validation against a real K-CAN capture before any in-car
+transmission. Their location in the high standard-ID range is not evidence that they are unused by
+the vehicle.

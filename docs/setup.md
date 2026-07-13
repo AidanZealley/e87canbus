@@ -53,7 +53,7 @@ Upload to the button-pad controller connected over USB:
 Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT v2.1:
 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
-- `can0` at `500000`
+- `can0` at `100000`
 
 Bootstrap Raspberry Pi OS Lite with:
 
@@ -66,3 +66,6 @@ Manually bring up bench CAN:
 ```bash
 sudo ./scripts/bench_can_up.sh
 ```
+
+The bootstrap and bench helpers intentionally configure only this single 100 kbit/s interface.
+Three-interface live bring-up and a live vehicle coordinator process are not part of this milestone.

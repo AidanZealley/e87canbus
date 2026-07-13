@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { AlertTriangleIcon } from "lucide-react"
 
 import {
@@ -12,13 +12,19 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CanTraceTable } from "./components/can-trace-table"
 import { FrameDetail } from "./components/frame-detail"
+import { NetworkTopology } from "./components/network-topology"
 import {
   NeoTrellisPanel,
   type NeoTrellisButton,
 } from "./components/neo-trellis-panel"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SteeringStatus } from "./components/steering-status"
-import type { CanTraceEntry, SimulatorEvent, SimulatorSnapshot } from "./types"
+import type {
+  CanNetwork,
+  CanTraceEntry,
+  SimulatorEvent,
+  SimulatorSnapshot,
+} from "./types"
 
 const emptySnapshot: SimulatorSnapshot = {
   application: {
@@ -30,16 +36,22 @@ const emptySnapshot: SimulatorSnapshot = {
   },
   next_pressed: true,
   led_colours: {},
+  networks: [],
   trace: [],
 }
 
+const allNetworks: CanNetwork[] = ["kcan", "ptcan", "fcan"]
+
 export const SimulatorWorkbench = () => {
   const [snapshot, setSnapshot] = useState<SimulatorSnapshot>(emptySnapshot)
-  const [selectedFrame, setSelectedFrame] = useState<CanTraceEntry | null>(null)
+  const [selectedSequence, setSelectedSequence] = useState<number | null>(null)
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
+  const [selectedNetworks, setSelectedNetworks] = useState<Set<CanNetwork>>(
+    new Set(allNetworks)
+  )
 
   const applySnapshot = useCallback((next: SimulatorSnapshot) => {
     const application = next.application ?? emptySnapshot.application
@@ -53,19 +65,16 @@ export const SimulatorWorkbench = () => {
       )
     }
 
-    setSelectedFrame((current) => {
-      const latest = normalized.trace.at(-1) ?? null
-
-      if (!current) return latest
-
-      return (
-        normalized.trace.find(
-          (entry) => entry.monotonic_s === current.monotonic_s
-        ) ??
-        latest
-      )
-    })
   }, [])
+
+  const visibleTrace = useMemo(
+    () => snapshot.trace.filter((entry) => selectedNetworks.has(entry.network)),
+    [selectedNetworks, snapshot.trace]
+  )
+  const selectedFrame =
+    visibleTrace.find((entry) => entry.sequence === selectedSequence) ??
+    visibleTrace.at(-1) ??
+    null
 
   useEffect(() => {
     void getSnapshot()
@@ -183,12 +192,37 @@ export const SimulatorWorkbench = () => {
           <SteeringStatus application={snapshot.application} />
         </div>
 
+        <NetworkTopology networks={snapshot.networks} />
+
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <CanTraceTable
-            trace={snapshot.trace}
+            trace={visibleTrace}
+            totalCount={snapshot.trace.length}
+            networks={snapshot.networks}
+            selectedNetworks={selectedNetworks}
             selected={selectedFrame}
             autoScroll={autoScroll}
-            onSelect={setSelectedFrame}
+            onSelect={(entry: CanTraceEntry) =>
+              setSelectedSequence(entry.sequence)
+            }
+            onToggleNetwork={(network) => {
+              const next = new Set(selectedNetworks)
+              if (next.has(network)) next.delete(network)
+              else next.add(network)
+
+              const nextVisible = snapshot.trace.filter((entry) =>
+                next.has(entry.network)
+              )
+              if (
+                !selectedFrame ||
+                !nextVisible.some(
+                  (entry) => entry.sequence === selectedFrame.sequence
+                )
+              ) {
+                setSelectedSequence(nextVisible.at(-1)?.sequence ?? null)
+              }
+              setSelectedNetworks(next)
+            }}
           />
           <FrameDetail frame={selectedFrame} />
         </section>

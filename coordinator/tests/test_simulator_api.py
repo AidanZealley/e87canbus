@@ -41,6 +41,32 @@ def test_snapshot() -> None:
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
     assert response.json()["led_colours"] == {"0": 3, "3": 0}
+    assert response.json()["networks"] == [
+        {
+            "id": "kcan",
+            "label": "K-CAN",
+            "interface": "can0",
+            "bitrate": 100000,
+            "connected": True,
+            "nodes": ["pi", "simulated-car", "neotrellis", "steering-controller"],
+        },
+        {
+            "id": "ptcan",
+            "label": "PT-CAN",
+            "interface": "can1",
+            "bitrate": 500000,
+            "connected": True,
+            "nodes": ["pi", "simulated-car"],
+        },
+        {
+            "id": "fcan",
+            "label": "F-CAN",
+            "interface": "can2",
+            "bitrate": 500000,
+            "connected": True,
+            "nodes": ["pi", "simulated-car"],
+        },
+    ]
 
 
 def test_reset() -> None:
@@ -64,6 +90,8 @@ def test_press_button() -> None:
     assert response.json()["application"]["steering_mode"] == "manual"
     assert response.json()["led_colours"] == {"0": 4, "3": 0}
     assert response.json()["trace"][0]["arbitration_id_hex"] == "0x700"
+    assert response.json()["trace"][0]["sequence"] == 1
+    assert response.json()["trace"][0]["network"] == "kcan"
 
 
 def test_release_button() -> None:
@@ -103,3 +131,18 @@ def test_websocket_receives_initial_snapshot() -> None:
 
     assert event["type"] == "snapshot"
     assert event["snapshot"]["trace"] == []
+
+
+def test_websocket_frame_events_include_network_metadata() -> None:
+    client = make_client()
+
+    with client.websocket_connect("/ws") as websocket:
+        websocket.receive_json()
+        response = client.post("/api/buttons/0/press")
+        assert response.status_code == 200
+        websocket.receive_json()  # command snapshot
+        frame_event = websocket.receive_json()
+
+    assert frame_event["type"] == "frame"
+    assert frame_event["sequence"] == 1
+    assert frame_event["network"] == "kcan"

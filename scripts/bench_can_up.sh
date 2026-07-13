@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CAN_INTERFACE="${CAN_INTERFACE:-can0}"
-BITRATE="${BITRATE:-500000}"
+BITRATE="${BITRATE:-100000}"
 
 sudo ip link set "${CAN_INTERFACE}" down || true
 sudo ip link set "${CAN_INTERFACE}" type can bitrate "${BITRATE}" restart-ms 100

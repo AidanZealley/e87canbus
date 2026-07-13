@@ -27,20 +27,30 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { CanTraceEntry } from "../../types"
+import { NetworkFilters } from "../network-filters"
+import type { CanNetwork, NetworkStatus } from "../../types"
 import { decodeMeaning } from "./utils"
 
 type CanTraceTableProps = {
   trace: CanTraceEntry[]
+  totalCount: number
+  networks: NetworkStatus[]
+  selectedNetworks: Set<CanNetwork>
   selected: CanTraceEntry | null
   autoScroll: boolean
   onSelect: (entry: CanTraceEntry) => void
+  onToggleNetwork: (network: CanNetwork) => void
 }
 
 export const CanTraceTable = ({
   trace,
+  totalCount,
+  networks,
+  selectedNetworks,
   selected,
   autoScroll,
   onSelect,
+  onToggleNetwork,
 }: CanTraceTableProps) => {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
 
@@ -63,6 +73,13 @@ export const CanTraceTable = ({
       </CardHeader>
 
       <CardContent>
+        <div className="mb-3">
+          <NetworkFilters
+            networks={networks}
+            selected={selectedNetworks}
+            onToggle={onToggleNetwork}
+          />
+        </div>
         {trace.length > 0 ? (
           <ScrollArea
             ref={scrollAreaRef}
@@ -72,6 +89,7 @@ export const CanTraceTable = ({
               <TableHeader className="sticky top-0 bg-card">
                 <TableRow>
                   <TableHead className="w-24">Time</TableHead>
+                  <TableHead className="w-20">Network</TableHead>
                   <TableHead className="w-24">Source</TableHead>
                   <TableHead className="w-20">ID</TableHead>
                   <TableHead className="w-28">Data</TableHead>
@@ -79,15 +97,18 @@ export const CanTraceTable = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {trace.map((entry, index) => (
+                {trace.map((entry) => (
                   <TableRow
-                    key={`${entry.monotonic_s}-${entry.source}-${entry.data_hex}-${index}`}
-                    data-state={selected === entry ? "selected" : undefined}
+                    key={entry.sequence}
+                    data-state={selected?.sequence === entry.sequence ? "selected" : undefined}
                     className="cursor-pointer"
                     onClick={() => onSelect(entry)}
                   >
                     <TableCell className="font-mono text-xs">
                       {entry.monotonic_s.toFixed(3)}
+                    </TableCell>
+                    <TableCell className="font-medium uppercase">
+                      {entry.network.replace("can", "-CAN")}
                     </TableCell>
                     <TableCell>{entry.source}</TableCell>
                     <TableCell className="font-mono">
@@ -121,6 +142,7 @@ export const CanTraceTable = ({
       <CardFooter>
         <p className="text-xs text-muted-foreground">
           {trace.length} {trace.length === 1 ? "frame" : "frames"} captured
+          {trace.length !== totalCount ? ` · ${totalCount} total` : ""}
         </p>
       </CardFooter>
     </Card>

@@ -8,3 +8,7 @@ directories after the device's purpose, not its current microcontroller family.
 
 Device firmware should own hardware scanning, fast local control, watchdogs, and failsafe behavior.
 The coordinator owns vehicle-level decisions and sends desired state over CAN.
+
+The button-pad milestone firmware automatically transmits test traffic and is bench-only. Do not
+attach it to the car. Both planned custom devices ultimately attach to K-CAN at 100 kbit/s, subject
+to collision, transceiver, termination, bitrate, isolation, and grounding validation.

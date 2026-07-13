@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from e87canbus.config import CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     CanBus,
@@ -69,3 +69,33 @@ class SimulatedNeoTrellisNode:
                 exc,
             )
             return None
+
+
+@dataclass
+class SimulatedCar:
+    """Placeholder car composition with one passive endpoint per BMW network."""
+
+    buses: dict[CanNetwork, CanBus]
+
+    def drain_pending(self) -> int:
+        drained = 0
+        for network in CanNetwork:
+            bus = self.buses.get(network)
+            if bus is None:
+                continue
+            while bus.receive(timeout_s=0) is not None:
+                drained += 1
+        return drained
+
+
+@dataclass
+class SimulatedSteeringControllerNode:
+    """K-CAN placeholder until a verified steering wire protocol exists."""
+
+    bus: CanBus
+
+    def drain_pending(self) -> int:
+        drained = 0
+        while self.bus.receive(timeout_s=0) is not None:
+            drained += 1
+        return drained

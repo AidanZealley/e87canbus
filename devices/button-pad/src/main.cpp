@@ -5,7 +5,7 @@
 #include "can_ids.h"
 
 static const uint8_t CAN_CS_PIN = 10;
-static const uint32_t CAN_SPEED = CAN_500KBPS;
+static const uint32_t CAN_SPEED = CAN_100KBPS;
 static const uint32_t SEND_INTERVAL_MS = 1000;
 
 MCP_CAN canBus(CAN_CS_PIN);
@@ -72,12 +72,12 @@ void setup() {
     if (status != CAN_OK) {
         Serial.print("CAN init failed status=");
         Serial.println(status);
-        Serial.println("check MCP2515 wiring, CS pin 10, bitrate 500000, and module clock");
+        Serial.println("check MCP2515 wiring, CS pin 10, bitrate 100000, and module clock");
         return;
     }
 
     canBus.setMode(MCP_NORMAL);
-    Serial.println("CAN init ok");
+    Serial.println("CAN init ok at 100000 bit/s (bench-only auto-transmit firmware)");
 }
 
 void loop() {

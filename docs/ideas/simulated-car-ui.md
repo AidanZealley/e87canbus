@@ -161,7 +161,7 @@ continue safely if Chromium, the touchscreen, or the frontend process stops.
 Simulation can validate:
 
 - Application architecture and state transitions.
-- CAN encoding/decoding for the private project protocol.
+- Network-scoped CAN encoding/decoding for the provisional K-CAN project protocol.
 - Button mappings, modes, LED behavior, timing plans, and warning logic.
 - Steering-curve calculations and target generation.
 - Startup, reconnection, timeout, stale-data, and fault handling.

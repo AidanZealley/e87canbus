@@ -64,7 +64,21 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket stream. The simulator routes button frames through the same hardware-independent application controller intended for the real Pi runtime.
+The workbench owns one in-memory simulator session and exposes it through REST plus a WebSocket
+stream. Its transport-neutral `CoordinatorRuntime` is the same per-frame routing and application
+boundary intended for a future Pi runner.
+
+It models three independent CAN broadcast domains:
+
+| Network | Interface | Bitrate | Nodes |
+|---|---|---:|---|
+| K-CAN | `can0` | 100,000 | Pi, simulated car, NeoTrellis, steering controller |
+| PT-CAN | `can1` | 500,000 | Pi, simulated car |
+| F-CAN | `can2` | 500,000 | Pi, simulated car |
+
+There is no automatic gateway behavior. Every emitted frame is retained in one chronological
+2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
+and reset clears the trace while retaining topology configuration and filter choices.
 
 Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and the button becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
 
@@ -107,9 +121,16 @@ CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
 
 ## Safety Boundary
 
-The simulator currently models only the private project protocol:
+The simulator currently decodes only the provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
 - `0x701`: coordinator LED update.
 
-It does not simulate verified BMW vehicle control traffic. Placeholder BMW IDs remain notes only and must not be used as replay commands until real captures, counters, and payload behavior have been verified.
+The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700` and `0x701` require collision
+validation against a real K-CAN capture before any in-car transmission.
+
+It does not simulate verified BMW vehicle control traffic. Placeholder BMW IDs remain notes only
+and must not be used as replay commands until real captures, counters, and payload behavior have
+been verified. Future simulated speed, RPM, lights, oil temperature, and coolant temperature must
+be encoded as real network-specific CAN frames and pass through the central protocol decoder; no
+simulator-only coordinator API may bypass the buses.

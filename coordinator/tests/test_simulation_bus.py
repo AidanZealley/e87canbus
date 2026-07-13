@@ -1,5 +1,6 @@
+from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame
-from e87canbus.simulation.bus import InMemoryCanNetwork
+from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 
 
 def test_sending_delivers_to_other_bus() -> None:
@@ -72,3 +73,55 @@ def test_create_bus_rejects_duplicate_name() -> None:
         assert "bus already exists" in str(exc)
     else:
         raise AssertionError("expected duplicate bus name to be rejected")
+
+
+def test_topology_keeps_networks_isolated_and_allows_same_node_name() -> None:
+    topology = InMemoryCanTopology()
+    kcan_pi = topology.create_bus(CanNetwork.KCAN, "pi")
+    kcan_peer = topology.create_bus(CanNetwork.KCAN, "peer")
+    ptcan_pi = topology.create_bus(CanNetwork.PTCAN, "pi")
+    ptcan_peer = topology.create_bus(CanNetwork.PTCAN, "peer")
+    frame = CanFrame(0x321, b"\xaa")
+
+    kcan_pi.send(frame)
+
+    assert kcan_peer.receive(timeout_s=0) == frame
+    assert ptcan_pi.receive(timeout_s=0) is None
+    assert ptcan_peer.receive(timeout_s=0) is None
+
+
+def test_topology_trace_is_globally_ordered_across_networks() -> None:
+    topology = InMemoryCanTopology()
+    ptcan = topology.create_bus(CanNetwork.PTCAN, "simulated-car")
+    kcan = topology.create_bus(CanNetwork.KCAN, "neotrellis")
+    fcan = topology.create_bus(CanNetwork.FCAN, "simulated-car")
+
+    ptcan.send(CanFrame(0x100, b"\x01"))
+    kcan.send(CanFrame(0x101, b"\x02"))
+    fcan.send(CanFrame(0x102, b"\x03"))
+
+    trace = topology.trace()
+    assert [entry.sequence for entry in trace] == [1, 2, 3]
+    assert [entry.network for entry in trace] == [
+        CanNetwork.PTCAN,
+        CanNetwork.KCAN,
+        CanNetwork.FCAN,
+    ]
+    assert list(trace) == sorted(trace, key=lambda entry: entry.monotonic_s)
+
+
+def test_topology_uses_one_global_ring_buffer_and_clear_resets_sequence() -> None:
+    topology = InMemoryCanTopology(trace_capacity=2)
+    kcan = topology.create_bus(CanNetwork.KCAN, "pi")
+    ptcan = topology.create_bus(CanNetwork.PTCAN, "pi")
+
+    kcan.send(CanFrame(0x100, b""))
+    ptcan.send(CanFrame(0x101, b""))
+    kcan.send(CanFrame(0x102, b""))
+
+    assert [entry.sequence for entry in topology.trace()] == [2, 3]
+
+    topology.clear_trace()
+    ptcan.send(CanFrame(0x103, b""))
+
+    assert [entry.sequence for entry in topology.trace()] == [1]

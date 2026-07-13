@@ -1,11 +1,24 @@
+export type CanNetwork = "kcan" | "ptcan" | "fcan"
+
 export type CanTraceEntry = {
   type: "frame"
+  sequence: number
+  network: CanNetwork
   source: string
   arbitration_id: number
   arbitration_id_hex: string
   data_hex: string
   is_extended_id: boolean
   monotonic_s: number
+}
+
+export type NetworkStatus = {
+  id: CanNetwork
+  label: string
+  interface: string
+  bitrate: number
+  connected: boolean
+  nodes: string[]
 }
 
 export type ApplicationSnapshot = {
@@ -20,6 +33,7 @@ export type SimulatorSnapshot = {
   application: ApplicationSnapshot
   next_pressed: boolean
   led_colours: Record<string, number>
+  networks: NetworkStatus[]
   trace: CanTraceEntry[]
 }
 

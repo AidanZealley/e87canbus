@@ -141,9 +141,10 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 
 | Device | Role | Bus connection |
 |---|---|---|
-| Raspberry Pi Zero 2W + CAN HAT | Central hub, runs all logic | K-CAN (HAT #1), F-CAN (HAT #2 or USB CANable) |
-| Arduino (small CAN board) | Button matrix node | Custom CAN bus (Pi ↔ Arduino) |
+| Raspberry Pi Zero 2W + CAN interfaces | Central hub, runs all logic | K-CAN, PT-CAN, and F-CAN |
+| Arduino (small CAN board) | Button matrix node | K-CAN |
 | Adafruit NeoTrellis | RGB button matrix input/output | Via Arduino (I2C) |
+| Steering controller | Future Servotronic actuator node | K-CAN |
 | Current driver IC (VNH5019 / DRV8871) | Solenoid driver | GPIO PWM from Pi |
 | Servotronic solenoid | Steering assistance actuator | Driven by current driver IC |
 
@@ -151,8 +152,9 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 
 - MCP2515-based HATs are standard and well supported
 - Default clock config on most MCP2515 boards is 500k — must reconfigure to 100k for K-CAN
-- Two CAN interfaces needed on Pi: stack a second HAT or use a USB CANable adapter as second interface
-- `python-can` treats both as separate named interfaces
+- Three CAN interfaces are planned on the Pi; hardware selection and physical compatibility remain
+  pending
+- `python-can` treats them as separate named interfaces (`can0`, `can1`, and `can2`)
 
 ### Power
 
@@ -163,19 +165,19 @@ Avoid scotchlocks. Avoid relying on the OBD port for permanent installation.
 ### Physical CAN Topology
 
 ```
-K-CAN (100k)  ──── Pi HAT #1
-                   Listens: MFL buttons
-                   Sends:   Light commands (strobe)
+K-CAN  (100k) ──── Pi ──── Arduino + NeoTrellis ──── Steering controller
+                   │
+                   └─────── Vehicle K-CAN nodes
 
-F-CAN (500k)  ──── Pi HAT #2 / USB CANable
-                   Listens: Wheel speed (0x1A0), DSC status
-                   Sends:   DSC toggle command
+PT-CAN (500k) ──── Pi ──── Vehicle PT-CAN nodes
+
+F-CAN  (500k) ──── Pi ──── Vehicle F-CAN nodes
 
 Pi GPIO (PWM) ──── Current driver IC ──── Servotronic solenoid
-
-Custom CAN    ──── Arduino + NeoTrellis button matrix
-(500k, IDs 0x700+)
 ```
+
+These are three independent physical networks. The coordinator does not automatically forward
+frames between them; future domain-level bridging must be explicit application behavior.
 
 ---
 
@@ -215,11 +217,12 @@ e87canbus/
   - `RPi.GPIO` or `pigpio` — PWM output to solenoid driver
 - **Concurrency model:** `asyncio` with `python-can`'s async interface (preferred over raw threads)
 
-**Three concurrent tasks:**
+**Future concurrent tasks:**
 
 ```python
 # Task 1 — CAN listener
 # K-CAN: watch for MFL button frames → push to event queue
+# PT-CAN: receive verified powertrain signals
 # F-CAN: read wheel speed → update shared state
 
 # Task 2 — Steering control loop (10–50ms tick)
@@ -258,9 +261,10 @@ lib_deps =
 - Send custom CAN message to Pi on button press/release (ID `0x700`, data byte = button index)
 - Receive CAN messages from Pi to update NeoTrellis LED colours/states
 
-### Custom CAN Message Protocol (Coordinator ↔ Button Pad)
+### Provisional K-CAN Message Protocol (Coordinator ↔ Button Pad)
 
-Use IDs in the `0x700–0x7FF` range to avoid collision with BMW IDs.
+The current bench and simulation use `0x700` and `0x701` on K-CAN. They must not be treated as
+collision-free merely because they are in the high standard-ID range.
 
 | ID | Direction | Description |
 |---|---|---|
@@ -268,6 +272,11 @@ Use IDs in the `0x700–0x7FF` range to avoid collision with BMW IDs.
 | `0x701` | Coordinator → button pad | LED state update (byte 0 = button index, byte 1 = colour code) |
 
 *Document full protocol in `protocol/custom_ids.md` — keep `can_ids.h` in the button-pad firmware in sync manually.*
+
+Validate both IDs against a real K-CAN capture before any in-car transmission. Future simulated
+speed, RPM, lighting, oil-temperature, and coolant-temperature signals must be encoded as real
+network-specific CAN frames and pass through the same protocol-routing path as physical traffic.
+No BMW DBC definition is verified or active in the current milestone.
 
 ---
 
@@ -293,6 +302,11 @@ Use IDs in the `0x700–0x7FF` range to avoid collision with BMW IDs.
 8. **Build solenoid driver circuit on bench** — measure solenoid resistance first, select IC, test PWM control independently
 9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages Pi ↔ Arduino in loopback
 10. **Integrate** — bring all systems together once each component is bench-tested
+
+Before connecting any project hardware to the car, verify custom-ID collisions, K-CAN-compatible
+transceivers, the termination strategy, actual vehicle bitrate, all firmware automatic-transmit
+behavior, electrical isolation, and grounding. The current button-pad test firmware transmits once
+per second and is bench-only.
 
 ---
 

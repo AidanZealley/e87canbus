@@ -24,6 +24,9 @@ pnpm dev
 The frontend defaults to `http://127.0.0.1:5173` and expects the API at
 `http://127.0.0.1:8000`. Override these with `VITE_API_BASE` and `VITE_WS_BASE`.
 
+The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
+Network filtering is local UI state and remains selected when the simulator is reset.
+
 ## Structure
 
 - `src/api/` — HTTP and WebSocket simulator client.
