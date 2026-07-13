@@ -11,7 +11,7 @@ including anywhere reality diverged from a phase doc.
 | 1 — Dead code deletion and boundary cleanup | done | 2026-07-13 |
 | 2 — Button dispatch table | done | 2026-07-13 |
 | 3 — Time axis | done | 2026-07-13 |
-| 4 — Transmit safety | not started | — |
+| 4 — Transmit safety | done | 2026-07-13 |
 | 5 — Simulator and API robustness | not started | — |
 | 6 — Live runner skeleton | not started | — |
 
@@ -103,3 +103,33 @@ should know. "Nothing" is a valid answer.
 **Discovered along the way:** Nothing.
 
 **Checks:** pytest 87 passed / mypy clean / ruff clean / frontend typecheck and lint clean
+
+## Phase 4 — Transmit safety (2026-07-13)
+
+**Result:** done with deviations
+
+**What changed:**
+
+- Added deny-by-default per-network TX configuration, with K-CAN as the only default grant, and
+  added the configured minimum-gap and rolling network-budget defaults.
+- Gated all runtime outputs on explicit TX grants and logged outputs dropped for ungranted
+  networks.
+- Added `RateLimitedCanBus`, which drops and warns instead of queueing repeated frames or frames
+  over the rolling one-second network budget, while passing receives through unchanged.
+- Wrapped only TX-enabled simulator Pi buses with the limiter and left simulated external devices
+  unrestricted.
+- Added deterministic unit coverage for both limits, window refill, receive passthrough, runtime
+  grants, and default denial, plus an end-to-end simulator flood test.
+- Documented the transmit safety boundary and its configuration in `docs/simulation.md` and
+  `coordinator/README.md`.
+
+**Deviations from the phase doc:** The minimum-gap key retains the arbitration ID but only drops a
+repeat when its full frame is unchanged; distinct payloads on the same ID are allowed and reset the
+gap. A literal per-ID gap dropped the application's two startup LED commands on shared ID `0x701`
+and broke the phase's behavior-preservation acceptance criterion, while the network budget still
+provides the hard aggregate flood limit.
+
+**Discovered along the way:** The existing LED protocol multiplexes independent button updates on
+one arbitration ID, which the phase doc's literal per-ID gap did not account for.
+
+**Checks:** pytest 95 passed / mypy clean / ruff clean

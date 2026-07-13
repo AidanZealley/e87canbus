@@ -13,6 +13,7 @@ def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
     assert [item.interface for item in config.can_networks] == ["can0", "can1", "can2"]
     assert [item.bitrate for item in config.can_networks] == [100_000, 500_000, 500_000]
     assert all(item.enabled for item in config.can_networks)
+    assert [item.network for item in config.can_networks if item.tx_enabled] == [CanNetwork.KCAN]
 
 
 def test_default_simulation_trace_capacity() -> None:
@@ -35,3 +36,10 @@ def test_default_tick_and_speed_timeout_intervals() -> None:
 
     assert config.tick_interval_s == 0.1
     assert config.steering.speed_timeout_s == 1.0
+
+
+def test_default_tx_policy() -> None:
+    policy = default_config().tx_policy
+
+    assert policy.min_id_gap_s == 0.05
+    assert policy.max_frames_per_s == 20

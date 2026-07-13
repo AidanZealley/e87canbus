@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.application.events import SpeedUpdateEvent, SteeringMode
-from e87canbus.config import CanNetwork, default_config
+from e87canbus.config import CanNetwork, TxPolicyConfig, default_config
 from e87canbus.protocol.can import LED_AMBER, LED_BLUE, LED_OFF, LED_WHITE, RoutedCanFrame
 from e87canbus.simulation.controller import SimulatorController
 
@@ -206,3 +206,20 @@ def test_controller_clock_is_used_for_runtime_health_and_trace() -> None:
     health = controller.application.state.can_health.latest_rx_monotonic_s
     assert health[CanNetwork.KCAN] == 8.5
     assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
+
+
+def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events() -> None:
+    clock = MutableClock()
+    config = replace(
+        default_config(),
+        tx_policy=TxPolicyConfig(min_id_gap_s=0.0, max_frames_per_s=3),
+    )
+    controller = SimulatorController(config=config, clock=clock)
+
+    for _ in range(4):
+        controller.press_button(0)
+        snapshot = controller.release_button(0)
+
+    sources = [entry.source for entry in snapshot.trace]
+    assert sources.count("neotrellis") == 8
+    assert sources.count("pi") == 1

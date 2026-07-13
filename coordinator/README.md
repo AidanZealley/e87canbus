@@ -23,4 +23,6 @@ The runtime receives buses keyed by K-CAN, PT-CAN, and F-CAN. Protocol decoding 
 network and arbitration ID, while application code remains independent of physical bus selection.
 Frames and periodic ticks dispatch application outputs through the same runtime path. Speed data is
 marked invalid after its configured timeout; no verified BMW speed decoder is configured yet. No
-live three-interface runner or automatic network gateway is included in this milestone.
+live three-interface runner or automatic network gateway is included in this milestone. Runtime
+transmission is denied by default and explicitly enabled per network with `tx_enabled`, behind the
+limits in `tx_policy`.

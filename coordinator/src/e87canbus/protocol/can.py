@@ -1,9 +1,17 @@
 """CAN I/O boundaries and project-specific custom frame helpers."""
 
+from __future__ import annotations
+
+import logging
+import time
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
+
+LOGGER = logging.getLogger(__name__)
 
 BUTTON_RELEASED = 0x00
 BUTTON_PRESSED = 0x01
@@ -36,6 +44,53 @@ class CanBus(Protocol):
 
     def receive(self, timeout_s: float | None = None) -> CanFrame | None:
         """Receive one CAN frame, or None on timeout."""
+
+
+class RateLimitedCanBus:
+    def __init__(
+        self,
+        bus: CanBus,
+        policy: TxPolicyConfig,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._bus = bus
+        self._policy = policy
+        self._clock = clock
+        self._last_send_by_id: dict[int, tuple[CanFrame, float]] = {}
+        self._send_times: deque[float] = deque()
+
+    def send(self, frame: CanFrame) -> None:
+        now = self._clock()
+        last_send = self._last_send_by_id.get(frame.arbitration_id)
+        if (
+            last_send is not None
+            and frame == last_send[0]
+            and now - last_send[1] < self._policy.min_id_gap_s
+        ):
+            # Dropping avoids hiding a flood or delivering stale commands later.
+            LOGGER.warning(
+                "dropped rate-limited CAN frame: id=0x%03x reason=minimum-id-gap",
+                frame.arbitration_id,
+            )
+            return
+
+        cutoff = now - 1.0
+        while self._send_times and self._send_times[0] < cutoff:
+            self._send_times.popleft()
+        if len(self._send_times) >= self._policy.max_frames_per_s:
+            # Dropping avoids hiding a flood or delivering stale commands later.
+            LOGGER.warning(
+                "dropped rate-limited CAN frame: id=0x%03x reason=network-budget",
+                frame.arbitration_id,
+            )
+            return
+
+        self._bus.send(frame)
+        self._last_send_by_id[frame.arbitration_id] = (frame, now)
+        self._send_times.append(now)
+
+    def receive(self, timeout_s: float | None = None) -> CanFrame | None:
+        return self._bus.receive(timeout_s)
 
 
 @dataclass(frozen=True)

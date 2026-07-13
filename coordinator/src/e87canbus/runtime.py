@@ -23,11 +23,13 @@ class CoordinatorRuntime:
         application: ApplicationController | None = None,
         router: ProtocolRouter | None = None,
         monotonic: Callable[[], float] = time.monotonic,
+        tx_networks: frozenset[CanNetwork] = frozenset(),
     ) -> None:
         self.buses = dict(buses)
         self.application = application or ApplicationController()
         self.router = router or ProtocolRouter()
         self._monotonic = monotonic
+        self._tx_networks = tx_networks
 
     def start(self) -> None:
         """Synchronize the application's authoritative output state."""
@@ -81,6 +83,14 @@ class CoordinatorRuntime:
                 routed = self.router.encode(output)
             except ValueError as exc:
                 LOGGER.warning("ignored unencodable application output: %s", exc)
+                continue
+
+            if routed.network not in self._tx_networks:
+                LOGGER.warning(
+                    "dropped output for tx-disabled network: network=%s id=0x%03x",
+                    routed.network.value,
+                    routed.frame.arbitration_id,
+                )
                 continue
 
             bus = self.buses.get(routed.network)

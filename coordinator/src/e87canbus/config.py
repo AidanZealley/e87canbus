@@ -21,13 +21,14 @@ class CanNetworkConfig:
     interface: str
     bitrate: int
     enabled: bool = True
+    tx_enabled: bool = False
 
 
 def default_can_networks() -> tuple[CanNetworkConfig, ...]:
     """Return network settings in stable workbench/interface order."""
 
     return (
-        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000),
+        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000, tx_enabled=True),
         CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "can1", 500_000),
         CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "can2", 500_000),
     )
@@ -66,12 +67,19 @@ class SimulationConfig:
 
 
 @dataclass(frozen=True)
+class TxPolicyConfig:
+    min_id_gap_s: float = 0.05
+    max_frames_per_s: int = 20
+
+
+@dataclass(frozen=True)
 class AppConfig:
     can_networks: tuple[CanNetworkConfig, ...] = field(default_factory=default_can_networks)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
+    tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1
 
 

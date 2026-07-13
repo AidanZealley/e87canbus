@@ -16,7 +16,9 @@ from e87canbus.protocol.can import (
     LED_OFF,
     LED_RED,
     LED_WHITE,
+    CanBus,
     LedUpdatePayload,
+    RateLimitedCanBus,
 )
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import CoordinatorRuntime
@@ -177,9 +179,17 @@ class SimulatorController:
         )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
 
-        self.pi_buses = {
-            item.network: self.topology.create_bus(item.network, "pi") for item in enabled
-        }
+        tx_networks = frozenset(
+            item.network for item in self.config.can_networks if item.tx_enabled
+        )
+        self.pi_buses: dict[CanNetwork, CanBus] = {}
+        for item in enabled:
+            bus = self.topology.create_bus(item.network, "pi")
+            self.pi_buses[item.network] = (
+                RateLimitedCanBus(bus, self.config.tx_policy, self._clock)
+                if item.tx_enabled
+                else bus
+            )
         car_buses = {
             item.network: self.topology.create_bus(item.network, "simulated-car")
             for item in self.config.can_networks
@@ -200,6 +210,7 @@ class SimulatorController:
             application=self.application,
             router=ProtocolRouter(self.ids),
             monotonic=self._clock,
+            tx_networks=tx_networks,
         )
 
         self.runtime.start()

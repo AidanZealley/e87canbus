@@ -73,6 +73,7 @@ def test_runtime_processes_kcan_button_and_returns_led_on_kcan() -> None:
         {CanNetwork.KCAN: kcan, CanNetwork.PTCAN: ptcan},
         router=ProtocolRouter(ids),
         monotonic=lambda: 12.5,
+        tx_networks=frozenset({CanNetwork.KCAN}),
     )
 
     assert runtime.drain_pending() == 1
@@ -96,7 +97,11 @@ def test_unknown_and_malformed_frames_do_not_stop_runtime(
             CanFrame(ids.button_event, b"\x00\x01"),
         ]
     )
-    runtime = CoordinatorRuntime({CanNetwork.KCAN: bus}, router=ProtocolRouter(ids))
+    runtime = CoordinatorRuntime(
+        {CanNetwork.KCAN: bus},
+        router=ProtocolRouter(ids),
+        tx_networks=frozenset({CanNetwork.KCAN}),
+    )
 
     with caplog.at_level(logging.WARNING):
         assert runtime.drain_pending() == 3
@@ -108,7 +113,10 @@ def test_unknown_and_malformed_frames_do_not_stop_runtime(
 def test_unavailable_output_network_is_logged_and_does_not_crash(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    runtime = CoordinatorRuntime({CanNetwork.PTCAN: FakeBus()})
+    runtime = CoordinatorRuntime(
+        {CanNetwork.PTCAN: FakeBus()},
+        tx_networks=frozenset({CanNetwork.KCAN}),
+    )
 
     with caplog.at_level(logging.WARNING):
         runtime.start()
@@ -122,11 +130,28 @@ def test_runtime_tick_sends_application_outputs() -> None:
         {CanNetwork.KCAN: bus},
         application=TickOutputApplication(),
         monotonic=lambda: 4.0,
+        tx_networks=frozenset({CanNetwork.KCAN}),
     )
 
     runtime.tick()
 
     assert bus.sent == [CanFrame(CustomCanIds().led_update, b"\x00\x03")]
+
+
+def test_runtime_drops_output_when_tx_is_not_granted(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bus = FakeBus()
+    runtime = CoordinatorRuntime(
+        {CanNetwork.KCAN: bus},
+        application=TickOutputApplication(),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        runtime.tick()
+
+    assert bus.sent == []
+    assert "dropped output for tx-disabled network" in caplog.text
 
 
 def test_speed_staleness_transitions_fresh_to_stale_and_fresh_again() -> None:

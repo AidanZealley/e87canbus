@@ -126,6 +126,14 @@ CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
 
 ## Safety Boundary
 
+### Transmit safety
+
+Coordinator transmission is denied by default. Each network must opt in with
+`CanNetworkConfig.tx_enabled`, and every TX-enabled coordinator bus is limited by
+`AppConfig.tx_policy.min_id_gap_s` and `max_frames_per_s`. The simulator uses the same gate as the
+runtime: excess coordinator frames are dropped, while simulated external devices remain
+unrestricted.
+
 The simulator currently decodes only the provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
