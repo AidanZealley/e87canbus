@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
@@ -55,8 +56,8 @@ class SteeringConfig:
     def __post_init__(self) -> None:
         if self.manual_level_count < 1:
             raise ValueError("manual_level_count must be positive")
-        if self.speed_timeout_s <= 0:
-            raise ValueError("speed_timeout_s must be positive")
+        if not math.isfinite(self.speed_timeout_s) or self.speed_timeout_s <= 0:
+            raise ValueError("speed_timeout_s must be finite and positive")
         if not self.auto_assistance_curve:
             raise ValueError("auto_assistance_curve must not be empty")
         if any(not 0.0 <= assistance <= 1.0 for _, assistance in self.auto_assistance_curve):
@@ -76,14 +77,23 @@ class SimulationConfig:
     trace_capacity: int = 2_000
     command_queue_capacity: int = 64
     steering_watchdog_timeout_s: float = 0.25
+    websocket_send_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
             raise ValueError("simulation trace capacity must be positive")
         if self.command_queue_capacity < 1:
             raise ValueError("simulation command queue capacity must be positive")
-        if self.steering_watchdog_timeout_s <= 0:
-            raise ValueError("simulation steering watchdog timeout must be positive")
+        if (
+            not math.isfinite(self.steering_watchdog_timeout_s)
+            or self.steering_watchdog_timeout_s <= 0
+        ):
+            raise ValueError("simulation steering watchdog timeout must be finite and positive")
+        if (
+            not math.isfinite(self.websocket_send_timeout_s)
+            or self.websocket_send_timeout_s <= 0
+        ):
+            raise ValueError("simulation WebSocket send timeout must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -92,8 +102,8 @@ class TxPolicyConfig:
     max_frames_per_network_window: int = 20
 
     def __post_init__(self) -> None:
-        if self.network_window_s <= 0:
-            raise ValueError("TX policy window must be positive")
+        if not math.isfinite(self.network_window_s) or self.network_window_s <= 0:
+            raise ValueError("TX policy window must be finite and positive")
         if self.max_frames_per_network_window < 1:
             raise ValueError("TX policy frame limit must be positive")
 
@@ -111,10 +121,15 @@ class AppConfig:
     runtime_queue_latency_warning_s: float = 0.1
 
     def __post_init__(self) -> None:
+        if not math.isfinite(self.tick_interval_s) or self.tick_interval_s <= 0:
+            raise ValueError("tick_interval_s must be finite and positive")
         if self.runtime_inbox_capacity < 1:
             raise ValueError("runtime_inbox_capacity must be positive")
-        if self.runtime_queue_latency_warning_s < 0:
-            raise ValueError("runtime_queue_latency_warning_s must be non-negative")
+        if (
+            not math.isfinite(self.runtime_queue_latency_warning_s)
+            or self.runtime_queue_latency_warning_s < 0
+        ):
+            raise ValueError("runtime_queue_latency_warning_s must be finite and non-negative")
 
 
 def default_config() -> AppConfig:

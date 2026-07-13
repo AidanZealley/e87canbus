@@ -26,6 +26,7 @@ from e87canbus.simulation.engine import (
     SimulationEngine,
     SimulationSessionFailed,
     StepButton,
+    snapshot_to_dict,
 )
 
 TEST_SIMULATOR_CONFIG = replace(
@@ -64,6 +65,36 @@ class FailingSteeringController(SimulatedSteeringController):
         super().set_assistance(command)
 
 
+class RejectingSteeringController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.attempts = 0
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.attempts += 1
+        raise OSError(f"actuator rejected attempt {self.attempts}")
+
+
+class RejectingShutdownController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.attempts = 0
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        self.attempts += 1
+        if command.reason is SteeringCommandReason.SHUTDOWN:
+            raise OSError("actuator rejected shutdown")
+        super().set_assistance(command)
+
+
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
     controller = build_test_engine()
 
@@ -80,6 +111,20 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     )
     assert snapshot.steering_controller.watchdog_timed_out is False
     assert snapshot.trace == ()
+
+
+def test_first_startup_command_failure_has_serializable_fatal_snapshot() -> None:
+    engine = build_test_engine(steering_controller_factory=RejectingSteeringController)
+
+    snapshot = engine.snapshot()
+    serialized = snapshot_to_dict(snapshot, include_trace=True)
+
+    assert (snapshot.revision, snapshot.fatal) == (2, True)
+    assert snapshot.steering_controller.effective_assistance == 0.0
+    assert snapshot.steering_controller.last_command_reason is None
+    assert snapshot.steering_controller.watchdog_timed_out is True
+    assert serialized["steering_controller"]["last_command_reason"] is None
+    assert engine.steering_controller.attempts == 2
 
 
 def test_pressing_button_creates_button_event_frame() -> None:
@@ -134,7 +179,9 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert next_snapshot.trace[0].sequence == 1
 
 
-def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy() -> None:
+def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     clock = MutableClock()
     controllers: list[FailingSteeringController] = []
 
@@ -151,7 +198,8 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy() -> None
         steering_controller_factory=build_controller,
     )
 
-    failure_result = engine.execute(RunControlTimer(1.0))
+    with caplog.at_level("ERROR"):
+        failure_result = engine.execute(RunControlTimer(1.0))
     failed = failure_result.snapshot
 
     assert failed.fatal is True
@@ -162,6 +210,8 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy() -> None
         "actuator failed on attempt 2"
     )
     assert controllers[0].attempts == 3
+    assert "terminal shutdown effect failed and was discarded" in caplog.text
+    assert "attempt 3" in caplog.text
     with pytest.raises(SimulationSessionFailed, match="reset required"):
         engine.execute(PressButton(0))
 
@@ -169,6 +219,29 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy() -> None
 
     assert (reset.session_id, reset.revision, reset.fatal) == (2, 1, False)
     assert reset.revision == engine.kernel.diagnostics().revision
+
+
+def test_reset_logs_shutdown_failure_and_returns_new_healthy_session(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    controllers: list[RejectingShutdownController] = []
+
+    def build_controller(
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> SimulatedSteeringController:
+        controller = RejectingShutdownController(watchdog_timeout_s, clock)
+        controllers.append(controller)
+        return controller
+
+    engine = build_test_engine(steering_controller_factory=build_controller)
+
+    with caplog.at_level("ERROR"):
+        reset = engine.execute(ResetSimulation()).snapshot
+
+    assert controllers[0].attempts == 2
+    assert "reset replaced simulation session 1 with fatal diagnostics" in caplog.text
+    assert (reset.session_id, reset.revision, reset.fatal) == (2, 1, False)
 
 
 def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:

@@ -39,9 +39,10 @@ const snapshot = (
 test("steering command reasons are formatted for display", () => {
   assert.equal(formatSteeringReason("speed_never_observed"), "speed never observed")
   assert.equal(formatSteeringReason("inbox_overflow"), "inbox overflow")
+  assert.equal(formatSteeringReason(null), "No command accepted")
   assert.deepEqual(emptySnapshot.steering_controller, {
     effective_assistance: 0,
-    last_command_reason: "speed_never_observed",
+    last_command_reason: null,
     watchdog_timed_out: false,
   })
 })

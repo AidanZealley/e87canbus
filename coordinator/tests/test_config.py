@@ -36,15 +36,22 @@ def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
     assert default_config().simulation.command_queue_capacity == 64
     assert default_config().simulation.steering_watchdog_timeout_s == 0.25
+    assert default_config().simulation.websocket_send_timeout_s == 1.0
 
 
 @pytest.mark.parametrize(
     "field",
-    ["trace_capacity", "command_queue_capacity", "steering_watchdog_timeout_s"],
+    [
+        "trace_capacity",
+        "command_queue_capacity",
+        "steering_watchdog_timeout_s",
+        "websocket_send_timeout_s",
+    ],
 )
-def test_simulation_capacities_must_be_positive(field: str) -> None:
-    with pytest.raises(ValueError, match="capacity|watchdog"):
-        SimulationConfig(**{field: 0})
+@pytest.mark.parametrize("value", [0, -1])
+def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
+    with pytest.raises(ValueError, match="capacity|watchdog|WebSocket"):
+        SimulationConfig(**{field: value})
 
 
 def test_custom_can_ids() -> None:
@@ -99,6 +106,12 @@ def test_default_tick_and_speed_timeout_intervals() -> None:
     assert config.steering.speed_timeout_s == 1.0
 
 
+@pytest.mark.parametrize("tick_interval_s", [0.0, -0.1, float("inf"), float("nan")])
+def test_tick_interval_must_be_positive(tick_interval_s: float) -> None:
+    with pytest.raises(ValueError, match="tick_interval_s"):
+        replace(default_config(), tick_interval_s=tick_interval_s)
+
+
 def test_default_runtime_inbox_limits() -> None:
     config = default_config()
 
@@ -118,6 +131,31 @@ def test_runtime_inbox_limits_reject_unsafe_values(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         replace(default_config(), **changes)
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("nan")])
+@pytest.mark.parametrize(
+    ("config", "field"),
+    [
+        (SteeringConfig, "speed_timeout_s"),
+        (SimulationConfig, "steering_watchdog_timeout_s"),
+        (SimulationConfig, "websocket_send_timeout_s"),
+        (TxPolicyConfig, "network_window_s"),
+    ],
+)
+def test_duration_configuration_rejects_non_finite_values(
+    config: type[SteeringConfig] | type[SimulationConfig] | type[TxPolicyConfig],
+    field: str,
+    value: float,
+) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        config(**{field: value})
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("nan")])
+def test_runtime_latency_warning_rejects_non_finite_values(value: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        replace(default_config(), runtime_queue_latency_warning_s=value)
 
 
 def test_default_tx_policy() -> None:

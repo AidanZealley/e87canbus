@@ -232,3 +232,26 @@ def test_startup_and_shutdown_are_idempotent() -> None:
     assert kernel.dispatch(TimerElapsed(5.0)) is None
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
     assert kernel.diagnostics().revision == 2
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        CanEffectExecutionFailed(CanNetwork.KCAN, 4.0, "CAN shutdown failed"),
+        SteeringActuatorFailed(4.0, "actuator shutdown failed"),
+    ],
+)
+def test_typed_effect_failure_updates_health_after_stop_without_commit(
+    failure: CanEffectExecutionFailed | SteeringActuatorFailed,
+) -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(1.0))
+    kernel.dispatch(ShutdownRequested(2.0))
+    revision = kernel.diagnostics().revision
+
+    commit = kernel.dispatch(failure)
+
+    assert commit is None
+    assert kernel.health.fatal is True
+    assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
+    assert kernel.diagnostics().revision == revision

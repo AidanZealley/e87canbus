@@ -64,7 +64,8 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench exposes one in-memory simulation engine through REST plus a WebSocket stream. A
+The workbench exposes one in-memory `SimulationEngine` software component through REST plus a
+WebSocket stream; “engine” here means the single-owner simulator runner, not a vehicle engine. A
 bounded command queue serializes button actions, periodic control timers, and resets through one
 owner task; an overloaded API request receives HTTP 503. Its `CoordinatorKernel` uses the same
 decode, transition, commit, effect-execution, and TX-policy path as the live Pi runner. Simulated
@@ -77,11 +78,17 @@ pair of session ID and sequence. Initial loads and resets carry the complete tra
 snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
 publish a snapshot only when that operation changes the public application, controller, or fatal
 projection; refreshed external speed frames remain ordinary incremental trace events.
+WebSocket sends, including the initial full snapshot, have a one-second default timeout. A stalled
+or failed peer is removed while publication continues in order to the remaining peers; publication
+is not detached from the owning operation.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
 commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
-normal commands until reset. A failure during that final attempt is not retried. Reset constructs a
-healthy session whose new kernel starts at revision one.
+normal commands until reset. A failure during that final attempt is logged and discarded rather
+than fed back or retried. If the ordinary shutdown effect initiated by reset fails, the stopped
+session records and logs that fault; reset still replaces it and returns the new healthy session at
+revision one. The replaced session's fault remains in logs rather than being copied into the new
+session or a second diagnostic store.
 
 It models three independent CAN broadcast domains:
 
@@ -117,11 +124,19 @@ overflow, and shutdown also select zero assistance with distinct reasons before 
 
 The simulated steering controller is an executor capability rather than a K-CAN node because no
 actuator wire protocol is known. The workbench displays its effective dimensionless simulation
-projection, last command reason, and watchdog state. Its 250 ms watchdog derives zero effective
-assistance when command refreshes stop while retaining the last command reason for diagnosis. These
-values are not measured feedback. Zero is only the simulator's fallback; it is not a verified
-physical command or electrical safe state. Physical command transport, range and polarity, valve
-response, feedback, controller topology, and watchdog behavior remain unknown.
+projection, last accepted command reason, and watchdog state. Before any command is accepted, the
+reason is explicitly absent and the workbench displays “No command accepted.” Its 250 ms watchdog
+derives zero effective assistance when command refreshes stop while retaining the last accepted
+command reason for diagnosis. These values are not measured feedback. Zero is only the simulator's
+fallback; it is not a verified physical command or electrical safe state. Physical command
+transport, range and polarity, valve response, feedback, controller topology, and watchdog behavior
+remain unknown.
+
+The current scheduled vehicle source, direct steering capability, and passive NeoTrellis LED sink
+settle in one visible processing pass. Before the first simulated device is allowed to emit a CAN
+response while processing an incoming CAN frame, `SimulationEngine` must regain a bounded
+run-until-quiescent loop with an explicit livelock cap and deterministic tests. No unused cascade
+loop is installed today.
 
 ## Linux vcan Simulation
 

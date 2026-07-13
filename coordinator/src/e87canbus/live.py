@@ -257,8 +257,7 @@ def run_live(config: AppConfig) -> int:
             raw_buses[item.network] = SocketCanBus(item.interface)
     except OSError as exc:
         LOGGER.error("failed to open SocketCAN interface %s: %s", item.interface, exc)
-        for raw_bus in raw_buses.values():
-            raw_bus.shutdown()
+        _shutdown_buses(raw_buses, config)
         return 1
 
     router = ProtocolRouter(config.custom_can_ids)
@@ -311,6 +310,24 @@ def run_live(config: AppConfig) -> int:
         stop.set()
         for reader in readers:
             reader.join(timeout=READER_JOIN_TIMEOUT_S)
-        for raw_bus in raw_buses.values():
-            raw_bus.shutdown()
-    return 1 if failed else 0
+        cleanup_failed = _shutdown_buses(raw_buses, config)
+    return 1 if failed or cleanup_failed else 0
+
+
+def _shutdown_buses(
+    buses: dict[CanNetwork, SocketCanBus],
+    config: AppConfig,
+) -> bool:
+    interfaces = {item.network: item.interface for item in config.can_networks}
+    failed = False
+    for network, bus in buses.items():
+        try:
+            bus.shutdown()
+        except OSError as exc:
+            failed = True
+            LOGGER.error(
+                "failed to close SocketCAN interface %s: %s",
+                interfaces[network],
+                exc,
+            )
+    return failed

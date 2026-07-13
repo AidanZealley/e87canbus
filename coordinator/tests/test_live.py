@@ -113,6 +113,22 @@ class OverflowingSocketCanBus(FakeSocketCanBus):
         self.shutdown_called = True
 
 
+class CleanupFailingSocketCanBus(FakeSocketCanBus):
+    shutdown_interfaces: list[str] = []
+    fail_open_interface: str | None = None
+    fail_shutdown_interface: str | None = None
+
+    def __init__(self, interface: str) -> None:
+        if interface == self.fail_open_interface:
+            raise OSError("open failed")
+        super().__init__(interface)
+
+    def shutdown(self) -> None:
+        self.shutdown_interfaces.append(self.interface)
+        if self.interface == self.fail_shutdown_interface:
+            raise OSError("shutdown failed")
+
+
 class ImmediateThread:
     def __init__(
         self,
@@ -576,3 +592,38 @@ def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(
         isinstance(bus, OverflowingSocketCanBus) and bus.shutdown_called
         for bus in FakeSocketCanBus.instances
     )
+
+
+def test_partial_open_cleanup_keeps_original_failure_when_shutdown_also_fails(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSocketCanBus.instances = []
+    CleanupFailingSocketCanBus.shutdown_interfaces = []
+    CleanupFailingSocketCanBus.fail_open_interface = "can1"
+    CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
+    monkeypatch.setattr(live, "SocketCanBus", CleanupFailingSocketCanBus)
+
+    with caplog.at_level(logging.ERROR):
+        result = live.run_live(default_config())
+
+    assert result == 1
+    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["can0"]
+    assert "failed to open SocketCAN interface can1" in caplog.text
+    assert "failed to close SocketCAN interface can0" in caplog.text
+
+
+def test_final_cleanup_isolates_each_interface_and_reports_close_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSocketCanBus.instances = []
+    CleanupFailingSocketCanBus.shutdown_interfaces = []
+    CleanupFailingSocketCanBus.fail_open_interface = None
+    CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
+    monkeypatch.setattr(live, "SocketCanBus", CleanupFailingSocketCanBus)
+    monkeypatch.setattr(live, "run_coordinator_loop", start_kernel_then_stop)
+
+    result = live.run_live(default_config())
+
+    assert result == 1
+    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["can0", "can1", "can2"]

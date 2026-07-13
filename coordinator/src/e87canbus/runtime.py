@@ -205,7 +205,10 @@ class CoordinatorKernel:
 
         if (
             self._lifecycle is KernelLifecycle.STOPPED
-            and not isinstance(kernel_input, ShutdownRequested)
+            and not isinstance(
+                kernel_input,
+                (CanEffectExecutionFailed, SteeringActuatorFailed, ShutdownRequested),
+            )
         ):
             return None
 

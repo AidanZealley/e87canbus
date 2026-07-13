@@ -33,6 +33,7 @@ export type ApplicationSnapshot = {
 export type SteeringControllerSnapshot = {
   effective_assistance: number
   last_command_reason:
+    | null
     | "auto"
     | "manual"
     | "maximum"

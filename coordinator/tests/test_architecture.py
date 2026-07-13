@@ -82,11 +82,25 @@ def test_default_live_composition_has_no_transmit_grant() -> None:
     assert not any(network.tx_enabled for network in default_config().can_networks)
 
 
-def test_live_composition_cannot_enable_simulated_speed_or_steering_actuation() -> None:
-    live_source = (PACKAGE / "live.py").read_text()
+def test_simulation_protocol_and_devices_stay_inside_simulation_composition() -> None:
+    for path in PACKAGE.rglob("*.py"):
+        if "simulation" in path.relative_to(PACKAGE).parts:
+            continue
+        simulation_imports = {
+            module
+            for module in imported_modules(path)
+            if module == "e87canbus.simulation"
+            or module.startswith("e87canbus.simulation.")
+        }
+        if path == PACKAGE / "api" / "simulator.py":
+            assert simulation_imports == {"e87canbus.simulation.engine"}
+        else:
+            assert not simulation_imports, (
+                f"{path.relative_to(PACKAGE)} imports simulation-only code"
+            )
 
-    assert "SimulationProtocolRouter" not in live_source
-    assert "steering_actuator=" not in live_source
+def test_live_composition_supplies_no_steering_actuator() -> None:
+    assert "steering_actuator=" not in (PACKAGE / "live.py").read_text()
 
 
 def test_pre_kernel_compatibility_names_are_absent() -> None:

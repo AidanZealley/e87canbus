@@ -45,19 +45,28 @@ class SpeedRequest(BaseModel):
 
 
 class ConnectionManager:
-    def __init__(self) -> None:
+    def __init__(self, send_timeout_s: float) -> None:
         self._connections: set[WebSocket] = set()
         self._publication_lock = asyncio.Lock()
+        self._send_timeout_s = send_timeout_s
 
     async def connect(
         self,
         websocket: WebSocket,
         get_snapshot: Callable[[], SimulatorSnapshot],
-    ) -> None:
+    ) -> bool:
         async with self._publication_lock:
             await websocket.accept()
-            await websocket.send_json(snapshot_event(get_snapshot(), include_trace=True))
+            try:
+                await self._send_events(
+                    websocket,
+                    (snapshot_event(get_snapshot(), include_trace=True),),
+                )
+            except Exception:
+                LOGGER.warning("removing failed simulator WebSocket", exc_info=True)
+                return False
             self._connections.add(websocket)
+            return True
 
     def disconnect(self, websocket: WebSocket) -> None:
         self._connections.discard(websocket)
@@ -65,15 +74,23 @@ class ConnectionManager:
     async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
         async with self._publication_lock:
             disconnected: list[WebSocket] = []
-            for websocket in self._connections:
+            for websocket in tuple(self._connections):
                 try:
-                    for event in events:
-                        await websocket.send_json(event)
+                    await self._send_events(websocket, events)
                 except Exception:
                     LOGGER.warning("removing failed simulator WebSocket", exc_info=True)
                     disconnected.append(websocket)
             for websocket in disconnected:
                 self.disconnect(websocket)
+
+    async def _send_events(
+        self,
+        websocket: WebSocket,
+        events: Sequence[dict[str, Any]],
+    ) -> None:
+        async with asyncio.timeout(self._send_timeout_s):
+            for event in events:
+                await websocket.send_json(event)
 
 
 @dataclass(frozen=True)
@@ -147,7 +164,9 @@ def create_app(
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
     )
-    app.state.manager = ConnectionManager()
+    app.state.manager = ConnectionManager(
+        simulation.config.simulation.websocket_send_timeout_s
+    )
     app.state.latest_snapshot = simulation.snapshot()
 
     @app.get("/api/health")
@@ -185,7 +204,11 @@ def create_app(
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
-        await app.state.manager.connect(websocket, lambda: app.state.latest_snapshot)
+        connected = await app.state.manager.connect(
+            websocket, lambda: app.state.latest_snapshot
+        )
+        if not connected:
+            return
         try:
             while True:
                 await websocket.receive_text()

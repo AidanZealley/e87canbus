@@ -24,7 +24,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
   },
   steering_controller: {
     effective_assistance: 0,
-    last_command_reason: "speed_never_observed",
+    last_command_reason: null,
     watchdog_timed_out: false,
   },
   next_pressed: true,
@@ -36,7 +36,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
 export const formatSteeringReason = (
   reason: SteeringControllerSnapshot["last_command_reason"]
 ) =>
-  reason.replaceAll("_", " ")
+  reason === null ? "No command accepted" : reason.replaceAll("_", " ")
 
 export const mergeSnapshot = (
   current: WorkbenchSnapshot,

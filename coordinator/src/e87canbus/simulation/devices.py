@@ -137,6 +137,5 @@ class SimulatedSteeringController:
         return self.last_command.assistance
 
     @property
-    def last_command_reason(self) -> SteeringCommandReason:
-        assert self.last_command is not None
-        return self.last_command.reason
+    def last_command_reason(self) -> SteeringCommandReason | None:
+        return None if self.last_command is None else self.last_command.reason

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -37,6 +38,8 @@ from e87canbus.simulation.devices import (
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter
 
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class SimulatedNetworkStatus:
@@ -48,7 +51,7 @@ class SimulatedNetworkStatus:
 @dataclass(frozen=True)
 class SimulatedSteeringSnapshot:
     effective_assistance: float
-    last_command_reason: SteeringCommandReason
+    last_command_reason: SteeringCommandReason | None
     watchdog_timed_out: bool
 
 
@@ -174,7 +177,11 @@ def snapshot_to_dict(
         "led_colours": snapshot.led_colours,
         "steering_controller": {
             "effective_assistance": snapshot.steering_controller.effective_assistance,
-            "last_command_reason": snapshot.steering_controller.last_command_reason.value,
+            "last_command_reason": (
+                None
+                if snapshot.steering_controller.last_command_reason is None
+                else snapshot.steering_controller.last_command_reason.value
+            ),
             "watchdog_timed_out": snapshot.steering_controller.watchdog_timed_out,
         },
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
@@ -268,7 +275,14 @@ class SimulationEngine:
             case SilenceVehicleSpeed():
                 self.vehicle.silence_speed()
             case ResetSimulation():
+                replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
+                if self.kernel.health.fatal:
+                    LOGGER.error(
+                        "reset replaced simulation session %d with fatal diagnostics; "
+                        "the new session starts healthy",
+                        replaced_session_id,
+                    )
                 self._build_session()
                 before_sequence = 0
                 snapshot_trace = True
@@ -403,7 +417,11 @@ class SimulationEngine:
         if shutdown is not None:
             # The terminal fallback is attempted once. A second actuator failure is not fed
             # back into the stopped kernel or retried, preserving the original fault.
-            self.executor.execute(shutdown.effects)
+            for terminal_failure in self.executor.execute(shutdown.effects):
+                LOGGER.error(
+                    "simulation terminal shutdown effect failed and was discarded: %s",
+                    terminal_failure,
+                )
         return commit
 
     def _steering_snapshot(self) -> SimulatedSteeringSnapshot:

@@ -36,17 +36,21 @@ Every granted write passes the holistic per-network window in `tx_policy`. Live 
 receive, timestamp, and enqueue into the configured bounded inbox; the main thread alone dispatches
 kernel inputs and executes effects. Queue latency is logged without changing observation time.
 Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
-stops the runner with a non-zero result.
+stops the runner with a non-zero result. SocketCAN interfaces are closed independently so one
+shutdown error cannot prevent later interfaces from closing or mask an existing failure result.
 
 The browser simulator has a separate bounded command queue. One asynchronous owner serializes
 button-device commands, persistent synthetic vehicle-speed selection and silence, control timers,
 resets, kernel commits, and WebSocket publication. Before each control timer, a selected speed is
 re-emitted by the external vehicle and decoded through the kernel. Browser snapshots expose the
 kernel-owned revision, simulation session ID, fatal-health status, and the ideal simulated
-controller's effective dimensionless assistance, last command reason, and watchdog state. An output
-fault terminates the session after one committed shutdown attempt; normal commands are rejected
-until reset creates a fresh kernel at revision one. Incremental trace frames use the session ID with
-their reset-local sequence number.
+controller's effective dimensionless assistance, optional last accepted command reason, and
+watchdog state. An output fault terminates the session after one committed shutdown attempt; normal
+commands are rejected until reset creates a fresh kernel at revision one. A reset-time shutdown
+fault is recorded on the stopped session and retained in logs while the reset response reports the
+new healthy session. Initial and incremental WebSocket sends are bounded by the simulation send
+timeout, and a stalled peer is removed without detaching or reordering publication. Incremental
+trace frames use the session ID with their reset-local sequence number.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject

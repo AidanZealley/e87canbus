@@ -159,5 +159,6 @@ and a validated live grant; placeholder BMW IDs remain non-executable.
 
 In the workbench, setting speed stores the selection on the external simulated vehicle. It emits a
 fresh synthetic F-CAN frame before each control timer until explicitly silenced. The steering panel
-shows effective dimensionless simulated assistance, last command reason, and watchdog state; these
-are an ideal simulation projection, not measured physical feedback.
+shows effective dimensionless simulated assistance, the last accepted command reason (or “No
+command accepted”), and watchdog state; these are an ideal simulation projection, not measured
+physical feedback. WebSocket publication is bounded, ordered, and isolates stalled peers.

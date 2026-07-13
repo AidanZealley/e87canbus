@@ -17,7 +17,7 @@ record corrections in the current entry so the migration history remains visible
 | 8 — Steering failsafe groundwork | done with simulator-only deviation | 2026-07-13 |
 | 9 — Correctness and safety truth | done | 2026-07-13 |
 | 10 — Simulation semantics and observability | done | 2026-07-13 |
-| 11 — Operational hardening and closeout | pending | — |
+| 11 — Operational hardening and closeout | done | 2026-07-13 |
 
 ## Entry template
 
@@ -661,3 +661,80 @@ or actuator firmware changed.
 passed; frontend `pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 7 passed;
 `git diff --check` — passed. Generator and actuator-firmware checks were not applicable because no
 generated protocol artifact or firmware changed.
+
+## Phase 11 — Operational hardening and closeout (2026-07-13)
+
+**Result:** done
+
+**What changed:**
+
+- Made the simulated controller's last command reason optional until a command is accepted, and
+  carried explicit `null` through engine/API snapshots to the frontend's “No command accepted”
+  rendering. A rejected first startup command now yields a serializable fatal projection with zero
+  effective assistance and an explicit timed-out watchdog.
+- Allowed only typed CAN and steering-actuator execution failures to update immutable kernel health
+  after `STOPPED`, without a transition, effect, revision increment, or lifecycle restart. An
+  ordinary reset shutdown failure is recorded and logged on the replaced session; reset explicitly
+  returns a new healthy session. A failure of the one terminal fallback remains logged and
+  discarded.
+- Added a positive one-second default WebSocket send timeout under `SimulationConfig` and applied it
+  to initial and incremental sends under the existing publication lock. Failed or stalled peers are
+  removed individually while healthy peers receive the same operation's events in order. Broadcasts
+  iterate a membership snapshot so a concurrent disconnect cannot invalidate an awaited send loop.
+- Added finite positive construction-time validation for the application tick interval, speed
+  timeout, simulated watchdog, WebSocket send timeout, and TX window, plus a finite non-negative
+  queue-latency threshold.
+- Isolated SocketCAN shutdown per interface in one cleanup helper used by partial-open and final
+  cleanup. Close errors are logged, remaining interfaces still close, and startup/runtime or cleanup
+  failure returns non-zero.
+- Strengthened the standard-library architecture guard so production outside `simulation/` cannot
+  import any simulation package code; only the simulator API may import `simulation.engine`, and
+  live composition still contains neither the synthetic router nor a steering capability.
+- Updated current simulator/coordinator/root documentation for bounded publication, optional command
+  metadata, reset fault policy, software-only `SimulationEngine` terminology, and the binding
+  reactive-device quiescence prerequisite without restoring unused cascade machinery.
+
+**Deviations from the phase doc:** None. Reset uses the permitted new-session policy: a shutdown
+failure is recorded on the stopped kernel and retained in logs, while the reset result and
+publication contain the new healthy session rather than copying old health into a second store.
+
+**Safety invariants verified:** One-state-owner and publication-after-commit ordering remain intact:
+post-stop typed failures update only kernel health, and WebSocket sends stay serialized under the
+operation publication lock. Same-path simulation remains unchanged from external-device CAN input
+through ingress timestamp, decode, transition, commit, effect, and TX policy. First-command,
+ordinary-shutdown, and terminal-fallback tests prove failure observability is bounded without
+fabricated metadata, recursion, retry, or revision changes. Timeout tests prove initial and normal
+publication cannot be held indefinitely by one peer, and a disconnect during an awaited send cannot
+abort publication to healthy peers. Cleanup tests prove per-interface isolation and non-zero failure
+retention. Configuration and architecture tests prove finite scheduling values, bounded capacities,
+simulation-only protocol/device confinement, default live TX denial, and absence of a live actuator
+capability.
+
+**Complexity delta:** The optional command reason deletes the assertion and the invalid assumption
+that every controller has accepted a command. One `_send_events` method is the sole timeout boundary
+for both WebSocket paths, replacing two unbounded writes without adding per-peer tasks or detached
+broadcasts. A tuple snapshot removes the set-iteration race without adding connection tasks or a
+second lock. One cleanup helper replaces duplicated shutdown loops and adds the required error
+isolation. The stopped-kernel exception is restricted to the two closed failure input types and
+reuses existing health rather than adding a diagnostic mirror. The architecture test consolidates
+symbol-specific live checks into one import-boundary rule plus the existing explicit no-actuator
+check. The audit found one revision owner, one selected-speed owner, one controller projection, one
+fault store, one ordered command/publication path, one kernel mutation entry, and one effect exit;
+no compatibility alias, generic cascade loop, callback registry, duplicate snapshot stream, stale
+physical claim, or deliberate in-scope exception remains.
+
+**Discovered along the way:** The existing Starlette `TestClient` deprecation warning and Node
+experimental type-stripping warnings remain unrelated. No generated protocol artifact, firmware,
+vehicle definition, physical actuator boundary, electrical safe-state claim, or live grant changed.
+Reactive-device response processing remains deliberately gated on implementing the documented
+bounded run-until-quiescent loop with an explicit livelock cap alongside the first such device.
+An in-app browser smoke check against a controller rejecting its first command verified the connected
+workbench renders “No Command Accepted,” zero effective assistance, and a timed-out watchdog from
+the fatal API snapshot.
+
+**Checks:** `uv run pytest -q` — 207 passed, 1 existing Starlette deprecation warning;
+`uv run mypy` — success, no issues in 30 source files; `uv run ruff check coordinator` — all checks
+passed; `uv run python scripts/generate_custom_protocol.py --check` — passed; `bash -n scripts/*.sh`
+— passed; frontend `pnpm typecheck` — passed, `pnpm lint` — passed, `pnpm test` — 7 passed with
+existing Node experimental type-stripping warnings; `git diff --check` — passed. Firmware checks
+were not applicable because neither firmware nor generated inputs changed.

@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import pytest
 from e87canbus.api.simulator import ConnectionManager, create_app
-from e87canbus.application.events import SetSteeringAssistance
+from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.engine import SimulationEngine, SimulatorSnapshot
@@ -58,15 +58,30 @@ class BlockingManager(RecordingManager):
 class FakeWebSocket:
     def __init__(self) -> None:
         self.error: Exception | None = None
+        self.block = False
         self.sent: list[dict[str, Any]] = []
 
     async def accept(self) -> None:
         pass
 
     async def send_json(self, event: dict[str, Any]) -> None:
+        if self.block:
+            await asyncio.Event().wait()
         if self.error is not None:
             raise self.error
         self.sent.append(event)
+
+
+class DisconnectingWebSocket(FakeWebSocket):
+    def __init__(self) -> None:
+        super().__init__()
+        self.on_send: Callable[[], None] | None = None
+
+    async def send_json(self, event: dict[str, Any]) -> None:
+        if self.on_send is not None:
+            self.on_send()
+            await asyncio.sleep(0)
+        await super().send_json(event)
 
 
 class FailingFirstSessionController(SimulatedSteeringController):
@@ -82,6 +97,18 @@ class FailingFirstSessionController(SimulatedSteeringController):
         self.attempts += 1
         if self.attempts == 2:
             raise OSError("timer actuator failure")
+        super().set_assistance(command)
+
+
+class RejectingStartupController(SimulatedSteeringController):
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        raise OSError("startup actuator failure")
+
+
+class RejectingShutdownController(SimulatedSteeringController):
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        if command.reason is SteeringCommandReason.SHUTDOWN:
+            raise OSError("shutdown actuator failure")
         super().set_assistance(command)
 
 
@@ -119,6 +146,26 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
 
+def test_failed_first_command_is_published_without_fabricated_reason() -> None:
+    config = replace(simulator_config(), tick_interval_s=60.0)
+    app = create_app(
+        SimulationEngine(
+            config=config,
+            steering_controller_factory=RejectingStartupController,
+        )
+    )
+
+    with TestClient(app) as client, client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+
+    assert initial["snapshot"]["fatal"] is True
+    assert initial["snapshot"]["steering_controller"] == {
+        "effective_assistance": 0.0,
+        "last_command_reason": None,
+        "watchdog_timed_out": True,
+    }
+
+
 @pytest.mark.parametrize(
     ("path", "expected_mode"),
     (
@@ -149,6 +196,26 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
+
+
+def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = replace(simulator_config(), tick_interval_s=60.0)
+    app = create_app(
+        SimulationEngine(
+            config=config,
+            steering_controller_factory=RejectingShutdownController,
+        )
+    )
+
+    with caplog.at_level("ERROR"), TestClient(app) as client:
+        response = client.post("/api/reset")
+
+    assert response.status_code == 200
+    assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
+    assert response.json()["fatal"] is False
+    assert "reset replaced simulation session 1 with fatal diagnostics" in caplog.text
 
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
@@ -320,7 +387,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
 async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_client(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    manager = ConnectionManager()
+    manager = ConnectionManager(0.1)
     snapshot = SimulationEngine().snapshot()
     def get_snapshot() -> SimulatorSnapshot:
         return snapshot
@@ -336,3 +403,56 @@ async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_c
     assert healthy.sent[-1] == event
     assert cast(WebSocket, broken) not in manager._connections
     assert "removing failed simulator WebSocket" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_stalled_websocket_is_bounded_and_healthy_peer_keeps_event_order() -> None:
+    manager = ConnectionManager(0.01)
+    snapshot = SimulationEngine().snapshot()
+    stalled = FakeWebSocket()
+    healthy = FakeWebSocket()
+    await manager.connect(cast(WebSocket, stalled), lambda: snapshot)
+    await manager.connect(cast(WebSocket, healthy), lambda: snapshot)
+    stalled.block = True
+    events = ({"type": "first"}, {"type": "second"})
+
+    await asyncio.wait_for(manager.broadcast(events), timeout=0.1)
+
+    assert healthy.sent[-2:] == list(events)
+    assert cast(WebSocket, stalled) not in manager._connections
+
+
+@pytest.mark.asyncio
+async def test_concurrent_disconnect_does_not_abort_publication() -> None:
+    manager = ConnectionManager(0.1)
+    snapshot = SimulationEngine().snapshot()
+    disconnecting = DisconnectingWebSocket()
+    disconnected = FakeWebSocket()
+    healthy = FakeWebSocket()
+    await manager.connect(cast(WebSocket, disconnecting), lambda: snapshot)
+    await manager.connect(cast(WebSocket, disconnected), lambda: snapshot)
+    await manager.connect(cast(WebSocket, healthy), lambda: snapshot)
+    disconnecting.on_send = lambda: manager.disconnect(cast(WebSocket, disconnected))
+    event = {"type": "test"}
+
+    await manager.broadcast((event,))
+
+    assert disconnecting.sent[-1] == event
+    assert healthy.sent[-1] == event
+    assert cast(WebSocket, disconnected) not in manager._connections
+
+
+@pytest.mark.asyncio
+async def test_initial_snapshot_send_is_bounded() -> None:
+    manager = ConnectionManager(0.01)
+    snapshot = SimulationEngine().snapshot()
+    stalled = FakeWebSocket()
+    stalled.block = True
+
+    connected = await asyncio.wait_for(
+        manager.connect(cast(WebSocket, stalled), lambda: snapshot),
+        timeout=0.1,
+    )
+
+    assert connected is False
+    assert cast(WebSocket, stalled) not in manager._connections
