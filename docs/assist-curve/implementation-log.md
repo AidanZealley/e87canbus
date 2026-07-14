@@ -20,7 +20,7 @@ of commands or a replacement for commit history.
 |---:|---|---|---|
 | 1 — Profile domain model | Verified | 2026-07-14 | Version-1 integer curve contract implemented |
 | 2 — SQLite persistence | Verified | 2026-07-14 | Durable catalog and optimistic revisions implemented |
-| 3 — Runtime activation | Not started | — | — |
+| 3 — Runtime activation | Verified | 2026-07-14 | Ordered in-memory hot activation implemented |
 | 4 — Profile API | Not started | — | — |
 | 5 — Interactive editor | Not started | — | — |
 | 6 — Smooth interpolation | Not started | — | — |
@@ -50,6 +50,37 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 3: runtime curve activation verified
+
+- **Status:** Verified
+- **Scope:** Implemented in-memory hot activation of a validated steering curve through the
+  coordinator kernel. No profile API, database startup composition or controller synchronization
+  was added.
+- **Changed:** Added the immutable active-curve projection and activation statuses in
+  `coordinator/src/e87canbus/features/steering.py`; added `ActivateSteeringCurve` as the sole ordered
+  runtime input; removed the transitional float curve from `SteeringConfig`; passed the active
+  definition explicitly through pure steering calculations; and serialized the complete active
+  projection in authoritative simulator snapshots.
+- **Decisions:** A newly constructed runtime starts at activation revision 1. Only a changed
+  definition increments that revision or emits an immediate Auto command; identical bytes may
+  update matching saved provenance through a normal kernel commit without a spurious command.
+  Startup composition can pass an already selected active value into the kernel, keeping database
+  I/O outside it. The in-process consumer reports `active`; `activating` and `activation_failed` are
+  reserved in the snapshot contract without a fake acknowledgement or transport.
+- **Verification:** `uv run pytest -q` (279 passed); `uv run ruff check .`; `uv run mypy
+  coordinator/src/e87canbus`; `uv run python scripts/generate_custom_protocol.py --check`; `bash -n
+  scripts/*.sh`; and `git diff --check` all passed. The existing FastAPI test dependency emitted one
+  upstream Starlette `httpx` deprecation warning.
+- **Documentation:** Updated `coordinator/README.md` with runtime ownership, startup selection,
+  revision, idempotency, immediate output and status behavior; updated this phase status and entry.
+- **Dependencies/migrations:** None.
+- **Remaining:** None for Phase 3. Configuring and loading a deployment startup profile belongs to
+  the later composition that first consumes the repository. HTTP queueing, saved-provenance lookup
+  and activation responses belong to Phase 4.
+- **Next handoff:** Phase 4 can validate claimed saved provenance with the repository, enqueue one
+  `ActivateSteeringCurve`, and return/publish its commit snapshot without mutating runtime state
+  directly.
 
 ### 2026-07-14 — Phase 2: SQLite profile persistence verified
 

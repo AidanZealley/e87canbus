@@ -35,6 +35,18 @@ revisions, and timestamps are excluded. Stored timestamps use UTC ISO 8601 with 
 digits and a trailing `Z` (for example, `2026-07-14T10:30:00.000000Z`). Profile validation and
 fingerprinting are pure coordinator functions with no FastAPI or persistence dependency.
 
+The active curve is an immutable kernel-owned runtime value, not part of `SteeringConfig`.
+`ActiveSteeringCurve` carries the complete validated definition, fingerprint, runtime-local
+activation revision and optional matching saved profile ID/revision. Startup composition selects
+the built-in or a previously loaded saved definition before constructing the kernel; a new runtime
+starts at activation revision 1, so an unsaved activation does not survive reconstruction.
+`ActivateSteeringCurve` is the only ordered mutation path. A changed definition increments both the
+kernel commit revision and activation revision and immediately recalculates output only when Auto
+mode has a fresh speed sample. Identical definitions emit no steering command and retain the
+activation revision, while a changed saved-profile association is still published as metadata.
+Current in-process activation completes with status `active`; snapshots reserve `activating` and
+`activation_failed` for a future asynchronous consumer without implementing controller transport.
+
 `features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
 name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
 library SQLite driver. Composition supplies the database path and explicitly calls `initialize()`;
@@ -48,14 +60,14 @@ adapter is not yet composed into live or simulator startup because Phase 2 adds 
 consumer; later composition must select its deployment path and invoke initialization explicitly.
 
 The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
-periodic timers, reader and effect faults, inbox overflow, and shutdown all carry explicit times into
-that ordered path. Each decoded event runs through a pure transition; the kernel commits the returned
-state and revision before the calling composition executes the commit's ordered effects. Unknown CAN
-traffic creates no application commit. Reader, CAN-effect, inbox-overflow, and steering-actuator
-faults update typed immutable diagnostics; the live runner consumes fatal health and exits non-zero.
-Speed evaluation time cannot regress, so an older timer or delayed frame cannot make stale data
-fresh. The simulator adds a synthetic speed decoder that is not imported or enabled by live
-composition; no verified BMW speed decoder is configured.
+periodic timers, curve activations, reader and effect faults, inbox overflow, and shutdown enter that
+ordered path. Timed inputs carry explicit observation times. Each decoded event runs through a pure
+transition; the kernel commits the returned state and revision before the calling composition
+executes the commit's ordered effects. Unknown CAN traffic creates no application commit. Reader,
+CAN-effect, inbox-overflow, and steering-actuator faults update typed immutable diagnostics; the live
+runner consumes fatal health and exits non-zero. Speed evaluation time cannot regress, so an older
+timer or delayed frame cannot make stale data fresh. The simulator adds a synthetic speed decoder
+that is not imported or enabled by live composition; no verified BMW speed decoder is configured.
 
 The coordinator does not automatically forward frames between networks. Transmission is denied by
 the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.

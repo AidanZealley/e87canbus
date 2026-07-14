@@ -162,6 +162,7 @@ def snapshot_to_dict(
     *,
     include_trace: bool,
 ) -> dict[str, Any]:
+    active_curve = snapshot.application.active_steering_curve
     serialized: dict[str, Any] = {
         "session_id": snapshot.session_id,
         "revision": snapshot.revision,
@@ -172,6 +173,24 @@ def snapshot_to_dict(
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
             "maximum_assistance_active": snapshot.application.maximum_assistance_active,
+            "active_steering_curve": {
+                "definition": {
+                    "schema_version": active_curve.definition.schema_version,
+                    "interpolation": active_curve.definition.interpolation.value,
+                    "points": [
+                        {
+                            "speed_deci_kph": point.speed_deci_kph,
+                            "assistance_per_mille": point.assistance_per_mille,
+                        }
+                        for point in active_curve.definition.points
+                    ],
+                },
+                "fingerprint": active_curve.fingerprint,
+                "activation_revision": active_curve.activation_revision,
+                "status": snapshot.application.steering_curve_activation_status.value,
+                "saved_profile_id": active_curve.saved_profile_id,
+                "saved_profile_revision": active_curve.saved_profile_revision,
+            },
         },
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,

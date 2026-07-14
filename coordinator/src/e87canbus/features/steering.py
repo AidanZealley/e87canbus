@@ -55,9 +55,31 @@ class StoredSteeringProfile:
         validate_stored_steering_profile(self)
 
 
+class SteeringCurveActivationStatus(StrEnum):
+    ACTIVE = "active"
+    ACTIVATING = "activating"
+    ACTIVATION_FAILED = "activation_failed"
+
+
+@dataclass(frozen=True)
+class ActiveSteeringCurve:
+    """The immutable curve projection owned by one coordinator runtime."""
+
+    definition: SteeringCurveDefinition
+    fingerprint: str
+    activation_revision: int
+    saved_profile_id: str | None = None
+    saved_profile_revision: int | None = None
+
+    def __post_init__(self) -> None:
+        validate_active_steering_curve(self)
+
+
 def validate_steering_curve_definition(definition: SteeringCurveDefinition) -> None:
     """Raise ``ValueError`` when a curve is outside the versioned domain contract."""
 
+    if not isinstance(definition, SteeringCurveDefinition):
+        raise ValueError("definition must be a SteeringCurveDefinition")
     if type(definition.schema_version) is not int:  # bool is not a domain integer
         raise ValueError("schema_version must be an integer")
     if definition.schema_version != STEERING_CURVE_SCHEMA_VERSION:
@@ -120,6 +142,33 @@ def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
     validate_steering_curve_definition(profile.definition)
     _validate_canonical_timestamp(profile.created_at, "created_at")
     _validate_canonical_timestamp(profile.updated_at, "updated_at")
+
+
+def validate_active_steering_curve(active: ActiveSteeringCurve) -> None:
+    """Raise ``ValueError`` when an active runtime projection is inconsistent."""
+
+    if not isinstance(active, ActiveSteeringCurve):
+        raise ValueError("active curve must be an ActiveSteeringCurve")
+    if not isinstance(active.definition, SteeringCurveDefinition):
+        raise ValueError("active definition must be a SteeringCurveDefinition")
+    validate_steering_curve_definition(active.definition)
+    if active.fingerprint != steering_curve_fingerprint(active.definition):
+        raise ValueError("active fingerprint must match the definition")
+    if type(active.activation_revision) is not int or active.activation_revision < 1:
+        raise ValueError("activation_revision must be a positive integer")
+    if (active.saved_profile_id is None) != (active.saved_profile_revision is None):
+        raise ValueError("saved profile ID and revision must be supplied together")
+    if active.saved_profile_id is not None:
+        try:
+            canonical_profile_id = str(UUID(active.saved_profile_id))
+        except (ValueError, AttributeError) as error:
+            raise ValueError("saved_profile_id must be UUID text") from error
+        if active.saved_profile_id != canonical_profile_id:
+            raise ValueError("saved_profile_id must use canonical UUID text")
+    if active.saved_profile_revision is not None and (
+        type(active.saved_profile_revision) is not int or active.saved_profile_revision < 1
+    ):
+        raise ValueError("saved_profile_revision must be a positive integer")
 
 
 def validate_steering_profile_name(name: str) -> None:
@@ -190,6 +239,24 @@ def default_steering_curve_definition() -> SteeringCurveDefinition:
     """Return the one immutable built-in steering curve."""
 
     return BUILT_IN_STEERING_CURVE
+
+
+def initial_active_steering_curve(
+    definition: SteeringCurveDefinition = BUILT_IN_STEERING_CURVE,
+    *,
+    saved_profile_id: str | None = None,
+    saved_profile_revision: int | None = None,
+) -> ActiveSteeringCurve:
+    """Build revision one after startup composition has selected a definition."""
+
+    validate_steering_curve_definition(definition)
+    return ActiveSteeringCurve(
+        definition=definition,
+        fingerprint=steering_curve_fingerprint(definition),
+        activation_revision=1,
+        saved_profile_id=saved_profile_id,
+        saved_profile_revision=saved_profile_revision,
+    )
 
 
 def steering_curve_as_float_pairs(

@@ -12,6 +12,7 @@ from e87canbus.application.controller import (
     initial_effects,
     normalize_state,
     snapshot,
+    steering_command_for_active_curve,
     transition,
 )
 from e87canbus.application.events import (
@@ -23,6 +24,15 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import ApplicationState
 from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.features.steering import (
+    ActiveSteeringCurve,
+    SteeringCurveActivationStatus,
+    SteeringCurveDefinition,
+    initial_active_steering_curve,
+    steering_curve_fingerprint,
+    validate_active_steering_curve,
+    validate_steering_curve_definition,
+)
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
@@ -80,6 +90,13 @@ class ShutdownRequested:
     now: float
 
 
+@dataclass(frozen=True)
+class ActivateSteeringCurve:
+    definition: SteeringCurveDefinition
+    saved_profile_id: str | None = None
+    saved_profile_revision: int | None = None
+
+
 KernelInput = (
     KernelStarted
     | ReceivedCanFrame
@@ -89,6 +106,7 @@ KernelInput = (
     | SteeringActuatorFailed
     | InboxOverflowed
     | ShutdownRequested
+    | ActivateSteeringCurve
 )
 
 
@@ -175,6 +193,7 @@ class CoordinatorKernel:
         state: ApplicationState | None = None,
         steering_config: SteeringConfig | None = None,
         router: ProtocolRouter | None = None,
+        active_steering_curve: ActiveSteeringCurve | None = None,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._state = normalize_state(
@@ -182,6 +201,11 @@ class CoordinatorKernel:
             self._steering_config,
         )
         self._router = router or ProtocolRouter()
+        self._active_steering_curve = (
+            active_steering_curve or initial_active_steering_curve()
+        )
+        validate_active_steering_curve(self._active_steering_curve)
+        self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
         self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
         self._health = RuntimeHealth()
@@ -195,7 +219,12 @@ class CoordinatorKernel:
         return self._health
 
     def snapshot(self) -> ApplicationSnapshot:
-        return snapshot(self._state, self._steering_config)
+        return snapshot(
+            self._state,
+            self._steering_config,
+            self._active_steering_curve,
+            self._steering_curve_activation_status,
+        )
 
     def diagnostics(self) -> DiagnosticSnapshot:
         return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
@@ -272,6 +301,10 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._transition(ControlTimerElapsed(now))
+            case ActivateSteeringCurve():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._activate_steering_curve(kernel_input)
             case _:
                 assert_never(kernel_input)
 
@@ -292,7 +325,12 @@ class CoordinatorKernel:
 
     def _transition(self, event: ApplicationEvent) -> Commit:
         previous_snapshot = self.snapshot()
-        result = transition(self._state, event, self._steering_config)
+        result = transition(
+            self._state,
+            event,
+            self._steering_config,
+            self._active_steering_curve.definition,
+        )
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
@@ -308,6 +346,47 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=initial_effects(self._state, self._steering_config),
+            effects=initial_effects(
+                self._state,
+                self._steering_config,
+                self._active_steering_curve.definition,
+            ),
             state_changed=True,
+        )
+
+    def _activate_steering_curve(self, request: ActivateSteeringCurve) -> Commit:
+        validate_steering_curve_definition(request.definition)
+        current = self._active_steering_curve
+        fingerprint = steering_curve_fingerprint(request.definition)
+        definition_changed = fingerprint != current.fingerprint
+        next_active = ActiveSteeringCurve(
+            definition=request.definition,
+            fingerprint=fingerprint,
+            activation_revision=(
+                current.activation_revision + 1
+                if definition_changed
+                else current.activation_revision
+            ),
+            saved_profile_id=request.saved_profile_id,
+            saved_profile_revision=request.saved_profile_revision,
+        )
+        previous_snapshot = self.snapshot()
+        self._active_steering_curve = next_active
+        self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
+        self._revision += 1
+        effects: tuple[ApplicationEffect, ...] = ()
+        if definition_changed:
+            command = steering_command_for_active_curve(
+                self._state,
+                self._steering_config,
+                request.definition,
+            )
+            if command is not None:
+                effects = (command,)
+        committed_snapshot = self.snapshot()
+        return Commit(
+            revision=self._revision,
+            snapshot=committed_snapshot,
+            effects=effects,
+            state_changed=committed_snapshot != previous_snapshot,
         )
