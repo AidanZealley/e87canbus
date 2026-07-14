@@ -71,6 +71,16 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket) -> None:
         self._connections.discard(websocket)
 
+    async def send(self, websocket: WebSocket, event: dict[str, Any]) -> bool:
+        async with self._publication_lock:
+            try:
+                await self._send_events(websocket, (event,))
+            except Exception:
+                LOGGER.warning("removing failed simulator WebSocket", exc_info=True)
+                self.disconnect(websocket)
+                return False
+            return True
+
     async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
         async with self._publication_lock:
             disconnected: list[WebSocket] = []
@@ -211,7 +221,11 @@ def create_app(
             return
         try:
             while True:
-                await websocket.receive_text()
+                message = await websocket.receive_text()
+                if message == "ping" and not await app.state.manager.send(
+                    websocket, {"type": "heartbeat"}
+                ):
+                    return
         except WebSocketDisconnect:
             app.state.manager.disconnect(websocket)
 

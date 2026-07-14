@@ -40,12 +40,20 @@ export const stepSimulator = (index: number) =>
   })
 
 export const connectSimulatorSocket = (
-  onEvent: (event: SimulatorEvent) => void
+  onEvent: (event: SimulatorEvent) => void,
+  onHeartbeat: () => void
 ) => {
   const socket = new WebSocket(WS_BASE)
 
   socket.addEventListener("message", (message) => {
-    onEvent(JSON.parse(message.data) as SimulatorEvent)
+    const event = JSON.parse(message.data) as SimulatorEvent | {
+      type: "heartbeat"
+    }
+    if (event.type === "heartbeat") {
+      onHeartbeat()
+      return
+    }
+    onEvent(event)
   })
 
   return socket

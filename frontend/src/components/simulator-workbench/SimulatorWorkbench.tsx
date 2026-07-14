@@ -24,7 +24,7 @@ export const SimulatorWorkbench = () => {
   const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
   const status = useSimulatorStatus()
   const command = useSimulatorCommand()
-  const connected = useSimulatorSocket(status.isFetched && !status.isError)
+  const connectionState = useSimulatorSocket(status.isFetched && !status.isError)
   const error = command.error ?? status.error
 
   const handlePress = (index: number) => {
@@ -44,7 +44,7 @@ export const SimulatorWorkbench = () => {
   return (
     <div className="min-h-svh bg-muted/30">
       <SimulatorToolbar
-        connected={connected}
+        connectionState={connectionState}
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
         onReset={() => {

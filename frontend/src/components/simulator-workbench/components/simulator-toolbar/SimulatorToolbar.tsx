@@ -3,9 +3,10 @@ import { RefreshCcwIcon, StepForwardIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ConnectionBadge } from "../connection-badge"
+import type { SimulatorConnectionState } from "../../connection"
 
 type SimulatorToolbarProps = {
-  connected: boolean
+  connectionState: SimulatorConnectionState
   autoScroll: boolean
   onAutoScrollChange: (enabled: boolean) => void
   onReset: () => void
@@ -13,7 +14,7 @@ type SimulatorToolbarProps = {
 }
 
 export const SimulatorToolbar = ({
-  connected,
+  connectionState,
   autoScroll,
   onAutoScrollChange,
   onReset,
@@ -30,7 +31,7 @@ export const SimulatorToolbar = ({
             Hardware-free control workbench
           </p>
         </div>
-        <ConnectionBadge connected={connected} />
+        <ConnectionBadge connectionState={connectionState} />
       </div>
 
       <div className="flex items-center gap-2">

@@ -9,9 +9,16 @@ import {
 import { connectSimulatorSocket, getSnapshot } from "@/api/simulator"
 import {
   applySimulatorEvent,
+  replaceSimulatorSnapshot,
   setSimulatorSnapshot,
   simulatorQueryKey,
 } from "./cache"
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+  reconnectDelay,
+  type SimulatorConnectionState,
+} from "./connection"
 import type { SimulatorSnapshot } from "./types"
 import { emptySnapshot, mergeSnapshot, type WorkbenchSnapshot } from "./utils"
 
@@ -19,6 +26,8 @@ const simulatorQueryOptions = queryOptions({
   queryKey: simulatorQueryKey,
   queryFn: async () => mergeSnapshot(emptySnapshot, await getSnapshot()),
   staleTime: Infinity,
+  retry: true,
+  retryDelay: (failureCount) => reconnectDelay(failureCount),
 })
 
 const useSimulatorSelector = <Selected>(
@@ -71,36 +80,106 @@ export const useSimulatorCommand = () => {
 
 export const useSimulatorSocket = (enabled: boolean) => {
   const queryClient = useQueryClient()
-  const [connected, setConnected] = useState(false)
+  const [connectionState, setConnectionState] =
+    useState<SimulatorConnectionState>("connecting")
 
   useEffect(() => {
     if (!enabled) return
 
     let cancelled = false
-    const socket = connectSimulatorSocket((event) => {
-      if (!cancelled) applySimulatorEvent(queryClient, event)
-    })
+    let socket: WebSocket | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+    let heartbeatTimer: ReturnType<typeof setInterval> | undefined
+    let reconnectAttempt = 0
+    let hasConnected = false
+    let awaitingInitialSnapshot = true
+    let lastMessageAt = 0
 
-    socket.addEventListener("open", () => {
-      if (cancelled) {
+    const stopHeartbeat = () => {
+      if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
+      heartbeatTimer = undefined
+    }
+
+    const closeSocket = () => {
+      if (
+        socket?.readyState === WebSocket.CONNECTING ||
+        socket?.readyState === WebSocket.OPEN
+      ) {
         socket.close()
-        return
       }
-      setConnected(true)
-    })
-    socket.addEventListener("close", () => {
-      if (!cancelled) setConnected(false)
-    })
-    socket.addEventListener("error", () => {
-      if (!cancelled) setConnected(false)
-    })
+    }
+
+    const connect = () => {
+      if (cancelled) return
+
+      awaitingInitialSnapshot = true
+      lastMessageAt = Date.now()
+      setConnectionState(hasConnected ? "reconnecting" : "connecting")
+
+      const activeSocket = connectSimulatorSocket(
+        (event) => {
+          if (cancelled || socket !== activeSocket) return
+          lastMessageAt = Date.now()
+          if (awaitingInitialSnapshot) {
+            if (event.type !== "snapshot") return
+            replaceSimulatorSnapshot(queryClient, event.snapshot)
+            awaitingInitialSnapshot = false
+            reconnectAttempt = 0
+            hasConnected = true
+            setConnectionState("connected")
+            return
+          }
+          applySimulatorEvent(queryClient, event)
+        },
+        () => {
+          if (!cancelled && socket === activeSocket) {
+            lastMessageAt = Date.now()
+          }
+        }
+      )
+      socket = activeSocket
+
+      activeSocket.addEventListener("open", () => {
+        if (cancelled || socket !== activeSocket) {
+          activeSocket.close()
+          return
+        }
+        lastMessageAt = Date.now()
+        heartbeatTimer = setInterval(() => {
+          if (activeSocket.readyState !== WebSocket.OPEN) return
+          if (Date.now() - lastMessageAt >= HEARTBEAT_TIMEOUT_MS) {
+            activeSocket.close(4000, "heartbeat timeout")
+            return
+          }
+          activeSocket.send("ping")
+        }, HEARTBEAT_INTERVAL_MS)
+      })
+
+      activeSocket.addEventListener("close", () => {
+        if (cancelled || socket !== activeSocket) return
+        stopHeartbeat()
+        socket = null
+        setConnectionState(hasConnected ? "reconnecting" : "connecting")
+        reconnectTimer = setTimeout(connect, reconnectDelay(reconnectAttempt))
+        reconnectAttempt += 1
+      })
+
+      activeSocket.addEventListener("error", () => {
+        if (!cancelled && socket === activeSocket) {
+          setConnectionState(hasConnected ? "reconnecting" : "connecting")
+        }
+      })
+    }
+
+    connect()
 
     return () => {
       cancelled = true
-      setConnected(false)
-      if (socket.readyState === WebSocket.OPEN) socket.close()
+      if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
+      stopHeartbeat()
+      closeSocket()
     }
   }, [enabled, queryClient])
 
-  return connected
+  return connectionState
 }

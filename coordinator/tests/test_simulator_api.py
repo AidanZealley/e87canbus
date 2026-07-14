@@ -271,6 +271,20 @@ def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestC
     assert (frame["session_id"], frame["sequence"]) == (1, 1)
 
 
+def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
+    with client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+        websocket.send_text("ping")
+        heartbeat = websocket.receive_json()
+        response = client.post("/api/buttons/0/press")
+        snapshot = websocket.receive_json()
+
+    assert initial["type"] == "snapshot"
+    assert heartbeat == {"type": "heartbeat"}
+    assert response.status_code == 200
+    assert snapshot["type"] == "snapshot"
+
+
 def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> None:
     app = make_app()
     manager = RecordingManager()

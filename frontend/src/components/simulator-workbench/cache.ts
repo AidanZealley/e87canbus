@@ -19,6 +19,16 @@ export const setSimulatorSnapshot = (
   )
 }
 
+export const replaceSimulatorSnapshot = (
+  queryClient: QueryClient,
+  snapshot: SimulatorSnapshot
+) => {
+  queryClient.setQueryData<WorkbenchSnapshot>(
+    simulatorQueryKey,
+    mergeSnapshot(emptySnapshot, snapshot)
+  )
+}
+
 export const applySimulatorEvent = (
   queryClient: QueryClient,
   event: SimulatorEvent

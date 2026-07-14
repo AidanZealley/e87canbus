@@ -40,7 +40,13 @@ publish a snapshot only when that operation changes the public application, cont
 projection; refreshed external speed frames remain ordinary incremental trace events.
 WebSocket sends, including the initial full snapshot, have a one-second default timeout. A stalled
 or failed peer is removed while publication continues in order to the remaining peers; publication
-is not detached from the owning operation.
+is not detached from the owning operation. The browser retries initial HTTP startup indefinitely
+and reconnects a closed WebSocket with jittered exponential backoff capped at ten seconds. The
+first full snapshot on every connection is authoritative, so a restarted backend can safely reset
+its session and revision counters without stale browser state winning the merge. While connected,
+the browser sends a heartbeat every five seconds and closes and reconnects a connection that has
+received no server message for fifteen seconds. The workbench badge distinguishes initial
+connection from reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
 commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
