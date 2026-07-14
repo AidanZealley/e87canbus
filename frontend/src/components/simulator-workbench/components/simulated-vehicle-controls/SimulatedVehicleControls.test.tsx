@@ -66,9 +66,9 @@ it("disables signal controls while a simulator command is pending", () => {
       .disabled
   ).toBe(true)
   expect(
-    (screen.getByRole("slider", {
-      name: "Simulated vehicle speed",
-    }) as HTMLInputElement).disabled
+    screen
+      .getByRole("group", { name: "Simulated vehicle speed" })
+      .hasAttribute("data-disabled")
   ).toBe(true)
   expect(screen.getByText("No fresh speed signal")).toBeTruthy()
 })

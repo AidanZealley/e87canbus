@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
 
 const MIN_SPEED_KPH = 0
 const MAX_SPEED_KPH = 300
@@ -88,16 +89,16 @@ export const SimulatedVehicleControls = ({
             </Button>
           </div>
 
-          <input
-            type="range"
+          <Slider
             min={MIN_SPEED_KPH}
             max={MAX_SPEED_KPH}
             step={1}
-            value={draftSpeed === "" ? MIN_SPEED_KPH : draftSpeed}
+            value={[draftSpeed === "" ? MIN_SPEED_KPH : draftSpeed]}
             disabled={disabled}
             aria-label="Simulated vehicle speed"
-            className="w-full accent-primary disabled:opacity-50"
-            onChange={(event) => setBoundedDraft(event.target.valueAsNumber)}
+            onValueChange={(value) =>
+              setBoundedDraft(Array.isArray(value) ? value[0] : value)
+            }
           />
 
           <div className="flex items-center justify-between gap-3">

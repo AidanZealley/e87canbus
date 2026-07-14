@@ -1,3 +1,13 @@
+## UI Component Selection
+
+Before creating a custom UI control or primitive, check whether an appropriate
+[shadcn/ui](https://ui.shadcn.com/) component exists and whether it is already
+installed in `src/components/ui`. If it exists, install it with the shadcn CLI
+when needed and use it instead of recreating the component with native elements
+or custom styling. Build a custom component only when shadcn/ui has no suitable
+option or the product requirements cannot be met by adapting one; document that
+reason in the implementation or pull request.
+
 ## Component Directory Structure
 
 Components should follow this structure for organization and maintainability:
