@@ -11,6 +11,7 @@ type DraggableCurvePointProps = {
   maximum: number
   inverseY: (pixelValue: number) => unknown
   onChange: (value: number) => void
+  onAdjustingChange: (isAdjusting: boolean) => void
 }
 
 export const DraggableCurvePoint = ({
@@ -22,12 +23,14 @@ export const DraggableCurvePoint = ({
   maximum,
   inverseY,
   onChange,
+  onAdjustingChange,
 }: DraggableCurvePointProps) => {
   const activePointer = useRef<number | null>(null)
 
   const finishPointer = (event: PointerEvent<SVGCircleElement>) => {
     if (activePointer.current !== event.pointerId) return
     activePointer.current = null
+    onAdjustingChange(false)
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
@@ -86,6 +89,7 @@ export const DraggableCurvePoint = ({
         onPointerDown={(event) => {
           if (event.button !== 0 || activePointer.current !== null) return
           activePointer.current = event.pointerId
+          onAdjustingChange(true)
           event.currentTarget.setPointerCapture?.(event.pointerId)
           event.preventDefault()
         }}
@@ -95,6 +99,7 @@ export const DraggableCurvePoint = ({
         onLostPointerCapture={(event) => {
           if (activePointer.current === event.pointerId) {
             activePointer.current = null
+            onAdjustingChange(false)
           }
         }}
       />

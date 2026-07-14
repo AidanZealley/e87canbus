@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
 import type { SteeringCurveDefinition } from "@/api/steering"
@@ -74,6 +74,20 @@ it("renders eight accessible points on honest linear series", async () => {
   expect(markerLine?.getAttribute("stroke-opacity")).toBe("0.65")
   expect(document.querySelector(".recharts-reference-dot")).toBeNull()
   expect(document.querySelector(".recharts-tooltip-wrapper")).not.toBeNull()
+  const tooltip = document.querySelector<HTMLElement>(
+    ".recharts-tooltip-wrapper"
+  )!
+  expect(tooltip.style.opacity).toBe("1")
+  const firstPoint = screen.getAllByRole("slider")[0]!
+  fireEvent.pointerDown(firstPoint, {
+    button: 0,
+    buttons: 1,
+    pointerId: 1,
+    pointerType: "mouse",
+  })
+  expect(tooltip.style.opacity).toBe("0")
+  fireEvent.pointerUp(firstPoint, { pointerId: 1, pointerType: "mouse" })
+  expect(tooltip.style.opacity).toBe("1")
   expect(screen.getByText("20.0 km/h")).toBeTruthy()
   expect(screen.getAllByText("78.0%")).toHaveLength(2)
   const activeDots = document.querySelectorAll(".recharts-active-dot circle")

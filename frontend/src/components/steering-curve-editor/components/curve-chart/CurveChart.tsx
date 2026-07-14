@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import {
   CartesianGrid,
   Line,
@@ -55,7 +55,12 @@ const ASSISTANCE_DOMAIN = [0, 100] as const
 const ASSISTANCE_TICKS = [0, 25, 50, 75, 100] as const
 const formatSpeedTick = (value: number) => `${value}`
 const formatAssistanceTick = (value: number) => `${value}%`
-const TOOLTIP_WRAPPER_STYLE = { pointerEvents: "none" } as const
+const tooltipWrapperStyle = (isAdjustingPoint: boolean) =>
+  ({
+    pointerEvents: "none",
+    opacity: isAdjustingPoint ? 0 : 1,
+    transition: "opacity 150ms ease",
+  }) as const
 
 export const CurveChart = ({
   active,
@@ -64,6 +69,7 @@ export const CurveChart = ({
   activeAssistance = null,
   onPointChange,
 }: CurveChartProps) => {
+  const [isAdjustingPoint, setIsAdjustingPoint] = useState(false)
   const data = useMemo(() => {
     const activeSamples = sampleSteeringCurve(active)
     const draftSamples = sampleSteeringCurve(draft)
@@ -107,7 +113,7 @@ export const CurveChart = ({
           cursor={false}
           defaultIndex={currentSpeedIndex >= 0 ? currentSpeedIndex : undefined}
           isAnimationActive={false}
-          wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+          wrapperStyle={tooltipWrapperStyle(isAdjustingPoint)}
           content={
             <ChartTooltipContent
               indicator="line"
@@ -176,7 +182,11 @@ export const CurveChart = ({
           speedKph={speedKph}
           activeAssistance={activeAssistance}
         />
-        <CurvePoints definition={draft} onPointChange={onPointChange} />
+        <CurvePoints
+          definition={draft}
+          onPointChange={onPointChange}
+          onAdjustingChange={setIsAdjustingPoint}
+        />
       </LineChart>
     </ChartContainer>
   )
@@ -185,9 +195,11 @@ export const CurveChart = ({
 const CurvePoints = ({
   definition,
   onPointChange,
+  onAdjustingChange,
 }: {
   definition: SteeringCurveDefinition
   onPointChange: (index: number, value: number) => void
+  onAdjustingChange: (isAdjusting: boolean) => void
 }) => {
   const xScale = useXAxisScale()
   const yScale = useYAxisScale()
@@ -219,6 +231,7 @@ const CurvePoints = ({
                 return typeof percent === "number" ? percent * 10 : percent
               }}
               onChange={(value) => onPointChange(index, value)}
+              onAdjustingChange={onAdjustingChange}
             />
           )
         })}
