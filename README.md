@@ -22,7 +22,7 @@ simulator does not forward traffic between networks.
 - `devices/` - one independently buildable firmware project per physical device.
 - `frontend/` - React UI shared by the development simulator and future in-car display.
 - `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
-- `docs/` - setup, wiring, decoded-message, and future capture notes.
+- `docs/` - setup, wiring, decoded-message, architecture-decision, and remaining-work notes.
 - `scripts/` - coordinator deployment, device upload, bootstrap, and CAN helpers.
 - `deploy/systemd/` - current single-interface bench ping-pong systemd unit.
 - `PROJECT_CONTEXT.md` - source project context.
@@ -107,7 +107,8 @@ Deploy coordinator code and restart the service:
 ./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
-See `docs/bench.md`, `docs/simulation.md`, `docs/coordinator_bootstrap.md`, and `docs/deployment.md`.
+See `docs/bench.md`, `docs/simulation.md`, `docs/coordinator_bootstrap.md`, `docs/deployment.md`, and
+the [architecture decision index](docs/decisions/README.md).
 
 ## Verification
 
