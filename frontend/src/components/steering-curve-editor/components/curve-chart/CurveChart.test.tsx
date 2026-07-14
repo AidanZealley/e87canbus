@@ -57,7 +57,6 @@ it("renders eight accessible points on honest linear series", async () => {
     <CurveChart
       active={definition}
       draft={definition}
-      speedKph={20}
       activeAssistance={0.78}
       onPointChange={vi.fn()}
     />
@@ -88,20 +87,39 @@ it("renders eight accessible points on honest linear series", async () => {
   expect(tooltip.style.opacity).toBe("0")
   fireEvent.pointerUp(firstPoint, { pointerId: 1, pointerType: "mouse" })
   expect(tooltip.style.opacity).toBe("1")
-  expect(screen.getByText("20.0 km/h")).toBeTruthy()
-  expect(screen.getAllByText("78.0%")).toHaveLength(2)
   const activeDots = document.querySelectorAll(".recharts-active-dot circle")
-  expect(activeDots).toHaveLength(2)
-  for (const dot of activeDots) {
-    expect(dot.classList.contains("pointer-events-none")).toBe(true)
-  }
+  expect(activeDots).toHaveLength(0)
   expect(document.querySelector(".recharts-zIndex-layer_1300")).not.toBeNull()
+  const activeCurvePath = document
+    .querySelectorAll(".recharts-line-curve")[0]
+    ?.getAttribute("d")
+  const markerYAtCurveAssistance = markerLine?.getAttribute("y1")
 
   rerender(
     <CurveChart
       active={definition}
       draft={definition}
-      speedKph={null}
+      activeAssistance={1}
+      onPointChange={vi.fn()}
+    />
+  )
+  const maximumAssistanceMarker = document.querySelector(
+    ".recharts-reference-line-line"
+  )
+  expect(maximumAssistanceMarker?.getAttribute("stroke")).toBe(
+    "var(--color-indigo-500)"
+  )
+  expect(maximumAssistanceMarker?.getAttribute("y1")).not.toBe(
+    markerYAtCurveAssistance
+  )
+  expect(
+    document.querySelectorAll(".recharts-line-curve")[0]?.getAttribute("d")
+  ).toBe(activeCurvePath)
+
+  rerender(
+    <CurveChart
+      active={definition}
+      draft={definition}
       activeAssistance={null}
       onPointChange={vi.fn()}
     />

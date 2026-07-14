@@ -3,15 +3,13 @@ import { ReferenceLine } from "recharts"
 import { assistanceToPercent } from "../../utils"
 
 type CurvePositionMarkerProps = {
-  speedKph: number | null
   activeAssistance: number | null
 }
 
 export const CurvePositionMarker = ({
-  speedKph,
   activeAssistance,
 }: CurvePositionMarkerProps) => {
-  if (speedKph === null || activeAssistance === null) return null
+  if (activeAssistance === null) return null
 
   const assistancePercent = assistanceToPercent(activeAssistance)
 

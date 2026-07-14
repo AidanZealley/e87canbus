@@ -30,7 +30,7 @@ export const SimulatedVehicleControls = ({
   onSetSpeed,
   onSilenceSpeed,
 }: SimulatedVehicleControlsProps) => {
-  const [draftSpeed, setDraftSpeed] = useState(speedKph ?? 0)
+  const [draftSpeed, setDraftSpeed] = useState<number | "">(speedKph ?? 0)
 
   const setBoundedDraft = (value: number) => {
     if (Number.isFinite(value)) {
@@ -40,7 +40,9 @@ export const SimulatedVehicleControls = ({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSetSpeed(draftSpeed)
+    if (draftSpeed !== "") {
+      onSetSpeed(draftSpeed)
+    }
   }
 
   return (
@@ -68,14 +70,20 @@ export const SimulatedVehicleControls = ({
                   value={draftSpeed}
                   disabled={disabled}
                   className="pr-14"
-                  onChange={(event) => setBoundedDraft(event.target.valueAsNumber)}
+                  onChange={(event) => {
+                    if (event.target.value === "") {
+                      setDraftSpeed("")
+                    } else {
+                      setBoundedDraft(event.target.valueAsNumber)
+                    }
+                  }}
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
                   km/h
                 </span>
               </div>
             </div>
-            <Button type="submit" disabled={disabled}>
+            <Button type="submit" disabled={disabled || draftSpeed === ""}>
               Set speed
             </Button>
           </div>
@@ -85,7 +93,7 @@ export const SimulatedVehicleControls = ({
             min={MIN_SPEED_KPH}
             max={MAX_SPEED_KPH}
             step={1}
-            value={draftSpeed}
+            value={draftSpeed === "" ? MIN_SPEED_KPH : draftSpeed}
             disabled={disabled}
             aria-label="Simulated vehicle speed"
             className="w-full accent-primary disabled:opacity-50"

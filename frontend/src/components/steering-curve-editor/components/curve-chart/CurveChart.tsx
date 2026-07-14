@@ -22,7 +22,6 @@ import {
   assistanceBoundsAt,
   assistanceToPercent,
   assistancePerMilleToPercent,
-  evaluateSteeringCurve,
   sampleSteeringCurve,
   speedDeciKphToKph,
 } from "../../utils"
@@ -32,7 +31,6 @@ import { CurvePositionMarker } from "./CurvePositionMarker"
 type CurveChartProps = {
   active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
-  speedKph?: number | null
   activeAssistance?: number | null
   onPointChange: (index: number, value: number) => void
 }
@@ -65,7 +63,6 @@ const tooltipWrapperStyle = (isAdjustingPoint: boolean) =>
 export const CurveChart = ({
   active,
   draft,
-  speedKph = null,
   activeAssistance = null,
   onPointChange,
 }: CurveChartProps) => {
@@ -79,27 +76,9 @@ export const CurveChart = ({
       active: assistanceToPercent(
         activeSamples[index]?.assistance ?? sample.assistance
       ),
-      isCurrent: false,
     }))
-    if (speedKph === null || activeAssistance === null) return samples
-
-    const existing = samples.find((sample) => sample.speedKph === speedKph)
-    if (existing) {
-      existing.active = assistanceToPercent(activeAssistance)
-      existing.isCurrent = true
-    } else if (speedKph >= SPEED_DOMAIN[0] && speedKph <= SPEED_DOMAIN[1]) {
-      samples.push({
-        speedKph,
-        active: assistanceToPercent(activeAssistance),
-        draft: assistanceToPercent(evaluateSteeringCurve(draft, speedKph)),
-        isCurrent: true,
-      })
-      samples.sort((left, right) => left.speedKph - right.speedKph)
-    }
-
     return samples
-  }, [active, activeAssistance, draft, speedKph])
-  const currentSpeedIndex = data.findIndex((sample) => sample.isCurrent)
+  }, [active, draft])
   return (
     <ChartContainer
       config={chartConfig}
@@ -111,7 +90,6 @@ export const CurveChart = ({
         <CartesianGrid vertical={false} />
         <ChartTooltip
           cursor={false}
-          defaultIndex={currentSpeedIndex >= 0 ? currentSpeedIndex : undefined}
           isAnimationActive={false}
           wrapperStyle={tooltipWrapperStyle(isAdjustingPoint)}
           content={
@@ -178,10 +156,7 @@ export const CurveChart = ({
           activeDot={NON_INTERACTIVE_ACTIVE_DOT}
           isAnimationActive={false}
         />
-        <CurvePositionMarker
-          speedKph={speedKph}
-          activeAssistance={activeAssistance}
-        />
+        <CurvePositionMarker activeAssistance={activeAssistance} />
         <CurvePoints
           definition={draft}
           onPointChange={onPointChange}

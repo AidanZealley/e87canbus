@@ -108,12 +108,7 @@ export const SimulatorWorkbench = () => {
               speedKph={
                 application.speed_valid ? application.vehicle_speed_kph : null
               }
-              activeAssistance={
-                application.speed_valid &&
-                steeringController.last_command_reason === "auto"
-                  ? steeringController.effective_assistance
-                  : null
-              }
+              activeAssistance={steeringController.effective_assistance}
             />
           </section>
         ) : null}
