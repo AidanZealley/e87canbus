@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query"
 
 import { connectSimulatorSocket, getSnapshot } from "@/api/simulator"
+import { steeringProfilesQueryKey } from "@/api/steering"
 import {
   applySimulatorEvent,
   replaceSimulatorSnapshot,
@@ -42,6 +43,8 @@ const useSimulatorSelector = <Selected>(
 }
 
 const selectApplication = (snapshot: WorkbenchSnapshot) => snapshot.application
+const selectActiveSteeringCurve = (snapshot: WorkbenchSnapshot) =>
+  snapshot.application.active_steering_curve
 const selectSteeringController = (snapshot: WorkbenchSnapshot) =>
   snapshot.steering_controller
 const selectLedColours = (snapshot: WorkbenchSnapshot) => snapshot.led_colours
@@ -51,6 +54,9 @@ const selectNothing = () => null
 
 export const useApplicationSnapshot = () =>
   useSimulatorSelector(selectApplication)
+
+export const useActiveSteeringCurve = () =>
+  useSimulatorSelector(selectActiveSteeringCurve)
 
 export const useSteeringControllerSnapshot = () =>
   useSimulatorSelector(selectSteeringController)
@@ -120,6 +126,12 @@ export const useSimulatorSocket = (enabled: boolean) => {
         (event) => {
           if (cancelled || socket !== activeSocket) return
           lastMessageAt = Date.now()
+          if (event.type === "steering_profile_catalog_changed") {
+            void queryClient.invalidateQueries({
+              queryKey: steeringProfilesQueryKey,
+            })
+            return
+          }
           if (awaitingInitialSnapshot) {
             if (event.type !== "snapshot") return
             replaceSimulatorSnapshot(queryClient, event.snapshot)

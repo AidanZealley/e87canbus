@@ -1,0 +1,99 @@
+import type { PendingCurveAction } from "../../types"
+import { Button } from "@/components/ui/button"
+
+type CurveActionsProps = {
+  pendingAction: PendingCurveAction
+  canApply: boolean
+  canSave: boolean
+  canRevert: boolean
+  canDelete: boolean
+  confirmAction:
+    { type: "revert" } | { type: "delete"; profileName: string } | null
+  onApply: () => void
+  onSave: () => void
+  onRequestRevert: () => void
+  onRequestDelete: () => void
+  onConfirm: () => void
+  onCancelConfirm: () => void
+}
+
+export const CurveActions = ({
+  pendingAction,
+  canApply,
+  canSave,
+  canRevert,
+  canDelete,
+  confirmAction,
+  onApply,
+  onSave,
+  onRequestRevert,
+  onRequestDelete,
+  onConfirm,
+  onCancelConfirm,
+}: CurveActionsProps) => {
+  const pending = pendingAction !== null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        className="h-11 px-4"
+        disabled={!canApply || pending}
+        onClick={onApply}
+      >
+        {pendingAction === "apply" ? "Applying…" : "Apply draft"}
+      </Button>
+      <Button
+        variant="secondary"
+        className="h-11 px-4"
+        disabled={!canSave || pending}
+        onClick={onSave}
+      >
+        {pendingAction === "save" ? "Saving…" : "Save revision"}
+      </Button>
+      <Button
+        variant="outline"
+        className="h-11 px-4"
+        disabled={!canRevert || pending}
+        onClick={onRequestRevert}
+      >
+        Reload active
+      </Button>
+      <Button
+        variant="destructive"
+        className="h-11 px-4"
+        disabled={!canDelete || pending}
+        onClick={onRequestDelete}
+      >
+        {pendingAction === "delete" ? "Deleting…" : "Delete saved"}
+      </Button>
+
+      {confirmAction === null ? null : (
+        <div
+          className="flex min-h-11 flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3"
+          role="alert"
+        >
+          <span className="text-xs">
+            {confirmAction.type === "revert"
+              ? "Discard this draft and reload active values?"
+              : `Permanently delete ${confirmAction.profileName}?`}
+          </span>
+          <Button
+            variant="destructive"
+            className="h-9"
+            disabled={pending}
+            onClick={onConfirm}
+          >
+            Confirm
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-9"
+            disabled={pending}
+            onClick={onCancelConfirm}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}

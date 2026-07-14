@@ -22,7 +22,7 @@ of commands or a replacement for commit history.
 | 2 — SQLite persistence | Verified | 2026-07-14 | Durable catalog and optimistic revisions implemented |
 | 3 — Runtime activation | Verified | 2026-07-14 | Ordered in-memory hot activation implemented |
 | 4 — Profile API | Verified | 2026-07-14 | CRUD, activation and publication contracts implemented |
-| 5 — Interactive editor | Not started | — | — |
+| 5 — Interactive editor | Implemented | 2026-07-14 | Automated and selected browser checks pass; touch/pointer verification remains |
 | 6 — Smooth interpolation | Not started | — | — |
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
@@ -50,6 +50,48 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 5: interactive curve editor implemented
+
+- **Status:** Implemented
+- **Scope:** Added the shared simulator settings editor for the fixed version-1 curve, including
+  draft editing, runtime Apply and saved-profile CRUD. Smooth interpolation, controller transport
+  and physical output authority remain outside this phase.
+- **Changed:** Added typed steering API requests and errors; active-curve and profile-catalog
+  WebSocket integration; an explicit draft/active/saved editor state; a Recharts `linear-v1`
+  comparison chart with pointer-captured vertical handles, keyboard sliders and numeric inputs;
+  current-speed active/draft readouts; inline revert/delete confirmation; pending-action guards;
+  and conflict recovery that retains the draft. Catalog invalidation refetches saved profiles while
+  reconnect snapshots update authoritative active state without replacing a dirty draft. Form
+  controls use the project's shadcn Input, Label, Select and Button primitives with 44-pixel minimum
+  targets.
+- **Decisions:** The editor consumes the complete active projection already carried by simulator
+  snapshots rather than issuing a duplicate curve-state query. Apply includes saved provenance only
+  when the draft exactly matches the selected saved revision. Confirmation is inline so it does not
+  cover a point being edited. The existing built-in values remain displayable at one-per-mille
+  precision even though new edits snap to ten per-mille.
+- **Verification:** `pnpm test` passed 19 pure tests and 10 component tests; `pnpm lint`, `pnpm
+  typecheck` and `pnpm build` passed. `uv run pytest -q` passed 300 tests with the known upstream
+  Starlette warning; `uv run ruff check .`; `uv run mypy coordinator/src/e87canbus`; `uv run python
+  scripts/generate_custom_protocol.py --check`; `bash -n scripts/*.sh`; and `git diff --check`
+  passed. Vite emitted a chunk-size advisory after adding Recharts. Collaborative-browser checks
+  passed in light and dark themes at 480x800 without horizontal overflow and at 1280x900. A numeric
+  edit remained browser-local before Apply; Apply updated runtime state without saving; and ArrowUp
+  changed a focused chart slider. A dirty numeric draft value of 45% survived a backend stop,
+  restart and WebSocket reconnection unchanged. Pointer/touch dragging and an actual target
+  touchscreen were not exercised.
+- **Documentation:** Updated `frontend/README.md` with the three-state workflow, action semantics,
+  reconnect/conflict behavior, simulation-only boundary and test command; updated this status and
+  entry.
+- **Dependencies/migrations:** Added Recharts 3.8 through the shadcn chart CLI and added the shadcn
+  Input, Label and Select primitives through the configured CLI. Added Vitest, jsdom and React
+  Testing Library as development dependencies for required component interaction tests. Preserved
+  pnpm lockfile version 6; no storage migration.
+- **Remaining:** Complete browser verification for pointer/touch dragging and chart extremes.
+  Exercise the actual target touchscreen before in-car use.
+- **Next handoff:** Phase 6 may proceed now and replace only the versioned evaluator and chart line
+  type; it must preserve the editor's integer API values and draft/active/saved state separation.
+  Actual touchscreen verification remains required before in-car use.
 
 ### 2026-07-14 — Phase 4: profile API and publication verified
 

@@ -8,6 +8,7 @@ import {
   stepSimulator,
 } from "@/api/simulator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { SteeringCurveEditor } from "@/components/steering-curve-editor"
 import { NetworkTopology } from "./components/network-topology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SteeringStatus } from "./components/steering-status"
@@ -15,6 +16,8 @@ import {
   useSimulatorCommand,
   useSimulatorSocket,
   useSimulatorStatus,
+  useActiveSteeringCurve,
+  useApplicationSnapshot,
 } from "./query"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorTrace } from "./SimulatorTrace"
@@ -23,8 +26,12 @@ export const SimulatorWorkbench = () => {
   const [autoScroll, setAutoScroll] = useState(true)
   const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
   const status = useSimulatorStatus()
+  const application = useApplicationSnapshot()
+  const activeCurve = useActiveSteeringCurve()
   const command = useSimulatorCommand()
-  const connectionState = useSimulatorSocket(status.isFetched && !status.isError)
+  const connectionState = useSimulatorSocket(
+    status.isFetched && !status.isError
+  )
   const error = command.error ?? status.error
 
   const handlePress = (index: number) => {
@@ -76,6 +83,17 @@ export const SimulatorWorkbench = () => {
           </section>
           <SteeringStatus />
         </div>
+
+        {activeCurve ? (
+          <section aria-label="Steering curve settings">
+            <SteeringCurveEditor
+              activeCurve={activeCurve}
+              speedKph={
+                application.speed_valid ? application.vehicle_speed_kph : null
+              }
+            />
+          </section>
+        ) : null}
 
         <NetworkTopology />
 

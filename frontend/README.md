@@ -30,9 +30,23 @@ after every reconnect. A heartbeat detects silent connections that stop deliveri
 The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
 Network filtering is local UI state and remains selected when the simulator is reset.
 
+## Steering curve editor
+
+The settings section keeps three values explicit: the browser draft, the coordinator's active
+definition and the selected saved SQLite profile. Dragging, keyboard changes and numeric changes
+edit the draft only. **Apply draft** changes simulator runtime state; **Save revision** and **Save
+as** change the saved catalog. Loading or deleting a saved profile never applies it.
+
+Curve points use the fixed schema-version-1 speed grid. The chart draws straight `linear-v1`
+segments and shows a fresh-speed marker against the active definition, with a separately labelled
+draft preview. A dirty draft is retained across WebSocket reconnects and external active changes;
+profile revision conflicts retain it until the operator explicitly loads refreshed saved values.
+These profile operations remain simulation-only and grant no physical output authority.
+
 ## Structure
 
 - `src/api/` — HTTP and WebSocket simulator client.
+- `src/components/steering-curve-editor/` — draft/active/saved curve editing and profile actions.
 - `src/components/simulator-workbench/` — workbench composition and feature components.
 - `src/components/ui/` — shadcn component source managed with the shadcn CLI.
 - `src/lib/` — shared utilities.
@@ -48,6 +62,7 @@ pnpm dlx shadcn@latest add <component>
 
 ```bash
 pnpm lint
+pnpm test
 pnpm typecheck
 pnpm build
 ```
