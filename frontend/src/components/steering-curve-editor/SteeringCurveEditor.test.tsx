@@ -455,7 +455,10 @@ describe("SteeringCurveEditor", () => {
     await waitForSelectedProfile("Dry track · r1")
 
     fireEvent.click(screen.getByRole("button", { name: "Reload active" }))
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(
+      screen.getByRole("alertdialog", { name: "Reload active values?" })
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }))
     expect(
       (
         screen.getByRole("spinbutton", {
@@ -465,7 +468,10 @@ describe("SteeringCurveEditor", () => {
     ).toBe("89")
 
     fireEvent.click(screen.getByRole("button", { name: "Delete saved" }))
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(
+      screen.getByRole("alertdialog", { name: "Delete saved profile?" })
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     await waitForSelectedProfile("No saved selection")
     expect(
       requests.some(
@@ -481,7 +487,7 @@ describe("SteeringCurveEditor", () => {
     ).toHaveLength(0)
   })
 
-  it("delete confirmation keeps its original profile target when selection changes", async () => {
+  it("delete confirmation identifies and deletes the selected profile", async () => {
     const first = profile()
     const second: StoredSteeringProfile = {
       ...profile(),
@@ -506,10 +512,13 @@ describe("SteeringCurveEditor", () => {
     renderEditor(active(first.definition, 1, first))
     await waitForSelectedProfile("Dry track · r1")
     fireEvent.click(screen.getByRole("button", { name: "Delete saved" }))
-    expect(screen.getByText("Permanently delete Dry track?")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "This will permanently delete Dry track. This action cannot be undone."
+      )
+    ).toBeTruthy()
 
-    await chooseProfile("Wet track · r1")
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     await waitFor(() =>
       expect(
@@ -528,7 +537,7 @@ describe("SteeringCurveEditor", () => {
           request.method === "DELETE" && request.url.includes(second.profile_id)
       )
     ).toBe(false)
-    expect(savedProfileSelect().textContent).toContain("Wet track · r1")
+    expect(savedProfileSelect().textContent).toContain("No saved selection")
   })
 })
 

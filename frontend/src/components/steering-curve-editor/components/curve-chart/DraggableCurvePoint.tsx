@@ -27,14 +27,18 @@ export const DraggableCurvePoint = ({
 
   const finishPointer = (event: PointerEvent<SVGCircleElement>) => {
     if (activePointer.current !== event.pointerId) return
+    activePointer.current = null
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-    activePointer.current = null
   }
 
   const handlePointerMove = (event: PointerEvent<SVGCircleElement>) => {
     if (activePointer.current !== event.pointerId) return
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      finishPointer(event)
+      return
+    }
     const chartY = pointerChartY(event)
     if (chartY === null) return
     const value = inverseY(chartY)
@@ -70,7 +74,7 @@ export const DraggableCurvePoint = ({
         fill="transparent"
         stroke="transparent"
         strokeWidth={3}
-        className="cursor-ns-resize touch-none focus-visible:stroke-ring/60 focus-visible:outline-none"
+        className="peer cursor-ns-resize touch-none focus-visible:outline-none"
         role="slider"
         tabIndex={0}
         aria-label={`Assistance at ${speedKph} km/h`}
@@ -80,6 +84,7 @@ export const DraggableCurvePoint = ({
         aria-valuetext={`${assistancePerMille / 10}%`}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
+          if (event.button !== 0 || activePointer.current !== null) return
           activePointer.current = event.pointerId
           event.currentTarget.setPointerCapture?.(event.pointerId)
           event.preventDefault()
@@ -87,12 +92,17 @@ export const DraggableCurvePoint = ({
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointer}
         onPointerCancel={finishPointer}
+        onLostPointerCapture={(event) => {
+          if (activePointer.current === event.pointerId) {
+            activePointer.current = null
+          }
+        }}
       />
       <circle
         cx={x}
         cy={y}
         r={6}
-        className="pointer-events-none fill-background stroke-primary"
+        className="pointer-events-none fill-background stroke-primary peer-focus-visible:stroke-ring"
         strokeWidth={3}
         aria-hidden="true"
       />

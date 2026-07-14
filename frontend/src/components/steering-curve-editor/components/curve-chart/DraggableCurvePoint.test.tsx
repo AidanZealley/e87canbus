@@ -45,13 +45,51 @@ describe("DraggableCurvePoint", () => {
       name: "Assistance at 60 km/h",
     })
 
-    fireEvent.pointerDown(handle, { pointerId: 4, clientY: 100 })
-    fireEvent.pointerMove(handle, { pointerId: 4, clientY: 80 })
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      buttons: 1,
+      pointerId: 4,
+      pointerType: "mouse",
+      clientY: 100,
+    })
+    fireEvent.pointerMove(handle, {
+      buttons: 1,
+      pointerId: 4,
+      pointerType: "mouse",
+      clientY: 80,
+    })
     expect(onChange).toHaveBeenLastCalledWith(400)
 
     fireEvent.pointerCancel(handle, { pointerId: 4 })
     fireEvent.pointerMove(handle, { pointerId: 4, clientY: 60 })
     expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not resume a mouse drag after the button is released elsewhere", () => {
+    const onChange = renderPoint()
+    const handle = screen.getByRole("slider")
+
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      pointerType: "mouse",
+      clientY: 100,
+    })
+    fireEvent.pointerMove(handle, {
+      buttons: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+      clientY: 80,
+    })
+    fireEvent.pointerMove(handle, {
+      buttons: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+      clientY: 60,
+    })
+
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it("supports arrow and page-key precision controls", () => {

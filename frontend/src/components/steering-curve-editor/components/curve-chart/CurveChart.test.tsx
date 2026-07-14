@@ -57,8 +57,6 @@ it("renders eight accessible points on honest linear series", async () => {
     <CurveChart
       active={definition}
       draft={definition}
-      speedKph={10}
-      activeAssistance={0.89}
       onPointChange={vi.fn()}
     />
   )
@@ -68,9 +66,6 @@ it("renders eight accessible points on honest linear series", async () => {
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
-  expect(
-    document.querySelector(".recharts-reference-dot circle")?.getAttribute(
-      "pointer-events"
-    )
-  ).toBe("none")
+  expect(document.querySelector(".recharts-reference-dot")).toBeNull()
+  expect(document.querySelector(".recharts-zIndex-layer_1300")).not.toBeNull()
 })

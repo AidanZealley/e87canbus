@@ -40,9 +40,8 @@ as** change the saved catalog. Loading or deleting a saved profile never applies
 Curve points use the fixed schema-version-1 speed grid. Both `linear-v1` and
 `monotone-cubic-v1` use the same pure TypeScript evaluator as the numeric preview. The chart samples
 that evaluator once per draft change on a deterministic 1 km/h grid, renders those samples with
-linear SVG paths and keeps the original points as separate handles. A fresh Auto marker uses the
-backend-reported effective assistance. The checked-in language-neutral vectors also drive the
-Python coordinator tests.
+linear SVG paths and keeps the original points as separate handles in a layer above both curves.
+The checked-in language-neutral vectors also drive the Python coordinator tests.
 
 **Convert draft to smooth** changes only the interpolation discriminator in browser draft state.
 It is available only when the runtime advertises `monotone-cubic-v1`; saving that draft creates an

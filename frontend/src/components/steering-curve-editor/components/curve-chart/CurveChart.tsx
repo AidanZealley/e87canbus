@@ -3,9 +3,9 @@ import {
   CartesianGrid,
   Line,
   LineChart,
-  ReferenceDot,
   XAxis,
   YAxis,
+  ZIndexLayer,
   useXAxisScale,
   useYAxisInverseScale,
   useYAxisScale,
@@ -25,8 +25,6 @@ import { DraggableCurvePoint } from "./DraggableCurvePoint"
 type CurveChartProps = {
   active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
-  speedKph: number | null
-  activeAssistance: number | null
   onPointChange: (index: number, value: number) => void
 }
 
@@ -38,8 +36,6 @@ const chartConfig = {
 export const CurveChart = ({
   active,
   draft,
-  speedKph,
-  activeAssistance,
   onPointChange,
 }: CurveChartProps) => {
   const data = useMemo(() => {
@@ -53,9 +49,6 @@ export const CurveChart = ({
       ),
     }))
   }, [active, draft])
-  const markerSpeed =
-    speedKph === null ? null : Math.max(0, Math.min(250, speedKph))
-
   return (
     <ChartContainer
       config={chartConfig}
@@ -108,17 +101,6 @@ export const CurveChart = ({
           dot={false}
           isAnimationActive={false}
         />
-        {markerSpeed === null || activeAssistance === null ? null : (
-          <ReferenceDot
-            x={markerSpeed}
-            y={assistanceToPercent(activeAssistance)}
-            r={5}
-            fill="var(--color-active)"
-            stroke="var(--color-background)"
-            strokeWidth={2}
-            pointerEvents="none"
-          />
-        )}
         <CurvePoints definition={draft} onPointChange={onPointChange} />
       </LineChart>
     </ChartContainer>
@@ -138,32 +120,34 @@ const CurvePoints = ({
   if (!xScale || !yScale || !inverseY) return null
 
   return (
-    <g aria-label="Draft curve points">
-      {definition.points.map((point, index) => {
-        const speedKph = speedDeciKphToKph(point.speed_deci_kph)
-        const x = xScale(speedKph)
-        const y = yScale(
-          assistancePerMilleToPercent(point.assistance_per_mille)
-        )
-        const { minimum, maximum } = assistanceBoundsAt(definition, index)
-        if (typeof x !== "number" || typeof y !== "number") return null
-        return (
-          <DraggableCurvePoint
-            key={point.speed_deci_kph}
-            x={x}
-            y={y}
-            speedKph={speedKph}
-            assistancePerMille={point.assistance_per_mille}
-            minimum={minimum}
-            maximum={maximum}
-            inverseY={(pixelValue) => {
-              const percent = inverseY(pixelValue)
-              return typeof percent === "number" ? percent * 10 : percent
-            }}
-            onChange={(value) => onPointChange(index, value)}
-          />
-        )
-      })}
-    </g>
+    <ZIndexLayer zIndex={1300}>
+      <g aria-label="Draft curve points">
+        {definition.points.map((point, index) => {
+          const speedKph = speedDeciKphToKph(point.speed_deci_kph)
+          const x = xScale(speedKph)
+          const y = yScale(
+            assistancePerMilleToPercent(point.assistance_per_mille)
+          )
+          const { minimum, maximum } = assistanceBoundsAt(definition, index)
+          if (typeof x !== "number" || typeof y !== "number") return null
+          return (
+            <DraggableCurvePoint
+              key={point.speed_deci_kph}
+              x={x}
+              y={y}
+              speedKph={speedKph}
+              assistancePerMille={point.assistance_per_mille}
+              minimum={minimum}
+              maximum={maximum}
+              inverseY={(pixelValue) => {
+                const percent = inverseY(pixelValue)
+                return typeof percent === "number" ? percent * 10 : percent
+              }}
+              onChange={(value) => onPointChange(index, value)}
+            />
+          )
+        })}
+      </g>
+    </ZIndexLayer>
   )
 }

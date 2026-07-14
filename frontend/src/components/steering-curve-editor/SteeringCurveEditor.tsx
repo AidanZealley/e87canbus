@@ -75,11 +75,6 @@ export const SteeringCurveEditor = ({
   }))
   const [newProfileName, setNewProfileName] = useState("")
   const actionInFlight = useRef(false)
-  const [confirmAction, setConfirmAction] = useState<
-    | { type: "revert" }
-    | { type: "delete"; profile: StoredSteeringProfile }
-    | null
-  >(null)
 
   useEffect(() => {
     setState((current) => reconcileActiveCurve(current, activeCurve))
@@ -184,38 +179,33 @@ export const SteeringCurveEditor = ({
     }))
   }
 
-  const confirmRequestedAction = () => {
-    if (confirmAction?.type === "revert") {
+  const reloadActive = () => {
+    setState((current) => ({
+      ...current,
+      draft: current.active.definition,
+      draftBaseActivationRevision: current.active.activation_revision,
+      draftBaseFingerprint: current.active.fingerprint,
+      lastError: null,
+      revisionConflict: false,
+    }))
+  }
+
+  const deleteSaved = (profile: StoredSteeringProfile) => {
+    void runAction("delete", async () => {
+      await deleteSteeringProfile(profile)
+      queryClient.setQueryData<StoredSteeringProfile[]>(
+        steeringProfilesQueryKey,
+        (current = []) =>
+          current.filter((item) => item.profile_id !== profile.profile_id)
+      )
       setState((current) => ({
         ...current,
-        draft: current.active.definition,
-        draftBaseActivationRevision: current.active.activation_revision,
-        draftBaseFingerprint: current.active.fingerprint,
-        lastError: null,
-        revisionConflict: false,
+        selectedProfileId:
+          current.selectedProfileId === profile.profile_id
+            ? null
+            : current.selectedProfileId,
       }))
-      setConfirmAction(null)
-      return
-    }
-    if (confirmAction?.type === "delete") {
-      const profile = confirmAction.profile
-      void runAction("delete", async () => {
-        await deleteSteeringProfile(profile)
-        queryClient.setQueryData<StoredSteeringProfile[]>(
-          steeringProfilesQueryKey,
-          (current = []) =>
-            current.filter((item) => item.profile_id !== profile.profile_id)
-        )
-        setState((current) => ({
-          ...current,
-          selectedProfileId:
-            current.selectedProfileId === profile.profile_id
-              ? null
-              : current.selectedProfileId,
-        }))
-        setConfirmAction(null)
-      })
-    }
+    })
   }
 
   const activeAssistancePercent =
@@ -294,7 +284,7 @@ export const SteeringCurveEditor = ({
             </span>
           </div>
           {speedKph === null ? (
-            <span>No fresh speed sample · evaluated marker hidden</span>
+            <span>No fresh speed sample</span>
           ) : (
             <span>
               At {speedKph.toFixed(1)} km/h: active{" "}
@@ -307,8 +297,6 @@ export const SteeringCurveEditor = ({
         <CurveChart
           active={state.active.definition}
           draft={state.draft}
-          speedKph={speedKph}
-          activeAssistance={activeAssistance}
           onPointChange={changePoint}
         />
 
@@ -317,10 +305,7 @@ export const SteeringCurveEditor = ({
             const speedKphAtPoint = speedDeciKphToKph(point.speed_deci_kph)
             const bounds = assistanceBoundsAt(state.draft, index)
             return (
-              <div
-                key={point.speed_deci_kph}
-                className="grid min-w-0 gap-1"
-              >
+              <div key={point.speed_deci_kph} className="grid min-w-0 gap-1">
                 <Label htmlFor={`assistance-${point.speed_deci_kph}`}>
                   {speedKphAtPoint} km/h
                 </Label>
@@ -388,30 +373,15 @@ export const SteeringCurveEditor = ({
             status.selectedProfile !== null && !status.draftMatchesSelectedSaved
           }
           canRevert={!status.draftMatchesActive}
-          canDelete={status.selectedProfile !== null}
+          selectedProfile={status.selectedProfile}
           draftInterpolation={state.draft.interpolation}
           smoothSupported={state.active.supported_interpolations.includes(
             "monotone-cubic-v1"
           )}
-          confirmAction={
-            confirmAction?.type === "delete"
-              ? {
-                  type: "delete",
-                  profileName: confirmAction.profile.name,
-                }
-              : confirmAction
-          }
           onApply={() => void applyDraft()}
           onSave={saveRevision}
-          onRequestRevert={() => setConfirmAction({ type: "revert" })}
-          onRequestDelete={() => {
-            if (status.selectedProfile) {
-              setConfirmAction({
-                type: "delete",
-                profile: status.selectedProfile,
-              })
-            }
-          }}
+          onConfirmReload={reloadActive}
+          onConfirmDelete={deleteSaved}
           onConvertInterpolation={() => {
             setState((current) => ({
               ...current,
@@ -424,8 +394,6 @@ export const SteeringCurveEditor = ({
               lastError: null,
             }))
           }}
-          onConfirm={confirmRequestedAction}
-          onCancelConfirm={() => setConfirmAction(null)}
         />
 
         <p className="text-xs text-muted-foreground" aria-live="polite">
