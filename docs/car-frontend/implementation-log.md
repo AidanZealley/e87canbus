@@ -25,7 +25,7 @@ simulation.
 |---:|---|---|---|
 | 1 — Routing and layouts | Verified | 2026-07-14 | TanStack Router, chooser, `/dev` and `/car` shell |
 | 2 — Application settings | Verified | 2026-07-14 | Revisioned SQLite settings, API and query boundary |
-| 3 — Engine telemetry simulation | Not started | — | RPM/oil/coolant synthetic CAN path |
+| 3 — Engine telemetry simulation | Verified | 2026-07-14 | Independent synthetic RPM/oil/coolant CAN path |
 | 4 — Device health | Not started | — | Explicit simulator status projection |
 | 5 — Car UI foundation | Not started | — | Shared data, conversions, warnings and instruments |
 | 6 — Car screens | Not started | — | Overview, drive, steering and settings views |
@@ -57,6 +57,48 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 3: independent simulated engine telemetry
+
+- **Status:** Verified
+- **Scope:** Implemented the complete Phase 3 RPM, oil-temperature and coolant-temperature path
+  from simulated vehicle controls through synthetic CAN, the ordered kernel and HTTP/WebSocket
+  snapshots; later car instruments and warning policy remain out of scope.
+- **Changed:** Added immutable per-signal observations and explicit valid/never-observed/stale
+  projections, a separate one-second engine timeout config, three adjacent simulation-only
+  extended PT-CAN codecs, independent vehicle set/emit/silence commands, six vehicle API endpoints,
+  strict engine request fields, complete snapshot/frontend types and responsive controls in the
+  existing simulated-vehicle card.
+- **Decisions:** Temperature selection is stored at the wire's canonical tenth-degree resolution;
+  silence removes only simulator emission while the kernel retains history and projects stale
+  values as `null`. The live `ProtocolRouter` still declines every synthetic identifier, which is
+  named and documented as simulation-only rather than added to the generated provisional custom
+  protocol or represented as a BMW candidate. Engine request validation rejects booleans and
+  numeric strings before dispatch while accepting ordinary JSON integer temperatures; this
+  strictness is scoped to the new models so existing step/speed request compatibility is retained.
+  No later-phase prerequisite was needed.
+- **Verification:** Focused application/protocol/simulation/API/runtime/architecture tests passed
+  153 cases during implementation; targeted simulator API verification passed 43 cases after the
+  strict-request regression was added. `uv run pytest -q` (449 passed); `uv run mypy`;
+  `uv run ruff check coordinator`; `uv run python scripts/generate_custom_protocol.py --check`;
+  `pnpm lint`; `pnpm test` (32 unit and 31 component tests); `pnpm typecheck`; `pnpm build`; and
+  `git diff --check` passed. The existing FastAPI TestClient deprecation and Vite development
+  chunk-size warnings remain non-failing.
+- **Visual/physical checks:** The live `/dev` workbench in the in-app preview showed connected
+  never-observed defaults, successful RPM 4200/oil 113 C/coolant 98 C controls, all three extended
+  PT-CAN trace IDs, and oil alone becoming stale after silence while RPM/coolant remained valid.
+  Light-theme checks at 800x480 and 375x667 preview settings found no horizontal document overflow.
+  The host measured effective CSS viewports of 960x576 and 450x800, so target-display physical
+  tuning remains the roadmap's later manual work. No physical CAN or display validation was run.
+- **Documentation:** Updated coordinator and frontend READMEs with timeout, simulation-only routing,
+  null/stale projection and workbench-control behavior, plus this phase log.
+- **Dependencies/migrations:** None. The public simulator snapshot and initial/reconnect WebSocket
+  snapshot now always include `application.engine`; six POST endpoints were added. There are no
+  SQLite migrations, generated-protocol changes or production CAN decoders.
+- **Remaining:** None for Phase 3. Car-display instruments, unit presentation and warnings belong to
+  Phases 5 and 6.
+- **Next handoff:** Phase 4 shares simulator snapshot/API composition; preserve the complete engine
+  shape and continue submitting all runtime mutations through the existing bounded owner.
 
 ### 2026-07-14 — Phase 2: revisioned application settings
 

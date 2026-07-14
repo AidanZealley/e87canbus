@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 from e87canbus.config import (
     CanNetwork,
+    EngineTelemetryConfig,
     SimulationConfig,
     SteeringConfig,
     TxPolicyConfig,
@@ -97,6 +98,8 @@ def test_default_tick_and_speed_timeout_intervals() -> None:
 
     assert config.tick_interval_s == 0.1
     assert config.steering.speed_timeout_s == 1.0
+    assert config.engine_telemetry.timeout_s == 1.0
+    assert config.engine_telemetry is not config.steering
 
 
 @pytest.mark.parametrize("tick_interval_s", [0.0, -0.1, float("inf"), float("nan")])
@@ -131,18 +134,30 @@ def test_runtime_inbox_limits_reject_unsafe_values(
     ("config", "field"),
     [
         (SteeringConfig, "speed_timeout_s"),
+        (EngineTelemetryConfig, "timeout_s"),
         (SimulationConfig, "steering_watchdog_timeout_s"),
         (SimulationConfig, "websocket_send_timeout_s"),
         (TxPolicyConfig, "network_window_s"),
     ],
 )
 def test_duration_configuration_rejects_non_finite_values(
-    config: type[SteeringConfig] | type[SimulationConfig] | type[TxPolicyConfig],
+    config: (
+        type[SteeringConfig]
+        | type[EngineTelemetryConfig]
+        | type[SimulationConfig]
+        | type[TxPolicyConfig]
+    ),
     field: str,
     value: float,
 ) -> None:
     with pytest.raises(ValueError, match="finite"):
         config(**{field: value})
+
+
+@pytest.mark.parametrize("timeout_s", [0.0, -1.0])
+def test_engine_telemetry_timeout_must_be_positive(timeout_s: float) -> None:
+    with pytest.raises(ValueError, match="engine telemetry timeout"):
+        EngineTelemetryConfig(timeout_s)
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("nan")])

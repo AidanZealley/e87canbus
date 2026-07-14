@@ -21,6 +21,11 @@ const snapshot = (
   application: {
     vehicle_speed_kph: 0,
     speed_valid: false,
+    engine: {
+      rpm: { value: null, status: "never_observed" },
+      oil_temperature_c: { value: null, status: "never_observed" },
+      coolant_temperature_c: { value: null, status: "never_observed" },
+    },
     steering_mode: "auto",
     manual_assistance_level: 0,
     maximum_assistance_active: false,
@@ -48,6 +53,11 @@ test("steering command reasons are formatted for display", () => {
     effective_assistance: 0,
     last_command_reason: null,
     watchdog_timed_out: false,
+  })
+  assert.deepEqual(emptySnapshot.application.engine, {
+    rpm: { value: null, status: "never_observed" },
+    oil_temperature_c: { value: null, status: "never_observed" },
+    coolant_temperature_c: { value: null, status: "never_observed" },
   })
 })
 

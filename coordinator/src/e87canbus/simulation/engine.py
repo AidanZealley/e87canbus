@@ -102,6 +102,36 @@ class SilenceVehicleSpeed:
 
 
 @dataclass(frozen=True)
+class SetEngineRpm:
+    rpm: int
+
+
+@dataclass(frozen=True)
+class SilenceEngineRpm:
+    pass
+
+
+@dataclass(frozen=True)
+class SetOilTemperature:
+    temperature_c: float
+
+
+@dataclass(frozen=True)
+class SilenceOilTemperature:
+    pass
+
+
+@dataclass(frozen=True)
+class SetCoolantTemperature:
+    temperature_c: float
+
+
+@dataclass(frozen=True)
+class SilenceCoolantTemperature:
+    pass
+
+
+@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
@@ -120,6 +150,12 @@ SimulationCommand = (
     | RunControlTimer
     | SetVehicleSpeed
     | SilenceVehicleSpeed
+    | SetEngineRpm
+    | SilenceEngineRpm
+    | SetOilTemperature
+    | SilenceOilTemperature
+    | SetCoolantTemperature
+    | SilenceCoolantTemperature
     | ResetSimulation
     | ActivateCurve
 )
@@ -182,6 +218,20 @@ def snapshot_to_dict(
         "application": {
             "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
             "speed_valid": snapshot.application.speed_valid,
+            "engine": {
+                "rpm": {
+                    "value": snapshot.application.engine.rpm.value,
+                    "status": snapshot.application.engine.rpm.status.value,
+                },
+                "oil_temperature_c": {
+                    "value": snapshot.application.engine.oil_temperature_c.value,
+                    "status": snapshot.application.engine.oil_temperature_c.status.value,
+                },
+                "coolant_temperature_c": {
+                    "value": snapshot.application.engine.coolant_temperature_c.value,
+                    "status": snapshot.application.engine.coolant_temperature_c.status.value,
+                },
+            },
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
             "maximum_assistance_active": snapshot.application.maximum_assistance_active,
@@ -305,6 +355,9 @@ class SimulationEngine:
                 self.neotrellis.send_next_button_event()
             case RunControlTimer(now):
                 self.vehicle.emit_speed()
+                self.vehicle.emit_engine_rpm()
+                self.vehicle.emit_oil_temperature()
+                self.vehicle.emit_coolant_temperature()
                 self._drain_kernel_inputs()
                 self._dispatch(TimerElapsed(now))
                 snapshot_trace = None
@@ -312,6 +365,18 @@ class SimulationEngine:
                 self.vehicle.set_speed(speed_kph)
             case SilenceVehicleSpeed():
                 self.vehicle.silence_speed()
+            case SetEngineRpm(rpm):
+                self.vehicle.set_engine_rpm(rpm)
+            case SilenceEngineRpm():
+                self.vehicle.silence_engine_rpm()
+            case SetOilTemperature(temperature_c):
+                self.vehicle.set_oil_temperature(temperature_c)
+            case SilenceOilTemperature():
+                self.vehicle.silence_oil_temperature()
+            case SetCoolantTemperature(temperature_c):
+                self.vehicle.set_coolant_temperature(temperature_c)
+            case SilenceCoolantTemperature():
+                self.vehicle.silence_coolant_temperature()
             case ActivateCurve(definition, saved_profile_id, saved_profile_revision):
                 self._dispatch(
                     ActivateSteeringCurve(
@@ -339,13 +404,10 @@ class SimulationEngine:
             before_sequence,
             snapshot_trace=snapshot_trace,
         )
-        if (
-            isinstance(command, RunControlTimer)
-            and (
-                result.snapshot.application != before_application
-                or result.snapshot.steering_controller != before_steering
-                or result.snapshot.fatal != before_fatal
-            )
+        if isinstance(command, RunControlTimer) and (
+            result.snapshot.application != before_application
+            or result.snapshot.steering_controller != before_steering
+            or result.snapshot.fatal != before_fatal
         ):
             return replace(
                 result,
@@ -390,6 +452,7 @@ class SimulationEngine:
         router = SimulationProtocolRouter(self.config.custom_can_ids)
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
+            engine_telemetry_config=self.config.engine_telemetry,
             router=router,
             supported_steering_curve_interpolations=(self._supported_steering_curve_interpolations),
         )
@@ -433,9 +496,7 @@ class SimulationEngine:
 
     def _drain_kernel_inputs(self) -> int:
         processed = 0
-        ordered_networks = tuple(
-            network for network in CanNetwork if network in self.pi_buses
-        )
+        ordered_networks = tuple(network for network in CanNetwork if network in self.pi_buses)
         while True:
             found_frame = False
             for network in ordered_networks:

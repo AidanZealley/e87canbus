@@ -4,6 +4,9 @@ import pytest
 from e87canbus.application import controller
 from e87canbus.application.controller import (
     ApplicationSnapshot,
+    EngineTelemetrySnapshot,
+    EngineTelemetryStatus,
+    EngineTelemetryValue,
     Transition,
     normalize_state,
 )
@@ -13,7 +16,10 @@ from e87canbus.application.events import (
     ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
+    CoolantTemperatureObserved,
+    EngineRpmObserved,
     LedColour,
+    OilTemperatureObserved,
     SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
@@ -23,12 +29,15 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import (
     ApplicationState,
+    CoolantTemperatureSample,
+    EngineRpmSample,
     MaximumAssistance,
     NormalSteering,
+    OilTemperatureSample,
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
     ASSISTANCE_QUANTIZATION_TOLERANCE,
     SteeringCurveActivationStatus,
@@ -37,6 +46,7 @@ from e87canbus.features.steering import (
 )
 
 CONFIG = SteeringConfig()
+ENGINE_CONFIG = EngineTelemetryConfig()
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
 AUTO_LEDS = ButtonLedState(
@@ -61,8 +71,7 @@ AUTO_LEDS = ButtonLedState(
 )
 MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
 MANUAL_MAXIMUM_LEDS = ButtonLedState(
-    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE)
-    + (LedColour.OFF,) * 12
+    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE) + (LedColour.OFF,) * 12
 )
 
 
@@ -70,6 +79,7 @@ def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnap
     return controller.snapshot(
         state,
         config,
+        ENGINE_CONFIG,
         ACTIVE_CURVE,
         SteeringCurveActivationStatus.ACTIVE,
     )
@@ -115,6 +125,17 @@ def test_initial_snapshot_and_effects() -> None:
         manual_assistance_level=0,
         maximum_assistance_active=False,
         speed_valid=False,
+        engine=EngineTelemetrySnapshot(
+            rpm=EngineTelemetryValue(None, EngineTelemetryStatus.NEVER_OBSERVED),
+            oil_temperature_c=EngineTelemetryValue(
+                None,
+                EngineTelemetryStatus.NEVER_OBSERVED,
+            ),
+            coolant_temperature_c=EngineTelemetryValue(
+                None,
+                EngineTelemetryStatus.NEVER_OBSERVED,
+            ),
+        ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
     )
@@ -186,9 +207,7 @@ def test_mapped_buttons_while_maximum_assistance_is_active(
 
 
 def test_mode_button_selects_auto_from_maximum_over_previous_manual_state() -> None:
-    state = ApplicationState(
-        MaximumAssistance(NormalSteering(SteeringMode.MANUAL, manual_level=5))
-    )
+    state = ApplicationState(MaximumAssistance(NormalSteering(SteeringMode.MANUAL, manual_level=5)))
 
     result = transition(state, ButtonPressed(0), CONFIG)
 
@@ -262,9 +281,7 @@ def test_regressing_timer_cannot_make_stale_speed_valid() -> None:
 
     assert result.state.speed_evaluated_at == 5.0
     assert snapshot(result.state, CONFIG).speed_valid is False
-    assert result.effects == (
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_STALE),
-    )
+    assert result.effects == (SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_STALE),)
 
 
 def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
@@ -275,6 +292,56 @@ def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     assert result.state.speed_sample == SpeedSample(0.0, 12.5, CanNetwork.PTCAN)
     assert snapshot(result.state, CONFIG).speed_valid is True
     assert result.effects == ()
+
+
+def test_engine_observations_store_canonical_value_time_and_ptcan_source() -> None:
+    events = (
+        EngineRpmObserved(EngineRpmSample(3500, 10.0, CanNetwork.PTCAN)),
+        OilTemperatureObserved(OilTemperatureSample(112.5, 10.1, CanNetwork.PTCAN)),
+        CoolantTemperatureObserved(CoolantTemperatureSample(98.2, 10.2, CanNetwork.PTCAN)),
+    )
+
+    state = ApplicationState()
+    for event in events:
+        state = transition(state, event, CONFIG).state
+
+    assert state.engine_rpm_sample == events[0].sample
+    assert state.oil_temperature_sample == events[1].sample
+    assert state.coolant_temperature_sample == events[2].sample
+
+
+def test_engine_telemetry_ages_independently_with_monotonic_evaluation_time() -> None:
+    state = transition(
+        ApplicationState(),
+        EngineRpmObserved(EngineRpmSample(3500, 10.0, CanNetwork.PTCAN)),
+        CONFIG,
+    ).state
+    state = transition(
+        state,
+        OilTemperatureObserved(OilTemperatureSample(112.5, 10.5, CanNetwork.PTCAN)),
+        CONFIG,
+    ).state
+    at_boundary = transition(state, ControlTimerElapsed(11.0), CONFIG).state
+
+    boundary = snapshot(at_boundary, CONFIG).engine
+    assert boundary.rpm == EngineTelemetryValue(3500, EngineTelemetryStatus.VALID)
+    assert boundary.oil_temperature_c == EngineTelemetryValue(
+        112.5,
+        EngineTelemetryStatus.VALID,
+    )
+    assert boundary.coolant_temperature_c == EngineTelemetryValue(
+        None,
+        EngineTelemetryStatus.NEVER_OBSERVED,
+    )
+
+    stale_rpm = transition(at_boundary, ControlTimerElapsed(11.000_001), CONFIG).state
+    regressed = transition(stale_rpm, ControlTimerElapsed(10.75), CONFIG).state
+    projection = snapshot(regressed, CONFIG).engine
+
+    assert regressed.engine_telemetry_evaluated_at == 11.000_001
+    assert projection.rpm == EngineTelemetryValue(None, EngineTelemetryStatus.STALE)
+    assert projection.oil_temperature_c.status is EngineTelemetryStatus.VALID
+    assert projection.coolant_temperature_c.value is None
 
 
 @pytest.mark.parametrize(

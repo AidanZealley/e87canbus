@@ -48,6 +48,35 @@ export const setVehicleSpeed = (speedKph: number) =>
 export const silenceVehicleSpeed = () =>
   requestSnapshot("/api/vehicle/speed/silence", { method: "POST" })
 
+export const setEngineRpm = (rpm: number) =>
+  requestSnapshot("/api/vehicle/rpm", {
+    method: "POST",
+    body: JSON.stringify({ rpm }),
+  })
+
+export const silenceEngineRpm = () =>
+  requestSnapshot("/api/vehicle/rpm/silence", { method: "POST" })
+
+export const setOilTemperature = (temperatureC: number) =>
+  requestSnapshot("/api/vehicle/oil-temperature", {
+    method: "POST",
+    body: JSON.stringify({ temperature_c: temperatureC }),
+  })
+
+export const silenceOilTemperature = () =>
+  requestSnapshot("/api/vehicle/oil-temperature/silence", { method: "POST" })
+
+export const setCoolantTemperature = (temperatureC: number) =>
+  requestSnapshot("/api/vehicle/coolant-temperature", {
+    method: "POST",
+    body: JSON.stringify({ temperature_c: temperatureC }),
+  })
+
+export const silenceCoolantTemperature = () =>
+  requestSnapshot("/api/vehicle/coolant-temperature/silence", {
+    method: "POST",
+  })
+
 export const connectSimulatorSocket = (
   onEvent: (event: SimulatorSocketEvent) => void,
   onHeartbeat: () => void

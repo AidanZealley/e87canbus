@@ -144,6 +144,15 @@ new healthy session. Initial and incremental WebSocket sends are bounded by the 
 timeout, and a stalled peer is removed without detaching or reordering publication. Incremental
 trace frames use the session ID with their reset-local sequence number.
 
+The same simulated vehicle can independently select or silence RPM, oil temperature and coolant
+temperature. Each value uses its own unmistakably simulation-only extended PT-CAN frame adjacent
+to the synthetic speed identifier, then follows normal ingress, routing, transition and snapshot
+publication. These identifiers are not BMW candidates and remain absent from `ProtocolRouter`.
+RPM is canonical integer RPM; temperatures are canonical tenths of a degree Celsius. The
+application retains observations internally but projects `null` with `never_observed` or `stale`
+when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
+and every active signal is re-emitted before each ordered control-timer evaluation.
+
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.

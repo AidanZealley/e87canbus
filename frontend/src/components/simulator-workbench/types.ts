@@ -27,10 +27,24 @@ export type NetworkStatus = {
 export type ApplicationSnapshot = {
   vehicle_speed_kph: number
   speed_valid: boolean
+  engine: EngineTelemetrySnapshot
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   maximum_assistance_active: boolean
   active_steering_curve: ActiveSteeringCurve | null
+}
+
+export type EngineTelemetryStatus = "valid" | "never_observed" | "stale"
+
+export type EngineTelemetryValue = {
+  value: number | null
+  status: EngineTelemetryStatus
+}
+
+export type EngineTelemetrySnapshot = {
+  rpm: EngineTelemetryValue
+  oil_temperature_c: EngineTelemetryValue
+  coolant_temperature_c: EngineTelemetryValue
 }
 
 export type SteeringControllerSnapshot = {

@@ -31,7 +31,10 @@ snapshot after every reconnect. A heartbeat detects silent connections that stop
 messages.
 
 The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
-Network filtering is local UI state and remains selected when the simulator is reset.
+Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature
+and coolant temperature. Engine controls show valid, never-observed and stale states without
+substituting numeric zero; their PT-CAN identifiers are simulation-only and are not BMW
+definitions. Network filtering is local UI state and remains selected when the simulator is reset.
 
 ## Routes
 

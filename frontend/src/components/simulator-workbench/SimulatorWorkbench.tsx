@@ -5,7 +5,13 @@ import {
   pressButton,
   releaseButton,
   resetSimulator,
+  setCoolantTemperature,
+  setEngineRpm,
+  setOilTemperature,
   setVehicleSpeed,
+  silenceCoolantTemperature,
+  silenceEngineRpm,
+  silenceOilTemperature,
   silenceVehicleSpeed,
   stepSimulator,
 } from "@/api/simulator"
@@ -91,15 +97,28 @@ export const SimulatorWorkbench = () => {
             <section className="min-w-0">
               <SimulatedVehicleControls
                 speedKph={
-                  application.speed_valid
-                    ? application.vehicle_speed_kph
-                    : null
+                  application.speed_valid ? application.vehicle_speed_kph : null
                 }
+                engine={application.engine}
                 disabled={command.isPending}
                 onSetSpeed={(speedKph) =>
                   command.mutate(() => setVehicleSpeed(speedKph))
                 }
                 onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
+                onSetRpm={(rpm) => command.mutate(() => setEngineRpm(rpm))}
+                onSilenceRpm={() => command.mutate(silenceEngineRpm)}
+                onSetOilTemperature={(temperatureC) =>
+                  command.mutate(() => setOilTemperature(temperatureC))
+                }
+                onSilenceOilTemperature={() =>
+                  command.mutate(silenceOilTemperature)
+                }
+                onSetCoolantTemperature={(temperatureC) =>
+                  command.mutate(() => setCoolantTemperature(temperatureC))
+                }
+                onSilenceCoolantTemperature={() =>
+                  command.mutate(silenceCoolantTemperature)
+                }
               />
             </section>
           </div>

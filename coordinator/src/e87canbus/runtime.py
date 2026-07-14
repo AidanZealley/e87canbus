@@ -24,7 +24,7 @@ from e87canbus.application.events import (
     SteeringFallbackRequested,
 )
 from e87canbus.application.state import ApplicationState
-from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     CurveInterpolation,
@@ -216,6 +216,7 @@ class CoordinatorKernel:
         self,
         state: ApplicationState | None = None,
         steering_config: SteeringConfig | None = None,
+        engine_telemetry_config: EngineTelemetryConfig | None = None,
         router: ProtocolRouter | None = None,
         active_steering_curve: ActiveSteeringCurve | None = None,
         supported_steering_curve_interpolations: Iterable[CurveInterpolation] = (
@@ -223,6 +224,7 @@ class CoordinatorKernel:
         ),
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
+        self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
         self._state = normalize_state(
             state or ApplicationState(),
             self._steering_config,
@@ -267,6 +269,7 @@ class CoordinatorKernel:
         return snapshot(
             self._state,
             self._steering_config,
+            self._engine_telemetry_config,
             self._active_steering_curve,
             self._steering_curve_activation_status,
             self._supported_steering_curve_interpolations,

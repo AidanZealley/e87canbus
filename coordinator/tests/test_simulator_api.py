@@ -150,6 +150,11 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert body["fatal"] is False
     assert body["trace"] == []
     assert body["application"]["steering_mode"] == "auto"
+    assert body["application"]["engine"] == {
+        "rpm": {"value": None, "status": "never_observed"},
+        "oil_temperature_c": {"value": None, "status": "never_observed"},
+        "coolant_temperature_c": {"value": None, "status": "never_observed"},
+    }
     assert body["steering_controller"] == {
         "effective_assistance": 0.0,
         "last_command_reason": "speed_never_observed",
@@ -255,6 +260,23 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
     assert "simulated speed" in response.json()["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/step", {"button_index": 0, "unexpected": True}),
+        ("/api/vehicle/speed", {"speed_kph": 42.5, "unexpected": True}),
+    ],
+)
+def test_existing_simulation_requests_continue_to_ignore_unknown_fields(
+    client: TestClient,
+    path: str,
+    body: dict[str, bool | float | int],
+) -> None:
+    response = client.post(path, json=body)
+
+    assert response.status_code == 200
+
+
 def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
     client: TestClient,
 ) -> None:
@@ -268,6 +290,100 @@ def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
     assert "trace" not in response.json()
 
 
+@pytest.mark.parametrize(
+    ("path", "body", "field", "expected"),
+    [
+        ("/api/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
+        (
+            "/api/vehicle/oil-temperature",
+            {"temperature_c": 112.54},
+            "oil_temperature_c",
+            112.5,
+        ),
+        (
+            "/api/vehicle/coolant-temperature",
+            {"temperature_c": -12.3},
+            "coolant_temperature_c",
+            -12.3,
+        ),
+        (
+            "/api/vehicle/oil-temperature",
+            {"temperature_c": 110},
+            "oil_temperature_c",
+            110.0,
+        ),
+    ],
+)
+def test_engine_commands_return_complete_slim_snapshot(
+    client: TestClient,
+    path: str,
+    body: dict[str, float | int],
+    field: str,
+    expected: float | int,
+) -> None:
+    response = client.post(path, json=body)
+
+    assert response.status_code == 200
+    assert response.json()["application"]["engine"][field] == {
+        "value": expected,
+        "status": "valid",
+    }
+    assert set(response.json()["application"]["engine"]) == {
+        "rpm",
+        "oil_temperature_c",
+        "coolant_temperature_c",
+    }
+    assert "trace" not in response.json()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/vehicle/rpm/silence",
+        "/api/vehicle/oil-temperature/silence",
+        "/api/vehicle/coolant-temperature/silence",
+    ],
+)
+def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
+    first = client.post(path)
+    second = client.post(path)
+
+    assert first.status_code == second.status_code == 200
+    assert second.json()["application"]["engine"] == first.json()["application"]["engine"]
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/vehicle/rpm", {"rpm": -1}),
+        ("/api/vehicle/rpm", {"rpm": 12_001}),
+        ("/api/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": -40.1}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": 250.1}),
+        ("/api/vehicle/rpm", {"rpm": True}),
+        ("/api/vehicle/rpm", {"rpm": "3500"}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": True}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": "110"}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": True}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": "98"}),
+    ],
+)
+def test_invalid_engine_request_returns_422_without_changing_state(
+    client: TestClient,
+    path: str,
+    body: dict[str, bool | float | int | str],
+) -> None:
+    before = client.get("/api/snapshot").json()
+
+    response = client.post(path, json=body)
+
+    assert response.status_code == 422
+    after = client.get("/api/snapshot").json()
+    assert after["revision"] == before["revision"]
+    assert after["application"]["engine"] == before["application"]["engine"]
+    assert after["trace"] == before["trace"]
+
+
 def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:
     with client.websocket_connect("/ws") as websocket:
         initial = websocket.receive_json()
@@ -277,6 +393,10 @@ def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestC
 
     assert initial["type"] == "snapshot"
     assert (initial["session_id"], initial["revision"]) == (1, 1)
+    assert initial["snapshot"]["application"]["engine"]["rpm"] == {
+        "value": None,
+        "status": "never_observed",
+    }
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
     assert "trace" not in snapshot["snapshot"]
@@ -296,6 +416,21 @@ def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
     assert heartbeat == {"type": "heartbeat"}
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
+
+
+def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient) -> None:
+    selected = client.post("/api/vehicle/rpm", json={"rpm": 4200})
+    assert selected.status_code == 200
+
+    with client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+
+    assert initial["type"] == "snapshot"
+    assert initial["snapshot"]["application"]["engine"] == {
+        "rpm": {"value": 4200, "status": "valid"},
+        "oil_temperature_c": {"value": None, "status": "never_observed"},
+        "coolant_temperature_c": {"value": None, "status": "never_observed"},
+    }
 
 
 def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> None:
