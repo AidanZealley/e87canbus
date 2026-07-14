@@ -9,7 +9,7 @@ corrections in the current entry.
 |---|---|---|
 | 1 — Atomic LED snapshot cutover | done | 2026-07-13 |
 | 2 — Policy proof and legacy cleanup | done | 2026-07-14 |
-| 3 — Verified physical NeoTrellis rendering | blocked on verified hardware evidence | — |
+| 3 — Verified physical NeoTrellis rendering | blocked — hardware evidence absent (reverified 2026-07-14) | — |
 
 ## Entry template
 
@@ -153,3 +153,54 @@ no topology, mapping, brightness, or current decision was introduced.
 `uv run python scripts/generate_custom_protocol.py --check` — passed; and
 `cd devices/button-pad && pio run` — passed for the unchanged Arduino Micro target (RAM 21.5%,
 flash 25.6%).
+
+## Phase 3 — Verified physical NeoTrellis rendering (2026-07-14)
+
+**Result:** blocked
+
+**What changed:**
+
+- Reverified the firmware project, generated protocol boundary, Python codec and simulated device,
+  frontend logical ordering and validation, device/wiring/deployment documentation, and their
+  current tests. Updated this status table and recorded the evidence audit; production and test
+  code remain unchanged.
+- Confirmed that the current firmware still validates all eight bytes into a temporary 16-colour
+  array, copies the state only after every nibble is valid, and calls one serial-only rendering
+  boundary. The simulator and frontend use the same even-index-low, odd-index-high logical order.
+
+**Deviations from the phase doc:** Implementation did not begin because the phase's explicit
+hardware-evidence precondition is unmet. The repository identifies only an Arduino Micro and the
+MCP2515 dependency; it does not identify the exact NeoTrellis product/revision or supported library,
+I2C addresses, tile order/orientation, a logical-to-physical mapping, supply and grounding details,
+brightness/current limits, worst-case allowed current, complete physical behavior during CAN
+silence/bus-off/restart, or a reproducible per-index physical bench procedure. Inventing any of
+those values would violate the phase design and safety rules.
+
+**Safety invariants verified:** Existing automated tests prove exact-length and known-colour
+validation, invalid-final-nibble rejection, complete simulated and frontend state replacement, and
+no change after malformed snapshots. The firmware retains its validate-temporarily-then-copy
+ordering, so malformed input cannot change its stored logical state or reach its rendering
+boundary. The generated artifacts remain synchronized, default live composition remains unable to
+transmit, and the provisional `0x700`/`0x701` IDs gained no in-car authority. Physical-output and
+electrical acceptance criteria remain unverified because no physical renderer or evidence-backed
+bench exists.
+
+**Complexity delta:** No production wrapper, renderer, mapping, callback, indexed update path,
+compatibility codec, event, manager, queue, or hardware constant was added. The required audit still
+finds one complete LED state, one effect, one encoder, one decoder, and one complete publication
+shape. The firmware's one temporary decode array remains justified by atomic validation and I/O
+isolation; the serial reporting boundary remains deliberately non-physical. Current-facing stale
+path searches found no retained indexed mutation or DLC-2 production description; the only matches
+were historical/design statements in this hardening pass.
+
+**Discovered along the way:** `platformio.ini` contains no NeoTrellis library dependency, and no
+orientation photograph, wiring diagram, electrical measurement, or physical pixel-identification
+artifact exists under `docs/` or `devices/`. Passing host tests and compiling the serial-only
+firmware cannot substitute for the phase's physical-index and current-budget acceptance tests.
+
+**Checks:** `uv run pytest -q` — 215 passed (one existing FastAPI/Starlette deprecation warning);
+`uv run mypy` — success, 30 source files; `uv run ruff check coordinator` — passed;
+`cd frontend && pnpm typecheck && pnpm lint && pnpm test` — passed, 11 tests (with Node's existing
+experimental type-stripping warnings); `uv run python scripts/generate_custom_protocol.py --check`
+— passed; and `cd devices/button-pad && pio run` — passed for the unchanged Arduino Micro target
+(RAM 21.5%, flash 25.6%).
