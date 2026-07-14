@@ -23,7 +23,7 @@ simulation.
 
 | Phase | Status | Last entry | Notes |
 |---:|---|---|---|
-| 1 — Routing and layouts | Not started | — | TanStack Router, chooser, `/dev` and `/car` shell |
+| 1 — Routing and layouts | Verified | 2026-07-14 | TanStack Router, chooser, `/dev` and `/car` shell |
 | 2 — Application settings | Not started | — | Revisioned SQLite settings and API |
 | 3 — Engine telemetry simulation | Not started | — | RPM/oil/coolant synthetic CAN path |
 | 4 — Device health | Not started | — | Explicit simulator status projection |
@@ -58,6 +58,40 @@ Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
 
+### 2026-07-14 — Phase 1: routed workbench and car shell
+
+- **Status:** Verified
+- **Scope:** Implemented the complete Phase 1 routing and layout foundation: the mode chooser,
+  preserved development workbench, shared theme control, car route shell and route-aware recovery.
+- **Changed:** Added the generated TanStack file route tree, typed router composition, `/`, `/dev`,
+  `/car`, `/car/drive`, `/car/steering` and `/car/settings` routes, the isolated icon-only car rail,
+  explicit later-phase placeholders, and focused route tests. The simulator toolbar now provides a
+  chooser link and shared theme menu. Removed the superseded `App.tsx` composition.
+- **Decisions:** Configured root not-found handling so unknown `/car/*` locations cannot inherit or
+  expose development navigation. Disabled the Fast Refresh export rule only for route files because
+  TanStack automatic code splitting requires route components to stay unexported beside the
+  generated `Route` export. No telemetry, settings data or steering behavior was invented.
+- **Verification:** `pnpm lint`; `pnpm test` (27 unit and 28 component tests, including 9 new route
+  cases); `pnpm typecheck`; `pnpm build`; frozen offline `pnpm install`; `git diff --check`;
+  `uv run python scripts/generate_custom_protocol.py --check`; `uv run pytest -q` (330 passed);
+  `uv run mypy`; and `uv run ruff check coordinator` all passed. Production build generated
+  code-split route chunks; Vite retained its existing large development-workbench chunk warning.
+- **Visual/physical checks:** In-app browser checks covered direct loads of `/`, `/dev` and every
+  declared car route, both not-found policies, active/accessibly named car navigation, keyboard
+  focus, theme menu selection and persistence, light and dark presentation, narrow vertical chooser
+  stacking, and document overflow. No horizontal overflow was observed. The preview was configured
+  at 800x480 and 375x667; its host reported 1.2x effective CSS dimensions (960x576 and 450x800), so
+  native target-display and physical touch-density tuning remain manual follow-up.
+- **Documentation:** Updated `frontend/README.md` with the routed entry points, router ownership and
+  generated-file rule, plus this phase log.
+- **Dependencies/migrations:** Added runtime `@tanstack/react-router`, development
+  `@tanstack/router-plugin`, and the shadcn Base UI dropdown-menu source. The pnpm lockfile changed;
+  there are no database migrations or backend/API contract changes.
+- **Remaining:** None for the Phase 1 route/layout contract. Final screen content and physical
+  display tuning remain assigned to later roadmap phases.
+- **Next handoff:** Phase 2 can place its future car settings UI under the committed
+  `/car/settings` boundary; shared Query and Theme providers already remain above the router.
+
 ### 2026-07-14 — Roadmap specification prepared
 
 - **Status:** Not started
@@ -79,4 +113,3 @@ Omit no field; write `None` when it genuinely does not apply.
 - **Next handoff:** Start with Phase 1, or implement independent backend Phases 2-4 with explicit
   coordination around shared FastAPI composition and snapshot files. Read the current repository
   before treating any suggested file boundary as current truth.
-

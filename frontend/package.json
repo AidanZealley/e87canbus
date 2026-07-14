@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "pnpm test:unit && pnpm test:component",
     "test:unit": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts",
-    "test:component": "vitest run src/components/simulator-workbench/components/can-trace-table/CanTraceTable.test.tsx src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
+    "test:component": "vitest run src/routes/-routes.test.tsx src/components/simulator-workbench/components/can-trace-table/CanTraceTable.test.tsx src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview"
@@ -19,6 +19,7 @@
     "@fontsource-variable/oxanium": "^5.2.8",
     "@tailwindcss/vite": "^4",
     "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-virtual": "^3.14.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10",
+    "@tanstack/router-plugin": "^1.168.20",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24",
     "@types/react": "^19",
