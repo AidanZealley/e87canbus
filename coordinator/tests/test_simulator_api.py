@@ -141,6 +141,25 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_browser_cors_accepts_an_explicit_development_origin() -> None:
+    with TemporaryDirectory() as profile_directory:
+        app = create_app(
+            profile_database_path=Path(profile_directory) / "profiles.sqlite3",
+            cors_origins=("http://127.0.0.1:15173",),
+        )
+        with TestClient(app) as client:
+            response = client.options(
+                "/api/settings",
+                headers={
+                    "Origin": "http://127.0.0.1:15173",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:15173"
+
+
 def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> None:
     response = client.get("/api/snapshot")
 

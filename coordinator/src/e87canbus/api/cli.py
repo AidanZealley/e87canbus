@@ -12,6 +12,7 @@ import uvicorn
 
 from e87canbus.api import main as api_main
 from e87canbus.api.main import (
+    DEFAULT_CORS_ORIGINS,
     DEFAULT_PROFILE_DATABASE,
     PROFILE_DATABASE_ENVIRONMENT_VARIABLE,
     create_app,
@@ -23,6 +24,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--log-level", default="info")
+    parser.add_argument(
+        "--cors-origin",
+        action="append",
+        dest="cors_origins",
+        help=(
+            "Allowed browser origin; repeat for multiple origins. "
+            "Defaults to the loopback Vite server on port 5173."
+        ),
+    )
     parser.add_argument(
         "--profile-database",
         type=Path,
@@ -41,7 +51,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
     os.environ[PROFILE_DATABASE_ENVIRONMENT_VARIABLE] = str(args.profile_database)
-    api_main.app = create_app(profile_database_path=args.profile_database)
+    api_main.app = create_app(
+        profile_database_path=args.profile_database,
+        cors_origins=args.cors_origins or DEFAULT_CORS_ORIGINS,
+    )
     uvicorn.run(
         "e87canbus.api.main:app",
         host=args.host,

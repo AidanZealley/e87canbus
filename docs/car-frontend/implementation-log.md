@@ -29,7 +29,7 @@ simulation.
 | 4 — Device health | Verified | 2026-07-14 | Explicit simulator status projection and controls |
 | 5 — Car UI foundation | Verified | 2026-07-14 | Long-lived car data owner, warnings and reusable instruments |
 | 6 — Car screens | Verified | 2026-07-14 | Overview, drive, steering and settings views |
-| 7 — Verification and acceptance | Not started | — | Integrated checks and 800x480 browser matrix |
+| 7 — Verification and acceptance | Verified | 2026-07-14 | Integrated checks and browser acceptance complete; native panel remains physical follow-up |
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only after every phase
@@ -57,6 +57,64 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 7: integrated acceptance complete
+
+- **Status:** Verified
+- **Scope:** Completed repository-wide, contract, collaborative-browser and desktop-regression
+  acceptance for Phases 1-6. The run used an isolated simulator API, temporary SQLite database and
+  alternate-port Vite frontend; no production profile database or physical output path was used.
+- **Changed:** Added an explicit repeatable `--cors-origin` simulator-API option after integrated
+  testing found that the documented alternate frontend/API endpoints could not communicate through
+  the previous fixed port-5173 CORS allowlist. `create_app` now accepts an exact origin sequence
+  while retaining the two existing loopback port-5173 defaults. Added API coverage and coordinator
+  operator documentation. No frontend behavior, JSON shape or persistence schema changed.
+- **Decisions:** Kept CORS as an exact development allowlist rather than permitting wildcard
+  origins. The collaborative preview's requested 800x480 freeform setting consistently rendered as
+  a 960x576 CSS viewport, so that effective viewport is the visual evidence recorded here rather
+  than a false native-panel claim. The SVG steering point was exercised through its real accessible
+  keyboard behavior because the preview rejects synthetic PointerEvents as untrusted; pointer drag,
+  capture and cancellation remain covered by the component suite.
+- **Verification:** Final repository checks passed: `uv run pytest -q` reported 471 passed with one
+  existing FastAPI TestClient `StarletteDeprecationWarning`; `uv run ruff check .` passed;
+  `uv run mypy coordinator/src/e87canbus` passed for 53 source files; generated-protocol check,
+  `bash -n scripts/*.sh` and `git diff --check` passed. In `frontend/`, `pnpm test` passed 45 Node
+  unit tests and 53 Vitest component tests across 10 files; `pnpm lint`, `pnpm typecheck` and
+  `pnpm build` passed with Vite 8.1.4 transforming 2,923 modules. Existing Node experimental
+  type-stripping/CommonJS-to-ESM notices and local missing-Fig shell notices remained non-failing.
+  The new focused simulator API run passed 57 tests with the same one warning, and focused Ruff and
+  Mypy checks passed. Contract coverage and isolated inspection demonstrated a version-1 SQLite
+  database reaching migrations 1 and 2 once, profile/settings restart persistence, committed-winner
+  conflict semantics, synthetic extended PT-CAN engine identifiers ignored by the live router,
+  independent stale signals, deterministic device/reset state, complete initial/reconnect
+  projections and settings/profile invalidation. Existing steering, speed, button-pad and trace
+  regression coverage also passed.
+- **Visual/physical checks:** In the collaborative preview at its configured 800x480 setting
+  (effective 960x576 CSS), light and dark passes covered `/car`, `/car/drive`, `/car/steering` and
+  `/car/settings`, direct child loads, chooser/dev/car navigation and `/car/*` not-found recovery.
+  All four car views had 960px document/client width and 576px document/client height with no
+  horizontal overflow; overview, drive and steering required no document scrolling, and settings
+  exposed every field and action. Inspected missing/em-dash, normal, stale, warning and critical
+  temperatures; RPM normal, exact stage 1/stage 2 and redline; both devices online/degraded/offline;
+  reset; dirty steering/dialogs; settings validation/save/conflict; reconnect and configuration
+  fallback. Labels accompanied every severity/state, and no car surface exposed chooser/dev links.
+  A desktop pass at effective 1536x864 checked the balanced keyboard-focusable chooser and retained
+  dev workbench controls, vehicle/device cards, profile editor, topology, trace and detail views
+  without horizontal overflow. No native 800x480 panel, physical touch target, vehicle, verified
+  BMW message, CAN interface or steering-output test was performed.
+- **Documentation:** Updated `coordinator/README.md` with the alternate-origin startup boundary and
+  this implementation log with exact automated, contract, browser and physical-test evidence.
+  Existing frontend route/settings and simulation-boundary documentation matches the accepted
+  public behavior.
+- **Dependencies/migrations:** None. No package, lockfile, generated route/protocol artifact, SQLite
+  migration or public HTTP/WebSocket shape changed. The new CLI flag is additive and retains
+  existing defaults.
+- **Remaining:** Recheck layout, focus visibility, touch density and interaction comfort on the
+  physical 800x480 display. These are hardware-only tuning items, not blockers hidden behind fixed
+  pixel assertions.
+- **Next handoff:** The roadmap is software-verified. Preserve the simulation-only identifiers,
+  exact CORS allowlist, authoritative-versus-local draft boundaries and explicit no-physical-output
+  claims when performing the native-display follow-up.
 
 ### 2026-07-14 — Phase 6: complete in-car screens
 

@@ -73,6 +73,11 @@ deployment) selects a different file and remains compatible despite the file's e
 Startup applies migrations and seeding before accepting requests. Tests and other compositions can
 inject the repositories independently.
 
+The API accepts browser requests from the loopback Vite server on port 5173 by default. When an
+isolated development frontend uses another port, pass its exact origin with repeatable
+`--cors-origin`, for example `--cors-origin http://127.0.0.1:15173`. This remains an explicit
+development allowlist; it does not broaden the deployment or authentication boundary.
+
 `features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
 Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
 document and replaces all editable fields with an expected-revision `PUT`. Successful commits
