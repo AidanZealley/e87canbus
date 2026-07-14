@@ -21,10 +21,13 @@ import {
   speedDeciKphToKph,
 } from "../../utils"
 import { DraggableCurvePoint } from "./DraggableCurvePoint"
+import { CurvePositionMarker } from "./CurvePositionMarker"
 
 type CurveChartProps = {
   active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
+  speedKph?: number | null
+  activeAssistance?: number | null
   onPointChange: (index: number, value: number) => void
 }
 
@@ -36,6 +39,8 @@ const chartConfig = {
 export const CurveChart = ({
   active,
   draft,
+  speedKph = null,
+  activeAssistance = null,
   onPointChange,
 }: CurveChartProps) => {
   const data = useMemo(() => {
@@ -100,6 +105,10 @@ export const CurveChart = ({
           strokeDasharray="6 5"
           dot={false}
           isAnimationActive={false}
+        />
+        <CurvePositionMarker
+          speedKph={speedKph}
+          activeAssistance={activeAssistance}
         />
         <CurvePoints definition={draft} onPointChange={onPointChange} />
       </LineChart>

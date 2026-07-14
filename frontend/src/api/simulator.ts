@@ -39,6 +39,15 @@ export const stepSimulator = (index: number) =>
     body: JSON.stringify({ button_index: index }),
   })
 
+export const setVehicleSpeed = (speedKph: number) =>
+  requestSnapshot("/api/vehicle/speed", {
+    method: "POST",
+    body: JSON.stringify({ speed_kph: speedKph }),
+  })
+
+export const silenceVehicleSpeed = () =>
+  requestSnapshot("/api/vehicle/speed/silence", { method: "POST" })
+
 export const connectSimulatorSocket = (
   onEvent: (event: SimulatorSocketEvent) => void,
   onHeartbeat: () => void

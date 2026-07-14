@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "pnpm test:unit && pnpm test:component",
     "test:unit": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts",
-    "test:component": "vitest run src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
+    "test:component": "vitest run src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview"

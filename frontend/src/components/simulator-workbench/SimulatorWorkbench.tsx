@@ -5,11 +5,14 @@ import {
   pressButton,
   releaseButton,
   resetSimulator,
+  setVehicleSpeed,
+  silenceVehicleSpeed,
   stepSimulator,
 } from "@/api/simulator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NetworkTopology } from "./components/network-topology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
+import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls"
 import { SteeringCurveCard } from "./components/steering-curve-card"
 import { SteeringStatus } from "./components/steering-status"
 import {
@@ -75,12 +78,24 @@ export const SimulatorWorkbench = () => {
           </Alert>
         ) : null}
 
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(260px,0.8fr)_minmax(280px,1fr)_minmax(0,1.5fr)]">
           <section className="min-w-0">
             <SimulatorNeoTrellis
               pressedButtons={pressedButtons}
               onPress={handlePress}
               onRelease={handleRelease}
+            />
+          </section>
+          <section className="min-w-0">
+            <SimulatedVehicleControls
+              speedKph={
+                application.speed_valid ? application.vehicle_speed_kph : null
+              }
+              disabled={command.isPending}
+              onSetSpeed={(speedKph) =>
+                command.mutate(() => setVehicleSpeed(speedKph))
+              }
+              onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
             />
           </section>
           <SteeringStatus />

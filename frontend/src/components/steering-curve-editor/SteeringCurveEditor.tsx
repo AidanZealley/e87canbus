@@ -43,7 +43,10 @@ export const SteeringCurveEditor = ({
           speedKph={speedKph}
           activeAssistance={activeAssistance}
         />
-        <EditorCurveChart />
+        <EditorCurveChart
+          speedKph={speedKph}
+          activeAssistance={activeAssistance}
+        />
         <CurvePointInputs />
         <ProfileSelector />
         <CurveActions />
