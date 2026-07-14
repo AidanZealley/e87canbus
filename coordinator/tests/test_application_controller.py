@@ -28,6 +28,7 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
 
 CONFIG = SteeringConfig()
 AUTO_LEDS = ButtonLedState(
@@ -280,7 +281,10 @@ def test_fresh_speed_selects_interpolated_auto_assistance() -> None:
     assert len(result.effects) == 1
     command = result.effects[0]
     assert isinstance(command, SetSteeringAssistance)
-    assert command.assistance == pytest.approx(5 / 6)
+    assert command.assistance == pytest.approx(
+        5 / 6,
+        abs=ASSISTANCE_QUANTIZATION_TOLERANCE,
+    )
     assert command.reason is SteeringCommandReason.AUTO
 
 

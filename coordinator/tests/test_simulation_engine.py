@@ -9,6 +9,7 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
+from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
@@ -460,7 +461,9 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     assert speed.trace[-1].network is CanNetwork.FCAN
     assert speed.application.vehicle_speed_kph == 15.0
     assert controller.vehicle.speed_kph == 15.0
-    assert controlled.steering_controller.effective_assistance == pytest.approx(5 / 6)
+    assert controlled.steering_controller.effective_assistance == pytest.approx(
+        5 / 6, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
+    )
     assert controlled.steering_controller.last_command_reason is SteeringCommandReason.AUTO
 
 
@@ -477,7 +480,9 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     assert [entry.source for entry in second.trace].count("simulated-vehicle") == 3
     assert first.application.speed_valid is True
     assert second.application.speed_valid is True
-    assert second.steering_controller.effective_assistance == pytest.approx(2 / 3)
+    assert second.steering_controller.effective_assistance == pytest.approx(
+        2 / 3, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
+    )
     assert second.steering_controller.last_command_reason is SteeringCommandReason.AUTO
 
 
@@ -496,7 +501,9 @@ def test_speed_silence_becomes_stale_and_setting_speed_recovers_auto() -> None:
     assert stale.steering_controller.effective_assistance == 0.0
     assert stale.steering_controller.last_command_reason is SteeringCommandReason.SPEED_STALE
     assert recovered.application.speed_valid is True
-    assert recovered.steering_controller.effective_assistance == pytest.approx(2 / 3)
+    assert recovered.steering_controller.effective_assistance == pytest.approx(
+        2 / 3, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
+    )
     assert recovered.steering_controller.last_command_reason is SteeringCommandReason.AUTO
 
 

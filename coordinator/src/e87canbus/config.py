@@ -6,6 +6,10 @@ import math
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
+from e87canbus.features.steering import (
+    default_steering_curve_definition,
+    steering_curve_as_float_pairs,
+)
 from e87canbus.protocol.generated import CAN_ID_BUTTON_EVENT, CAN_ID_LED_SNAPSHOT
 
 
@@ -46,10 +50,8 @@ class CustomCanIds:
 @dataclass(frozen=True)
 class SteeringConfig:
     manual_level_count: int = 8
-    auto_assistance_curve: tuple[tuple[float, float], ...] = (
-        (0.0, 1.0),
-        (30.0, 2.0 / 3.0),
-        (100.0, 0.0),
+    auto_assistance_curve: tuple[tuple[float, float], ...] = field(
+        default_factory=lambda: steering_curve_as_float_pairs(default_steering_curve_definition())
     )
     speed_timeout_s: float = 1.0
 

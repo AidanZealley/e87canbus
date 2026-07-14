@@ -18,7 +18,7 @@ of commands or a replacement for commit history.
 
 | Phase | Status | Last entry | Notes |
 |---:|---|---|---|
-| 1 — Profile domain model | Not started | — | — |
+| 1 — Profile domain model | Verified | 2026-07-14 | Version-1 integer curve contract implemented |
 | 2 — SQLite persistence | Not started | — | — |
 | 3 — Runtime activation | Not started | — | — |
 | 4 — Profile API | Not started | — | — |
@@ -50,6 +50,36 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 1: profile domain model verified
+
+- **Status:** Verified
+- **Scope:** Implemented the versioned immutable curve definition, stored-profile metadata value,
+  validation, canonical serialization, fingerprinting, built-in definition and calculation
+  projection required by Phase 1.
+- **Changed:** Added the fixed eight-point integer-unit domain contract and sole built-in definition
+  in `coordinator/src/e87canbus/features/steering.py`. `SteeringConfig` now derives its transitional
+  float curve from that definition, with no runtime activation or ownership change. Added focused
+  domain tests and updated existing application/simulation expectations for the documented
+  half-per-mille quantization tolerance.
+- **Decisions:** Profile names are trimmed, non-empty and limited to 100 characters. Profile IDs
+  use canonical lowercase hyphenated UUID text. Timestamps use UTC ISO 8601 with six fractional
+  digits and `Z`. Definition canonical bytes are compact key-sorted UTF-8 JSON; the fingerprint is
+  its lowercase SHA-256 digest. These choices make persisted values deterministic without adding
+  persistence or API types.
+- **Verification:** `uv run pytest -q` (249 passed); `uv run ruff check .`; `uv run mypy
+  coordinator/src/e87canbus`; `uv run python scripts/generate_custom_protocol.py --check`; and
+  `git diff --check` all passed. The existing FastAPI test dependency emitted one upstream
+  Starlette `httpx` deprecation warning.
+- **Documentation:** Documented authoritative units, validation ownership, schema/interpolation
+  support, canonical bytes, fingerprint scope and timestamp format in `coordinator/README.md`.
+- **Dependencies/migrations:** None. The existing runtime float field remains as a projection for
+  compatibility and is scheduled for removal in Phase 3.
+- **Remaining:** None for Phase 1. Persistence, runtime activation, API, editor and smooth
+  interpolation remain in later phases.
+- **Next handoff:** Phase 2 can persist the domain values directly. It must preserve the exact
+  integer fields, UUID/name constraints, canonical timestamps and optimistic revision contract;
+  it must not fingerprint stored metadata.
 
 ### 2026-07-14 — Version-1 fixed speed grid selected
 

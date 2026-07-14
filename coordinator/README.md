@@ -20,6 +20,21 @@ The outer `coordinator/` directory names the deployable component. The inner `sr
 directory is the project-specific import namespace, following Python's conventional `src` layout.
 This is why code imports `e87canbus.application` even though it is deployed as the coordinator.
 
+## Steering curve profile contract
+
+`features/steering.py` owns the immutable steering-curve definition and stored-profile metadata
+values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
+160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
+per-mille assistance (`assistance_per_mille`, `0..1000`); float pairs exist only as a calculation
+projection. Version 1 accepts `linear-v1` and requires assistance to be non-increasing as speed
+rises. `monotone-cubic-v1` is reserved and fails validation until its later implementation phase.
+
+Definition identity is the lowercase SHA-256 digest of compact, key-sorted UTF-8 JSON containing
+only `schema_version`, `interpolation`, and the ordered integer point fields. Profile IDs, names,
+revisions, and timestamps are excluded. Stored timestamps use UTC ISO 8601 with six fractional
+digits and a trailing `Z` (for example, `2026-07-14T10:30:00.000000Z`). Profile validation and
+fingerprinting are pure coordinator functions with no FastAPI or persistence dependency.
+
 The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
 periodic timers, reader and effect faults, inbox overflow, and shutdown all carry explicit times into
 that ordered path. Each decoded event runs through a pure transition; the kernel commits the returned

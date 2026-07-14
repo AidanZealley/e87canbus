@@ -65,8 +65,13 @@ def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
     assert default_config().steering.auto_assistance_curve == (
         (0.0, 1.0),
-        (30.0, 2 / 3),
+        (10.0, 0.889),
+        (20.0, 0.778),
+        (30.0, 0.667),
+        (60.0, 0.381),
         (100.0, 0.0),
+        (160.0, 0.0),
+        (250.0, 0.0),
     )
 
 
