@@ -36,7 +36,8 @@ Live readers timestamp CAN frames before placing them in a bounded inbox. One ke
 application state and applies pure transitions in input order; committed effects leave through an
 explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
 The simulator operates external nodes and follows that same path rather than injecting application
-events or state.
+events or state. A button-pad LED decision is one complete 16-colour state, one effect, and one
+provisional `0x701` DLC-8 frame; accepted frames replace the simulated device state atomically.
 
 ## Local Setup
 
@@ -156,6 +157,12 @@ a physical command or electrical safe state. Command transport, range and polari
 feedback, controller topology, and physical watchdog behavior remain unknown. Real steering
 actuation remains gated on verified speed captures and actuator evidence, a verified safe state,
 and a validated live grant; placeholder BMW IDs remain non-executable.
+
+The default TX ceiling is a coordinator-wide flood bound on each explicitly enabled network: at
+most 20 frames in any rolling second, shared by all arbitration IDs. A conservative 135 wire bits
+for a standard-ID DLC-8 Classic CAN frame bounds that allocation at 2,700 bit/s: 2.7% of 100 kbit/s
+K-CAN or 0.54% of a 500 kbit/s network before errors and retransmissions. It is a safety ceiling,
+not an operating cadence or authority to transmit; it is independent of LED count and button timing.
 
 In the workbench, setting speed stores the selection on the external simulated vehicle. It emits a
 fresh synthetic F-CAN frame before each control timer until explicitly silenced. The steering panel

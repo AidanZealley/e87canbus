@@ -18,6 +18,7 @@ from e87canbus.output import (
 from e87canbus.protocol.can import CanFrame
 
 BLUE_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
+WHITE_LEDS = ButtonLedState((LedColour.WHITE,) * 16)
 
 
 class FakeTransmitter:
@@ -74,6 +75,23 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
     assert raw.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
 
 
+def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
+    raw = FakeTransmitter()
+    executor = EffectExecutor(
+        {
+            CanNetwork.KCAN: SafeCanTransmitter(
+                raw,
+                TxPolicyConfig(max_frames_per_network_window=1),
+                MutableClock(),
+            )
+        }
+    )
+
+    executor.execute((SetButtonLeds(WHITE_LEDS), SetButtonLeds(BLUE_LEDS)))
+
+    assert raw.sent == [CanFrame(0x701, b"\x55" * 8)]
+
+
 def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
     actuator = FakeSteeringActuator()
     command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
@@ -120,7 +138,7 @@ def test_alternating_payloads_on_one_id_share_network_window(
     assert "reason=network-window" in caplog.text
 
 
-def test_different_ids_share_network_window_and_refill_deterministically(
+def test_dropped_frame_is_not_replayed_when_shared_network_window_refills(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock()
@@ -139,4 +157,5 @@ def test_different_ids_share_network_window_and_refill_deterministically(
     transmitter.send(frames[3])
 
     assert raw.sent == [frames[0], frames[1], frames[3]]
+    assert frames[2] not in raw.sent
     assert "reason=network-window" in caplog.text

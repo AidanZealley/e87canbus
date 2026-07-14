@@ -9,6 +9,7 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
+from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
     LED_COLOUR_BLUE,
@@ -38,6 +39,12 @@ TEST_SIMULATOR_CONFIG = replace(
 OFF_LEDS = (LED_COLOUR_OFF,) * 16
 AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * 15
 MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * 15
+MAXIMUM_LEDS = (
+    LED_COLOUR_AMBER,
+    LED_COLOUR_OFF,
+    LED_COLOUR_OFF,
+    LED_COLOUR_WHITE,
+) + (LED_COLOUR_OFF,) * 12
 
 
 def build_test_engine(**kwargs: object) -> SimulationEngine:
@@ -380,23 +387,65 @@ def test_engine_clock_is_used_for_ingress_and_trace() -> None:
     assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
 
 
-def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events() -> None:
+def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> None:
     clock = MutableClock()
     config = replace(
         simulator_config(),
         tx_policy=TxPolicyConfig(
-            max_frames_per_network_window=3,
+            max_frames_per_network_window=2,
         ),
     )
     controller = SimulationEngine(config=config, clock=clock)
 
-    for _ in range(4):
-        controller.execute(PressButton(0))
-        snapshot = controller.execute(ReleaseButton(0)).snapshot
+    accepted = controller.execute(PressButton(0)).snapshot
+    controller.execute(ReleaseButton(0))
+    dropped = controller.execute(PressButton(0)).snapshot
 
-    sources = [entry.source for entry in snapshot.trace]
-    assert sources.count("neotrellis") == 8
-    assert sources.count("pi") == 2
+    assert accepted.application.steering_mode is SteeringMode.MANUAL
+    assert accepted.led_colours == MANUAL_LEDS
+    assert dropped.application.steering_mode is SteeringMode.AUTO
+    assert dropped.led_colours == MANUAL_LEDS
+    assert [entry.source for entry in dropped.trace].count("pi") == 1
+
+    clock.now = 1.0
+    before_next_decision = controller.snapshot()
+
+    assert before_next_decision.led_colours == MANUAL_LEDS
+    assert [entry.source for entry in before_next_decision.trace].count("pi") == 1
+
+    converged = controller.execute(PressButton(3)).snapshot
+
+    assert converged.application.maximum_assistance_active is True
+    assert converged.led_colours == MAXIMUM_LEDS
+    pi_frames = [entry.frame for entry in converged.trace if entry.source == "pi"]
+    assert pi_frames == [
+        CanFrame(0x701, b"\x04\x00\x00\x00\x00\x00\x00\x00"),
+        CanFrame(0x701, b"\x04\x50\x00\x00\x00\x00\x00\x00"),
+    ]
+
+
+def test_startup_and_reset_session_synchronization_each_use_network_budget() -> None:
+    config = replace(
+        simulator_config(),
+        tx_policy=TxPolicyConfig(max_frames_per_network_window=1),
+    )
+    controller = SimulationEngine(config=config, clock=MutableClock())
+
+    initial = controller.snapshot()
+    after_initial_startup = controller.execute(PressButton(0)).snapshot
+
+    assert initial.led_colours == AUTO_LEDS
+    assert after_initial_startup.application.steering_mode is SteeringMode.MANUAL
+    assert after_initial_startup.led_colours == AUTO_LEDS
+    assert all(entry.source != "pi" for entry in after_initial_startup.trace)
+
+    reset = controller.execute(ResetSimulation()).snapshot
+    after_reset_startup = controller.execute(PressButton(0)).snapshot
+
+    assert reset.led_colours == AUTO_LEDS
+    assert after_reset_startup.application.steering_mode is SteeringMode.MANUAL
+    assert after_reset_startup.led_colours == AUTO_LEDS
+    assert all(entry.source != "pi" for entry in after_reset_startup.trace)
 
 
 def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:

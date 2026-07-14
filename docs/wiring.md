@@ -37,5 +37,9 @@ verified and documented; only then can an output circuit be selected and reviewe
 ## Arduino/NeoTrellis Node
 
 First milestone firmware does not initialize Trellis. It sends alternating button-event frames on
-`0x700` automatically every second and prints LED-update frames received on `0x701`. This firmware
-is bench-only and must not be attached to the car while automatic transmission remains enabled.
+`0x700` automatically every second. It validates provisional `0x701` DLC-8 snapshots, replaces all
+16 stored logical colours only when every nibble is valid, and reports that complete state through
+the currently serial-only rendering boundary. Physical topology, logical-to-pixel mapping,
+brightness, and current limits remain unverified and unimplemented. This firmware is bench-only and
+must not be attached to the car while automatic transmission remains enabled; both IDs still
+require collision validation.

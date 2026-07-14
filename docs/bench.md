@@ -21,7 +21,12 @@ This milestone validates Pi-to-Arduino CAN transport before any car wiring.
 - `state=0` means released; `state=1` means pressed.
 - Pi replies with one complete 16-colour LED snapshot on `0x701` (DLC 8). Each byte packs the even
   LED in its low nibble and the following odd LED in its high nibble.
-- `colour=2` means green; `colour=0` means off. All unspecified bench positions remain off.
+- `colour=2` means green; `colour=0` means off. Every frame explicitly carries all 16 positions;
+  the other 15 bench positions are off.
+
+The IDs remain provisional and collision-gated. Every Pi reply uses the same executor and holistic
+per-network TX budget as other coordinator CAN output. A rate-limited snapshot is dropped rather
+than queued; the next accepted complete snapshot replaces all 16 stored colours.
 
 ## Run Locally On The Pi
 

@@ -32,9 +32,16 @@ composition; no verified BMW speed decoder is configured.
 
 The coordinator does not automatically forward frames between networks. Transmission is denied by
 the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.
-Every granted write passes the holistic per-network window in `tx_policy`. Live reader threads only
-receive, timestamp, and enqueue into the configured bounded inbox; the main thread alone dispatches
-kernel inputs and executes effects. Queue latency is logged without changing observation time.
+Every granted write passes the holistic per-network window in `tx_policy`. Its default maximum of
+20 frames in any rolling second is one coordinator-wide flood budget on each network, shared across
+all arbitration IDs. Using a conservative upper bound of 135 wire bits for a standard-ID DLC-8
+Classic CAN frame, that ceiling allocates at most 2,700 bit/s: 2.7% of 100 kbit/s K-CAN and 0.54% of
+a 500 kbit/s network before errors or retransmissions. This is a safety ceiling rather than an
+intended send cadence; it is not derived from LED count, startup output, or human timing. A dropped
+frame is logged and discarded, not queued, so a later complete state converges without replaying an
+intermediate output. Live reader threads only receive, timestamp, and enqueue into the configured
+bounded inbox; the main thread alone dispatches kernel inputs and executes effects. Queue latency is
+logged without changing observation time.
 Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
 stops the runner with a non-zero result. SocketCAN interfaces are closed independently so one
 shutdown error cannot prevent later interfaces from closing or mask an existing failure result.
@@ -55,6 +62,9 @@ trace frames use the session ID with their reset-local sequence number.
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
+The coordinator derives exactly 16 logical LED colours, emits one `SetButtonLeds` effect, and packs
+one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
+stored colours; there is one complete LED publication shape and no compatibility decoder.
 
 ## Running live
 

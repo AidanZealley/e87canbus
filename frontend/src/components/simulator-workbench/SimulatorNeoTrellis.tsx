@@ -3,6 +3,7 @@ import {
   type NeoTrellisButton,
 } from "./components/neo-trellis-panel"
 import { useLedColours } from "./query"
+import { LED_COUNT } from "./utils"
 
 type SimulatorNeoTrellisProps = {
   pressedButtons: Set<number>
@@ -17,11 +18,11 @@ export const SimulatorNeoTrellis = ({
 }: SimulatorNeoTrellisProps) => {
   const ledColours = useLedColours()
   const buttons: NeoTrellisButton[] = Array.from(
-    { length: 16 },
+    { length: LED_COUNT },
     (_, index) => ({
       index,
       pressed: pressedButtons.has(index),
-      rgb: rgbForColourCode(ledColours[index] ?? 0),
+      rgb: rgbForColourCode(ledColours[index]),
     })
   )
 

@@ -82,6 +82,27 @@ test("snapshots replace the complete LED state", () => {
   const result = mergeSnapshot(current, next)
 
   assert.deepEqual(result.led_colours, Array(16).fill(2))
+  assert.notEqual(result.led_colours, next.led_colours)
+})
+
+test("malformed LED snapshots do not replace any LED", () => {
+  const prior = Array.from({ length: 16 }, (_, index) => index % 6)
+  const current = { ...snapshot(), led_colours: prior }
+
+  for (const malformed of [
+    Array(15).fill(2) as number[],
+    [...Array(15).fill(2), 6] as number[],
+  ]) {
+    const next = {
+      ...snapshot([], current.session_id, current.revision + 1),
+      led_colours: malformed,
+    }
+
+    const result = mergeSnapshot(current, next)
+
+    assert.equal(result.led_colours, prior)
+    assert.deepEqual(result.led_colours, prior)
+  }
 })
 
 test("frame events append once and remain capped", () => {

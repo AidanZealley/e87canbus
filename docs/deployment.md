@@ -44,7 +44,10 @@ three-interface runner manually after bringing up all configured interfaces, run
 PT-CAN, and F-CAN. This does not put SocketCAN or the CAN controller into kernel/hardware
 listen-only mode; configure that separately before an in-car observation session.
 K-CAN transmission is enabled only in the isolated simulator and bench commands. Their provisional
-`0x700`/`0x701` messages require collision validation before any future live grant.
+`0x700`/`0x701` messages require collision validation before any future live grant. `0x701` is a
+DLC-8 packed snapshot of all 16 logical LED colours; one accepted frame replaces the complete
+button-pad state. Its writes share the holistic per-network coordinator budget with every other ID,
+and physical NeoTrellis rendering remains gated on verified topology and electrical evidence.
 
 ## Logs
 

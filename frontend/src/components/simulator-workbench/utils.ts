@@ -6,6 +6,8 @@ import type {
 } from "./types"
 
 const TRACE_CAPACITY = 2_000
+export const LED_COUNT = 16
+const MAX_LED_COLOUR = 5
 
 export type WorkbenchSnapshot = SimulatorSnapshot & {
   trace: CanTraceEntry[]
@@ -28,7 +30,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
     watchdog_timed_out: false,
   },
   next_pressed: true,
-  led_colours: Array(16).fill(0) as number[],
+  led_colours: Array(LED_COUNT).fill(0) as number[],
   networks: [],
   trace: [],
 }
@@ -49,13 +51,24 @@ export const mergeSnapshot = (
   ) {
     return current
   }
+  const ledColours = isCompleteLedSnapshot(next.led_colours)
+    ? [...next.led_colours]
+    : current.led_colours
   return {
     ...next,
+    led_colours: ledColours,
     trace:
       next.trace ??
       (next.session_id === current.session_id ? current.trace : []),
   }
 }
+
+export const isCompleteLedSnapshot = (colours: number[]) =>
+  colours.length === LED_COUNT &&
+  colours.every(
+    (colour) =>
+      Number.isInteger(colour) && colour >= 0 && colour <= MAX_LED_COLOUR
+  )
 
 const appendFrame = (
   current: WorkbenchSnapshot,

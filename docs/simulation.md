@@ -184,10 +184,15 @@ CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
 Coordinator transmission is denied by default. Each network must opt in with
 `CanNetworkConfig.tx_enabled`; that composition choice creates a safe transmitter capability for the
 effect executor. Every coordinator write is limited by `AppConfig.tx_policy`'s per-network bounded
-window. The simulator explicitly grants K-CAN transmission and uses the
-same executor and policy path as the live runtime: excess coordinator frames are dropped, while
-simulated external devices remain unrestricted. The default live composition grants no application
-transmission. Kernel or hardware listen-only mode is a separate deployment defense.
+window. The default limit is one coordinator-wide budget of 20 frames in any rolling second on each
+enabled network, shared across arbitration IDs and independent of LED count. At a conservative 135
+wire bits per standard-ID DLC-8 frame, the ceiling is at most 2.7% of 100 kbit/s K-CAN or 0.54% of a
+500 kbit/s network before errors or retransmissions. It is a flood bound, not a target cadence. The
+simulator explicitly grants K-CAN transmission and uses the same executor and policy path as the
+live runtime: excess coordinator frames are logged and dropped without replay, while simulated
+external devices remain unrestricted. A later accepted `0x701` snapshot replaces all 16 simulated
+LED colours and repairs a missed intermediate state. The default live composition grants no
+application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
 The simulator decodes the provisional project protocol on K-CAN:
 

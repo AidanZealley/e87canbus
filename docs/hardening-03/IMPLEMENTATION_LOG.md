@@ -8,7 +8,7 @@ corrections in the current entry.
 | Phase | Status | Completed |
 |---|---|---|
 | 1 — Atomic LED snapshot cutover | done | 2026-07-13 |
-| 2 — Policy proof and legacy cleanup | planned | — |
+| 2 — Policy proof and legacy cleanup | done | 2026-07-14 |
 | 3 — Verified physical NeoTrellis rendering | blocked on verified hardware evidence | — |
 
 ## Entry template
@@ -90,3 +90,66 @@ generator drift checking, and the successful PlatformIO build, as permitted by t
 `cd frontend && pnpm typecheck && pnpm lint && pnpm test` — passed, 10 tests;
 `uv run python scripts/generate_custom_protocol.py --check` — passed; and
 `cd devices/button-pad && pio run` — passed for the Arduino Micro target (RAM 21.5%, flash 25.6%).
+
+## Phase 2 — Policy proof and legacy cleanup (2026-07-14)
+
+**Result:** done with deviations
+
+**What changed:**
+
+- Added deterministic policy proofs that a complete 16-position LED effect consumes one network
+  window entry, alternating `0x701` payloads share that window, and different arbitration IDs draw
+  from the same budget. The refill test proves a dropped frame is absent rather than queued.
+- Replaced the broad simulator budget-count test with an end-to-end proof: startup consumes the
+  shared budget, a later LED decision is dropped without changing the simulated device, no frame is
+  replayed at refill, and the next accepted production snapshot replaces all 16 colours and
+  converges the device. A simulator session reset proves its new startup uses the same full effect,
+  encoder, frame, decoder, device-state, executor, and policy path.
+- Added one shared frontend exact-length/known-colour validator at the snapshot replacement
+  boundary. Valid publications are copied and replace the complete LED array; short or
+  invalid-final-value publications preserve the prior array atomically. The trace decoder reuses
+  the same validation and LED-count constant, and the renderer no longer has a per-position
+  malformed-array fallback.
+- Reconciled the root, coordinator, protocol, bench, simulation, deployment, device, and wiring
+  guides. They now state the DLC-8 complete-snapshot behavior, provisional collision gate,
+  all-or-nothing replacement, holistic budget, and phase-3 physical-rendering gate. The default
+  ceiling is documented as at most 20 coordinator frames in any rolling second per network,
+  conservatively 2,700 bit/s (2.7% of 100 kbit/s or 0.54% of 500 kbit/s before errors and
+  retransmissions), independent of LED count and human timing.
+
+**Deviations from the phase doc:** There is no physical button-pad connection or reconnection signal
+in the current provisional protocol, so no reconnect event or speculative synchronization manager
+was added. The existing synchronization boundaries are kernel startup and simulator session
+rebuild; both are covered by the network-policy proof. Browser WebSocket connections continue to
+receive the current complete snapshot and do not create CAN output.
+
+**Safety invariants verified:** One complete LED effect encodes to one DLC-8 frame and consumes one
+shared network entry; all IDs share the network window; dropped output is neither queued nor
+replayed; the next accepted snapshot replaces the complete simulated device state. Malformed CAN
+and frontend snapshots leave every prior LED unchanged. The end-to-end simulator proof retains
+input → decode → transition → commit → effect → policy ordering and production codecs/device state.
+The default live composition remains unable to transmit, and `0x700`/`0x701` remain provisional,
+bench/simulation-only, and collision-gated.
+
+**Complexity delta:** No production Python or firmware path was added. The audit retained one frozen
+domain LED state, one effect, one encoder, one decoder, and one complete publication field. It
+removed the frontend renderer's indexed malformed-state fallback and duplicate trace LED-count and
+colour-limit validation, replacing them with one exact-length/known-colour predicate shared by
+publication and trace decoding. Repository-wide current-facing searches found no legacy
+`LedUpdatePayload`, `SetButtonLed`, `led_update`, DLC-2 LED codec, indexed LED publication,
+compatibility adapter, per-ID burst field, sparse LED dictionary, or stale current guide. The
+frontend predicate is deliberately retained because it enforces atomic validation at an untrusted
+JSON boundary.
+
+**Discovered along the way:** The existing 20-frame default can be justified as a conservative
+coordinator flood allocation without reference to startup behavior or LED count. Node's direct
+TypeScript test runner requires an explicit `.ts` extension for the newly shared frontend import;
+typecheck and lint accept that project convention. Physical NeoTrellis evidence remains absent, so
+no topology, mapping, brightness, or current decision was introduced.
+
+**Checks:** `uv run pytest -q` — 215 passed (one existing FastAPI/Starlette deprecation warning);
+`uv run mypy` — success, 30 source files; `uv run ruff check coordinator` — passed;
+`cd frontend && pnpm typecheck && pnpm lint && pnpm test` — passed, 11 tests;
+`uv run python scripts/generate_custom_protocol.py --check` — passed; and
+`cd devices/button-pad && pio run` — passed for the unchanged Arduino Micro target (RAM 21.5%,
+flash 25.6%).
