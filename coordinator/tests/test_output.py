@@ -2,8 +2,9 @@ import logging
 
 import pytest
 from e87canbus.application.events import (
+    ButtonLedState,
     LedColour,
-    SetButtonLed,
+    SetButtonLeds,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
@@ -15,6 +16,8 @@ from e87canbus.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.protocol.can import CanFrame
+
+BLUE_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
 
 
 class FakeTransmitter:
@@ -55,7 +58,7 @@ def test_default_executor_has_no_transmit_capability(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        EffectExecutor().execute((SetButtonLed(0, LedColour.BLUE),))
+        EffectExecutor().execute((SetButtonLeds(BLUE_LEDS),))
 
     assert "unavailable TX capability" in caplog.text
 
@@ -66,9 +69,9 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
         {CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())}
     )
 
-    executor.execute((SetButtonLed(0, LedColour.BLUE),))
+    executor.execute((SetButtonLeds(BLUE_LEDS),))
 
-    assert raw.sent == [CanFrame(0x701, b"\x00\x03")]
+    assert raw.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
 
 
 def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
@@ -92,7 +95,7 @@ def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
         steering_actuator=FailingSteeringActuator(),
     )
 
-    failures = executor.execute((SetButtonLed(0, LedColour.BLUE), command))
+    failures = executor.execute((SetButtonLeds(BLUE_LEDS), command))
 
     assert failures == (
         CanEffectFailure(CanNetwork.KCAN, "failed 1793"),
@@ -106,7 +109,7 @@ def test_alternating_payloads_on_one_id_share_network_window(
     raw = FakeTransmitter()
     policy = TxPolicyConfig(max_frames_per_network_window=2)
     transmitter = SafeCanTransmitter(raw, policy, MutableClock())
-    frames = [CanFrame(0x701, bytes([0, value])) for value in range(3)]
+    frames = [CanFrame(0x701, bytes([value]) * 8) for value in range(3)]
 
     transmitter.send(frames[0])
     transmitter.send(frames[1])

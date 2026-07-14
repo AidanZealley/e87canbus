@@ -22,12 +22,16 @@ class MessageDefinition:
     purpose: str
     byte_positions: tuple[tuple[str, int], ...]
     values: tuple[tuple[str, int], ...]
+    led_count: int | None = None
+    even_index_shift: int | None = None
+    odd_index_shift: int | None = None
+    nibble_mask: int | None = None
 
 
 @dataclass(frozen=True)
 class ProtocolDefinition:
     button_event: MessageDefinition
-    led_update: MessageDefinition
+    led_snapshot: MessageDefinition
 
 
 def load_definition(path: Path) -> ProtocolDefinition:
@@ -35,7 +39,7 @@ def load_definition(path: Path) -> ProtocolDefinition:
         raw = tomllib.load(source)
     return ProtocolDefinition(
         button_event=_parse_message(raw, "button_event"),
-        led_update=_parse_message(raw, "led_update"),
+        led_snapshot=_parse_led_snapshot(raw),
     )
 
 
@@ -64,6 +68,46 @@ def _parse_message(raw: Mapping[str, Any], name: str) -> MessageDefinition:
     return MessageDefinition(can_id, length, direction, purpose, byte_positions, values)
 
 
+def _parse_led_snapshot(raw: Mapping[str, Any]) -> MessageDefinition:
+    name = "led_snapshot"
+    table = raw.get(name)
+    if not isinstance(table, dict):
+        raise ValueError(f"missing [{name}] table")
+    values = _integer_items(table, "values", name)
+    can_id = table.get("can_id")
+    length = table.get("length")
+    direction = table.get("direction")
+    purpose = table.get("purpose")
+    led_count = table.get("led_count")
+    even_index_shift = table.get("even_index_shift")
+    odd_index_shift = table.get("odd_index_shift")
+    nibble_mask = table.get("nibble_mask")
+    if not isinstance(can_id, int) or not 0 <= can_id <= 0x7FF:
+        raise ValueError(f"{name}.can_id must be a standard CAN ID")
+    if length != 8 or led_count != 16:
+        raise ValueError("led_snapshot must contain 16 LEDs in 8 bytes")
+    if (even_index_shift, odd_index_shift, nibble_mask) != (0, 4, 0x0F):
+        raise ValueError("led_snapshot must use even/low and odd/high nibble ordering")
+    if not isinstance(direction, str) or not isinstance(purpose, str):
+        raise ValueError(f"{name} direction and purpose must be strings")
+    if tuple(value for _, value in values) != tuple(range(len(values))):
+        raise ValueError("led_snapshot colour codes must be contiguous from zero")
+    if max(value for _, value in values) > nibble_mask:
+        raise ValueError("led_snapshot colour codes must fit in one nibble")
+    return MessageDefinition(
+        can_id,
+        length,
+        direction,
+        purpose,
+        (),
+        values,
+        led_count,
+        even_index_shift,
+        odd_index_shift,
+        nibble_mask,
+    )
+
+
 def _integer_items(
     table: Mapping[str, Any], section: str, message_name: str
 ) -> tuple[tuple[str, int], ...]:
@@ -83,7 +127,7 @@ def render_python(definition: ProtocolDefinition) -> str:
         "",
     ]
     for name, value in _constants(definition):
-        if name == "CAN_ID_LED_UPDATE":
+        if name == "CAN_ID_LED_SNAPSHOT":
             lines.append("")
         lines.append(f"{name} = {_render_value(name, value)}")
     return "\n".join(lines) + "\n"
@@ -92,8 +136,21 @@ def render_python(definition: ProtocolDefinition) -> str:
 def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
     return (
         *_message_constants("BUTTON_EVENT", definition.button_event, "BUTTON"),
-        *_message_constants("LED_UPDATE", definition.led_update, "LED_COLOUR"),
+        ("CAN_ID_LED_SNAPSHOT", definition.led_snapshot.can_id),
+        ("LED_SNAPSHOT_LENGTH", definition.led_snapshot.length),
+        ("LED_COUNT", _required(definition.led_snapshot.led_count)),
+        ("LED_EVEN_INDEX_SHIFT", _required(definition.led_snapshot.even_index_shift)),
+        ("LED_ODD_INDEX_SHIFT", _required(definition.led_snapshot.odd_index_shift)),
+        ("LED_NIBBLE_MASK", _required(definition.led_snapshot.nibble_mask)),
+        *((f"LED_COLOUR_{name.upper()}", value) for name, value in definition.led_snapshot.values),
+        ("LED_COLOUR_MAX", max(value for _, value in definition.led_snapshot.values)),
     )
+
+
+def _required(value: int | None) -> int:
+    if value is None:
+        raise ValueError("missing LED snapshot metadata")
+    return value
 
 
 def _message_constants(
@@ -108,7 +165,7 @@ def _message_constants(
 
 
 def _render_value(name: str, value: int) -> str:
-    if name.endswith(("_BYTE", "_LENGTH")):
+    if name.endswith(("_BYTE", "_LENGTH", "_COUNT", "_SHIFT")):
         return str(value)
     width = 3 if name.startswith("CAN_ID_") else 2
     return f"0x{value:0{width}X}"
@@ -117,7 +174,7 @@ def _render_value(name: str, value: int) -> str:
 def render_header(definition: ProtocolDefinition) -> str:
     declarations: list[str] = []
     for name, value in _constants(definition):
-        if name == "CAN_ID_LED_UPDATE":
+        if name == "CAN_ID_LED_SNAPSHOT":
             declarations.append("")
         value_type = "unsigned long" if name.startswith("CAN_ID_") else "uint8_t"
         declarations.append(
@@ -140,7 +197,7 @@ def render_header(definition: ProtocolDefinition) -> str:
 
 
 def render_markdown_section(definition: ProtocolDefinition) -> str:
-    messages = (definition.button_event, definition.led_update)
+    messages = (definition.button_event, definition.led_snapshot)
     lines = [
         MARKDOWN_START,
         f"<!-- {GENERATED_NOTICE} -->",
@@ -148,16 +205,20 @@ def render_markdown_section(definition: ProtocolDefinition) -> str:
         "|---|---|---|---:|---|",
     ]
     for message in messages:
-        payload = ", ".join(
-            f"byte {position} = {name.replace('_', ' ')}"
-            for name, position in message.byte_positions
+        payload = (
+            ", ".join(
+                f"byte {position} = {name.replace('_', ' ')}"
+                for name, position in message.byte_positions
+            )
+            if message.byte_positions
+            else "two LED colour nibbles per byte, even index low"
         )
         lines.append(
             f"| `0x{message.can_id:03X}` | {message.direction} | {message.purpose} "
             f"| {message.length} | {payload} |"
         )
     lines.extend(_markdown_values("Button State Constants", definition.button_event.values))
-    lines.extend(_markdown_values("LED Colour Codes", definition.led_update.values))
+    lines.extend(_markdown_values("LED Colour Codes", definition.led_snapshot.values))
     lines.append(MARKDOWN_END)
     return "\n".join(lines)
 

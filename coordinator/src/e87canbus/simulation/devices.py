@@ -13,10 +13,11 @@ from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     CanFrame,
-    LedUpdatePayload,
-    decode_led_update,
+    LedSnapshotPayload,
+    decode_led_snapshot,
     encode_button_event,
 )
+from e87canbus.protocol.generated import LED_COLOUR_OFF, LED_COUNT
 from e87canbus.simulation.protocol import encode_simulated_speed
 
 LOGGER = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class SimulatedNeoTrellisNode:
     ids: CustomCanIds
     button_index: int = 0
     next_pressed: bool = True
-    led_colours: dict[int, int] = field(default_factory=dict)
+    led_colours: tuple[int, ...] = (LED_COLOUR_OFF,) * LED_COUNT
 
     def send_button_event(self, button_index: int, pressed: bool) -> CanFrame:
         frame = encode_button_event(
@@ -48,26 +49,26 @@ class SimulatedNeoTrellisNode:
         self.next_pressed = not self.next_pressed
         return frame
 
-    def process_pending_led_updates(self) -> list[LedUpdatePayload]:
-        updates: list[LedUpdatePayload] = []
+    def process_pending_led_snapshots(self) -> list[LedSnapshotPayload]:
+        snapshots: list[LedSnapshotPayload] = []
         while True:
             frame = self.bus.receive(timeout_s=0)
             if frame is None:
-                return updates
+                return snapshots
 
-            update = self._decode_led_update(frame)
-            if update is None:
+            snapshot = self._decode_led_snapshot(frame)
+            if snapshot is None:
                 continue
 
-            self.led_colours[update.button_index] = update.colour_code
-            updates.append(update)
+            self.led_colours = snapshot.colour_codes
+            snapshots.append(snapshot)
 
-    def _decode_led_update(self, frame: CanFrame) -> LedUpdatePayload | None:
+    def _decode_led_snapshot(self, frame: CanFrame) -> LedSnapshotPayload | None:
         try:
-            return decode_led_update(frame, self.ids)
+            return decode_led_snapshot(frame, self.ids)
         except ValueError as exc:
             LOGGER.warning(
-                "sim neotrellis ignored malformed led update: id=0x%03x data=%s error=%s",
+                "sim neotrellis ignored malformed LED snapshot: id=0x%03x data=%s error=%s",
                 frame.arbitration_id,
                 frame.data.hex(),
                 exc,

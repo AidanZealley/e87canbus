@@ -11,15 +11,18 @@ static const uint8_t BUTTON_EVENT_LENGTH = 2;
 static const uint8_t BUTTON_RELEASED = 0x00;
 static const uint8_t BUTTON_PRESSED = 0x01;
 
-static const unsigned long CAN_ID_LED_UPDATE = 0x701;
-static const uint8_t LED_UPDATE_BUTTON_INDEX_BYTE = 0;
-static const uint8_t LED_UPDATE_COLOUR_BYTE = 1;
-static const uint8_t LED_UPDATE_LENGTH = 2;
+static const unsigned long CAN_ID_LED_SNAPSHOT = 0x701;
+static const uint8_t LED_SNAPSHOT_LENGTH = 8;
+static const uint8_t LED_COUNT = 16;
+static const uint8_t LED_EVEN_INDEX_SHIFT = 0;
+static const uint8_t LED_ODD_INDEX_SHIFT = 4;
+static const uint8_t LED_NIBBLE_MASK = 0x0F;
 static const uint8_t LED_COLOUR_OFF = 0x00;
 static const uint8_t LED_COLOUR_RED = 0x01;
 static const uint8_t LED_COLOUR_GREEN = 0x02;
 static const uint8_t LED_COLOUR_BLUE = 0x03;
 static const uint8_t LED_COLOUR_AMBER = 0x04;
 static const uint8_t LED_COLOUR_WHITE = 0x05;
+static const uint8_t LED_COLOUR_MAX = 0x05;
 
 #endif

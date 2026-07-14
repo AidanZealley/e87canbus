@@ -3,9 +3,10 @@ import logging
 import pytest
 from e87canbus.application.events import (
     ApplicationEvent,
+    ButtonLedState,
     ButtonPressed,
     LedColour,
-    SetButtonLed,
+    SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -28,6 +29,9 @@ from e87canbus.runtime import (
     TimerElapsed,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
+
+AUTO_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
+MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
 
 
 class SpeedRouter(ProtocolRouter):
@@ -73,13 +77,12 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert [commit.revision for commit in first_commits if commit is not None] == [1, 2, 3]
     assert first_commits[0] is not None
     assert first_commits[0].effects == (
-        SetButtonLed(0, LedColour.BLUE),
-        SetButtonLed(3, LedColour.OFF),
+        SetButtonLeds(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
     assert first_commits[1] is not None
     assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
-    assert first_commits[1].effects == (SetButtonLed(0, LedColour.AMBER),)
+    assert first_commits[1].effects == (SetButtonLeds(MANUAL_LEDS),)
     assert first_commits[2] is not None
     assert first_commits[2].effects == (
         SetSteeringAssistance(0.0, SteeringCommandReason.MANUAL),

@@ -1,7 +1,12 @@
 import logging
 
 import pytest
-from e87canbus.application.events import LedColour, SetButtonLed
+from e87canbus.application.events import (
+    OFF_BUTTON_LEDS,
+    ButtonLedState,
+    LedColour,
+    SetButtonLeds,
+)
 from e87canbus.cli.bench_pingpong import handle_frame, led_effect_for_button_event, run_pingpong
 from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -39,9 +44,12 @@ def test_pressed_button_frame_produces_green_led_effect() -> None:
     effect = led_effect_for_button_event(
         CanFrame(0x700, bytes([0, BUTTON_PRESSED])),
         ids,
+        OFF_BUTTON_LEDS,
     )
 
-    assert effect == SetButtonLed(0, LedColour.GREEN)
+    assert effect == SetButtonLeds(
+        ButtonLedState((LedColour.GREEN,) + (LedColour.OFF,) * 15)
+    )
 
 
 def test_released_button_frame_produces_off_led_effect() -> None:
@@ -50,18 +58,22 @@ def test_released_button_frame_produces_off_led_effect() -> None:
     effect = led_effect_for_button_event(
         CanFrame(0x700, bytes([0, BUTTON_RELEASED])),
         ids,
+        ButtonLedState((LedColour.GREEN,) + (LedColour.OFF,) * 15),
     )
 
-    assert effect == SetButtonLed(0, LedColour.OFF)
+    assert effect == SetButtonLeds(OFF_BUTTON_LEDS)
 
 
 def test_unknown_ids_are_ignored() -> None:
     ids = CustomCanIds()
     bus = FakeBus([])
 
-    handle_frame(executor_for(bus, ids), CanFrame(0x123, b"\x00\x01"), ids)
+    state = handle_frame(
+        executor_for(bus, ids), CanFrame(0x123, b"\x00\x01"), ids, OFF_BUTTON_LEDS
+    )
 
     assert bus.sent == []
+    assert state == OFF_BUTTON_LEDS
 
 
 def test_malformed_payload_logs_warning_and_continues(
@@ -71,9 +83,12 @@ def test_malformed_payload_logs_warning_and_continues(
     bus = FakeBus([])
 
     with caplog.at_level(logging.WARNING):
-        handle_frame(executor_for(bus, ids), CanFrame(0x700, b"\x00"), ids)
+        state = handle_frame(
+            executor_for(bus, ids), CanFrame(0x700, b"\x00"), ids, OFF_BUTTON_LEDS
+        )
 
     assert bus.sent == []
+    assert state == OFF_BUTTON_LEDS
     assert "malformed button event frame" in caplog.text
 
 

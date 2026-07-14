@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-from e87canbus.protocol.generated import CAN_ID_BUTTON_EVENT, CAN_ID_LED_UPDATE
+from e87canbus.protocol.generated import CAN_ID_BUTTON_EVENT, CAN_ID_LED_SNAPSHOT
 
 
 class CanNetwork(StrEnum):
@@ -40,7 +40,7 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
 @dataclass(frozen=True)
 class CustomCanIds:
     button_event: int = CAN_ID_BUTTON_EVENT
-    led_update: int = CAN_ID_LED_UPDATE
+    led_snapshot: int = CAN_ID_LED_SNAPSHOT
 
 
 @dataclass(frozen=True)

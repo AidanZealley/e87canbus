@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts",
+    "test": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview"

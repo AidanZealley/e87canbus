@@ -142,7 +142,7 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
         "last_command_reason": "speed_never_observed",
         "watchdog_timed_out": False,
     }
-    assert body["led_colours"] == {"0": 3, "3": 0}
+    assert body["led_colours"] == [3] + [0] * 15
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
 

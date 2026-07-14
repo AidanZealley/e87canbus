@@ -6,12 +6,14 @@ from dataclasses import dataclass, replace
 from typing import assert_never
 
 from e87canbus.application.events import (
+    BUTTON_LED_COUNT,
     ApplicationEffect,
     ApplicationEvent,
+    ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
     LedColour,
-    SetButtonLed,
+    SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -81,17 +83,13 @@ def transition(
                 ),
             )
         case ButtonPressed(button_index):
-            match button_index:
-                case 0:
-                    return _toggle_steering_mode(state)
-                case 1:
-                    return _adjust_assistance(state, -1, config)
-                case 2:
-                    return _adjust_assistance(state, 1, config)
-                case 3:
-                    return _toggle_maximum_assistance(state)
-                case _:
-                    return Transition(state)
+            new_state = _button_transition(state, button_index, config)
+            previous_leds = button_led_state(state)
+            new_leds = button_led_state(new_state)
+            effects: tuple[ApplicationEffect, ...] = (
+                () if new_leds == previous_leds else (SetButtonLeds(new_leds),)
+            )
+            return Transition(new_state, effects)
         case _:
             assert_never(event)
 
@@ -115,8 +113,7 @@ def initial_effects(
     """Return the complete output projection for synchronization."""
 
     return (
-        _steering_mode_led(state),
-        _maximum_assistance_led(state),
+        SetButtonLeds(button_led_state(state)),
         _steering_command(state, config),
     )
 
@@ -138,44 +135,59 @@ def normalize_state(state: ApplicationState, config: SteeringConfig) -> Applicat
     )
 
 
-def _toggle_steering_mode(state: ApplicationState) -> Transition:
+def _button_transition(
+    state: ApplicationState,
+    button_index: int,
+    config: SteeringConfig,
+) -> ApplicationState:
+    match button_index:
+        case 0:
+            return _toggle_steering_mode(state)
+        case 1:
+            return _adjust_assistance(state, -1, config)
+        case 2:
+            return _adjust_assistance(state, 1, config)
+        case 3:
+            return _toggle_maximum_assistance(state)
+        case _:
+            return state
+
+
+def _toggle_steering_mode(state: ApplicationState) -> ApplicationState:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
-        return Transition(state)
+        return state
     mode = SteeringMode.MANUAL if steering.mode is SteeringMode.AUTO else SteeringMode.AUTO
     new_state = replace(state, steering=replace(steering, mode=mode))
-    return Transition(new_state, (_steering_mode_led(new_state),))
+    return new_state
 
 
 def _adjust_assistance(
     state: ApplicationState,
     delta: int,
     config: SteeringConfig,
-) -> Transition:
+) -> ApplicationState:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
         new_state = replace(
             state,
             steering=replace(steering.previous, mode=SteeringMode.MANUAL),
         )
-        return Transition(
-            new_state,
-            (_steering_mode_led(new_state), _maximum_assistance_led(new_state)),
-        )
+        return new_state
     if steering.mode is SteeringMode.AUTO:
         new_state = replace(state, steering=replace(steering, mode=SteeringMode.MANUAL))
-        return Transition(new_state, (_steering_mode_led(new_state),))
+        return new_state
 
     manual_level = clamp_manual_level(
         steering.manual_level + delta,
         config.manual_level_count,
     )
-    return Transition(replace(state, steering=replace(steering, manual_level=manual_level)))
+    return replace(state, steering=replace(steering, manual_level=manual_level))
 
 
 def _toggle_maximum_assistance(
     state: ApplicationState,
-) -> Transition:
+) -> ApplicationState:
     steering = state.steering
     new_state = replace(
         state,
@@ -185,10 +197,7 @@ def _toggle_maximum_assistance(
             else MaximumAssistance(previous=steering)
         ),
     )
-    return Transition(
-        new_state,
-        (_steering_mode_led(new_state), _maximum_assistance_led(new_state)),
-    )
+    return new_state
 
 
 def _steering_projection(
@@ -201,23 +210,24 @@ def _steering_projection(
     return steering.mode, steering.manual_level, False
 
 
-def _steering_mode_led(state: ApplicationState) -> SetButtonLed:
+def button_led_state(state: ApplicationState) -> ButtonLedState:
+    """Derive the complete button-pad LED projection from application state."""
+
     steering = state.steering
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    return SetButtonLed(
-        button_index=STEERING_MODE_BUTTON_INDEX,
-        colour=LedColour.BLUE if mode is SteeringMode.AUTO else LedColour.AMBER,
+    mode_colour = LedColour.BLUE if mode is SteeringMode.AUTO else LedColour.AMBER
+    maximum_colour = (
+        LedColour.WHITE if isinstance(state.steering, MaximumAssistance) else LedColour.OFF
     )
-
-
-def _maximum_assistance_led(state: ApplicationState) -> SetButtonLed:
-    return SetButtonLed(
-        button_index=MAXIMUM_ASSISTANCE_BUTTON_INDEX,
-        colour=(
-            LedColour.WHITE
-            if isinstance(state.steering, MaximumAssistance)
+    return ButtonLedState(
+        tuple(
+            mode_colour
+            if index == STEERING_MODE_BUTTON_INDEX
+            else maximum_colour
+            if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX
             else LedColour.OFF
-        ),
+            for index in range(BUTTON_LED_COUNT)
+        )
     )
 
 

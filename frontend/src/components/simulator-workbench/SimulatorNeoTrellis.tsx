@@ -21,7 +21,7 @@ export const SimulatorNeoTrellis = ({
     (_, index) => ({
       index,
       pressed: pressedButtons.has(index),
-      rgb: rgbForColourCode(ledColours[String(index)] ?? 0),
+      rgb: rgbForColourCode(ledColours[index] ?? 0),
     })
   )
 

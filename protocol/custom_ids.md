@@ -12,7 +12,7 @@ a separate deployment defense.
 | ID | Direction | Purpose | Length | Payload |
 |---|---|---|---:|---|
 | `0x700` | Button pad to coordinator | Button event | 2 | byte 0 = button index, byte 1 = state |
-| `0x701` | Coordinator to button pad | LED update | 2 | byte 0 = button index, byte 1 = colour |
+| `0x701` | Coordinator to button pad | Complete 16-colour LED snapshot | 8 | two LED colour nibbles per byte, even index low |
 
 ## Button State Constants
 

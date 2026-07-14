@@ -6,14 +6,14 @@ from e87canbus.application.events import (
     ApplicationEvent,
     ButtonPressed,
     LedColour,
-    SetButtonLed,
+    SetButtonLeds,
 )
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
-    LedUpdatePayload,
+    LedSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
-    encode_led_update,
+    encode_led_snapshot,
 )
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
@@ -56,13 +56,12 @@ class ProtocolRouter:
             return None
         return ButtonPressed(payload.button_index)
 
-    def encode(self, effect: SetButtonLed) -> RoutedCanFrame:
+    def encode(self, effect: SetButtonLeds) -> RoutedCanFrame:
         return RoutedCanFrame(
             network=CanNetwork.KCAN,
-            frame=encode_led_update(
-                LedUpdatePayload(
-                    button_index=effect.button_index,
-                    colour_code=LED_COLOUR_CODES[effect.colour],
+            frame=encode_led_snapshot(
+                LedSnapshotPayload(
+                    tuple(LED_COLOUR_CODES[colour] for colour in effect.colours.colours)
                 ),
                 self.ids,
             ),

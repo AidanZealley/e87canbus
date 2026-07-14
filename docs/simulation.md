@@ -31,16 +31,15 @@ This simulates the current button-pad firmware behavior:
 
 - Send project button-event frames on `0x700`.
 - Alternate pressed and released states.
-- Let the coordinator bench app reply with LED-update frames on `0x701`.
-- Record LED colours inside the simulated NeoTrellis node.
+- Let the coordinator bench app reply with complete DLC-8 LED snapshots on `0x701`.
+- Validate and atomically replace all 16 LED colours inside the simulated NeoTrellis node.
 
 Expected logs alternate:
 
 ```text
 sim neotrellis sent button event: index=0 pressed=True
-received button event: index=0 pressed=True
-sent led update: index=0 colour=green
-sim neotrellis received led update: index=0 colour=2
+sent complete LED snapshot: colours=green,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
+sim neotrellis received LED snapshot: colours=(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 ```
 
 ## Visual Simulator Workbench
@@ -103,7 +102,12 @@ There is no automatic gateway behavior. Every emitted frame is retained in one c
 and reset's full empty snapshot clears the frontend trace while retaining topology configuration
 and filter choices.
 
-Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send `0x700 0001`; the application changes to Manual, replies with `0x701 0004`, and the button becomes amber. Releasing sends `0x700 0000` but does not clear the LED because the application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and blue.
+Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send
+`0x700 0001`; the application changes to Manual, replies with
+`0x701 0400000000000000`, and the complete device state is replaced with button 0 amber and all
+other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
+application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
+blue.
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
@@ -188,7 +192,7 @@ transmission. Kernel or hardware listen-only mode is a separate deployment defen
 The simulator decodes the provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
-- `0x701`: coordinator LED update.
+- `0x701`: complete 16-colour coordinator LED snapshot.
 
 The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700` and `0x701` require collision
 validation against a real K-CAN capture before any in-car transmission.

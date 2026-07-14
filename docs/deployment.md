@@ -75,5 +75,7 @@ ip -details link show can0
 ./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
 ```
 
-5. Confirm the Pi logs show alternating press/release button events and green/off LED replies.
-6. Confirm the button-pad serial log shows matching sent button events and received LED updates.
+5. Confirm the Pi logs show alternating complete green/off LED snapshots in response to the button
+   events.
+6. Confirm the button-pad serial log shows matching sent button events and complete 16-colour LED
+   snapshots.

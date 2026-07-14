@@ -31,7 +31,7 @@ const snapshot = (
     watchdog_timed_out: false,
   },
   next_pressed: true,
-  led_colours: {},
+  led_colours: Array(16).fill(0) as number[],
   networks: [],
   trace,
 })
@@ -70,6 +70,18 @@ test("slim snapshots keep the existing trace", () => {
   const result = mergeSnapshot(current, next)
 
   assert.deepEqual(result.trace, [frame(1)])
+})
+
+test("snapshots replace the complete LED state", () => {
+  const current = { ...snapshot(), led_colours: Array(16).fill(1) as number[] }
+  const next = {
+    ...snapshot([], current.session_id, current.revision + 1),
+    led_colours: Array(16).fill(2) as number[],
+  }
+
+  const result = mergeSnapshot(current, next)
+
+  assert.deepEqual(result.led_colours, Array(16).fill(2))
 })
 
 test("frame events append once and remain capped", () => {

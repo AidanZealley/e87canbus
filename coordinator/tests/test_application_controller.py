@@ -9,10 +9,11 @@ from e87canbus.application.controller import (
     transition,
 )
 from e87canbus.application.events import (
+    ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
     LedColour,
-    SetButtonLed,
+    SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -29,6 +30,31 @@ from e87canbus.application.state import (
 from e87canbus.config import CanNetwork, SteeringConfig
 
 CONFIG = SteeringConfig()
+AUTO_LEDS = ButtonLedState(
+    (
+        LedColour.BLUE,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+        LedColour.OFF,
+    )
+)
+MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
+MANUAL_MAXIMUM_LEDS = ButtonLedState(
+    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE)
+    + (LedColour.OFF,) * 12
+)
 
 
 def application_state(
@@ -47,13 +73,6 @@ def projection(state: ApplicationState) -> tuple[SteeringMode, int, bool]:
     )
 
 
-def colours(state: ApplicationState, button_index: int) -> tuple[LedColour, ...]:
-    return tuple(
-        effect.colour
-        for effect in transition(state, ButtonPressed(button_index), CONFIG).effects
-    )
-
-
 def test_initial_snapshot_and_effects() -> None:
     state = ApplicationState()
 
@@ -65,32 +84,31 @@ def test_initial_snapshot_and_effects() -> None:
         speed_valid=False,
     )
     assert initial_effects(state, CONFIG) == (
-        SetButtonLed(0, LedColour.BLUE),
-        SetButtonLed(3, LedColour.OFF),
+        SetButtonLeds(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
 
 
 @pytest.mark.parametrize(
-    ("initial_mode", "button_index", "expected", "effect_colours"),
+    ("initial_mode", "button_index", "expected", "expected_led_state"),
     [
-        (SteeringMode.AUTO, 0, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
-        (SteeringMode.AUTO, 1, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
-        (SteeringMode.AUTO, 2, (SteeringMode.MANUAL, 0, False), (LedColour.AMBER,)),
+        (SteeringMode.AUTO, 0, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
+        (SteeringMode.AUTO, 1, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
+        (SteeringMode.AUTO, 2, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
         (
             SteeringMode.AUTO,
             3,
             (SteeringMode.MANUAL, 7, True),
-            (LedColour.AMBER, LedColour.WHITE),
+            MANUAL_MAXIMUM_LEDS,
         ),
-        (SteeringMode.MANUAL, 0, (SteeringMode.AUTO, 0, False), (LedColour.BLUE,)),
-        (SteeringMode.MANUAL, 1, (SteeringMode.MANUAL, 0, False), ()),
-        (SteeringMode.MANUAL, 2, (SteeringMode.MANUAL, 1, False), ()),
+        (SteeringMode.MANUAL, 0, (SteeringMode.AUTO, 0, False), AUTO_LEDS),
+        (SteeringMode.MANUAL, 1, (SteeringMode.MANUAL, 0, False), None),
+        (SteeringMode.MANUAL, 2, (SteeringMode.MANUAL, 1, False), None),
         (
             SteeringMode.MANUAL,
             3,
             (SteeringMode.MANUAL, 7, True),
-            (LedColour.AMBER, LedColour.WHITE),
+            MANUAL_MAXIMUM_LEDS,
         ),
     ],
 )
@@ -98,36 +116,38 @@ def test_mapped_buttons_from_normal_modes(
     initial_mode: SteeringMode,
     button_index: int,
     expected: tuple[SteeringMode, int, bool],
-    effect_colours: tuple[LedColour, ...],
+    expected_led_state: ButtonLedState | None,
 ) -> None:
     state = application_state(mode=initial_mode)
 
     result = transition(state, ButtonPressed(button_index), CONFIG)
 
     assert projection(result.state) == expected
-    assert tuple(effect.colour for effect in result.effects) == effect_colours
+    expected_effects = () if expected_led_state is None else (SetButtonLeds(expected_led_state),)
+    assert result.effects == expected_effects
 
 
 @pytest.mark.parametrize(
-    ("button_index", "expected", "effect_colours"),
+    ("button_index", "expected", "expected_led_state"),
     [
-        (0, (SteeringMode.MANUAL, 7, True), ()),
-        (1, (SteeringMode.MANUAL, 3, False), (LedColour.AMBER, LedColour.OFF)),
-        (2, (SteeringMode.MANUAL, 3, False), (LedColour.AMBER, LedColour.OFF)),
-        (3, (SteeringMode.AUTO, 3, False), (LedColour.BLUE, LedColour.OFF)),
+        (0, (SteeringMode.MANUAL, 7, True), None),
+        (1, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
+        (2, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
+        (3, (SteeringMode.AUTO, 3, False), AUTO_LEDS),
     ],
 )
 def test_mapped_buttons_while_maximum_assistance_is_active(
     button_index: int,
     expected: tuple[SteeringMode, int, bool],
-    effect_colours: tuple[LedColour, ...],
+    expected_led_state: ButtonLedState | None,
 ) -> None:
     state = ApplicationState(MaximumAssistance(NormalSteering(manual_level=3)))
 
     result = transition(state, ButtonPressed(button_index), CONFIG)
 
     assert projection(result.state) == expected
-    assert tuple(effect.colour for effect in result.effects) == effect_colours
+    expected_effects = () if expected_led_state is None else (SetButtonLeds(expected_led_state),)
+    assert result.effects == expected_effects
 
 
 def test_maximum_assistance_restores_previous_manual_state() -> None:

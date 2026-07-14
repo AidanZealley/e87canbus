@@ -245,10 +245,13 @@ lib_deps =
     mcp_can
 ```
 
-**Button-pad responsibilities:**
-- Poll NeoTrellis for button events
-- Send custom CAN message to Pi on button press/release (ID `0x700`, data byte = button index)
-- Receive CAN messages from Pi to update NeoTrellis LED colours/states
+**Current button-pad milestone responsibilities:**
+- Emit bench-only synthetic press/release events on `0x700`.
+- Validate complete DLC-8 LED snapshots received on `0x701` and replace all 16 stored colours only
+  after every nibble is known.
+- Report the stored values through one rendering boundary. Physical NeoTrellis scanning and pixel
+  rendering remain unimplemented until the actual hardware topology and electrical limits are
+  verified.
 
 ### Provisional K-CAN Message Protocol (Coordinator ↔ Button Pad)
 
@@ -258,7 +261,7 @@ collision-free merely because they are in the high standard-ID range.
 | ID | Direction | Description |
 |---|---|---|
 | `0x700` | Button pad → coordinator | Button event (byte 0 = button index, byte 1 = press/release) |
-| `0x701` | Coordinator → button pad | LED state update (byte 0 = button index, byte 1 = colour code) |
+| `0x701` | Coordinator → button pad | Complete 16-colour LED snapshot (DLC 8; even index in low nibble, odd index in high nibble) |
 
 `protocol/custom.toml` is the source of truth. Its generator updates the Python constants, firmware
 header, and the marked table section in `protocol/custom_ids.md`; `--check` detects drift.

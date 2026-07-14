@@ -62,7 +62,7 @@ class SimulatorSnapshot:
     fatal: bool
     application: ApplicationSnapshot
     next_pressed: bool
-    led_colours: dict[int, int]
+    led_colours: tuple[int, ...]
     steering_controller: SimulatedSteeringSnapshot
     networks: tuple[SimulatedNetworkStatus, ...]
     trace: tuple[SimulatedCanTraceEntry, ...]
@@ -231,7 +231,7 @@ class SimulationEngine:
             fatal=diagnostics.health.fatal,
             application=self.kernel.snapshot(),
             next_pressed=self.neotrellis.next_pressed,
-            led_colours=dict(self.neotrellis.led_colours),
+            led_colours=self.neotrellis.led_colours,
             steering_controller=self._steering_snapshot(),
             networks=tuple(
                 SimulatedNetworkStatus(
@@ -355,7 +355,7 @@ class SimulationEngine:
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
             raise RuntimeError("simulation kernel did not start")
-        self.neotrellis.process_pending_led_updates()
+        self.neotrellis.process_pending_led_snapshots()
         self.vehicle.drain_pending()
         self.topology.clear_trace()
 
@@ -371,7 +371,7 @@ class SimulationEngine:
         snapshot_trace: bool | None,
     ) -> SimulationResult:
         self._drain_kernel_inputs()
-        self.neotrellis.process_pending_led_updates()
+        self.neotrellis.process_pending_led_snapshots()
         self.vehicle.drain_pending()
 
         snapshot = self.snapshot()

@@ -10,7 +10,7 @@ from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import CustomCanIds
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
-    decode_led_update,
+    decode_led_snapshot,
     encode_button_event,
 )
 
@@ -42,21 +42,21 @@ def run_socketcan_neotrellis(
 
             reply = bus.receive(timeout_s=receive_timeout_s)
             if reply is None:
-                LOGGER.warning("timed out waiting for led update")
+                LOGGER.warning("timed out waiting for LED snapshot")
                 continue
 
             try:
-                update = decode_led_update(reply, ids)
+                snapshot = decode_led_snapshot(reply, ids)
             except ValueError as exc:
                 LOGGER.warning(
-                    "sim neotrellis ignored malformed led update: id=0x%03x data=%s error=%s",
+                    "sim neotrellis ignored malformed LED snapshot: id=0x%03x data=%s error=%s",
                     reply.arbitration_id,
                     reply.data.hex(),
                     exc,
                 )
                 continue
 
-            if update is None:
+            if snapshot is None:
                 LOGGER.debug(
                     "sim neotrellis ignored frame: id=0x%03x data=%s",
                     reply.arbitration_id,
@@ -65,9 +65,8 @@ def run_socketcan_neotrellis(
                 continue
 
             LOGGER.info(
-                "sim neotrellis received led update: index=%d colour=%d",
-                update.button_index,
-                update.colour_code,
+                "sim neotrellis received LED snapshot: colours=%s",
+                snapshot.colour_codes,
             )
 
 

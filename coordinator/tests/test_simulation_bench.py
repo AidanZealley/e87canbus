@@ -1,3 +1,4 @@
+from e87canbus.application.events import OFF_BUTTON_LEDS, ButtonLedState
 from e87canbus.cli.bench_pingpong import handle_frame
 from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -26,15 +27,17 @@ def run_one_cycle(
     pi_bus,
     executor: EffectExecutor,
     ids: CustomCanIds,
-) -> None:
+    state: ButtonLedState = OFF_BUTTON_LEDS,
+) -> ButtonLedState:
     node.send_next_button_event()
     frame = pi_bus.receive(timeout_s=0)
     assert frame is not None
-    handle_frame(executor, frame, ids)
-    node.process_pending_led_updates()
+    state = handle_frame(executor, frame, ids, state)
+    node.process_pending_led_snapshots()
+    return state
 
 
-def test_pressed_event_causes_green_led_update() -> None:
+def test_pressed_event_causes_green_led_snapshot() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
@@ -42,20 +45,20 @@ def test_pressed_event_causes_green_led_update() -> None:
 
     run_one_cycle(node, pi_bus, executor_for(pi_bus, ids), ids)
 
-    assert node.led_colours == {0: LED_COLOUR_GREEN}
+    assert node.led_colours == (LED_COLOUR_GREEN,) + (LED_COLOUR_OFF,) * 15
 
 
-def test_released_event_causes_off_led_update() -> None:
+def test_released_event_causes_off_led_snapshot() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
     node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
     executor = executor_for(pi_bus, ids)
 
-    run_one_cycle(node, pi_bus, executor, ids)
-    run_one_cycle(node, pi_bus, executor, ids)
+    state = run_one_cycle(node, pi_bus, executor, ids)
+    run_one_cycle(node, pi_bus, executor, ids, state)
 
-    assert node.led_colours == {0: LED_COLOUR_OFF}
+    assert node.led_colours == (LED_COLOUR_OFF,) * 16
 
 
 def test_four_cycles_alternate_green_and_off() -> None:
@@ -66,8 +69,9 @@ def test_four_cycles_alternate_green_and_off() -> None:
     executor = executor_for(pi_bus, ids)
     colours: list[int] = []
 
+    state = OFF_BUTTON_LEDS
     for _ in range(4):
-        run_one_cycle(node, pi_bus, executor, ids)
+        state = run_one_cycle(node, pi_bus, executor, ids, state)
         colours.append(node.led_colours[0])
 
     assert colours == [

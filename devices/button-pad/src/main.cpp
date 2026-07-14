@@ -11,6 +11,7 @@ static const uint32_t SEND_INTERVAL_MS = 1000;
 MCP_CAN canBus(CAN_CS_PIN);
 bool nextPressed = true;
 uint32_t lastSendMs = 0;
+uint8_t ledColours[LED_COUNT] = {};
 
 bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
     uint8_t payload[BUTTON_EVENT_LENGTH] = {
@@ -31,20 +32,42 @@ bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
     return true;
 }
 
-void handleLedUpdate(const uint8_t *payload, uint8_t length) {
-    if (length != LED_UPDATE_LENGTH) {
-        Serial.print("ignored malformed led update length=");
+void renderLedSnapshot() {
+    Serial.print("received LED snapshot colours=");
+    for (uint8_t index = 0; index < LED_COUNT; ++index) {
+        if (index > 0) {
+            Serial.print(',');
+        }
+        Serial.print(ledColours[index]);
+    }
+    Serial.println();
+}
+
+void handleLedSnapshot(const uint8_t *payload, uint8_t length) {
+    if (length != LED_SNAPSHOT_LENGTH) {
+        Serial.print("ignored malformed LED snapshot length=");
         Serial.println(length);
         return;
     }
 
-    const uint8_t buttonIndex = payload[LED_UPDATE_BUTTON_INDEX_BYTE];
-    const uint8_t colourCode = payload[LED_UPDATE_COLOUR_BYTE];
+    uint8_t decoded[LED_COUNT] = {};
+    for (uint8_t byteIndex = 0; byteIndex < LED_SNAPSHOT_LENGTH; ++byteIndex) {
+        const uint8_t packed = payload[byteIndex];
+        const uint8_t evenColour =
+            (packed >> LED_EVEN_INDEX_SHIFT) & LED_NIBBLE_MASK;
+        const uint8_t oddColour =
+            (packed >> LED_ODD_INDEX_SHIFT) & LED_NIBBLE_MASK;
+        if (evenColour > LED_COLOUR_MAX || oddColour > LED_COLOUR_MAX) {
+            Serial.print("ignored malformed LED snapshot colour byte=");
+            Serial.println(byteIndex);
+            return;
+        }
+        decoded[byteIndex * 2] = evenColour;
+        decoded[byteIndex * 2 + 1] = oddColour;
+    }
 
-    Serial.print("received led update index=");
-    Serial.print(buttonIndex);
-    Serial.print(" colour=");
-    Serial.println(colourCode);
+    memcpy(ledColours, decoded, sizeof(ledColours));
+    renderLedSnapshot();
 }
 
 void pollCan() {
@@ -57,8 +80,8 @@ void pollCan() {
     uint8_t payload[8] = {};
     canBus.readMsgBuf(&arbitrationId, &length, payload);
 
-    if (arbitrationId == CAN_ID_LED_UPDATE) {
-        handleLedUpdate(payload, length);
+    if (arbitrationId == CAN_ID_LED_SNAPSHOT) {
+        handleLedSnapshot(payload, length);
     }
 }
 

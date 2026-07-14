@@ -19,8 +19,9 @@ This milestone validates Pi-to-Arduino CAN transport before any car wiring.
 
 - Arduino sends button events on `0x700`: `[button_index, state]`.
 - `state=0` means released; `state=1` means pressed.
-- Pi replies with LED updates on `0x701`: `[button_index, colour]`.
-- `colour=2` means green; `colour=0` means off.
+- Pi replies with one complete 16-colour LED snapshot on `0x701` (DLC 8). Each byte packs the even
+  LED in its low nibble and the following odd LED in its high nibble.
+- `colour=2` means green; `colour=0` means off. All unspecified bench positions remain off.
 
 ## Run Locally On The Pi
 
@@ -29,22 +30,21 @@ sudo ./scripts/bench_can_up.sh
 uv run e87canbus-bench-pingpong --interface can0
 ```
 
-The expected Pi logs alternate:
+The Pi reports each complete snapshot it sends. The first payload is `02 00 00 00 00 00 00 00`
+(button 0 green); the next is all zeroes (all LEDs off).
 
 ```text
-received button event: index=0 pressed=True
-sent led update: index=0 colour=green
-received button event: index=0 pressed=False
-sent led update: index=0 colour=off
+sent complete LED snapshot: colours=green,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
+sent complete LED snapshot: colours=off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
 ```
 
 The expected Arduino serial logs alternate:
 
 ```text
 sent button event index=0 state=pressed
-received led update index=0 colour=2
+received LED snapshot colours=2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 sent button event index=0 state=released
-received led update index=0 colour=0
+received LED snapshot colours=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ```
 
 Bring the bench CAN interface down with:
@@ -61,7 +61,9 @@ Run the in-process simulator on macOS, Linux, or CI:
 uv run e87canbus-sim-bench
 ```
 
-The simulator runs the existing Pi bench logic against a simulated NeoTrellis node. It alternates button press and release frames and records the LED updates sent by the Pi.
+The simulator runs the existing Pi bench logic against a simulated NeoTrellis node. It alternates
+button press and release frames and atomically replaces the node's complete LED state from the
+snapshots sent by the Pi.
 
 ## Linux vcan
 

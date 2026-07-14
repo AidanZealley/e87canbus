@@ -17,6 +17,22 @@ class LedColour(StrEnum):
     WHITE = "white"
 
 
+BUTTON_LED_COUNT = 16
+
+
+@dataclass(frozen=True)
+class ButtonLedState:
+    colours: tuple[LedColour, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.colours) != BUTTON_LED_COUNT:
+            raise ValueError(f"button LED state must contain exactly {BUTTON_LED_COUNT} colours")
+        if any(not isinstance(colour, LedColour) for colour in self.colours):
+            raise ValueError("button LED state must contain only known LED colours")
+
+OFF_BUTTON_LEDS = ButtonLedState((LedColour.OFF,) * BUTTON_LED_COUNT)
+
+
 @dataclass(frozen=True)
 class ButtonPressed:
     button_index: int
@@ -60,9 +76,8 @@ ApplicationEvent = (
 
 
 @dataclass(frozen=True)
-class SetButtonLed:
-    button_index: int
-    colour: LedColour
+class SetButtonLeds:
+    colours: ButtonLedState
 
 
 @dataclass(frozen=True)
@@ -77,4 +92,4 @@ class SetSteeringAssistance:
             raise ValueError("steering assistance must be between zero and one")
 
 
-ApplicationEffect = SetButtonLed | SetSteeringAssistance
+ApplicationEffect = SetButtonLeds | SetSteeringAssistance

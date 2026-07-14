@@ -30,10 +30,14 @@ def test_definition_owns_ids_lengths_positions_and_values() -> None:
     assert definition.button_event.length == 2
     assert dict(definition.button_event.byte_positions) == {"button_index": 0, "state": 1}
     assert dict(definition.button_event.values) == {"released": 0, "pressed": 1}
-    assert definition.led_update.can_id == 0x701
-    assert definition.led_update.length == 2
-    assert dict(definition.led_update.byte_positions) == {"button_index": 0, "colour": 1}
-    assert dict(definition.led_update.values) == {
+    assert definition.led_snapshot.can_id == 0x701
+    assert definition.led_snapshot.length == 8
+    assert definition.led_snapshot.led_count == 16
+    assert definition.led_snapshot.even_index_shift == 0
+    assert definition.led_snapshot.odd_index_shift == 4
+    assert definition.led_snapshot.nibble_mask == 0x0F
+    assert definition.led_snapshot.byte_positions == ()
+    assert dict(definition.led_snapshot.values) == {
         "off": 0,
         "red": 1,
         "green": 2,

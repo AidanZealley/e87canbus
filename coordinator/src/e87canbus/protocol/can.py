@@ -11,9 +11,12 @@ from e87canbus.protocol.generated import (
     BUTTON_EVENT_STATE_BYTE,
     BUTTON_PRESSED,
     BUTTON_RELEASED,
-    LED_UPDATE_BUTTON_INDEX_BYTE,
-    LED_UPDATE_COLOUR_BYTE,
-    LED_UPDATE_LENGTH,
+    LED_COLOUR_MAX,
+    LED_COUNT,
+    LED_EVEN_INDEX_SHIFT,
+    LED_NIBBLE_MASK,
+    LED_ODD_INDEX_SHIFT,
+    LED_SNAPSHOT_LENGTH,
 )
 
 
@@ -39,9 +42,17 @@ class ArduinoButtonEventPayload:
 
 
 @dataclass(frozen=True)
-class LedUpdatePayload:
-    button_index: int
-    colour_code: int
+class LedSnapshotPayload:
+    colour_codes: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.colour_codes) != LED_COUNT:
+            raise ValueError(f"LED snapshot must contain exactly {LED_COUNT} colours")
+        if any(
+            not isinstance(colour, int) or not 0 <= colour <= LED_COLOUR_MAX
+            for colour in self.colour_codes
+        ):
+            raise ValueError("LED snapshot contains an invalid colour code")
 
 
 def encode_button_event(payload: ArduinoButtonEventPayload, ids: CustomCanIds) -> CanFrame:
@@ -66,19 +77,26 @@ def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEven
     )
 
 
-def encode_led_update(payload: LedUpdatePayload, ids: CustomCanIds) -> CanFrame:
-    data = bytearray(LED_UPDATE_LENGTH)
-    data[LED_UPDATE_BUTTON_INDEX_BYTE] = payload.button_index
-    data[LED_UPDATE_COLOUR_BYTE] = payload.colour_code
-    return CanFrame(ids.led_update, bytes(data))
-
-
-def decode_led_update(frame: CanFrame, ids: CustomCanIds) -> LedUpdatePayload | None:
-    if frame.arbitration_id != ids.led_update:
-        return None
-    if len(frame.data) != LED_UPDATE_LENGTH:
-        raise ValueError(f"LED update payload must be exactly {LED_UPDATE_LENGTH} bytes")
-    return LedUpdatePayload(
-        button_index=frame.data[LED_UPDATE_BUTTON_INDEX_BYTE],
-        colour_code=frame.data[LED_UPDATE_COLOUR_BYTE],
+def encode_led_snapshot(payload: LedSnapshotPayload, ids: CustomCanIds) -> CanFrame:
+    data = bytes(
+        payload.colour_codes[index] << LED_EVEN_INDEX_SHIFT
+        | payload.colour_codes[index + 1] << LED_ODD_INDEX_SHIFT
+        for index in range(0, LED_COUNT, 2)
     )
+    return CanFrame(ids.led_snapshot, data)
+
+
+def decode_led_snapshot(frame: CanFrame, ids: CustomCanIds) -> LedSnapshotPayload | None:
+    if frame.arbitration_id != ids.led_snapshot:
+        return None
+    if len(frame.data) != LED_SNAPSHOT_LENGTH:
+        raise ValueError(f"LED snapshot payload must be exactly {LED_SNAPSHOT_LENGTH} bytes")
+    colour_codes = tuple(
+        colour
+        for packed in frame.data
+        for colour in (
+            (packed >> LED_EVEN_INDEX_SHIFT) & LED_NIBBLE_MASK,
+            (packed >> LED_ODD_INDEX_SHIFT) & LED_NIBBLE_MASK,
+        )
+    )
+    return LedSnapshotPayload(colour_codes)

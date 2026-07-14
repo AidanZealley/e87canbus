@@ -410,8 +410,7 @@ def test_effect_failure_is_dispatched_after_execution_without_reentry() -> None:
     assert failed is True
     assert isinstance(kernel.inputs[0], KernelStarted)
     assert isinstance(kernel.inputs[1], CanEffectExecutionFailed)
-    assert isinstance(kernel.inputs[2], CanEffectExecutionFailed)
-    assert isinstance(kernel.inputs[3], ShutdownRequested)
+    assert isinstance(kernel.inputs[2], ShutdownRequested)
     assert len(set(kernel.dispatch_thread_ids)) == 1
 
 
@@ -446,14 +445,13 @@ def test_live_threads_use_one_dispatch_thread_and_stop_boundedly() -> None:
     reader.start()
     coordinator.start()
     bus.sent.get(timeout=0.2)
-    bus.sent.get(timeout=0.2)
     bus.received.put(CanFrame(ids.button_event, b"\x00\x01"))
     reply = bus.sent.get(timeout=0.2)
     stop.set()
     reader.join(timeout=0.3)
     coordinator.join(timeout=0.3)
 
-    assert reply == CanFrame(ids.led_update, b"\x00\x04")
+    assert reply == CanFrame(ids.led_snapshot, b"\x04\x00\x00\x00\x00\x00\x00\x00")
     assert result == [False]
     assert len(set(kernel.dispatch_thread_ids)) == 1
     assert not reader.is_alive()
@@ -570,7 +568,7 @@ def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames(
     assert live.run_live(simulator_config()) == 0
 
     kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
-    assert kcan.sent == [CanFrame(0x701, b"\x00\x03"), CanFrame(0x701, b"\x03\x00")]
+    assert kcan.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
 
 
 def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(

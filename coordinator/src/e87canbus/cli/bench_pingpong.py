@@ -7,7 +7,13 @@ import logging
 from collections.abc import Sequence
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.events import LedColour, SetButtonLed
+from e87canbus.application.events import (
+    BUTTON_LED_COUNT,
+    OFF_BUTTON_LEDS,
+    ButtonLedState,
+    LedColour,
+    SetButtonLeds,
+)
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -17,17 +23,35 @@ from e87canbus.protocol.router import ProtocolRouter
 LOGGER = logging.getLogger(__name__)
 
 
-def led_effect_for_button_event(frame: CanFrame, ids: CustomCanIds) -> SetButtonLed | None:
+def led_effect_for_button_event(
+    frame: CanFrame,
+    ids: CustomCanIds,
+    state: ButtonLedState,
+) -> SetButtonLeds | None:
     event = decode_button_event(frame, ids)
     if event is None:
         return None
+    if not 0 <= event.button_index < BUTTON_LED_COUNT:
+        raise ValueError(f"button_index must be between 0 and {BUTTON_LED_COUNT - 1}")
     colour = LedColour.GREEN if event.pressed else LedColour.OFF
-    return SetButtonLed(event.button_index, colour)
+    return SetButtonLeds(
+        ButtonLedState(
+            tuple(
+                colour if index == event.button_index else current
+                for index, current in enumerate(state.colours)
+            )
+        )
+    )
 
 
-def handle_frame(executor: EffectExecutor, frame: CanFrame, ids: CustomCanIds) -> None:
+def handle_frame(
+    executor: EffectExecutor,
+    frame: CanFrame,
+    ids: CustomCanIds,
+    state: ButtonLedState,
+) -> ButtonLedState:
     try:
-        effect = led_effect_for_button_event(frame, ids)
+        effect = led_effect_for_button_event(frame, ids, state)
     except ValueError as exc:
         LOGGER.warning(
             "malformed button event frame: id=0x%03x data=%s error=%s",
@@ -35,19 +59,18 @@ def handle_frame(executor: EffectExecutor, frame: CanFrame, ids: CustomCanIds) -
             frame.data.hex(),
             exc,
         )
-        return
+        return state
 
     if effect is None:
         LOGGER.debug("ignored frame: id=0x%03x data=%s", frame.arbitration_id, frame.data.hex())
-        return
+        return state
 
-    LOGGER.info(
-        "received button event: index=%d pressed=%s",
-        effect.button_index,
-        effect.colour is LedColour.GREEN,
-    )
     executor.execute((effect,))
-    LOGGER.info("sent led update: index=%d colour=%s", effect.button_index, effect.colour)
+    LOGGER.info(
+        "sent complete LED snapshot: colours=%s",
+        ",".join(colour.value for colour in effect.colours.colours),
+    )
+    return effect.colours
 
 
 def run_pingpong(
@@ -56,11 +79,12 @@ def run_pingpong(
     ids: CustomCanIds,
     receive_timeout_s: float = 1.0,
 ) -> None:
+    state = OFF_BUTTON_LEDS
     while True:
         frame = receiver.receive(timeout_s=receive_timeout_s)
         if frame is None:
             continue
-        handle_frame(executor, frame, ids)
+        state = handle_frame(executor, frame, ids, state)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -35,6 +35,9 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
+OFF_LEDS = (LED_COLOUR_OFF,) * 16
+AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * 15
+MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * 15
 
 
 def build_test_engine(**kwargs: object) -> SimulationEngine:
@@ -103,7 +106,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert snapshot.next_pressed is True
     assert snapshot.application.speed_valid is False
     assert snapshot.application.steering_mode is SteeringMode.AUTO
-    assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
+    assert snapshot.led_colours == AUTO_LEDS
     assert snapshot.steering_controller.effective_assistance == 0.0
     assert (
         snapshot.steering_controller.last_command_reason
@@ -139,16 +142,16 @@ def test_pressing_button_creates_button_event_frame() -> None:
     assert snapshot.trace[0].sequence == 1
 
 
-def test_pressing_mode_button_selects_manual_and_causes_amber_led_update() -> None:
+def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> None:
     controller = build_test_engine()
 
     snapshot = controller.execute(PressButton(0)).snapshot
 
     assert snapshot.trace[1].source == "pi"
     assert snapshot.trace[1].frame.arbitration_id == 0x701
-    assert snapshot.trace[1].frame.data == b"\x00\x04"
+    assert snapshot.trace[1].frame.data == b"\x04\x00\x00\x00\x00\x00\x00\x00"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
-    assert snapshot.led_colours == {0: LED_COLOUR_AMBER, 3: LED_COLOUR_OFF}
+    assert snapshot.led_colours == MANUAL_LEDS
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
@@ -159,7 +162,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     assert snapshot.trace[-1].frame.data == b"\x00\x00"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
-    assert snapshot.led_colours == {0: LED_COLOUR_AMBER, 3: LED_COLOUR_OFF}
+    assert snapshot.led_colours == MANUAL_LEDS
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
@@ -172,7 +175,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert controller.vehicle.speed_kph is None
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
-    assert snapshot.led_colours == {0: LED_COLOUR_BLUE, 3: LED_COLOUR_OFF}
+    assert snapshot.led_colours == AUTO_LEDS
     assert snapshot.trace == ()
 
     next_snapshot = controller.execute(PressButton(0)).snapshot
@@ -393,7 +396,7 @@ def test_coordinator_tx_budget_drops_led_replies_without_dropping_button_events(
 
     sources = [entry.source for entry in snapshot.trace]
     assert sources.count("neotrellis") == 8
-    assert sources.count("pi") == 1
+    assert sources.count("pi") == 2
 
 
 def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:

@@ -6,6 +6,7 @@ import argparse
 import logging
 from collections.abc import Sequence
 
+from e87canbus.application.events import OFF_BUTTON_LEDS
 from e87canbus.cli.bench_pingpong import handle_frame
 from e87canbus.config import CanNetwork, CustomCanIds, TxPolicyConfig
 from e87canbus.output import EffectExecutor, SafeCanTransmitter
@@ -31,6 +32,7 @@ def run_simulated_bench(cycles: int, button_index: int, ids: CustomCanIds) -> No
         button_index=button_index,
     )
 
+    led_state = OFF_BUTTON_LEDS
     for _ in range(cycles):
         sent = neotrellis.send_next_button_event()
         event = decode_button_event(sent, ids)
@@ -43,13 +45,12 @@ def run_simulated_bench(cycles: int, button_index: int, ids: CustomCanIds) -> No
 
         frame = pi_bus.receive(timeout_s=0)
         if frame is not None:
-            handle_frame(executor, frame, ids)
+            led_state = handle_frame(executor, frame, ids, led_state)
 
-        for update in neotrellis.process_pending_led_updates():
+        for snapshot in neotrellis.process_pending_led_snapshots():
             LOGGER.info(
-                "sim neotrellis received led update: index=%d colour=%d",
-                update.button_index,
-                update.colour_code,
+                "sim neotrellis received LED snapshot: colours=%s",
+                snapshot.colour_codes,
             )
 
 

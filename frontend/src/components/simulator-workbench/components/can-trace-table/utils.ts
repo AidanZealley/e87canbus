@@ -1,5 +1,22 @@
 import type { CanTraceEntry } from "../../types"
 
+const LED_COUNT = 16
+const LED_SNAPSHOT_HEX_LENGTH = 16
+const MAX_LED_COLOUR = 5
+
+export const decodeLedSnapshot = (dataHex: string): number[] | null => {
+  if (dataHex.length !== LED_SNAPSHOT_HEX_LENGTH) return null
+
+  const colours = Array.from({ length: LED_COUNT }, (_, index) => {
+    const byteStart = Math.floor(index / 2) * 2
+    const packed = Number.parseInt(dataHex.slice(byteStart, byteStart + 2), 16)
+    return index % 2 === 0 ? packed & 0x0f : packed >> 4
+  })
+  return colours.every((colour) => colour <= MAX_LED_COLOUR)
+    ? colours
+    : null
+}
+
 export const decodeMeaning = (entry: CanTraceEntry) => {
   if (entry.network !== "kcan") return "unknown"
 
@@ -15,10 +32,10 @@ export const decodeMeaning = (entry: CanTraceEntry) => {
   }
 
   if (entry.arbitration_id_hex === "0x701") {
-    if (entry.data_hex.length !== 4) return "malformed LED update"
-    const button = Number.parseInt(entry.data_hex.slice(0, 2), 16)
-    const colour = Number.parseInt(entry.data_hex.slice(2, 4), 16)
-    return `LED ${button} colour ${colour}`
+    const colours = decodeLedSnapshot(entry.data_hex)
+    return colours === null
+      ? "malformed LED snapshot"
+      : `LEDs ${colours.join(" ")}`
   }
 
   return "unknown"

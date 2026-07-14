@@ -58,7 +58,7 @@ def test_custom_can_ids() -> None:
     config = default_config()
 
     assert config.custom_can_ids.button_event == 0x700
-    assert config.custom_can_ids.led_update == 0x701
+    assert config.custom_can_ids.led_snapshot == 0x701
 
 
 def test_steering_level_count() -> None:

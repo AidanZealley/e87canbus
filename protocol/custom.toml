@@ -12,17 +12,17 @@ state = 1
 released = 0x00
 pressed = 0x01
 
-[led_update]
+[led_snapshot]
 can_id = 0x701
-length = 2
+length = 8
 direction = "Coordinator to button pad"
-purpose = "LED update"
+purpose = "Complete 16-colour LED snapshot"
+led_count = 16
+even_index_shift = 0
+odd_index_shift = 4
+nibble_mask = 0x0f
 
-[led_update.bytes]
-button_index = 0
-colour = 1
-
-[led_update.values]
+[led_snapshot.values]
 off = 0x00
 red = 0x01
 green = 0x02

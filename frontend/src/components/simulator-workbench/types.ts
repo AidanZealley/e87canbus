@@ -52,7 +52,7 @@ export type SimulatorSnapshot = {
   application: ApplicationSnapshot
   steering_controller: SteeringControllerSnapshot
   next_pressed: boolean
-  led_colours: Record<string, number>
+  led_colours: number[]
   networks: NetworkStatus[]
   trace?: CanTraceEntry[]
 }

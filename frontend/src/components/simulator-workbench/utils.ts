@@ -28,7 +28,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
     watchdog_timed_out: false,
   },
   next_pressed: true,
-  led_colours: {},
+  led_colours: Array(16).fill(0) as number[],
   networks: [],
   trace: [],
 }

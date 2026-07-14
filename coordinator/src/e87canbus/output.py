@@ -11,7 +11,7 @@ from typing import Protocol, assert_never
 
 from e87canbus.application.events import (
     ApplicationEffect,
-    SetButtonLed,
+    SetButtonLeds,
     SetSteeringAssistance,
 )
 from e87canbus.can_io import CanTransmitter
@@ -95,7 +95,7 @@ class EffectExecutor:
                     steering_failure = self._execute_steering(effect)
                     if steering_failure is not None:
                         failures.append(steering_failure)
-                case SetButtonLed():
+                case SetButtonLeds():
                     can_failure = self._execute_can(effect)
                     if can_failure is not None:
                         failures.append(can_failure)
@@ -103,7 +103,7 @@ class EffectExecutor:
                     assert_never(effect)
         return tuple(failures)
 
-    def _execute_can(self, effect: SetButtonLed) -> CanEffectFailure | None:
+    def _execute_can(self, effect: SetButtonLeds) -> CanEffectFailure | None:
         routed = self._router.encode(effect)
         transmitter = self._transmitters.get(routed.network)
         if transmitter is None:
