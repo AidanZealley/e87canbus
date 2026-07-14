@@ -161,6 +161,27 @@ test("out-of-order and duplicate frames remain ordered once", () => {
   assert.equal(oldSession, ordered)
 })
 
+test("out-of-order insertion scans back to the correct position", () => {
+  const current = snapshot([frame(1), frame(2), frame(4), frame(5)])
+  const inserted = reduceSimulatorEvent(current, frame(3))
+  const duplicate = reduceSimulatorEvent(inserted, frame(4))
+
+  assert.deepEqual(
+    inserted.trace.map((entry) => entry.sequence),
+    [1, 2, 3, 4, 5]
+  )
+  assert.equal(duplicate, inserted)
+})
+
+test("frames older than a full retained window are discarded", () => {
+  const current = snapshot(
+    Array.from({ length: 2_000 }, (_, index) => frame(index + 101))
+  )
+
+  assert.equal(reduceSimulatorEvent(current, frame(100)), current)
+  assert.equal(reduceSimulatorEvent(current, frame(101)), current)
+})
+
 const staleEvent = (value: SimulatorSnapshot) => ({
   type: "snapshot" as const,
   session_id: value.session_id,

@@ -24,9 +24,8 @@ export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
     [selectedNetworks, trace]
   )
   const selectedFrame =
-    visibleTrace.find((entry) => entry.sequence === selectedSequence) ??
-    visibleTrace.at(-1) ??
-    null
+    visibleTrace.find((entry) => entry.sequence === selectedSequence) ?? null
+  const detailFrame = selectedFrame ?? visibleTrace.at(-1) ?? null
 
   const toggleNetwork = (network: CanNetwork) => {
     const next = new Set(selectedNetworks)
@@ -35,10 +34,10 @@ export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
 
     const nextVisible = trace.filter((entry) => next.has(entry.network))
     if (
-      !selectedFrame ||
-      !nextVisible.some((entry) => entry.sequence === selectedFrame.sequence)
+      selectedSequence !== null &&
+      !nextVisible.some((entry) => entry.sequence === selectedSequence)
     ) {
-      setSelectedSequence(nextVisible.at(-1)?.sequence ?? null)
+      setSelectedSequence(null)
     }
     setSelectedNetworks(next)
   }
@@ -55,7 +54,7 @@ export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
         onSelect={(entry: CanTraceEntry) => setSelectedSequence(entry.sequence)}
         onToggleNetwork={toggleNetwork}
       />
-      <FrameDetail frame={selectedFrame} />
+      <FrameDetail frame={detailFrame} />
     </section>
   )
 }

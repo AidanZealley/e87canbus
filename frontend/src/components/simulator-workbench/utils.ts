@@ -74,21 +74,50 @@ const appendFrame = (
   current: WorkbenchSnapshot,
   frame: CanTraceEntry
 ): WorkbenchSnapshot => {
+  if (frame.session_id !== current.session_id) {
+    return current
+  }
+
+  const trace = current.trace
+  const last = trace.at(-1)
+  if (last === undefined) return { ...current, trace: [frame] }
+  if (frame.sequence === last.sequence) return current
+
+  if (frame.sequence > last.sequence) {
+    return {
+      ...current,
+      trace:
+        trace.length < TRACE_CAPACITY
+          ? [...trace, frame]
+          : [...trace.slice(1), frame],
+    }
+  }
+
+  const first = trace[0]
   if (
-    frame.session_id !== current.session_id ||
-    current.trace.some(
-      (entry) =>
-        entry.session_id === frame.session_id &&
-        entry.sequence === frame.sequence
-    )
+    trace.length === TRACE_CAPACITY &&
+    first !== undefined &&
+    frame.sequence <= first.sequence
   ) {
     return current
   }
+
+  let insertionIndex = trace.length - 1
+  while (
+    insertionIndex >= 0 &&
+    (trace[insertionIndex]?.sequence ?? -1) > frame.sequence
+  ) {
+    insertionIndex -= 1
+  }
+  if (trace[insertionIndex]?.sequence === frame.sequence) return current
+
+  const nextTrace = [...trace]
+  nextTrace.splice(insertionIndex + 1, 0, frame)
+  if (nextTrace.length > TRACE_CAPACITY) nextTrace.shift()
+
   return {
     ...current,
-    trace: [...current.trace, frame]
-      .sort((left, right) => left.sequence - right.sequence)
-      .slice(-TRACE_CAPACITY),
+    trace: nextTrace,
   }
 }
 
