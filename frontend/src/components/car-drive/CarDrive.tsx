@@ -1,3 +1,5 @@
+import { DropletIcon, WavesIcon } from "lucide-react"
+
 import { useCarData } from "@/components/car-layout"
 import {
   celsiusToFahrenheit,
@@ -6,8 +8,11 @@ import {
   roundDisplayValue,
 } from "@/components/car-layout/car-ui"
 import { RpmBar } from "@/components/rpm-bar"
-import { TemperatureGauge } from "@/components/temperature-gauge"
+import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { TelemetryValue } from "@/components/telemetry-value"
+
+const OIL_OPERATING_TEMPERATURE_C = 110
+const COOLANT_OPERATING_TEMPERATURE_C = 95
 
 export const CarDrive = () => {
   const {
@@ -41,40 +46,36 @@ export const CarDrive = () => {
 
   return (
     <section
-      className="grid min-h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-2"
+      className="grid min-h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-12"
       aria-labelledby="drive-title"
     >
-      <h1 id="drive-title" className="sr-only">
-        Drive
-      </h1>
-      <div className="grid min-h-0 grid-cols-[minmax(0,0.8fr)_minmax(0,1.65fr)] gap-2">
+      <div className="flex flex-col gap-12">
+        <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
         <TelemetryValue
-          label="Speed"
           value={speed}
           unit={settings.speed_unit === "mph" ? "mph" : "km/h"}
-          status={speed === null ? "Unavailable" : "Live"}
-          className="justify-center [&_[data-slot=card-content]]:grid [&_[data-slot=card-content]]:content-center [&_[data-slot=card-content]>span:nth-child(2)]:text-7xl"
-        />
-        <RpmBar
-          {...rpm}
-          redlineRpm={settings.redline_rpm}
-          className="justify-center"
         />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <TemperatureGauge
+      <div className="grid grid-cols-2 gap-12">
+        <DriveTemperatureGauge
+          icon={DropletIcon}
           label="Oil temperature"
           value={presentTemperature(application.engine.oil_temperature_c.value)}
+          valueC={application.engine.oil_temperature_c.value}
           unit={temperatureUnit}
+          operatingTemperatureC={OIL_OPERATING_TEMPERATURE_C}
           status={application.engine.oil_temperature_c.status}
           severity={oilSeverity}
         />
-        <TemperatureGauge
+        <DriveTemperatureGauge
+          icon={WavesIcon}
           label="Coolant temperature"
           value={presentTemperature(
             application.engine.coolant_temperature_c.value
           )}
+          valueC={application.engine.coolant_temperature_c.value}
           unit={temperatureUnit}
+          operatingTemperatureC={COOLANT_OPERATING_TEMPERATURE_C}
           status={application.engine.coolant_temperature_c.status}
           severity={coolantSeverity}
         />

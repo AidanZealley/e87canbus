@@ -45,7 +45,6 @@ export const CarLayout = () => (
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="h-2 shrink-0 border-b bg-muted/30" aria-hidden="true" />
         <CarStatusBanners />
         <main className="min-h-0 min-w-0 flex-1 overflow-auto">
           <Outlet />

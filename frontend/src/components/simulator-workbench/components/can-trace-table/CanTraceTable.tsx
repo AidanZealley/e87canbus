@@ -33,7 +33,7 @@ import { NetworkFilters } from "../network-filters"
 import type { CanNetwork, NetworkStatus } from "../../types"
 import { decodeMeaning } from "./utils"
 
-const TRACE_ROW_HEIGHT_PX = 33
+const TRACE_ROW_HEIGHT_PX = 32
 const TRACE_ROW_OVERSCAN = 12
 
 type CanTraceTableProps = {
@@ -170,10 +170,7 @@ export const CanTraceTable = ({
         </div>
         {trace.length > 0 ? (
           <div className="relative">
-            <ScrollArea
-              ref={scrollAreaRef}
-              className="h-[360px] rounded-md border"
-            >
+            <ScrollArea ref={scrollAreaRef} className="h-90 rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 bg-card">
                   <TableRow>
@@ -185,7 +182,7 @@ export const CanTraceTable = ({
                     <TableHead>Decoded</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="[&_td]:h-[33px] [&_td]:py-0">
+                <TableBody className="[&_td]:h-8 [&_td]:py-0">
                   {paddingTop > 0 ? <TraceSpacer height={paddingTop} /> : null}
                   {virtualRows.map((virtualRow) => {
                     const entry = trace[virtualRow.index]
@@ -199,7 +196,7 @@ export const CanTraceTable = ({
                             ? "selected"
                             : undefined
                         }
-                        className="h-[33px] cursor-pointer transition-none"
+                        className="h-8 cursor-pointer transition-none"
                         onClick={() => onSelect(entry)}
                       >
                         <TableCell className="font-mono text-xs">
@@ -245,7 +242,7 @@ export const CanTraceTable = ({
             </Button>
           </div>
         ) : (
-          <Empty className="min-h-[360px] border">
+          <Empty className="min-h-90 border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <RadioTowerIcon />
