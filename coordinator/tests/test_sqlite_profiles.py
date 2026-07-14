@@ -261,14 +261,14 @@ def test_corrupt_columns_and_malformed_json_fail_closed(
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    ("field", "value", "message"),
     [
-        ("schema_version", 2),
-        ("interpolation", "monotone-cubic-v1"),
+        ("schema_version", 2, "unsupported steering curve schema_version"),
+        ("interpolation", "future-v2", "not a valid CurveInterpolation"),
     ],
 )
 def test_unsupported_future_definition_fails_closed(
-    tmp_path: Path, field: str, value: object
+    tmp_path: Path, field: str, value: object, message: str
 ) -> None:
     path = tmp_path / "profiles.sqlite3"
     repository = _repository(path)
@@ -284,7 +284,7 @@ def test_unsupported_future_definition_fails_closed(
         (value, definition_json, BUILT_IN_PROFILE_ID),
     )
 
-    with pytest.raises(StoredProfileDataError):
+    with pytest.raises(StoredProfileDataError, match=message):
         repository.get_profile(BUILT_IN_PROFILE_ID)
 
 
