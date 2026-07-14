@@ -17,8 +17,10 @@ import {
 import {
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_TIMEOUT_MS,
+  INITIAL_CONNECT_RETRY_COUNT,
   reconnectDelay,
   type SimulatorConnectionState,
+  UNAVAILABLE_REFETCH_INTERVAL_MS,
 } from "./connection"
 import type { SimulatorSnapshot } from "./types"
 import { emptySnapshot, mergeSnapshot, type WorkbenchSnapshot } from "./utils"
@@ -27,8 +29,10 @@ const simulatorQueryOptions = queryOptions({
   queryKey: simulatorQueryKey,
   queryFn: async () => mergeSnapshot(emptySnapshot, await getSnapshot()),
   staleTime: Infinity,
-  retry: true,
+  retry: INITIAL_CONNECT_RETRY_COUNT,
   retryDelay: (failureCount) => reconnectDelay(failureCount),
+  refetchInterval: (query) =>
+    query.state.status === "error" ? UNAVAILABLE_REFETCH_INTERVAL_MS : false,
 })
 
 const useSimulatorSelector = <Selected>(

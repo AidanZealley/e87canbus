@@ -23,9 +23,11 @@ pnpm dev
 
 The frontend defaults to `http://127.0.0.1:5173` and expects the API at
 `http://127.0.0.1:8000`. Override these with `VITE_API_BASE` and `VITE_WS_BASE`.
-Initial API startup and WebSocket failures retry automatically. WebSocket retries use jittered
-exponential backoff, and the connection is resynchronised from the backend's full initial snapshot
-after every reconnect. A heartbeat detects silent connections that stop delivering messages.
+Initial API startup retries twice before showing the backend as unavailable, then probes it every
+ten seconds so the UI can recover without a reload. WebSocket failures continue retrying with
+jittered exponential backoff, and the connection is resynchronised from the backend's full initial
+snapshot after every reconnect. A heartbeat detects silent connections that stop delivering
+messages.
 
 The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
 Network filtering is local UI state and remains selected when the simulator is reset.

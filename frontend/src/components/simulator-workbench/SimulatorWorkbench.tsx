@@ -56,7 +56,7 @@ export const SimulatorWorkbench = () => {
   return (
     <div className="min-h-svh bg-muted/30">
       <SimulatorToolbar
-        connectionState={connectionState}
+        connectionState={status.isError ? "disconnected" : connectionState}
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
         onReset={() => {
