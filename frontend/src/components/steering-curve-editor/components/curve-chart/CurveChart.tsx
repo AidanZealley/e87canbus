@@ -12,11 +12,17 @@ import {
 } from "recharts"
 
 import type { SteeringCurveDefinition } from "@/api/steering"
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import {
   assistanceBoundsAt,
   assistanceToPercent,
   assistancePerMilleToPercent,
+  evaluateSteeringCurve,
   sampleSteeringCurve,
   speedDeciKphToKph,
 } from "../../utils"
@@ -36,6 +42,21 @@ const chartConfig = {
   draft: { label: "Draft", color: "var(--color-primary)" },
 } satisfies ChartConfig
 
+const NON_INTERACTIVE_ACTIVE_DOT = { className: "pointer-events-none" } as const
+const CHART_MARGIN = { top: 18, right: 18, bottom: 8, left: 0 } as const
+const SPEED_DOMAIN = [0, 250] as const
+const SPEED_TICKS = [0, 10, 20, 30, 60, 100, 160, 250] as const
+const SPEED_AXIS_LABEL = {
+  value: "Speed (km/h)",
+  position: "insideBottom",
+  offset: -4,
+} as const
+const ASSISTANCE_DOMAIN = [0, 100] as const
+const ASSISTANCE_TICKS = [0, 25, 50, 75, 100] as const
+const formatSpeedTick = (value: number) => `${value}`
+const formatAssistanceTick = (value: number) => `${value}%`
+const TOOLTIP_WRAPPER_STYLE = { pointerEvents: "none" } as const
+
 export const CurveChart = ({
   active,
   draft,
@@ -46,14 +67,33 @@ export const CurveChart = ({
   const data = useMemo(() => {
     const activeSamples = sampleSteeringCurve(active)
     const draftSamples = sampleSteeringCurve(draft)
-    return draftSamples.map((sample, index) => ({
+    const samples = draftSamples.map((sample, index) => ({
       speedKph: sample.speedKph,
       draft: assistanceToPercent(sample.assistance),
       active: assistanceToPercent(
         activeSamples[index]?.assistance ?? sample.assistance
       ),
+      isCurrent: false,
     }))
-  }, [active, draft])
+    if (speedKph === null || activeAssistance === null) return samples
+
+    const existing = samples.find((sample) => sample.speedKph === speedKph)
+    if (existing) {
+      existing.active = assistanceToPercent(activeAssistance)
+      existing.isCurrent = true
+    } else if (speedKph >= SPEED_DOMAIN[0] && speedKph <= SPEED_DOMAIN[1]) {
+      samples.push({
+        speedKph,
+        active: assistanceToPercent(activeAssistance),
+        draft: assistanceToPercent(evaluateSteeringCurve(draft, speedKph)),
+        isCurrent: true,
+      })
+      samples.sort((left, right) => left.speedKph - right.speedKph)
+    }
+
+    return samples
+  }, [active, activeAssistance, draft, speedKph])
+  const currentSpeedIndex = data.findIndex((sample) => sample.isCurrent)
   return (
     <ChartContainer
       config={chartConfig}
@@ -61,32 +101,56 @@ export const CurveChart = ({
       role="group"
       aria-label="Steering assistance curve. Solid line is active; dashed line is the editable draft."
     >
-      <LineChart
-        data={data}
-        margin={{ top: 18, right: 18, bottom: 8, left: 0 }}
-      >
+      <LineChart data={data} margin={CHART_MARGIN}>
         <CartesianGrid vertical={false} />
+        <ChartTooltip
+          cursor={false}
+          defaultIndex={currentSpeedIndex >= 0 ? currentSpeedIndex : undefined}
+          isAnimationActive={false}
+          wrapperStyle={TOOLTIP_WRAPPER_STYLE}
+          content={
+            <ChartTooltipContent
+              indicator="line"
+              labelFormatter={(_, payload) => {
+                const tooltipSpeed = payload[0]?.payload?.speedKph
+                return typeof tooltipSpeed === "number"
+                  ? `${tooltipSpeed.toFixed(1)} km/h`
+                  : null
+              }}
+              formatter={(value, name) => (
+                <div className="flex flex-1 items-center justify-between gap-4">
+                  <span className="text-muted-foreground">
+                    {name === "active"
+                      ? chartConfig.active.label
+                      : name === "draft"
+                        ? chartConfig.draft.label
+                        : name}
+                  </span>
+                  <span className="font-mono font-medium text-foreground tabular-nums">
+                    {Number(value).toFixed(1)}%
+                  </span>
+                </div>
+              )}
+            />
+          }
+        />
         <XAxis
           dataKey="speedKph"
           type="number"
-          domain={[0, 250]}
-          ticks={[0, 10, 20, 30, 60, 100, 160, 250]}
+          domain={SPEED_DOMAIN}
+          ticks={SPEED_TICKS}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value: number) => `${value}`}
-          label={{
-            value: "Speed (km/h)",
-            position: "insideBottom",
-            offset: -4,
-          }}
+          tickFormatter={formatSpeedTick}
+          label={SPEED_AXIS_LABEL}
         />
         <YAxis
           type="number"
-          domain={[0, 100]}
-          ticks={[0, 25, 50, 75, 100]}
+          domain={ASSISTANCE_DOMAIN}
+          ticks={ASSISTANCE_TICKS}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value: number) => `${value}%`}
+          tickFormatter={formatAssistanceTick}
           width={42}
         />
         <Line
@@ -95,6 +159,7 @@ export const CurveChart = ({
           stroke="var(--color-active)"
           strokeWidth={3}
           dot={false}
+          activeDot={NON_INTERACTIVE_ACTIVE_DOT}
           isAnimationActive={false}
         />
         <Line
@@ -104,6 +169,7 @@ export const CurveChart = ({
           strokeWidth={2}
           strokeDasharray="6 5"
           dot={false}
+          activeDot={NON_INTERACTIVE_ACTIVE_DOT}
           isAnimationActive={false}
         />
         <CurvePositionMarker

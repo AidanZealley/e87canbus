@@ -39,6 +39,17 @@ const renderPoint = (onChange = vi.fn()) => {
 }
 
 describe("DraggableCurvePoint", () => {
+  it("keeps focus styling on a separate outer ring", () => {
+    renderPoint()
+
+    expect(
+      document.querySelector(".peer-focus-visible\\:opacity-100")
+    ).not.toBeNull()
+    expect(
+      document.querySelector(".peer-focus-visible\\:stroke-ring")
+    ).toBeNull()
+  })
+
   it("uses pointer capture movement and stops safely on cancel", () => {
     const onChange = renderPoint()
     const handle = screen.getByRole("slider", {

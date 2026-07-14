@@ -102,8 +102,17 @@ export const DraggableCurvePoint = ({
         cx={x}
         cy={y}
         r={6}
-        className="pointer-events-none fill-background stroke-primary peer-focus-visible:stroke-ring"
+        className="pointer-events-none fill-background stroke-primary"
         strokeWidth={3}
+        aria-hidden="true"
+      />
+      <circle
+        cx={x}
+        cy={y}
+        r={11}
+        fill="none"
+        className="pointer-events-none stroke-ring opacity-0 peer-focus-visible:opacity-100"
+        strokeWidth={2}
         aria-hidden="true"
       />
     </g>

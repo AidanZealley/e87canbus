@@ -53,7 +53,7 @@ it("renders eight accessible points on honest linear series", async () => {
     ),
   }
 
-  render(
+  const { rerender } = render(
     <CurveChart
       active={definition}
       draft={definition}
@@ -68,7 +68,29 @@ it("renders eight accessible points on honest linear series", async () => {
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
-  expect(document.querySelector(".recharts-reference-dot")).not.toBeNull()
-  expect(screen.getByText("20.0 km/h · 78.0%")).toBeTruthy()
+  const markerLine = document.querySelector(".recharts-reference-line-line")
+  expect(markerLine?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
+  expect(markerLine?.hasAttribute("stroke-dasharray")).toBe(false)
+  expect(markerLine?.getAttribute("stroke-opacity")).toBe("0.65")
+  expect(document.querySelector(".recharts-reference-dot")).toBeNull()
+  expect(document.querySelector(".recharts-tooltip-wrapper")).not.toBeNull()
+  expect(screen.getByText("20.0 km/h")).toBeTruthy()
+  expect(screen.getAllByText("78.0%")).toHaveLength(2)
+  const activeDots = document.querySelectorAll(".recharts-active-dot circle")
+  expect(activeDots).toHaveLength(2)
+  for (const dot of activeDots) {
+    expect(dot.classList.contains("pointer-events-none")).toBe(true)
+  }
   expect(document.querySelector(".recharts-zIndex-layer_1300")).not.toBeNull()
+
+  rerender(
+    <CurveChart
+      active={definition}
+      draft={definition}
+      speedKph={null}
+      activeAssistance={null}
+      onPointChange={vi.fn()}
+    />
+  )
+  expect(document.querySelector(".recharts-reference-line-line")).toBeNull()
 })
