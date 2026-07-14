@@ -125,6 +125,8 @@ export const CarDataProvider = ({ children }: { children: ReactNode }) => {
         settingsFault: effectiveSettings.persistenceFault,
         settingsError: effectiveSettings.error,
         settingsLoading: effectiveSettings.isLoading,
+        settingsRefetching: effectiveSettings.isRefetching,
+        settingsRefetch: effectiveSettings.refetch,
         oilSeverity,
         coolantSeverity,
       }}

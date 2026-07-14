@@ -25,6 +25,7 @@ export const EditorCurveChart = ({
     <CurveChart
       active={activeDefinition}
       draft={draft}
+      activeSpeedKph={speedKph}
       activeAssistance={
         speedKph === null
           ? null

@@ -56,6 +56,10 @@ export const useEffectiveApplicationSettings = () => {
     ...resolveEffectiveApplicationSettings(query.data, query.isError),
     error: query.error,
     isLoading: query.isLoading,
+    isRefetching: query.isRefetching,
+    refetch: async () => {
+      await query.refetch()
+    },
   }
 }
 

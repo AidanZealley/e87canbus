@@ -20,6 +20,8 @@ export type CarData = {
   settingsFault: boolean
   settingsError: Error | null
   settingsLoading: boolean
+  settingsRefetching: boolean
+  settingsRefetch: () => Promise<void>
   oilSeverity: TemperatureSeverity
   coolantSeverity: TemperatureSeverity
 }

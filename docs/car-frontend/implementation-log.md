@@ -28,7 +28,7 @@ simulation.
 | 3 — Engine telemetry simulation | Verified | 2026-07-14 | Independent synthetic RPM/oil/coolant CAN path |
 | 4 — Device health | Verified | 2026-07-14 | Explicit simulator status projection and controls |
 | 5 — Car UI foundation | Verified | 2026-07-14 | Long-lived car data owner, warnings and reusable instruments |
-| 6 — Car screens | Not started | — | Overview, drive, steering and settings views |
+| 6 — Car screens | Verified | 2026-07-14 | Overview, drive, steering and settings views |
 | 7 — Verification and acceptance | Not started | — | Integrated checks and 800x480 browser matrix |
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
@@ -57,6 +57,64 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 6: complete in-car screens
+
+- **Status:** Verified
+- **Scope:** Implemented the complete purpose-built overview, drive, compact steering editor and
+  atomic settings form inside the existing `/car` layout; development profile management and final
+  integrated/physical acceptance remain outside this phase.
+- **Changed:** Replaced all four route placeholders. Overview now reports read-only steering mode,
+  one-based manual level, effective assistance, honest saved/modified/unsaved provenance,
+  oil/coolant severity and device health without speed or RPM. Drive adds dominant unit-aware speed,
+  RPM stage/bar and local temperature gauges. Steering keeps saved selection, browser draft and
+  authoritative active state separate, supports the existing constrained pointer/keyboard chart,
+  shows the live active marker, confirms destructive draft replacement and activation, and never
+  saves profiles. Settings gates editing on authority, reprojects C/F drafts, validates canonical
+  bounds/order, submits one complete expected-revision document, retains failures/conflicts and
+  confirms reload. The shared chart marker now accepts current speed as well as effective active
+  assistance. The shared car data boundary also exposes settings refetch state so the settings
+  header and local Theme control remain available on initial load failure with an explicit Retry;
+  editable fields and Save remain absent until authority exists.
+- **Decisions:** The steering screen starts with the active definition as an unselected local draft
+  so it never guesses a saved source; only an exact selected saved revision contributes activation
+  provenance. A modified selected draft therefore activates with null saved provenance. The
+  acknowledged activation response temporarily wins only when newer than the live snapshot, after
+  which the snapshot remains authoritative. Incoming newer settings authority advances a clean
+  form automatically but leaves a dirty draft intact for explicit reload/conflict handling. Theme
+  remains an immediate browser preference independent of the revisioned settings mutation.
+- **Verification:** `pnpm test` passed 45 unit and 53 component tests across 10 component files,
+  including screen projection, provenance-safe single activation, dirty-draft survival, settings
+  authority, complete save/conflict retention and chart marker coverage. `pnpm lint`;
+  `pnpm typecheck`; `pnpm build`; `uv run pytest -q` (470 passed); `uv run mypy`;
+  `uv run ruff check coordinator`; `uv run python scripts/generate_custom_protocol.py --check`;
+  and `git diff --check` passed. The existing Node experimental-module warnings, FastAPI
+  TestClient deprecation and non-failing Vite chunk sizes remain.
+- **Visual/physical checks:** A fresh simulator API using a temporary SQLite file and the Vite dev
+  server were exercised in the in-app preview. At its configured 800x480 setting (effective
+  960x576 CSS viewport), all four routes had no document/main horizontal or vertical overflow and
+  overview, drive and steering primary content fit without scrolling. Light and dark presentation,
+  160 km/h/99 mph, 7100 RPM stage 2, warning/critical temperatures, degraded/offline devices,
+  C-to-F threshold reprojection and a real revision-2 settings save were inspected. Steering saved
+  selection, keyboard adjustment, dirty state, cancel and one confirmed modified activation were
+  exercised; the dialog and response explicitly preserved the saved profile and omitted false
+  provenance. Stopping the API showed the shared reconnect banner through navigation on all four
+  routes, masked telemetry/devices, removed the active marker and kept cached authoritative settings
+  usable. The reusable preview tab retained historical network diagnostics from earlier stopped
+  servers, so observations above are from the fresh-run page state rather than its cumulative
+  console history. The later unavailable-settings Theme/Retry correction has focused component
+  coverage; a repeat preview pass was unavailable because no browser backend was attached. No
+  native 800x480 panel, physical touch-density or vehicle test was run.
+- **Documentation:** Updated the frontend README with the completed routes and screen-specific
+  authority, draft, provenance, unit and failure behavior, plus this phase log.
+- **Dependencies/migrations:** None. There are no backend, HTTP/WebSocket, SQLite, generated-route,
+  lockfile, dependency, protocol, BMW decoding or physical-output changes. New exports and the
+  optional active-speed chart input are frontend-internal contracts.
+- **Remaining:** None for Phase 6. Phase 7 still owns integrated acceptance, native display/touch
+  checks and any final cross-phase remediation.
+- **Next handoff:** Run Phase 7 from the committed branch state and preserve the explicit
+  authoritative-versus-local boundaries. Treat the preview's 960x576 effective CSS size as a tooling
+  limitation, not proof of native 800x480 or physical usability.
 
 ### 2026-07-14 — Phase 5: shared car data and instrument foundation
 

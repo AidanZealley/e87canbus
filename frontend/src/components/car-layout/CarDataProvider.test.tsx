@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
     canSave: boolean
     error: Error | null
     isLoading: boolean
+    isRefetching: boolean
+    refetch: () => Promise<void>
   },
 }))
 
@@ -107,6 +109,19 @@ const DeviceConsumer = () => {
   )
 }
 
+const SettingsRefetchConsumer = () => {
+  const { settingsRefetch, settingsRefetching } = useCarData()
+  return (
+    <button
+      type="button"
+      disabled={settingsRefetching}
+      onClick={() => void settingsRefetch()}
+    >
+      {settingsRefetching ? "Retrying settings" : "Retry settings"}
+    </button>
+  )
+}
+
 const ChildNavigation = () => {
   const [route, setRoute] = useState("Overview")
   const { oilSeverity } = useCarData()
@@ -139,6 +154,8 @@ beforeEach(() => {
     canSave: true,
     error: null,
     isLoading: false,
+    isRefetching: false,
+    refetch: vi.fn(async () => {}),
   }
 })
 
@@ -164,6 +181,33 @@ it("keeps one snapshot/socket owner while child navigation preserves warnings", 
   expect(screen.getByText("Oil critical")).toBeTruthy()
   expect(mocks.socketSubscriptionsStarted).toBe(1)
   expect(mocks.activeSocketSubscriptions).toBe(1)
+})
+
+it("exposes the settings refetch boundary and pending state", () => {
+  const refetch = vi.fn(async () => {})
+  mocks.settings = { ...mocks.settings, refetch }
+  const view = render(
+    <CarDataProvider>
+      <SettingsRefetchConsumer />
+    </CarDataProvider>
+  )
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry settings" }))
+  expect(refetch).toHaveBeenCalledTimes(1)
+
+  mocks.settings = { ...mocks.settings, isRefetching: true }
+  view.rerender(
+    <CarDataProvider>
+      <SettingsRefetchConsumer />
+    </CarDataProvider>
+  )
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Retrying settings",
+      }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true)
 })
 
 it("masks cached live telemetry and device health whenever the connection is lost", () => {
@@ -247,6 +291,8 @@ it("presents compact connection and configuration faults together", () => {
     canSave: false,
     error: new Error("settings offline"),
     isLoading: false,
+    isRefetching: false,
+    refetch: vi.fn(async () => {}),
   }
   render(
     <CarDataProvider>
@@ -268,6 +314,8 @@ it("reports faulted defaults and replaces them after settings recovery", () => {
     canSave: false,
     error: new Error("settings offline"),
     isLoading: false,
+    isRefetching: false,
+    refetch: vi.fn(async () => {}),
   }
   const view = render(
     <CarDataProvider>
