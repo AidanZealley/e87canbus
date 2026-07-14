@@ -112,14 +112,7 @@ def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
         raise ValueError("profile_id must be UUID text") from error
     if profile.profile_id != canonical_profile_id:
         raise ValueError("profile_id must use canonical UUID text")
-    if not isinstance(profile.name, str):
-        raise ValueError("profile name must be text")
-    if not profile.name or profile.name != profile.name.strip():
-        raise ValueError("profile name must be non-empty and trimmed")
-    if len(profile.name) > STEERING_PROFILE_NAME_MAX_LENGTH:
-        raise ValueError(
-            f"profile name must contain at most {STEERING_PROFILE_NAME_MAX_LENGTH} characters"
-        )
+    validate_steering_profile_name(profile.name)
     if type(profile.revision) is not int or profile.revision < 1:
         raise ValueError("profile revision must be a positive integer")
     if not isinstance(profile.definition, SteeringCurveDefinition):
@@ -127,6 +120,19 @@ def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
     validate_steering_curve_definition(profile.definition)
     _validate_canonical_timestamp(profile.created_at, "created_at")
     _validate_canonical_timestamp(profile.updated_at, "updated_at")
+
+
+def validate_steering_profile_name(name: str) -> None:
+    """Raise ``ValueError`` when a profile name is outside the stored-profile contract."""
+
+    if not isinstance(name, str):
+        raise ValueError("profile name must be text")
+    if not name or name != name.strip():
+        raise ValueError("profile name must be non-empty and trimmed")
+    if len(name) > STEERING_PROFILE_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"profile name must contain at most {STEERING_PROFILE_NAME_MAX_LENGTH} characters"
+        )
 
 
 def _validate_canonical_timestamp(value: str, field_name: str) -> None:

@@ -19,7 +19,7 @@ of commands or a replacement for commit history.
 | Phase | Status | Last entry | Notes |
 |---:|---|---|---|
 | 1 — Profile domain model | Verified | 2026-07-14 | Version-1 integer curve contract implemented |
-| 2 — SQLite persistence | Not started | — | — |
+| 2 — SQLite persistence | Verified | 2026-07-14 | Durable catalog and optimistic revisions implemented |
 | 3 — Runtime activation | Not started | — | — |
 | 4 — Profile API | Not started | — | — |
 | 5 — Interactive editor | Not started | — | — |
@@ -50,6 +50,39 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 2: SQLite profile persistence verified
+
+- **Status:** Verified
+- **Scope:** Implemented the coordinator-owned SQLite repository for complete named steering
+  profiles, including initialization, migration, seeding, CRUD and optimistic revisions. No API or
+  runtime activation behavior was added.
+- **Changed:** Added the domain-facing repository protocol and typed failures in
+  `coordinator/src/e87canbus/features/profile_repository.py`; added the file-backed adapter in
+  `coordinator/src/e87canbus/adapters/sqlite_profiles.py`; factored profile-name validation into a
+  reusable domain function; and added real temporary-file tests covering migration, seed, CRUD,
+  ordering, conflicts, integrity failures, rollback and reopen behavior.
+- **Decisions:** The built-in seed uses stable ID `00000000-0000-4000-8000-000000000001` and the
+  name `Built-in default`. Lists sort by case-insensitive name then profile ID. Each operation opens
+  its own checked SQLite connection; initialization is an explicit concrete-adapter method rather
+  than part of the domain repository protocol. The adapter uses WAL journaling, `FULL` synchronous
+  durability and a five-second busy timeout. Live and simulator startup remain unchanged because
+  this phase has no storage consumer; a later composition phase must supply the deployment path and
+  call initialization.
+- **Verification:** `uv run pytest -q` (270 passed); `uv run ruff check .`; `uv run mypy
+  coordinator/src/e87canbus`; `uv run python scripts/generate_custom_protocol.py --check`; `bash -n
+  scripts/*.sh`; and `git diff --check` all passed. The existing FastAPI test dependency emitted one
+  upstream Starlette `httpx` deprecation warning.
+- **Documentation:** Updated `coordinator/README.md` with repository ownership, initialization,
+  durability, migration, seed, ordering, integrity and composition behavior; updated this phase
+  status and entry.
+- **Dependencies/migrations:** No dependency added. SQLite migration 1 creates `schema_migrations`
+  and `steering_profiles`; initialization refuses a migration version newer than the code supports.
+- **Remaining:** None for Phase 2. Supplying the deployment database path and invoking explicit
+  initialization belong with the later composition that first consumes the repository.
+- **Next handoff:** Phase 3 remains independent of storage. Phase 4 can depend on the
+  `SteeringProfileRepository` protocol, translate its typed failures, configure the SQLite path and
+  initialize the concrete adapter without importing SQLite into API orchestration.
 
 ### 2026-07-14 — Phase 1: profile domain model verified
 

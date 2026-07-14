@@ -35,6 +35,18 @@ revisions, and timestamps are excluded. Stored timestamps use UTC ISO 8601 with 
 digits and a trailing `Z` (for example, `2026-07-14T10:30:00.000000Z`). Profile validation and
 fingerprinting are pure coordinator functions with no FastAPI or persistence dependency.
 
+`features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
+name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
+library SQLite driver. Composition supplies the database path and explicitly calls `initialize()`;
+module import has no filesystem side effect. Initialization applies numbered migrations under an
+exclusive transaction, enables WAL journaling with `FULL` synchronous durability, and seeds the
+stable profile ID `00000000-0000-4000-8000-000000000001` only when the catalog is empty. Operations
+use short-lived connections and each mutation is one transaction. Lists are ordered by
+case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
+closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
+adapter is not yet composed into live or simulator startup because Phase 2 adds no API or runtime
+consumer; later composition must select its deployment path and invoke initialization explicitly.
+
 The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
 periodic timers, reader and effect faults, inbox overflow, and shutdown all carry explicit times into
 that ordered path. Each decoded event runs through a pure transition; the kernel commits the returned
