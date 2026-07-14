@@ -67,8 +67,9 @@ In the workbench, the topology panel shows all three networks and the chronologi
 filtered by network without another API request. Press NeoTrellis button `0` to toggle the
 authoritative steering mode. Buttons `1` and `2` enter Manual at the last runtime manual level,
 then decrement or increment within the configured bounds. Button `3` enters Manual at maximum
-assistance and pressing it again restores the prior mode and manual level. Pressing `1` or `2`
-during the maximum override instead returns to Manual at the saved level; the next press adjusts
+assistance and pressing it again restores the prior mode and manual level. Pressing `0` during the
+maximum override disables it and selects Auto. Pressing `1` or `2` during the maximum override
+instead returns to Manual at the saved level; the next press adjusts
 it normally. The mode LED is blue for Auto or amber for Manual, while button `3` is white when its
 override is active. Manual level memory is currently process-local and is reset on coordinator or
 Pi restart.

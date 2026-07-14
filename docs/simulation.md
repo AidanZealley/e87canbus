@@ -70,7 +70,7 @@ other positions off. Releasing sends `0x700 0000` but does not emit an LED snaps
 application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
 blue.
 
-Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
+Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
 Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended

@@ -156,7 +156,10 @@ def _button_transition(
 def _toggle_steering_mode(state: ApplicationState) -> ApplicationState:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
-        return state
+        return replace(
+            state,
+            steering=replace(steering.previous, mode=SteeringMode.AUTO),
+        )
     mode = SteeringMode.MANUAL if steering.mode is SteeringMode.AUTO else SteeringMode.AUTO
     new_state = replace(state, steering=replace(steering, mode=mode))
     return new_state

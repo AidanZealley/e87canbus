@@ -130,7 +130,7 @@ def test_mapped_buttons_from_normal_modes(
 @pytest.mark.parametrize(
     ("button_index", "expected", "expected_led_state"),
     [
-        (0, (SteeringMode.MANUAL, 7, True), None),
+        (0, (SteeringMode.AUTO, 3, False), AUTO_LEDS),
         (1, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
         (2, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
         (3, (SteeringMode.AUTO, 3, False), AUTO_LEDS),
@@ -148,6 +148,17 @@ def test_mapped_buttons_while_maximum_assistance_is_active(
     assert projection(result.state) == expected
     expected_effects = () if expected_led_state is None else (SetButtonLeds(expected_led_state),)
     assert result.effects == expected_effects
+
+
+def test_mode_button_selects_auto_from_maximum_over_previous_manual_state() -> None:
+    state = ApplicationState(
+        MaximumAssistance(NormalSteering(SteeringMode.MANUAL, manual_level=5))
+    )
+
+    result = transition(state, ButtonPressed(0), CONFIG)
+
+    assert projection(result.state) == (SteeringMode.AUTO, 5, False)
+    assert result.effects == (SetButtonLeds(AUTO_LEDS),)
 
 
 def test_maximum_assistance_restores_previous_manual_state() -> None:
