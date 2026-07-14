@@ -56,8 +56,37 @@ stable profile ID `00000000-0000-4000-8000-000000000001` only when the catalog i
 use short-lived connections and each mutation is one transaction. Lists are ordered by
 case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
 closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
-adapter is not yet composed into live or simulator startup because Phase 2 adds no API or runtime
-consumer; later composition must select its deployment path and invoke initialization explicitly.
+live composition still has no profile-storage consumer and does not open the database.
+
+The simulator API now composes that repository during FastAPI lifespan startup. Its default path is
+`steering-profiles.sqlite3` in the process working directory; `e87canbus-sim-api
+--profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a
+different file. Startup applies migrations and seeding before accepting requests. Tests and other
+compositions inject their own temporary path or repository boundary.
+
+`/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
+accept one complete integer-unit definition; update and delete require `expected_revision`, with
+delete carrying it as a query parameter. Responses contain the complete committed profile.
+`/api/steering/curve-state` returns the authoritative active projection and its `/activate`
+subresource accepts a complete definition with optional saved ID/revision provenance. Claimed
+provenance is published only when the repository row has the same revision and definition.
+Activation is enqueued with timers and simulated-device commands through the bounded simulation
+owner; handlers never dispatch the kernel directly. Save and activation remain separate operations,
+so saving cannot alter active state and applying cannot write a profile row.
+
+API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
+are `404`, name/revision/provenance conflicts are `409`, and storage or bounded-owner overload is
+`503`; an immediate runtime effect failure after activation also returns typed `503` after the
+owner publishes the committed active curve and fatal snapshot. Revision conflicts also return
+`current_revision`. Successful saved CRUD publishes only a
+`steering_profile_catalog_changed` WebSocket invalidation. Reconnecting clients receive the full
+active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
+or missed-event replay are required.
+
+The simulator server defaults to loopback and permits the two local Vite development origins. It is
+unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
+`--host` to expose it beyond loopback until authentication, origin policy, and editing-while-moving
+policy have been defined separately from curve validation.
 
 The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
 periodic timers, curve activations, reader and effect faults, inbox overflow, and shutdown enter that

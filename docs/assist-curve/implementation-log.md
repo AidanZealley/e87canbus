@@ -21,7 +21,7 @@ of commands or a replacement for commit history.
 | 1 — Profile domain model | Verified | 2026-07-14 | Version-1 integer curve contract implemented |
 | 2 — SQLite persistence | Verified | 2026-07-14 | Durable catalog and optimistic revisions implemented |
 | 3 — Runtime activation | Verified | 2026-07-14 | Ordered in-memory hot activation implemented |
-| 4 — Profile API | Not started | — | — |
+| 4 — Profile API | Verified | 2026-07-14 | CRUD, activation and publication contracts implemented |
 | 5 — Interactive editor | Not started | — | — |
 | 6 — Smooth interpolation | Not started | — | — |
 
@@ -50,6 +50,42 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 4: profile API and publication verified
+
+- **Status:** Verified
+- **Scope:** Exposed saved-profile CRUD, authoritative curve state and runtime activation through
+  the simulator FastAPI composition. No frontend editor, smooth interpolation, controller transport
+  or live deployment authority was added.
+- **Changed:** Added strict integer-unit request parsing and complete profile/curve responses;
+  consistent typed API errors; optimistic update/delete conflict details; saved-provenance matching;
+  SQLite initialization at API lifespan startup; configurable database path; a bounded simulation
+  activation command that dispatches the existing kernel input; and WebSocket profile-catalog
+  invalidation after committed CRUD. An activation that commits but then encounters an immediate
+  runtime-effect failure returns typed `503` while retaining and publishing the authoritative fatal
+  snapshot.
+- **Decisions:** Save and activation remain separate endpoints and failure domains. Repository work
+  uses the adapter's independent short-lived SQLite connections in worker threads, so no database
+  transaction is held while activation waits in the runtime queue. False saved provenance is
+  rejected with `409`; it is never silently published. Catalog publication is an invalidation-only
+  event, while reconnect recovery uses the existing full active snapshot plus a fresh list request.
+  Delete carries `expected_revision` as a query parameter. The unauthenticated API remains loopback
+  by default and is explicitly not an in-car authorization boundary.
+- **Verification:** `uv run pytest -q` (300 passed); `uv run ruff check .`; `uv run mypy
+  coordinator/src/e87canbus`; `uv run python scripts/generate_custom_protocol.py --check`; `bash -n
+  scripts/*.sh`; and `git diff --check` all passed. A clean-root test run confirmed no default
+  SQLite artifact is created by tests. The existing FastAPI test dependency emitted one upstream
+  Starlette `httpx` deprecation warning.
+- **Documentation:** Updated `coordinator/README.md` with database composition, endpoint semantics,
+  error/publication contracts and the loopback security boundary; updated this phase status and
+  entry.
+- **Dependencies/migrations:** None. The API initializes and uses the existing Phase 2 migration;
+  no schema change was required.
+- **Remaining:** None for Phase 4. Phase 5 can consume these contracts to keep draft, active and
+  saved values visibly distinct.
+- **Next handoff:** The frontend should fetch `/api/steering/curve-state` and
+  `/api/steering/profiles`, treat `steering_profile_catalog_changed` only as a refetch signal, and
+  perform save then activation as two explicit results when offering a combined user action.
 
 ### 2026-07-14 — Phase 3: runtime curve activation verified
 

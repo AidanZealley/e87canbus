@@ -126,14 +126,7 @@ def canonical_utc_timestamp(value: datetime) -> str:
 def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
     """Raise ``ValueError`` when stored identity or revision metadata is invalid."""
 
-    if not isinstance(profile.profile_id, str):
-        raise ValueError("profile_id must be UUID text")
-    try:
-        canonical_profile_id = str(UUID(profile.profile_id))
-    except (ValueError, AttributeError) as error:
-        raise ValueError("profile_id must be UUID text") from error
-    if profile.profile_id != canonical_profile_id:
-        raise ValueError("profile_id must use canonical UUID text")
+    validate_steering_profile_id(profile.profile_id)
     validate_steering_profile_name(profile.name)
     if type(profile.revision) is not int or profile.revision < 1:
         raise ValueError("profile revision must be a positive integer")
@@ -159,12 +152,7 @@ def validate_active_steering_curve(active: ActiveSteeringCurve) -> None:
     if (active.saved_profile_id is None) != (active.saved_profile_revision is None):
         raise ValueError("saved profile ID and revision must be supplied together")
     if active.saved_profile_id is not None:
-        try:
-            canonical_profile_id = str(UUID(active.saved_profile_id))
-        except (ValueError, AttributeError) as error:
-            raise ValueError("saved_profile_id must be UUID text") from error
-        if active.saved_profile_id != canonical_profile_id:
-            raise ValueError("saved_profile_id must use canonical UUID text")
+        validate_steering_profile_id(active.saved_profile_id, field_name="saved_profile_id")
     if active.saved_profile_revision is not None and (
         type(active.saved_profile_revision) is not int or active.saved_profile_revision < 1
     ):
@@ -182,6 +170,19 @@ def validate_steering_profile_name(name: str) -> None:
         raise ValueError(
             f"profile name must contain at most {STEERING_PROFILE_NAME_MAX_LENGTH} characters"
         )
+
+
+def validate_steering_profile_id(profile_id: str, *, field_name: str = "profile_id") -> None:
+    """Raise ``ValueError`` unless an ID is canonical lowercase UUID text."""
+
+    if not isinstance(profile_id, str):
+        raise ValueError(f"{field_name} must be UUID text")
+    try:
+        canonical_profile_id = str(UUID(profile_id))
+    except (ValueError, AttributeError) as error:
+        raise ValueError(f"{field_name} must be UUID text") from error
+    if profile_id != canonical_profile_id:
+        raise ValueError(f"{field_name} must use canonical UUID text")
 
 
 def _validate_canonical_timestamp(value: str, field_name: str) -> None:

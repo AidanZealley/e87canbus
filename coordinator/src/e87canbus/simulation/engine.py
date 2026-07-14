@@ -12,6 +12,7 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
+from e87canbus.features.steering import SteeringCurveDefinition
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -20,6 +21,7 @@ from e87canbus.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.runtime import (
+    ActivateSteeringCurve,
     CanEffectExecutionFailed,
     Commit,
     CoordinatorKernel,
@@ -103,6 +105,13 @@ class ResetSimulation:
     pass
 
 
+@dataclass(frozen=True)
+class ActivateCurve:
+    definition: SteeringCurveDefinition
+    saved_profile_id: str | None = None
+    saved_profile_revision: int | None = None
+
+
 SimulationCommand = (
     PressButton
     | ReleaseButton
@@ -111,6 +120,7 @@ SimulationCommand = (
     | SetVehicleSpeed
     | SilenceVehicleSpeed
     | ResetSimulation
+    | ActivateCurve
 )
 
 
@@ -293,6 +303,14 @@ class SimulationEngine:
                 self.vehicle.set_speed(speed_kph)
             case SilenceVehicleSpeed():
                 self.vehicle.silence_speed()
+            case ActivateCurve(definition, saved_profile_id, saved_profile_revision):
+                self._dispatch(
+                    ActivateSteeringCurve(
+                        definition,
+                        saved_profile_id,
+                        saved_profile_revision,
+                    )
+                )
             case ResetSimulation():
                 replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
