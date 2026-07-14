@@ -116,6 +116,7 @@ export const CurveChart = ({
             fill="var(--color-active)"
             stroke="var(--color-background)"
             strokeWidth={2}
+            pointerEvents="none"
           />
         )}
         <CurvePoints definition={draft} onPointChange={onPointChange} />

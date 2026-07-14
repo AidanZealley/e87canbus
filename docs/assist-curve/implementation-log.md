@@ -51,6 +51,35 @@ Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
 
+### 2026-07-14 — Phase 5 follow-up: editor controls and chart interaction refined
+
+- **Status:** Implemented
+- **Scope:** Applied operator feedback to the Phase 5 settings editor without changing draft,
+  active, saved-profile or interpolation behavior.
+- **Changed:** Removed Phase 5 size, padding, type and colour overrides from shadcn Input, Select,
+  SelectItem and Button instances so they now use the configured primitive defaults; removed the
+  now-unused large SelectTrigger size; replaced the eight individually framed point cards with a
+  compact label, default Input and percent-unit layout; made the active current-speed marker ignore
+  pointer events; and reduced the transparent drag handle's focus-preview stroke to 60% opacity
+  without changing its hit area or visible point.
+- **Decisions:** The reported pill-shaped adjustment preview was interpreted as the focus-visible
+  stroke on the transparent 18-pixel drag hit circle. Semantic button variants and non-control
+  layout wrappers remain because they communicate action meaning and arrange the default
+  primitives rather than restyling them.
+- **Verification:** `pnpm test` passed 25 unit and 12 component tests; `pnpm lint`, `pnpm
+  typecheck`, `pnpm build` and `git diff --check` passed. The chart component test now checks that
+  the backend current-speed marker is pointer-transparent; the obsolete 44-pixel styling test was
+  removed. Vite retained the known large-chunk advisory. The collaborative browser reported the
+  local page available, but both a snapshot and DOM evaluation timed out, so this follow-up was not
+  visually re-verified there.
+- **Documentation:** Added this correction to supersede the earlier Phase 5 entry's current
+  44-pixel-control description while preserving that entry as historical implementation evidence.
+- **Dependencies/migrations:** None.
+- **Remaining:** Re-run the visual density and focus-preview check in a working browser alongside
+  the existing pointer/touch, chart-extreme and actual-target-touchscreen verification.
+- **Next handoff:** The editor continues to use the Phase 6 sampled paths and backend active marker;
+  future UI work should keep control styling in the shadcn primitives rather than at call sites.
+
 ### 2026-07-14 — Phase 6: versioned smooth interpolation implemented
 
 - **Status:** Implemented

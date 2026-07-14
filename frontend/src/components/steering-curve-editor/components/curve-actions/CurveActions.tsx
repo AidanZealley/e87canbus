@@ -42,7 +42,6 @@ export const CurveActions = ({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
-        className="h-11 px-4"
         disabled={!canApply || pending}
         onClick={onApply}
       >
@@ -50,7 +49,6 @@ export const CurveActions = ({
       </Button>
       <Button
         variant="secondary"
-        className="h-11 px-4"
         disabled={!canSave || pending}
         onClick={onSave}
       >
@@ -58,7 +56,6 @@ export const CurveActions = ({
       </Button>
       <Button
         variant="outline"
-        className="h-11 px-4"
         disabled={
           pending || (draftInterpolation === "linear-v1" && !smoothSupported)
         }
@@ -72,7 +69,6 @@ export const CurveActions = ({
       </Button>
       <Button
         variant="outline"
-        className="h-11 px-4"
         disabled={!canRevert || pending}
         onClick={onRequestRevert}
       >
@@ -80,7 +76,6 @@ export const CurveActions = ({
       </Button>
       <Button
         variant="destructive"
-        className="h-11 px-4"
         disabled={!canDelete || pending}
         onClick={onRequestDelete}
       >
@@ -99,7 +94,6 @@ export const CurveActions = ({
           </span>
           <Button
             variant="destructive"
-            className="h-9"
             disabled={pending}
             onClick={onConfirm}
           >
@@ -107,7 +101,6 @@ export const CurveActions = ({
           </Button>
           <Button
             variant="ghost"
-            className="h-9"
             disabled={pending}
             onClick={onCancelConfirm}
           >

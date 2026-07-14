@@ -35,9 +35,7 @@ export const ProfileSelector = ({
 }: ProfileSelectorProps) => (
   <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 lg:grid-cols-2">
     <div className="grid gap-2">
-      <Label htmlFor="saved-profile" className="text-xs font-medium">
-        Saved profile
-      </Label>
+      <Label htmlFor="saved-profile">Saved profile</Label>
       <div className="flex gap-2">
         <Select
           value={selectedProfileId ?? NO_PROFILE_VALUE}
@@ -53,23 +51,15 @@ export const ProfileSelector = ({
             onSelect(value === NO_PROFILE_VALUE ? null : value)
           }
         >
-          <SelectTrigger
-            id="saved-profile"
-            size="lg"
-            className="min-w-0 flex-1 px-3 text-sm"
-          >
+          <SelectTrigger id="saved-profile">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_PROFILE_VALUE} className="min-h-11">
+            <SelectItem value={NO_PROFILE_VALUE}>
               No saved selection
             </SelectItem>
             {profiles.map((profile) => (
-              <SelectItem
-                key={profile.profile_id}
-                value={profile.profile_id}
-                className="min-h-11"
-              >
+              <SelectItem key={profile.profile_id} value={profile.profile_id}>
                 {profile.name} · r{profile.revision}
               </SelectItem>
             ))}
@@ -77,7 +67,6 @@ export const ProfileSelector = ({
         </Select>
         <Button
           variant="outline"
-          className="h-11 px-4"
           disabled={disabled || selectedProfileId === null}
           onClick={onLoad}
         >
@@ -87,13 +76,10 @@ export const ProfileSelector = ({
     </div>
 
     <div className="grid gap-2">
-      <Label htmlFor="new-profile-name" className="text-xs font-medium">
-        New profile name
-      </Label>
+      <Label htmlFor="new-profile-name">New profile name</Label>
       <div className="flex gap-2">
         <Input
           id="new-profile-name"
-          className="h-11 min-w-0 flex-1 px-3 text-sm"
           maxLength={100}
           placeholder="e.g. Wet track"
           value={newProfileName}
@@ -102,7 +88,6 @@ export const ProfileSelector = ({
         />
         <Button
           variant="outline"
-          className="h-11 px-4"
           disabled={disabled || newProfileName.trim().length === 0}
           onClick={onSaveAs}
         >

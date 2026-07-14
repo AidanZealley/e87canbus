@@ -319,19 +319,15 @@ export const SteeringCurveEditor = ({
             return (
               <div
                 key={point.speed_deci_kph}
-                className="grid gap-1 rounded-md border bg-background p-2 text-xs"
+                className="grid min-w-0 gap-1"
               >
-                <Label
-                  htmlFor={`assistance-${point.speed_deci_kph}`}
-                  className="font-medium"
-                >
+                <Label htmlFor={`assistance-${point.speed_deci_kph}`}>
                   {speedKphAtPoint} km/h
                 </Label>
-                <span className="relative">
+                <div className="flex items-center gap-1">
                   <Input
                     id={`assistance-${point.speed_deci_kph}`}
                     type="number"
-                    className="h-11 bg-background px-2 pr-6 text-base tabular-nums"
                     min={assistancePerMilleToPercent(bounds.minimum)}
                     max={assistancePerMilleToPercent(bounds.maximum)}
                     step={1}
@@ -358,10 +354,10 @@ export const SteeringCurveEditor = ({
                       }
                     }}
                   />
-                  <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground">
+                  <span className="text-muted-foreground" aria-hidden="true">
                     %
                   </span>
-                </span>
+                </div>
               </div>
             )
           })}

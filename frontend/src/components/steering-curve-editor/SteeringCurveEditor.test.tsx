@@ -224,29 +224,6 @@ describe("SteeringCurveEditor", () => {
     )
   })
 
-  it("uses 44px targets for the saved-profile select and its options", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ profiles: [] }))
-    )
-    const { client } = renderEditor(active())
-    await waitFor(() =>
-      expect(client.getQueryState(steeringProfilesQueryKey)?.status).toBe(
-        "success"
-      )
-    )
-
-    const trigger = savedProfileSelect()
-    expect(trigger.getAttribute("data-size")).toBe("lg")
-    expect(trigger.className).toContain("data-[size=lg]:h-11")
-
-    fireEvent.click(trigger)
-    const option = await screen.findByRole("option", {
-      name: "No saved selection",
-    })
-    expect(option.className).toContain("min-h-11")
-  })
-
   it("keeps Apply and Save as separate operations and evaluates active separately", async () => {
     const saved = profile()
     const requests: Array<{ url: string; method: string }> = []

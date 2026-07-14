@@ -68,4 +68,9 @@ it("renders eight accessible points on honest linear series", async () => {
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
+  expect(
+    document.querySelector(".recharts-reference-dot circle")?.getAttribute(
+      "pointer-events"
+    )
+  ).toBe("none")
 })
