@@ -62,7 +62,7 @@ def test_fresh_migration_and_repeat_initialization(tmp_path: Path) -> None:
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-    assert versions == [(CURRENT_MIGRATION_VERSION,)]
+    assert versions == [(1,), (CURRENT_MIGRATION_VERSION,)]
     assert journal_mode == "wal"
     assert repository.list_profiles() == (repository.get_profile(BUILT_IN_PROFILE_ID),)
 

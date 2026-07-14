@@ -73,5 +73,11 @@ export type SteeringProfileCatalogChangedEvent = {
   type: "steering_profile_catalog_changed"
 }
 
+export type ApplicationSettingsChangedEvent = {
+  type: "application_settings_changed"
+}
+
 export type SimulatorSocketEvent =
-  SimulatorEvent | SteeringProfileCatalogChangedEvent
+  | SimulatorEvent
+  | SteeringProfileCatalogChangedEvent
+  | ApplicationSettingsChangedEvent

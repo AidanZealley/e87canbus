@@ -24,7 +24,7 @@ simulation.
 | Phase | Status | Last entry | Notes |
 |---:|---|---|---|
 | 1 — Routing and layouts | Verified | 2026-07-14 | TanStack Router, chooser, `/dev` and `/car` shell |
-| 2 — Application settings | Not started | — | Revisioned SQLite settings and API |
+| 2 — Application settings | Verified | 2026-07-14 | Revisioned SQLite settings, API and query boundary |
 | 3 — Engine telemetry simulation | Not started | — | RPM/oil/coolant synthetic CAN path |
 | 4 — Device health | Not started | — | Explicit simulator status projection |
 | 5 — Car UI foundation | Not started | — | Shared data, conversions, warnings and instruments |
@@ -57,6 +57,41 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 2: revisioned application settings
+
+- **Status:** Verified
+- **Scope:** Implemented the complete Phase 2 domain, shared SQLite migration, FastAPI resource,
+  WebSocket invalidation and frontend settings data boundary; the Phase 6 settings screen remains
+  out of scope.
+- **Changed:** Added the immutable settings/default contract and validation, repository protocol and
+  typed failures, shared database owner with migration 2 and singleton seed, atomic conditional
+  updates, exact `GET/PUT /api/settings` serialization, post-commit
+  `application_settings_changed` publication, shared frontend API error parsing, stable query
+  options, committed-response cache replacement and effective default/fault projection.
+- **Decisions:** Used a separate immutable complete-edit candidate so revision and timestamp remain
+  repository-owned. The compiled/backend fallback seed uses the canonical Unix-epoch timestamp so
+  both sides have one deterministic complete default; fallback use is always identified separately
+  from authoritative data. Kept `E87CANBUS_PROFILE_DATABASE` and `--profile-database` compatible
+  while making the selected file the shared application database. No later-phase unit conversion or
+  settings form was introduced.
+- **Verification:** `uv run pytest -q` (392 passed); `uv run mypy`; `uv run ruff check coordinator`;
+  `uv run python scripts/generate_custom_protocol.py --check`; `pnpm lint`; `pnpm test` (32 unit and
+  28 component tests); `pnpm typecheck`; `pnpm build`; and `git diff --check` passed. Focused Python
+  settings/profile/API verification passed 106 tests before the full suite. The existing FastAPI
+  TestClient deprecation and Vite development-workbench chunk-size warnings remain non-failing.
+- **Visual/physical checks:** Not applicable: this phase adds no user-facing screen or physical
+  behavior. The `/car/settings` placeholder is intentionally unchanged for Phase 6.
+- **Documentation:** Updated coordinator and frontend READMEs with shared migration ownership,
+  settings API semantics, fallback/fault behavior and cache convergence, plus this phase log.
+- **Dependencies/migrations:** No dependency changes. SQLite supported version is now 2; fresh files
+  apply migrations 1 and 2, version-1 files upgrade in place without profile rewrites, and future
+  versions fail closed. The existing database selector now addresses the shared application file.
+- **Remaining:** None for Phase 2. Fahrenheit edit conversion belongs to Phase 5 presentation
+  utilities and the settings form belongs to Phase 6.
+- **Next handoff:** Later car consumers should use `useEffectiveApplicationSettings`; only enable a
+  save action when `canSave` is true, keep drafts local and send the complete editable document with
+  the loaded revision.
 
 ### 2026-07-14 — Phase 1: routed workbench and car shell
 

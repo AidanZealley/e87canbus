@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--profile-database",
         type=Path,
         default=DEFAULT_PROFILE_DATABASE,
-        help="SQLite steering-profile database path.",
+        help="Shared SQLite application database path.",
     )
     parser.add_argument(
         "--reload",

@@ -2,12 +2,14 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { QueryClient } from "@tanstack/react-query"
 
+import { applicationSettingsQueryKey } from "../../api/settings.ts"
 import {
   applySimulatorEvent,
   replaceSimulatorSnapshot,
   simulatorQueryKey,
 } from "./cache.ts"
 import { reconnectDelay } from "./connection.ts"
+import { handleResourceInvalidationEvent } from "./resource-invalidation.ts"
 import { emptySnapshot, type WorkbenchSnapshot } from "./utils.ts"
 
 test("frame events update only the cached trace slice", () => {
@@ -64,4 +66,22 @@ test("reconnect delay is exponential, jittered, and capped", () => {
   assert.equal(reconnectDelay(20, () => 0.5), 10_000)
   assert.equal(reconnectDelay(0, () => 0), 400)
   assert.equal(reconnectDelay(0, () => 1), 600)
+})
+
+test("settings WebSocket event invalidates authoritative settings", async () => {
+  const queryClient = new QueryClient()
+  queryClient.setQueryData(applicationSettingsQueryKey, { revision: 1 })
+
+  assert.equal(
+    handleResourceInvalidationEvent(queryClient, {
+      type: "application_settings_changed",
+    }),
+    true
+  )
+  await Promise.resolve()
+
+  assert.equal(
+    queryClient.getQueryState(applicationSettingsQueryKey)?.isInvalidated,
+    true
+  )
 })

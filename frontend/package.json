@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "pnpm test:unit && pnpm test:component",
-    "test:unit": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts",
+    "test:unit": "node --experimental-strip-types --test src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts src/lib/application-settings-query.test.ts",
     "test:component": "vitest run src/routes/-routes.test.tsx src/components/simulator-workbench/components/can-trace-table/CanTraceTable.test.tsx src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --noEmit",

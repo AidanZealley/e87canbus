@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-query"
 
 import { connectSimulatorSocket, getSnapshot } from "@/api/simulator"
-import { steeringProfilesQueryKey } from "@/api/steering"
 import {
   applySimulatorEvent,
   replaceSimulatorSnapshot,
@@ -22,6 +21,7 @@ import {
   type SimulatorConnectionState,
   UNAVAILABLE_REFETCH_INTERVAL_MS,
 } from "./connection"
+import { handleResourceInvalidationEvent } from "./resource-invalidation"
 import type { SimulatorSnapshot } from "./types"
 import { emptySnapshot, mergeSnapshot, type WorkbenchSnapshot } from "./utils"
 
@@ -130,12 +130,7 @@ export const useSimulatorSocket = (enabled: boolean) => {
         (event) => {
           if (cancelled || socket !== activeSocket) return
           lastMessageAt = Date.now()
-          if (event.type === "steering_profile_catalog_changed") {
-            void queryClient.invalidateQueries({
-              queryKey: steeringProfilesQueryKey,
-            })
-            return
-          }
+          if (handleResourceInvalidationEvent(queryClient, event)) return
           if (awaitingInitialSnapshot) {
             if (event.type !== "snapshot") return
             replaceSimulatorSnapshot(queryClient, event.snapshot)

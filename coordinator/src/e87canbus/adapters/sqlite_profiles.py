@@ -7,9 +7,23 @@ import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Never, cast
+from typing import Never, cast
 from uuid import UUID, uuid4
 
+from e87canbus.adapters.sqlite_database import (
+    BUILT_IN_PROFILE_ID as BUILT_IN_PROFILE_ID,
+)
+from e87canbus.adapters.sqlite_database import (
+    BUILT_IN_PROFILE_NAME as BUILT_IN_PROFILE_NAME,
+)
+from e87canbus.adapters.sqlite_database import (
+    CURRENT_MIGRATION_VERSION as CURRENT_MIGRATION_VERSION,
+)
+from e87canbus.adapters.sqlite_database import (
+    ApplicationDatabaseError,
+    SqliteApplicationDatabase,
+    UnsupportedDatabaseVersionError,
+)
 from e87canbus.features.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
@@ -19,31 +33,16 @@ from e87canbus.features.profile_repository import (
     StoredProfileDataError,
 )
 from e87canbus.features.steering import (
-    BUILT_IN_STEERING_CURVE,
     CurveInterpolation,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
     canonical_steering_curve_bytes,
-    canonical_utc_timestamp,
     steering_curve_fingerprint,
     validate_steering_curve_definition,
     validate_steering_profile_name,
 )
-
-CURRENT_MIGRATION_VERSION = 1
-BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
-BUILT_IN_PROFILE_NAME = "Built-in default"
-
-
-class UnsupportedDatabaseVersionError(SteeringProfileStorageError):
-    def __init__(self, found_version: int, supported_version: int) -> None:
-        self.found_version = found_version
-        self.supported_version = supported_version
-        super().__init__(
-            f"steering profile database version {found_version} is newer than supported "
-            f"version {supported_version}"
-        )
+from e87canbus.features.timestamps import canonical_utc_timestamp
 
 
 def _utc_now() -> datetime:
@@ -55,51 +54,30 @@ class SqliteSteeringProfileRepository:
 
     def __init__(
         self,
-        database_path: str | Path,
+        database_path: str | Path | SqliteApplicationDatabase,
         *,
         clock: Callable[[], datetime] = _utc_now,
         identifier_factory: Callable[[], UUID] = uuid4,
     ) -> None:
-        self._database_path = str(database_path)
+        self._database = (
+            database_path
+            if isinstance(database_path, SqliteApplicationDatabase)
+            else SqliteApplicationDatabase(database_path, clock=clock)
+        )
         self._clock = clock
         self._identifier_factory = identifier_factory
 
     def initialize(self) -> None:
-        """Apply supported migrations and seed an empty catalog in one exclusive transaction."""
+        """Compatibility delegate to the shared application database owner."""
 
-        connection = self._connect()
         try:
-            connection.execute("PRAGMA journal_mode = WAL")
-            connection.execute("BEGIN EXCLUSIVE")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version INTEGER PRIMARY KEY,
-                    applied_at_utc TEXT NOT NULL
-                )
-                """
-            )
-            versions = tuple(
-                row["version"]
-                for row in connection.execute(
-                    "SELECT version FROM schema_migrations ORDER BY version"
-                ).fetchall()
-            )
-            self._validate_migration_versions(versions)
-            if not versions:
-                self._apply_migration_1(connection)
-            self._seed_if_empty(connection)
-            connection.commit()
-        except SteeringProfileRepositoryError:
-            connection.rollback()
+            self._database.initialize()
+        except UnsupportedDatabaseVersionError:
             raise
-        except sqlite3.Error as error:
-            connection.rollback()
+        except ApplicationDatabaseError as error:
             raise SteeringProfileStorageError(
-                "could not initialize the steering profile database"
+                "could not initialize the application database"
             ) from error
-        finally:
-            connection.close()
 
     def list_profiles(self) -> tuple[StoredSteeringProfile, ...]:
         connection = self._connect()
@@ -268,63 +246,11 @@ class SqliteSteeringProfileRepository:
 
     def _connect(self) -> sqlite3.Connection:
         try:
-            connection = sqlite3.connect(self._database_path, timeout=5.0)
-            connection.row_factory = sqlite3.Row
-            connection.execute("PRAGMA busy_timeout = 5000")
-            connection.execute("PRAGMA synchronous = FULL")
-            return connection
-        except sqlite3.Error as error:
+            return self._database.connect()
+        except ApplicationDatabaseError as error:
             raise SteeringProfileStorageError(
                 "could not open the steering profile database"
             ) from error
-
-    @staticmethod
-    def _validate_migration_versions(versions: tuple[Any, ...]) -> None:
-        if any(type(version) is not int or version < 1 for version in versions):
-            raise SteeringProfileStorageError("invalid steering profile migration history")
-        if versions and versions[-1] > CURRENT_MIGRATION_VERSION:
-            raise UnsupportedDatabaseVersionError(versions[-1], CURRENT_MIGRATION_VERSION)
-        expected = tuple(range(1, len(versions) + 1))
-        if versions != expected:
-            raise SteeringProfileStorageError("incomplete steering profile migration history")
-
-    def _apply_migration_1(self, connection: sqlite3.Connection) -> None:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS steering_profiles (
-                profile_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                revision INTEGER NOT NULL CHECK (revision > 0),
-                schema_version INTEGER NOT NULL,
-                interpolation TEXT NOT NULL,
-                definition_json TEXT NOT NULL,
-                definition_fingerprint TEXT NOT NULL,
-                created_at_utc TEXT NOT NULL,
-                updated_at_utc TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            "INSERT INTO schema_migrations (version, applied_at_utc) VALUES (?, ?)",
-            (CURRENT_MIGRATION_VERSION, canonical_utc_timestamp(self._clock())),
-        )
-
-    def _seed_if_empty(self, connection: sqlite3.Connection) -> None:
-        count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]
-        if count:
-            return
-        timestamp = canonical_utc_timestamp(self._clock())
-        self._insert_profile(
-            connection,
-            StoredSteeringProfile(
-                profile_id=BUILT_IN_PROFILE_ID,
-                name=BUILT_IN_PROFILE_NAME,
-                revision=1,
-                definition=BUILT_IN_STEERING_CURVE,
-                created_at=timestamp,
-                updated_at=timestamp,
-            ),
-        )
 
     @staticmethod
     def _insert_profile(

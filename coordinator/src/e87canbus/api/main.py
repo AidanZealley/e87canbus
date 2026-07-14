@@ -10,12 +10,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
+from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.simulation import create_lifespan
 from e87canbus.api.internal.websocket import ConnectionManager
-from e87canbus.api.routes import health, simulation, steering, vehicle, websocket
+from e87canbus.api.routes import health, settings, simulation, steering, vehicle, websocket
 from e87canbus.features.profile_repository import SteeringProfileRepository
+from e87canbus.features.settings_repository import ApplicationSettingsRepository
 from e87canbus.simulation.engine import SimulationEngine
 
 PROFILE_DATABASE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE_DATABASE"
@@ -30,17 +33,24 @@ def create_app(
     clock: Callable[[], float] = time.monotonic,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
+    settings_repository: ApplicationSettingsRepository | None = None,
 ) -> FastAPI:
     simulator = engine or SimulationEngine(clock=clock)
-    sqlite_repository: SqliteSteeringProfileRepository | None = None
-    repository = profile_repository
-    if repository is None:
-        sqlite_repository = SqliteSteeringProfileRepository(profile_database_path)
-        repository = sqlite_repository
+    database = (
+        SqliteApplicationDatabase(profile_database_path)
+        if profile_repository is None or settings_repository is None
+        else None
+    )
+    if profile_repository is None:
+        assert database is not None
+        profile_repository = SqliteSteeringProfileRepository(database)
+    if settings_repository is None:
+        assert database is not None
+        settings_repository = SqliteApplicationSettingsRepository(database)
 
     app = FastAPI(
         title="E87 CAN Bus Workbench API",
-        lifespan=create_lifespan(simulator, sqlite_repository, clock),
+        lifespan=create_lifespan(simulator, database, clock),
     )
     install_exception_handlers(app)
     app.add_middleware(
@@ -55,12 +65,14 @@ def create_app(
 
     app.state.manager = ConnectionManager(simulator.config.simulation.websocket_send_timeout_s)
     app.state.latest_snapshot = simulator.snapshot()
-    app.state.profile_repository = repository
+    app.state.profile_repository = profile_repository
+    app.state.settings_repository = settings_repository
 
     app.include_router(health.router)
     app.include_router(simulation.router)
     app.include_router(vehicle.router)
     app.include_router(steering.router)
+    app.include_router(settings.router)
     app.include_router(websocket.router)
     return app
 

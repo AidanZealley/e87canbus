@@ -56,20 +56,29 @@ An unsupported definition is rejected before state or revision changes, and the 
 
 `features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
 name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
-library SQLite driver. Composition supplies the database path and explicitly calls `initialize()`;
-module import has no filesystem side effect. Initialization applies numbered migrations under an
-exclusive transaction, enables WAL journaling with `FULL` synchronous durability, and seeds the
-stable profile ID `00000000-0000-4000-8000-000000000001` only when the catalog is empty. Operations
-use short-lived connections and each mutation is one transaction. Lists are ordered by
+library SQLite driver. `adapters/sqlite_database.py` owns the shared connection policy and ordered
+schema migrations; composition initializes it once during API lifespan startup. Migration 1 retains
+the steering catalog and stable profile seed exactly, while migration 2 adds the singleton
+application-settings document. Initialization uses an exclusive transaction, enables WAL journaling
+with `FULL` synchronous durability and fails closed on unsupported future versions. Operations use
+short-lived connections and each mutation is one transaction. Lists are ordered by
 case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
 closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
 live composition still has no profile-storage consumer and does not open the database.
 
-The simulator API now composes that repository during FastAPI lifespan startup. Its default path is
-`steering-profiles.sqlite3` in the process working directory; `e87canbus-sim-api
---profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a
-different file. Startup applies migrations and seeding before accepting requests. Tests and other
-compositions inject their own temporary path or repository boundary.
+The simulator API composes the profile and settings repositories over that shared database. Its
+default path is `steering-profiles.sqlite3` in the process working directory;
+`e87canbus-sim-api --profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string
+deployment) selects a different file and remains compatible despite the file's expanded role.
+Startup applies migrations and seeding before accepting requests. Tests and other compositions can
+inject the repositories independently.
+
+`features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
+Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
+document and replaces all editable fields with an expected-revision `PUT`. Successful commits
+increment once, receive one canonical UTC timestamp and publish
+`application_settings_changed`; stale writers receive a typed `409`, while corrupt or unavailable
+storage is a typed `503`. Theme remains browser-local and is absent from this contract.
 
 `/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
 accept one complete integer-unit definition; update and delete require `expected_revision`, with

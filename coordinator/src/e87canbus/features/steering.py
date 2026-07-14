@@ -6,10 +6,16 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import StrEnum
 from hashlib import sha256
 from uuid import UUID
+
+from e87canbus.features.timestamps import (
+    canonical_utc_timestamp as canonical_utc_timestamp,
+)
+from e87canbus.features.timestamps import (
+    validate_canonical_utc_timestamp,
+)
 
 SpeedAssistanceCurve = Sequence[tuple[float, float]]
 
@@ -120,14 +126,6 @@ def validate_steering_curve_definition(definition: SteeringCurveDefinition) -> N
         raise ValueError("assistance must be non-increasing as speed rises")
 
 
-def canonical_utc_timestamp(value: datetime) -> str:
-    """Return the profile timestamp format: UTC with six fractional digits and ``Z``."""
-
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError("profile timestamps must be timezone-aware")
-    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
 def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
     """Raise ``ValueError`` when stored identity or revision metadata is invalid."""
 
@@ -138,8 +136,8 @@ def validate_stored_steering_profile(profile: StoredSteeringProfile) -> None:
     if not isinstance(profile.definition, SteeringCurveDefinition):
         raise ValueError("profile definition must be a SteeringCurveDefinition")
     validate_steering_curve_definition(profile.definition)
-    _validate_canonical_timestamp(profile.created_at, "created_at")
-    _validate_canonical_timestamp(profile.updated_at, "updated_at")
+    validate_canonical_utc_timestamp(profile.created_at, "created_at")
+    validate_canonical_utc_timestamp(profile.updated_at, "updated_at")
 
 
 def validate_active_steering_curve(active: ActiveSteeringCurve) -> None:
@@ -188,17 +186,6 @@ def validate_steering_profile_id(profile_id: str, *, field_name: str = "profile_
         raise ValueError(f"{field_name} must be UUID text") from error
     if profile_id != canonical_profile_id:
         raise ValueError(f"{field_name} must use canonical UUID text")
-
-
-def _validate_canonical_timestamp(value: str, field_name: str) -> None:
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be canonical UTC text")
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise ValueError(f"{field_name} must be canonical UTC text") from error
-    if canonical_utc_timestamp(parsed) != value:
-        raise ValueError(f"{field_name} must be canonical UTC text")
 
 
 def canonical_steering_curve_bytes(definition: SteeringCurveDefinition) -> bytes:

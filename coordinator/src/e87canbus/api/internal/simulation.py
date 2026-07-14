@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from fastapi import FastAPI
 
-from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
+from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.api.errors import ApiProblem
 from e87canbus.simulation.engine import (
     RunControlTimer,
@@ -33,13 +33,13 @@ class QueuedCommand:
 
 def create_lifespan(
     simulation: SimulationEngine,
-    sqlite_repository: SqliteSteeringProfileRepository | None,
+    database: SqliteApplicationDatabase | None,
     clock: Callable[[], float],
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if sqlite_repository is not None:
-            await asyncio.to_thread(sqlite_repository.initialize)
+        if database is not None:
+            await asyncio.to_thread(database.initialize)
         queue: asyncio.Queue[QueuedCommand] = asyncio.Queue(
             maxsize=simulation.config.simulation.command_queue_capacity
         )
