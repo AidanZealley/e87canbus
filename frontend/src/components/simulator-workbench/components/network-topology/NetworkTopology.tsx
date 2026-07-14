@@ -15,7 +15,7 @@ export const NetworkTopology = () => {
   const networks = useNetworks()
 
   return (
-    <Card className="min-w-0">
+    <Card className="@container min-w-0">
       <CardHeader>
         <CardTitle>CAN network topology</CardTitle>
         <CardDescription>
@@ -25,7 +25,7 @@ export const NetworkTopology = () => {
           <CableIcon aria-hidden="true" />
         </CardAction>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-3">
+      <CardContent className="grid gap-3 @4xl:grid-cols-3">
         {networks.map((network) => (
           <section key={network.id} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">

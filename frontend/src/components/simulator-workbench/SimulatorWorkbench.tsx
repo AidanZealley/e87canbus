@@ -78,42 +78,49 @@ export const SimulatorWorkbench = () => {
           </Alert>
         ) : null}
 
-        <div className="grid min-w-0 gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(260px,0.8fr)_minmax(280px,1fr)_minmax(0,1.5fr)]">
-          <section className="min-w-0">
-            <SimulatorNeoTrellis
-              pressedButtons={pressedButtons}
-              onPress={handlePress}
-              onRelease={handleRelease}
-            />
-          </section>
-          <section className="min-w-0">
-            <SimulatedVehicleControls
-              speedKph={
-                application.speed_valid ? application.vehicle_speed_kph : null
-              }
-              disabled={command.isPending}
-              onSetSpeed={(speedKph) =>
-                command.mutate(() => setVehicleSpeed(speedKph))
-              }
-              onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
-            />
-          </section>
-          <SteeringStatus />
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
+            <section className="min-w-0">
+              <SimulatorNeoTrellis
+                pressedButtons={pressedButtons}
+                onPress={handlePress}
+                onRelease={handleRelease}
+              />
+            </section>
+
+            <section className="min-w-0">
+              <SimulatedVehicleControls
+                speedKph={
+                  application.speed_valid
+                    ? application.vehicle_speed_kph
+                    : null
+                }
+                disabled={command.isPending}
+                onSetSpeed={(speedKph) =>
+                  command.mutate(() => setVehicleSpeed(speedKph))
+                }
+                onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
+              />
+            </section>
+          </div>
+
+          {activeCurve ? (
+            <section className="min-w-0" aria-label="Steering curve settings">
+              <SteeringCurveCard
+                activeCurve={activeCurve}
+                speedKph={
+                  application.speed_valid ? application.vehicle_speed_kph : null
+                }
+                activeAssistance={steeringController.effective_assistance}
+              />
+            </section>
+          ) : null}
         </div>
 
-        {activeCurve ? (
-          <section aria-label="Steering curve settings">
-            <SteeringCurveCard
-              activeCurve={activeCurve}
-              speedKph={
-                application.speed_valid ? application.vehicle_speed_kph : null
-              }
-              activeAssistance={steeringController.effective_assistance}
-            />
-          </section>
-        ) : null}
-
-        <NetworkTopology />
+        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+          <SteeringStatus />
+          <NetworkTopology />
+        </div>
 
         <SimulatorTrace autoScroll={autoScroll} />
       </main>
