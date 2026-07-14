@@ -1,4 +1,6 @@
 import type {
+  DeviceId,
+  DeviceStatus,
   SimulatorSnapshot,
   SimulatorSocketEvent,
 } from "@/components/simulator-workbench/types"
@@ -75,6 +77,12 @@ export const setCoolantTemperature = (temperatureC: number) =>
 export const silenceCoolantTemperature = () =>
   requestSnapshot("/api/vehicle/coolant-temperature/silence", {
     method: "POST",
+  })
+
+export const setDeviceStatus = (deviceId: DeviceId, status: DeviceStatus) =>
+  requestSnapshot(`/api/simulation/devices/${deviceId}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
   })
 
 export const connectSimulatorSocket = (

@@ -24,6 +24,17 @@ export type NetworkStatus = {
   nodes: string[]
 }
 
+export type DeviceId = "button_pad" | "steering_controller"
+
+export type DeviceStatus = "online" | "degraded" | "offline"
+
+export type DeviceSnapshot = {
+  id: DeviceId
+  label: string
+  status: DeviceStatus
+  reason: string | null
+}
+
 export type ApplicationSnapshot = {
   vehicle_speed_kph: number
   speed_valid: boolean
@@ -70,6 +81,7 @@ export type SimulatorSnapshot = {
   steering_controller: SteeringControllerSnapshot
   next_pressed: boolean
   led_colours: number[]
+  devices: DeviceSnapshot[]
   networks: NetworkStatus[]
   trace?: CanTraceEntry[]
 }

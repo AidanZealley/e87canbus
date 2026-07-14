@@ -34,7 +34,10 @@ The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one c
 Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature
 and coolant temperature. Engine controls show valid, never-observed and stale states without
 substituting numeric zero; their PT-CAN identifiers are simulation-only and are not BMW
-definitions. Network filtering is local UI state and remains selected when the simulator is reset.
+definitions. The same card selects explicit online, degraded and offline presentation states for
+the button pad and steering controller. Returned snapshots remain authoritative, missing devices
+display as offline/unavailable, and these controls do not alter simulated CAN or steering behavior.
+Network filtering is local UI state and remains selected when the simulator is reset.
 
 ## Routes
 

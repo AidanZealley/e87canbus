@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot
@@ -58,6 +59,30 @@ class SimulatedSteeringSnapshot:
     watchdog_timed_out: bool
 
 
+class SimulatedDeviceId(StrEnum):
+    BUTTON_PAD = "button_pad"
+    STEERING_CONTROLLER = "steering_controller"
+
+
+class SimulatedDeviceStatus(StrEnum):
+    ONLINE = "online"
+    DEGRADED = "degraded"
+    OFFLINE = "offline"
+
+
+class SimulatedDeviceReason(StrEnum):
+    DEGRADED = "simulated_degraded"
+    OFFLINE = "simulated_offline"
+
+
+@dataclass(frozen=True)
+class SimulatedDeviceSnapshot:
+    id: SimulatedDeviceId
+    label: str
+    status: SimulatedDeviceStatus
+    reason: SimulatedDeviceReason | None
+
+
 @dataclass(frozen=True)
 class SimulatorSnapshot:
     session_id: int
@@ -67,6 +92,7 @@ class SimulatorSnapshot:
     next_pressed: bool
     led_colours: tuple[int, ...]
     steering_controller: SimulatedSteeringSnapshot
+    devices: tuple[SimulatedDeviceSnapshot, ...]
     networks: tuple[SimulatedNetworkStatus, ...]
     trace: tuple[SimulatedCanTraceEntry, ...]
 
@@ -132,6 +158,12 @@ class SilenceCoolantTemperature:
 
 
 @dataclass(frozen=True)
+class SetDeviceStatus:
+    device_id: SimulatedDeviceId
+    status: SimulatedDeviceStatus
+
+
+@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
@@ -156,6 +188,7 @@ SimulationCommand = (
     | SilenceOilTemperature
     | SetCoolantTemperature
     | SilenceCoolantTemperature
+    | SetDeviceStatus
     | ResetSimulation
     | ActivateCurve
 )
@@ -268,6 +301,15 @@ def snapshot_to_dict(
             ),
             "watchdog_timed_out": snapshot.steering_controller.watchdog_timed_out,
         },
+        "devices": [
+            {
+                "id": device.id.value,
+                "label": device.label,
+                "status": device.status.value,
+                "reason": None if device.reason is None else device.reason.value,
+            }
+            for device in snapshot.devices
+        ],
         "networks": [network_status_to_dict(status) for status in snapshot.networks],
     }
     if include_trace:
@@ -309,6 +351,7 @@ class SimulationEngine:
         self._steering_controller_factory = steering_controller_factory
         self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
+        self._devices: tuple[SimulatedDeviceSnapshot, ...]
         self._build_session()
 
     def snapshot(self) -> SimulatorSnapshot:
@@ -321,6 +364,7 @@ class SimulationEngine:
             next_pressed=self.neotrellis.next_pressed,
             led_colours=self.neotrellis.led_colours,
             steering_controller=self._steering_snapshot(),
+            devices=self._devices,
             networks=tuple(
                 SimulatedNetworkStatus(
                     config=network_config,
@@ -377,6 +421,13 @@ class SimulationEngine:
                 self.vehicle.set_coolant_temperature(temperature_c)
             case SilenceCoolantTemperature():
                 self.vehicle.silence_coolant_temperature()
+            case SetDeviceStatus(device_id, status):
+                self._devices = tuple(
+                    _device_snapshot(device.id, status)
+                    if device.id is device_id
+                    else device
+                    for device in self._devices
+                )
             case ActivateCurve(definition, saved_profile_id, saved_profile_revision):
                 self._dispatch(
                     ActivateSteeringCurve(
@@ -417,6 +468,7 @@ class SimulationEngine:
 
     def _build_session(self) -> None:
         self._session_id += 1
+        self._devices = tuple(_device_snapshot(device_id) for device_id in SimulatedDeviceId)
         self.topology = InMemoryCanTopology(
             trace_capacity=self.config.simulation.trace_capacity,
             clock=self._clock,
@@ -555,3 +607,19 @@ def _effect_failure_input(
             return SteeringActuatorFailed(failed_at, message)
         case _:
             assert_never(failure)
+
+
+def _device_snapshot(
+    device_id: SimulatedDeviceId,
+    status: SimulatedDeviceStatus = SimulatedDeviceStatus.ONLINE,
+) -> SimulatedDeviceSnapshot:
+    labels = {
+        SimulatedDeviceId.BUTTON_PAD: "Button pad",
+        SimulatedDeviceId.STEERING_CONTROLLER: "Steering controller",
+    }
+    reasons = {
+        SimulatedDeviceStatus.ONLINE: None,
+        SimulatedDeviceStatus.DEGRADED: SimulatedDeviceReason.DEGRADED,
+        SimulatedDeviceStatus.OFFLINE: SimulatedDeviceReason.OFFLINE,
+    }
+    return SimulatedDeviceSnapshot(device_id, labels[device_id], status, reasons[status])

@@ -12,6 +12,21 @@ const engine = {
   coolant_temperature_c: { value: null, status: "stale" as const },
 }
 
+const devices = [
+  {
+    id: "button_pad" as const,
+    label: "Button pad",
+    status: "online" as const,
+    reason: null,
+  },
+  {
+    id: "steering_controller" as const,
+    label: "Steering controller",
+    status: "degraded" as const,
+    reason: "simulated_degraded",
+  },
+]
+
 const callbacks = () => ({
   onSetRpm: vi.fn(),
   onSilenceRpm: vi.fn(),
@@ -19,6 +34,7 @@ const callbacks = () => ({
   onSilenceOilTemperature: vi.fn(),
   onSetCoolantTemperature: vi.fn(),
   onSilenceCoolantTemperature: vi.fn(),
+  onSetDeviceStatus: vi.fn(),
 })
 
 it("submits a bounded vehicle speed and can stop the speed signal", () => {
@@ -29,6 +45,7 @@ it("submits a bounded vehicle speed and can stop the speed signal", () => {
     <SimulatedVehicleControls
       speedKph={10}
       engine={engine}
+      devices={devices}
       onSetSpeed={onSetSpeed}
       onSilenceSpeed={onSilenceSpeed}
       {...callbacks()}
@@ -51,6 +68,7 @@ it("allows the vehicle speed input to be cleared before entering a new value", (
     <SimulatedVehicleControls
       speedKph={0}
       engine={engine}
+      devices={devices}
       onSetSpeed={onSetSpeed}
       onSilenceSpeed={vi.fn()}
       {...callbacks()}
@@ -75,6 +93,7 @@ it("disables signal controls while a simulator command is pending", () => {
     <SimulatedVehicleControls
       speedKph={null}
       engine={engine}
+      devices={devices}
       disabled
       onSetSpeed={vi.fn()}
       onSilenceSpeed={vi.fn()}
@@ -96,6 +115,11 @@ it("disables signal controls while a simulator command is pending", () => {
     (screen.getByRole("spinbutton", { name: "Engine RPM" }) as HTMLInputElement)
       .disabled
   ).toBe(true)
+  expect(
+    (
+      screen.getByRole("combobox", { name: "Button pad" }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true)
 })
 
 it("sets and silences each engine signal while showing independent statuses", () => {
@@ -104,6 +128,7 @@ it("sets and silences each engine signal while showing independent statuses", ()
     <SimulatedVehicleControls
       speedKph={0}
       engine={engine}
+      devices={devices}
       onSetSpeed={vi.fn()}
       onSilenceSpeed={vi.fn()}
       {...actions}
@@ -143,6 +168,7 @@ it("calls the matching silence action for every valid engine signal", () => {
   render(
     <SimulatedVehicleControls
       speedKph={0}
+      devices={devices}
       engine={{
         rpm: { value: 3500, status: "valid" },
         oil_temperature_c: { value: 112.5, status: "valid" },
@@ -169,4 +195,46 @@ it("calls the matching silence action for every valid engine signal", () => {
   expect(actions.onSilenceRpm).toHaveBeenCalledOnce()
   expect(actions.onSilenceOilTemperature).toHaveBeenCalledOnce()
   expect(actions.onSilenceCoolantTemperature).toHaveBeenCalledOnce()
+})
+
+it("sends the exact device ID and selected status", () => {
+  const actions = callbacks()
+  render(
+    <SimulatedVehicleControls
+      speedKph={0}
+      engine={engine}
+      devices={devices}
+      onSetSpeed={vi.fn()}
+      onSilenceSpeed={vi.fn()}
+      {...actions}
+    />
+  )
+
+  fireEvent.click(screen.getByRole("combobox", { name: "Button pad" }))
+  const offline = screen.getByRole("option", { name: "Offline" })
+  fireEvent.pointerDown(offline, { pointerType: "mouse" })
+  fireEvent.click(offline)
+
+  expect(actions.onSetDeviceStatus).toHaveBeenCalledWith(
+    "button_pad",
+    "offline"
+  )
+})
+
+it("renders a missing device as offline and unavailable", () => {
+  render(
+    <SimulatedVehicleControls
+      speedKph={0}
+      engine={engine}
+      devices={devices.filter((device) => device.id === "button_pad")}
+      onSetSpeed={vi.fn()}
+      onSilenceSpeed={vi.fn()}
+      {...callbacks()}
+    />
+  )
+
+  expect(
+    screen.getByRole("combobox", { name: "Steering controller" }).textContent
+  ).toContain("Offline")
+  expect(screen.getByText("unavailable")).toBeTruthy()
 })

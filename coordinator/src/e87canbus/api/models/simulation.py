@@ -1,5 +1,7 @@
 """Request models for simulation controls."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
 
 
@@ -21,3 +23,9 @@ class EngineRpmRequest(EngineTelemetryRequest):
 
 class TemperatureRequest(EngineTelemetryRequest):
     temperature_c: StrictFloat
+
+
+class DeviceStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["online", "degraded", "offline"]

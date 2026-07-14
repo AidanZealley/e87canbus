@@ -14,7 +14,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import type { EngineTelemetrySnapshot } from "../../types"
+import type {
+  DeviceId,
+  DeviceSnapshot,
+  DeviceStatus,
+  EngineTelemetrySnapshot,
+} from "../../types"
+import { deviceOrUnavailable } from "../../utils"
+import { DeviceStatusControl } from "./DeviceStatusControl"
 import { TelemetrySignalControl } from "./TelemetrySignalControl"
 
 const MIN_SPEED_KPH = 0
@@ -23,6 +30,7 @@ const MAX_SPEED_KPH = 300
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
   engine: EngineTelemetrySnapshot
+  devices: DeviceSnapshot[]
   disabled?: boolean
   onSetSpeed: (speedKph: number) => void
   onSilenceSpeed: () => void
@@ -32,11 +40,13 @@ type SimulatedVehicleControlsProps = {
   onSilenceOilTemperature: () => void
   onSetCoolantTemperature: (temperatureC: number) => void
   onSilenceCoolantTemperature: () => void
+  onSetDeviceStatus: (deviceId: DeviceId, status: DeviceStatus) => void
 }
 
 export const SimulatedVehicleControls = ({
   speedKph,
   engine,
+  devices,
   disabled = false,
   onSetSpeed,
   onSilenceSpeed,
@@ -46,6 +56,7 @@ export const SimulatedVehicleControls = ({
   onSilenceOilTemperature,
   onSetCoolantTemperature,
   onSilenceCoolantTemperature,
+  onSetDeviceStatus,
 }: SimulatedVehicleControlsProps) => {
   const [draftSpeed, setDraftSpeed] = useState<number | "">(speedKph ?? 0)
 
@@ -179,13 +190,31 @@ export const SimulatedVehicleControls = ({
             onSet={onSetCoolantTemperature}
             onSilence={onSilenceCoolantTemperature}
           />
+
+          <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+            <DeviceStatusControl
+              device={deviceOrUnavailable(devices, "button_pad", "Button pad")}
+              disabled={disabled}
+              onStatusChange={onSetDeviceStatus}
+            />
+            <DeviceStatusControl
+              device={deviceOrUnavailable(
+                devices,
+                "steering_controller",
+                "Steering controller"
+              )}
+              disabled={disabled}
+              onStatusChange={onSetDeviceStatus}
+            />
+          </div>
         </div>
       </CardContent>
 
       <CardFooter>
         <p className="text-xs text-muted-foreground">
           Speed uses simulated F-CAN. Engine signals use simulation-only PT-CAN
-          frames; none are BMW definitions.
+          frames; none are BMW definitions. Device status is presentation-only
+          and does not change simulated behavior.
         </p>
       </CardFooter>
     </Card>

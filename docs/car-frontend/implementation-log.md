@@ -26,7 +26,7 @@ simulation.
 | 1 — Routing and layouts | Verified | 2026-07-14 | TanStack Router, chooser, `/dev` and `/car` shell |
 | 2 — Application settings | Verified | 2026-07-14 | Revisioned SQLite settings, API and query boundary |
 | 3 — Engine telemetry simulation | Verified | 2026-07-14 | Independent synthetic RPM/oil/coolant CAN path |
-| 4 — Device health | Not started | — | Explicit simulator status projection |
+| 4 — Device health | Verified | 2026-07-14 | Explicit simulator status projection and controls |
 | 5 — Car UI foundation | Not started | — | Shared data, conversions, warnings and instruments |
 | 6 — Car screens | Not started | — | Overview, drive, steering and settings views |
 | 7 — Verification and acceptance | Not started | — | Integrated checks and 800x480 browser matrix |
@@ -57,6 +57,42 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 4: explicit simulated device health
+
+- **Status:** Verified
+- **Scope:** Implemented the complete Phase 4 device-health projection, queued simulator command,
+  HTTP resource and `/dev` controls for the button pad and steering controller; later car footer
+  presentation remains out of scope.
+- **Changed:** Added closed device ID/status/reason values, a complete stable-order top-level
+  `devices` snapshot array, session-owned deterministic defaults and updates, strict
+  `PUT /api/simulation/devices/{device_id}/status`, typed frontend snapshot/API boundaries,
+  fail-closed unavailable placeholders and two compact shadcn Select controls.
+- **Decisions:** Device states remain an explicit presentation-only simulation tuple beside the
+  kernel projection. Status commands use the existing bounded owner and publish the normal
+  authoritative snapshot without inventing a separate revision source; as with existing
+  non-kernel commands, the revision remains kernel-owned. Offline and degraded do not change CAN,
+  steering, watchdog or fatal behavior. No later-phase prerequisite was needed.
+- **Verification:** Focused simulator engine/API verification passed 92 tests after implementation.
+  `uv run pytest -q` (470 passed); `uv run mypy`; `uv run ruff check coordinator`;
+  `uv run python scripts/generate_custom_protocol.py --check`; `pnpm lint`; `pnpm test` (33 unit
+  and 34 component tests); `pnpm typecheck`; `pnpm build`; and `git diff --check` passed. The
+  existing FastAPI TestClient deprecation and Vite development chunk-size warnings remain
+  non-failing.
+- **Visual/physical checks:** The live `/dev` workbench showed both initial online selectors,
+  button-pad degraded and steering-controller offline states with their simulation reasons, no CAN
+  frame from either status change, and reset convergence to both online. Light-theme checks at the
+  preview's effective 960x576 and 450x800 CSS viewports found no horizontal document overflow; the
+  resize operation timed out after applying, but measured layout state and the subsequent snapshot
+  confirmed the narrow viewport. No physical device, CAN or display validation was run.
+- **Documentation:** Updated coordinator and frontend READMEs with the snapshot, queue, reset,
+  fail-closed and presentation-only behavior, plus this phase log.
+- **Dependencies/migrations:** None. The public simulator snapshot and initial/reconnect WebSocket
+  snapshot now always include `devices`; one PUT endpoint was added. There are no dependency,
+  SQLite, generated-protocol or production-CAN changes.
+- **Remaining:** None for Phase 4. The minimal car overview footer belongs to Phase 6.
+- **Next handoff:** Phase 5 can consume the committed complete device array and must continue to
+  treat a missing entry as unavailable/offline; do not infer health from topology or watchdog data.
 
 ### 2026-07-14 — Phase 3: independent simulated engine telemetry
 

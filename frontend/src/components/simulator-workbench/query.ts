@@ -52,6 +52,7 @@ const selectActiveSteeringCurve = (snapshot: WorkbenchSnapshot) =>
 const selectSteeringController = (snapshot: WorkbenchSnapshot) =>
   snapshot.steering_controller
 const selectLedColours = (snapshot: WorkbenchSnapshot) => snapshot.led_colours
+const selectDevices = (snapshot: WorkbenchSnapshot) => snapshot.devices ?? []
 const selectNetworks = (snapshot: WorkbenchSnapshot) => snapshot.networks
 const selectTrace = (snapshot: WorkbenchSnapshot) => snapshot.trace
 const selectNothing = () => null
@@ -66,6 +67,8 @@ export const useSteeringControllerSnapshot = () =>
   useSimulatorSelector(selectSteeringController)
 
 export const useLedColours = () => useSimulatorSelector(selectLedColours)
+
+export const useDevices = () => useSimulatorSelector(selectDevices)
 
 export const useNetworks = () => useSimulatorSelector(selectNetworks)
 

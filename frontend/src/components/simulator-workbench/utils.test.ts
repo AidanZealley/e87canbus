@@ -4,6 +4,7 @@ import test from "node:test"
 import type { CanTraceEntry, SimulatorSnapshot } from "./types.ts"
 import {
   emptySnapshot,
+  deviceOrUnavailable,
   formatSteeringReason,
   mergeSnapshot,
   reduceSimulatorEvent,
@@ -38,6 +39,7 @@ const snapshot = (
   },
   next_pressed: true,
   led_colours: Array(16).fill(0) as number[],
+  devices: emptySnapshot.devices,
   networks: [],
   trace,
 })
@@ -59,6 +61,19 @@ test("steering command reasons are formatted for display", () => {
     oil_temperature_c: { value: null, status: "never_observed" },
     coolant_temperature_c: { value: null, status: "never_observed" },
   })
+})
+
+test("missing devices fail closed as offline and unavailable", () => {
+  assert.deepEqual(
+    deviceOrUnavailable([], "steering_controller", "Steering controller"),
+    {
+      id: "steering_controller",
+      label: "Steering controller",
+      status: "offline",
+      reason: "unavailable",
+    }
+  )
+  assert.equal(emptySnapshot.devices.every((device) => device.status === "offline"), true)
 })
 
 const frame = (sequence: number, session_id = 1): CanTraceEntry => ({

@@ -160,6 +160,20 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
         "last_command_reason": "speed_never_observed",
         "watchdog_timed_out": False,
     }
+    assert body["devices"] == [
+        {
+            "id": "button_pad",
+            "label": "Button pad",
+            "status": "online",
+            "reason": None,
+        },
+        {
+            "id": "steering_controller",
+            "label": "Steering controller",
+            "status": "online",
+            "reason": None,
+        },
+    ]
     assert body["led_colours"] == [3] + [0] * 15
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
@@ -207,6 +221,10 @@ def test_button_commands_return_slim_snapshots(
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     client.post("/api/buttons/0/press")
+    client.put(
+        "/api/simulation/devices/button_pad/status",
+        json={"status": "offline"},
+    )
 
     response = client.post("/api/reset")
 
@@ -214,6 +232,67 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
+    assert all(device["status"] == "online" for device in response.json()["devices"])
+
+
+@pytest.mark.parametrize("device_id", ["button_pad", "steering_controller"])
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        ("online", None),
+        ("degraded", "simulated_degraded"),
+        ("offline", "simulated_offline"),
+    ],
+)
+def test_device_status_endpoint_updates_exact_device_and_returns_complete_snapshot(
+    client: TestClient,
+    device_id: str,
+    status: str,
+    reason: str | None,
+) -> None:
+    response = client.put(
+        f"/api/simulation/devices/{device_id}/status",
+        json={"status": status},
+    )
+
+    assert response.status_code == 200
+    assert "trace" not in response.json()
+    assert [device["id"] for device in response.json()["devices"]] == [
+        "button_pad",
+        "steering_controller",
+    ]
+    selected = next(
+        device for device in response.json()["devices"] if device["id"] == device_id
+    )
+    assert (selected["status"], selected["reason"]) == (status, reason)
+
+
+@pytest.mark.parametrize(
+    ("device_id", "body", "expected_status"),
+    [
+        ("unknown", {"status": "offline"}, 404),
+        ("button_pad", {"status": "unknown"}, 422),
+        ("button_pad", {"status": "offline", "unexpected": True}, 422),
+        ("button_pad", {"status": True}, 422),
+        ("button_pad", {"status": 1}, 422),
+        ("button_pad", {}, 422),
+    ],
+)
+def test_invalid_device_status_request_does_not_change_devices(
+    client: TestClient,
+    device_id: str,
+    body: dict[str, bool | str],
+    expected_status: int,
+) -> None:
+    before = client.get("/api/snapshot").json()["devices"]
+
+    response = client.put(
+        f"/api/simulation/devices/{device_id}/status",
+        json=body,
+    )
+
+    assert response.status_code == expected_status
+    assert client.get("/api/snapshot").json()["devices"] == before
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
@@ -397,6 +476,10 @@ def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestC
         "value": None,
         "status": "never_observed",
     }
+    assert [device["id"] for device in initial["snapshot"]["devices"]] == [
+        "button_pad",
+        "steering_controller",
+    ]
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
     assert "trace" not in snapshot["snapshot"]
@@ -431,6 +514,21 @@ def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient
         "oil_temperature_c": {"value": None, "status": "never_observed"},
         "coolant_temperature_c": {"value": None, "status": "never_observed"},
     }
+
+
+def test_reconnecting_websocket_receives_complete_current_device_shape(
+    client: TestClient,
+) -> None:
+    selected = client.put(
+        "/api/simulation/devices/steering_controller/status",
+        json={"status": "degraded"},
+    )
+    assert selected.status_code == 200
+
+    with client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+
+    assert initial["snapshot"]["devices"] == selected.json()["devices"]
 
 
 def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> None:

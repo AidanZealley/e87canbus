@@ -6,6 +6,7 @@ import {
   releaseButton,
   resetSimulator,
   setCoolantTemperature,
+  setDeviceStatus,
   setEngineRpm,
   setOilTemperature,
   setVehicleSpeed,
@@ -27,6 +28,7 @@ import {
   useSimulatorStatus,
   useActiveSteeringCurve,
   useApplicationSnapshot,
+  useDevices,
   useSteeringControllerSnapshot,
 } from "./query"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
@@ -39,6 +41,7 @@ export const SimulatorWorkbench = () => {
   const application = useApplicationSnapshot()
   const activeCurve = useActiveSteeringCurve()
   const steeringController = useSteeringControllerSnapshot()
+  const devices = useDevices()
   const command = useSimulatorCommand()
   const connectionState = useSimulatorSocket(
     status.isFetched && !status.isError
@@ -100,6 +103,7 @@ export const SimulatorWorkbench = () => {
                   application.speed_valid ? application.vehicle_speed_kph : null
                 }
                 engine={application.engine}
+                devices={devices}
                 disabled={command.isPending}
                 onSetSpeed={(speedKph) =>
                   command.mutate(() => setVehicleSpeed(speedKph))
@@ -118,6 +122,9 @@ export const SimulatorWorkbench = () => {
                 }
                 onSilenceCoolantTemperature={() =>
                   command.mutate(silenceCoolantTemperature)
+                }
+                onSetDeviceStatus={(deviceId, deviceStatus) =>
+                  command.mutate(() => setDeviceStatus(deviceId, deviceStatus))
                 }
               />
             </section>

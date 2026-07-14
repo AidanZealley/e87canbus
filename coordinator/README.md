@@ -153,6 +153,13 @@ application retains observations internally but projects `null` with `never_obse
 when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
 and every active signal is re-emitted before each ordered control-timer evaluation.
 
+Simulator snapshots also contain a complete, stable-order `devices` projection for the button pad
+and steering controller. Both start online; the single-owner simulation queue can explicitly set
+either to online, degraded or offline, and reset restores both online. Degraded and offline use the
+stable `simulated_degraded` and `simulated_offline` reasons. These manually selected values are UI
+test inputs only: they do not change CAN traffic, steering behavior, watchdog state, or establish
+real device heartbeat and diagnostic criteria.
+
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.

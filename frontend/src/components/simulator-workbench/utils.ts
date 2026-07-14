@@ -1,5 +1,7 @@
 import type {
   CanTraceEntry,
+  DeviceId,
+  DeviceSnapshot,
   SimulatorEvent,
   SimulatorSnapshot,
   SteeringControllerSnapshot,
@@ -37,6 +39,20 @@ export const emptySnapshot: WorkbenchSnapshot = {
   },
   next_pressed: true,
   led_colours: Array(LED_COUNT).fill(0) as number[],
+  devices: [
+    {
+      id: "button_pad",
+      label: "Button pad",
+      status: "offline",
+      reason: "unavailable",
+    },
+    {
+      id: "steering_controller",
+      label: "Steering controller",
+      status: "offline",
+      reason: "unavailable",
+    },
+  ],
   networks: [],
   trace: [],
 }
@@ -44,6 +60,18 @@ export const emptySnapshot: WorkbenchSnapshot = {
 export const formatSteeringReason = (
   reason: SteeringControllerSnapshot["last_command_reason"]
 ) => (reason === null ? "No command accepted" : reason.replaceAll("_", " "))
+
+export const deviceOrUnavailable = (
+  devices: readonly DeviceSnapshot[],
+  id: DeviceId,
+  label: string
+): DeviceSnapshot =>
+  devices.find((device) => device.id === id) ?? {
+    id,
+    label,
+    status: "offline",
+    reason: "unavailable",
+  }
 
 export const mergeSnapshot = (
   current: WorkbenchSnapshot,

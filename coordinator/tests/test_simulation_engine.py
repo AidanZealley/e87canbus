@@ -25,11 +25,15 @@ from e87canbus.simulation.engine import (
     ResetSimulation,
     RunControlTimer,
     SetCoolantTemperature,
+    SetDeviceStatus,
     SetEngineRpm,
     SetOilTemperature,
     SetVehicleSpeed,
     SilenceOilTemperature,
     SilenceVehicleSpeed,
+    SimulatedDeviceId,
+    SimulatedDeviceReason,
+    SimulatedDeviceStatus,
     SimulationEngine,
     SimulationSessionFailed,
     StepButton,
@@ -133,7 +137,81 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
         is SteeringCommandReason.SPEED_NEVER_OBSERVED
     )
     assert snapshot.steering_controller.watchdog_timed_out is False
+    assert [device.id for device in snapshot.devices] == [
+        SimulatedDeviceId.BUTTON_PAD,
+        SimulatedDeviceId.STEERING_CONTROLLER,
+    ]
+    assert [device.status for device in snapshot.devices] == [
+        SimulatedDeviceStatus.ONLINE,
+        SimulatedDeviceStatus.ONLINE,
+    ]
+    assert all(device.reason is None for device in snapshot.devices)
     assert snapshot.trace == ()
+
+
+@pytest.mark.parametrize("device_id", tuple(SimulatedDeviceId))
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (SimulatedDeviceStatus.DEGRADED, SimulatedDeviceReason.DEGRADED),
+        (SimulatedDeviceStatus.OFFLINE, SimulatedDeviceReason.OFFLINE),
+        (SimulatedDeviceStatus.ONLINE, None),
+    ],
+)
+def test_device_status_is_independent_and_maps_simulation_reason(
+    device_id: SimulatedDeviceId,
+    status: SimulatedDeviceStatus,
+    reason: SimulatedDeviceReason | None,
+) -> None:
+    engine = build_test_engine()
+    other_device_id = next(item for item in SimulatedDeviceId if item is not device_id)
+    engine.execute(SetDeviceStatus(device_id, SimulatedDeviceStatus.OFFLINE))
+
+    result = engine.execute(SetDeviceStatus(device_id, status))
+
+    selected = next(device for device in result.snapshot.devices if device.id is device_id)
+    other = next(device for device in result.snapshot.devices if device.id is other_device_id)
+    assert (selected.status, selected.reason) == (status, reason)
+    assert (other.status, other.reason) == (SimulatedDeviceStatus.ONLINE, None)
+    assert [event["type"] for event in result.events] == ["snapshot"]
+    assert "trace" not in result.events[0]["snapshot"]
+
+
+def test_device_status_is_presentation_only_and_idempotent() -> None:
+    engine = build_test_engine()
+    before = engine.snapshot()
+
+    first = engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+    repeated = engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+
+    assert first.snapshot.application == repeated.snapshot.application == before.application
+    assert (
+        first.snapshot.steering_controller
+        == repeated.snapshot.steering_controller
+        == before.steering_controller
+    )
+    assert first.snapshot.trace == repeated.snapshot.trace == before.trace
+    assert first.snapshot.revision == repeated.snapshot.revision == before.revision
+    assert len(first.events) == len(repeated.events) == 1
+
+
+def test_offline_device_projection_does_not_inject_a_steering_fault() -> None:
+    engine = build_test_engine()
+    engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+
+    engine.execute(PressButton(3))
+    controlled = engine.execute(RunControlTimer(0.1)).snapshot
+
+    assert controlled.steering_controller.effective_assistance == 1.0
+    assert controlled.steering_controller.last_command_reason is SteeringCommandReason.MAXIMUM
+    assert controlled.steering_controller.watchdog_timed_out is False
+    assert controlled.fatal is False
 
 
 def test_first_startup_command_failure_has_serializable_fatal_snapshot() -> None:
@@ -192,6 +270,9 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     controller.execute(SetEngineRpm(3500))
     controller.execute(SetOilTemperature(112.5))
     controller.execute(SetCoolantTemperature(98.0))
+    controller.execute(
+        SetDeviceStatus(SimulatedDeviceId.BUTTON_PAD, SimulatedDeviceStatus.DEGRADED)
+    )
 
     snapshot = controller.execute(ResetSimulation()).snapshot
 
@@ -208,6 +289,10 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     )
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
     assert snapshot.led_colours == AUTO_LEDS
+    assert all(
+        device.status is SimulatedDeviceStatus.ONLINE and device.reason is None
+        for device in snapshot.devices
+    )
     assert snapshot.trace == ()
 
     next_snapshot = controller.execute(PressButton(0)).snapshot
