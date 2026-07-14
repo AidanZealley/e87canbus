@@ -85,18 +85,22 @@ test("snapshots replace the complete LED state", () => {
   assert.notEqual(result.led_colours, next.led_colours)
 })
 
-test("malformed LED snapshots do not replace any LED", () => {
+test("malformed LED snapshots do not throw or replace any LED", () => {
   const prior = Array.from({ length: 16 }, (_, index) => index % 6)
   const current = { ...snapshot(), led_colours: prior }
 
-  for (const malformed of [
+  const malformedValues: unknown[] = [
+    null,
+    "0000000000000000",
+    { length: 16 },
     Array(15).fill(2) as number[],
     [...Array(15).fill(2), 6] as number[],
-  ]) {
+  ]
+  for (const malformed of malformedValues) {
     const next = {
       ...snapshot([], current.session_id, current.revision + 1),
       led_colours: malformed,
-    }
+    } as unknown as SimulatorSnapshot
 
     const result = mergeSnapshot(current, next)
 

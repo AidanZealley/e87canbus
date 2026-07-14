@@ -63,7 +63,8 @@ export const mergeSnapshot = (
   }
 }
 
-export const isCompleteLedSnapshot = (colours: number[]) =>
+export const isCompleteLedSnapshot = (colours: unknown): colours is number[] =>
+  Array.isArray(colours) &&
   colours.length === LED_COUNT &&
   colours.every(
     (colour) =>

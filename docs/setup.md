@@ -28,12 +28,6 @@ Run the dry-run CLI:
 uv run e87canbus --dry-run
 ```
 
-Run the bench ping-pong CLI on the Pi:
-
-```bash
-uv run e87canbus-bench-pingpong --interface can0
-```
-
 ## Button-pad device
 
 From the PlatformIO project directory:
@@ -56,17 +50,11 @@ Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - `can0` at `100000`
 
-Bootstrap Raspberry Pi OS Lite with:
-
-```bash
-sudo ./scripts/coordinator_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
-```
-
 Manually bring up bench CAN:
 
 ```bash
 sudo ./scripts/bench_can_up.sh
 ```
 
-The bootstrap and bench helpers intentionally configure only this single 100 kbit/s interface.
-Three-interface live bring-up and a live vehicle coordinator process are not part of this milestone.
+The bench helper configures only this single 100 kbit/s interface. Three-interface live bring-up
+and a live vehicle coordinator process are not part of this milestone.

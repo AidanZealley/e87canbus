@@ -1,46 +1,7 @@
 # Simulation
 
-This project has two hardware-free workflows:
-
-- In-process simulation for macOS, Linux, and CI.
-- Linux `vcan` simulation for validating the real SocketCAN adapter.
-
-The in-process simulator is the default when you do not have hardware nearby. It does not open CAN devices and does not require Linux.
-
-## In-Process Bench Simulation
-
-Run:
-
-```bash
-uv run e87canbus-sim-bench
-```
-
-Run a fixed number of simulated button events:
-
-```bash
-uv run e87canbus-sim-bench --cycles 4
-```
-
-Use another simulated NeoTrellis button index:
-
-```bash
-uv run e87canbus-sim-bench --button-index 2
-```
-
-This simulates the current button-pad firmware behavior:
-
-- Send project button-event frames on `0x700`.
-- Alternate pressed and released states.
-- Let the coordinator bench app reply with complete DLC-8 LED snapshots on `0x701`.
-- Validate and atomically replace all 16 LED colours inside the simulated NeoTrellis node.
-
-Expected logs alternate:
-
-```text
-sim neotrellis sent button event: index=0 pressed=True
-sent complete LED snapshot: colours=green,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
-sim neotrellis received LED snapshot: colours=(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-```
+The in-process visual simulator is hardware-free, does not open CAN devices, and does not require
+Linux.
 
 ## Visual Simulator Workbench
 
@@ -141,41 +102,6 @@ settle in one visible processing pass. Before the first simulated device is allo
 response while processing an incoming CAN frame, `SimulationEngine` must regain a bounded
 run-until-quiescent loop with an explicit livelock cap and deterministic tests. No unused cascade
 loop is installed today.
-
-## Linux vcan Simulation
-
-SocketCAN and `vcan` are Linux-only. This workflow is useful on a Raspberry Pi or Linux laptop when you want to test the real `SocketCanBus` adapter without physical CAN hardware.
-
-Bring up `vcan0`:
-
-```bash
-./scripts/vcan_up.sh
-```
-
-Terminal 1:
-
-```bash
-uv run e87canbus-bench-pingpong --interface vcan0
-```
-
-Terminal 2:
-
-```bash
-uv run e87canbus-sim-neotrellis-socketcan --interface vcan0 --cycles 4
-```
-
-Bring the virtual interface down:
-
-```bash
-./scripts/vcan_down.sh
-```
-
-Use a different interface name with `CAN_INTERFACE`:
-
-```bash
-CAN_INTERFACE=vcan1 ./scripts/vcan_up.sh
-CAN_INTERFACE=vcan1 ./scripts/vcan_down.sh
-```
 
 ## Safety Boundary
 

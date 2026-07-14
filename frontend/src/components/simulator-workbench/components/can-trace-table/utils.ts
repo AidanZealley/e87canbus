@@ -1,10 +1,12 @@
 import type { CanTraceEntry } from "../../types"
 import { isCompleteLedSnapshot, LED_COUNT } from "../../utils.ts"
 
-const LED_SNAPSHOT_HEX_LENGTH = LED_COUNT
+const LED_SNAPSHOT_HEX_PATTERN = /^[0-9a-fA-F]{16}$/
 
 export const decodeLedSnapshot = (dataHex: string): number[] | null => {
-  if (dataHex.length !== LED_SNAPSHOT_HEX_LENGTH) return null
+  if (!LED_SNAPSHOT_HEX_PATTERN.test(dataHex)) {
+    return null
+  }
 
   const colours = Array.from({ length: LED_COUNT }, (_, index) => {
     const byteStart = Math.floor(index / 2) * 2

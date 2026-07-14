@@ -27,8 +27,10 @@ test("LED snapshots decode even indices from low nibbles", () => {
   )
 })
 
-test("LED trace decoding rejects wrong lengths and invalid final nibbles", () => {
+test("LED trace decoding rejects wrong lengths, characters, and colour nibbles", () => {
   assert.equal(decodeLedSnapshot("0000"), null)
+  assert.equal(decodeLedSnapshot("000000000000000g"), null)
+  assert.equal(decodeLedSnapshot("00000000000000g0"), null)
   assert.equal(decodeLedSnapshot("0000000000000060"), null)
   assert.equal(
     decodeMeaning(ledFrame("0000000000000060")),

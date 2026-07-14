@@ -6,9 +6,8 @@ Current milestone: the hardware-independent coordinator kernel owns application 
 exercised through the visual simulator's bounded, single-owner command path. NeoTrellis button `0`
 toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
 manual level, and button `3` toggles a reversible maximum-assistance override. Together these
-steering controls populate the full top row. The bench CAN ping-pong remains available for hardware
-validation. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic output, physical Trellis
-integration, and the in-car touchscreen UI remain out of scope.
+steering controls populate the full top row. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic
+output, physical Trellis integration, and the in-car touchscreen UI remain out of scope.
 
 The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
 PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated vehicle have an
@@ -23,8 +22,7 @@ simulator does not forward traffic between networks.
 - `frontend/` - React UI shared by the development simulator and future in-car display.
 - `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
 - `docs/` - setup, wiring, decoded-message, architecture-decision, and remaining-work notes.
-- `scripts/` - coordinator deployment, device upload, bootstrap, and CAN helpers.
-- `deploy/systemd/` - current single-interface bench ping-pong systemd unit.
+- `scripts/` - device upload and CAN helpers.
 - `PROJECT_CONTEXT.md` - source project context.
 
 The Python package uses the conventional `src` layout. Start in
@@ -51,12 +49,6 @@ Run the dry-run CLI:
 uv run e87canbus --dry-run
 ```
 
-Run the hardware-free bench simulator:
-
-```bash
-uv run e87canbus-sim-bench --cycles 4
-```
-
 Run the visual simulator workbench:
 
 ```bash
@@ -81,33 +73,13 @@ it normally. The mode LED is blue for Auto or amber for Manual, while button `3`
 override is active. Manual level memory is currently process-local and is reset on coordinator or
 Pi restart.
 
-Run the bench ping-pong app on a Pi with `can0` up:
-
-```bash
-uv run e87canbus-bench-pingpong --interface can0
-```
-
-## Bench Workflow
-
-Bootstrap a Raspberry Pi OS Lite coordinator:
-
-```bash
-sudo ./scripts/coordinator_bootstrap.sh --repo-url git@github.com:<owner>/<repo>.git
-```
-
 Upload button-pad firmware from the host:
 
 ```bash
 ./scripts/button_pad_upload.sh
 ```
 
-Deploy coordinator code and restart the service:
-
-```bash
-./scripts/coordinator_deploy.sh pi@e87canbus.local --tail-logs
-```
-
-See `docs/bench.md`, `docs/simulation.md`, `docs/coordinator_bootstrap.md`, `docs/deployment.md`, and
+See `docs/simulation.md` and
 the [architecture decision index](docs/decisions/README.md).
 
 ## Verification

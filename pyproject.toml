@@ -13,10 +13,7 @@ dependencies = [
 
 [project.scripts]
 e87canbus = "e87canbus.cli.main:main"
-e87canbus-bench-pingpong = "e87canbus.cli.bench_pingpong:main"
-e87canbus-sim-bench = "e87canbus.simulation.bench:main"
 e87canbus-sim-api = "e87canbus.api.simulator:main"
-e87canbus-sim-neotrellis-socketcan = "e87canbus.simulation.socketcan_node:main"
 
 [dependency-groups]
 dev = [
