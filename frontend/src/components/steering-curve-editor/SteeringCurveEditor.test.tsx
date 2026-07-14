@@ -16,7 +16,7 @@ import type {
   StoredSteeringProfile,
 } from "@/api/steering"
 import { steeringProfilesQueryKey } from "@/api/steering"
-import { SteeringCurveEditor } from "./SteeringCurveEditor"
+import { SteeringCurveCard } from "@/components/simulator-workbench/components/steering-curve-card"
 
 vi.mock("./components/curve-chart", () => ({
   CurveChart: ({
@@ -84,7 +84,7 @@ const renderEditor = (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   )
   const result = render(
-    <SteeringCurveEditor activeCurve={activeCurve} speedKph={speedKph} />,
+    <SteeringCurveCard activeCurve={activeCurve} speedKph={speedKph} />,
     { wrapper: Wrapper }
   )
   return { ...result, client }
@@ -307,7 +307,7 @@ describe("SteeringCurveEditor", () => {
 
     const externalDefinition = definition([1000, 850, 780, 670, 380, 0, 0, 0])
     rerender(
-      <SteeringCurveEditor
+      <SteeringCurveCard
         activeCurve={active(externalDefinition, 2)}
         speedKph={10}
       />
@@ -407,11 +407,13 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(apply)
     fireEvent.click(apply)
 
-    expect(
-      fetchMock.mock.calls.filter(([input]) =>
-        String(input).endsWith("/activate")
-      )
-    ).toHaveLength(1)
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([input]) =>
+          String(input).endsWith("/activate")
+        )
+      ).toHaveLength(1)
+    )
     resolveActivation?.(
       activeResponse(definition([1000, 800, 780, 670, 380, 0, 0, 0]), 2)
     )

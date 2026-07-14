@@ -8,9 +8,9 @@ import {
   stepSimulator,
 } from "@/api/simulator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { SteeringCurveEditor } from "@/components/steering-curve-editor"
 import { NetworkTopology } from "./components/network-topology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
+import { SteeringCurveCard } from "./components/steering-curve-card"
 import { SteeringStatus } from "./components/steering-status"
 import {
   useSimulatorCommand,
@@ -88,7 +88,7 @@ export const SimulatorWorkbench = () => {
 
         {activeCurve ? (
           <section aria-label="Steering curve settings">
-            <SteeringCurveEditor
+            <SteeringCurveCard
               activeCurve={activeCurve}
               speedKph={
                 application.speed_valid ? application.vehicle_speed_kph : null

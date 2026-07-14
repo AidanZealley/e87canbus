@@ -23,3 +23,19 @@ export type CurveEditorStatus = {
   activeChangedExternally: boolean
   selectedProfile: StoredSteeringProfile | null
 }
+
+export type SteeringCurveEditorEffects = {
+  activate: (
+    definition: SteeringCurveDefinition,
+    savedProfile?: StoredSteeringProfile
+  ) => Promise<ActiveSteeringCurve>
+  createProfile: (
+    name: string,
+    definition: SteeringCurveDefinition
+  ) => Promise<StoredSteeringProfile>
+  updateProfile: (
+    profile: StoredSteeringProfile,
+    definition: SteeringCurveDefinition
+  ) => Promise<StoredSteeringProfile>
+  deleteProfile: (profile: StoredSteeringProfile) => Promise<void>
+}

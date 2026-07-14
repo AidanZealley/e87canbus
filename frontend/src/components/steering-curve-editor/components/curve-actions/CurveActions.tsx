@@ -1,52 +1,50 @@
-import type { PendingCurveAction } from "../../types"
-import type {
-  SteeringCurveInterpolation,
-  StoredSteeringProfile,
-} from "@/api/steering"
+import { useShallow } from "zustand/react/shallow"
+
 import { Button } from "@/components/ui/button"
+import { selectStatus } from "../../store"
+import { useSteeringCurveEditorStore } from "../../store-context"
 import { DeleteSavedButton } from "./components/delete-saved-button"
 import { ReloadActiveButton } from "./components/reload-active-button"
 
-type CurveActionsProps = {
-  pendingAction: PendingCurveAction
-  canApply: boolean
-  canSave: boolean
-  canRevert: boolean
-  selectedProfile: StoredSteeringProfile | null
-  draftInterpolation: SteeringCurveInterpolation
-  smoothSupported: boolean
-  onApply: () => void
-  onSave: () => void
-  onConfirmReload: () => void
-  onConfirmDelete: (profile: StoredSteeringProfile) => void
-  onConvertInterpolation: () => void
-}
-
-export const CurveActions = ({
-  pendingAction,
-  canApply,
-  canSave,
-  canRevert,
-  selectedProfile,
-  draftInterpolation,
-  smoothSupported,
-  onApply,
-  onSave,
-  onConfirmReload,
-  onConfirmDelete,
-  onConvertInterpolation,
-}: CurveActionsProps) => {
+export const CurveActions = () => {
+  const {
+    pendingAction,
+    draftInterpolation,
+    smoothSupported,
+    applyDraft,
+    saveRevision,
+    reloadActive,
+    deleteSaved,
+    convertInterpolation,
+  } = useSteeringCurveEditorStore(
+    useShallow((state) => ({
+      pendingAction: state.pendingAction,
+      draftInterpolation: state.draft.interpolation,
+      smoothSupported:
+        state.active.supported_interpolations.includes("monotone-cubic-v1"),
+      applyDraft: state.applyDraft,
+      saveRevision: state.saveRevision,
+      reloadActive: state.reloadActive,
+      deleteSaved: state.deleteSaved,
+      convertInterpolation: state.convertInterpolation,
+    }))
+  )
+  const status = useSteeringCurveEditorStore(useShallow(selectStatus))
   const pending = pendingAction !== null
+  const canApply = !status.draftMatchesActive
+  const canSave =
+    status.selectedProfile !== null && !status.draftMatchesSelectedSaved
+  const canRevert = !status.draftMatchesActive
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!canApply || pending} onClick={onApply}>
+      <Button disabled={!canApply || pending} onClick={() => void applyDraft()}>
         {pendingAction === "apply" ? "Applying…" : "Apply draft"}
       </Button>
       <Button
         variant="secondary"
         disabled={!canSave || pending}
-        onClick={onSave}
+        onClick={() => void saveRevision()}
       >
         {pendingAction === "save" ? "Saving…" : "Save revision"}
       </Button>
@@ -55,7 +53,7 @@ export const CurveActions = ({
         disabled={
           pending || (draftInterpolation === "linear-v1" && !smoothSupported)
         }
-        onClick={onConvertInterpolation}
+        onClick={convertInterpolation}
       >
         {draftInterpolation === "linear-v1"
           ? smoothSupported
@@ -65,13 +63,13 @@ export const CurveActions = ({
       </Button>
       <ReloadActiveButton
         disabled={!canRevert || pending}
-        onConfirm={onConfirmReload}
+        onConfirm={reloadActive}
       />
       <DeleteSavedButton
-        profile={selectedProfile}
+        profile={status.selectedProfile}
         pending={pending}
         deleting={pendingAction === "delete"}
-        onConfirm={onConfirmDelete}
+        onConfirm={(profile) => void deleteSaved(profile)}
       />
     </div>
   )
