@@ -11,6 +11,7 @@ import {
   createMemoryHistory,
   createRouter,
 } from "@tanstack/react-router"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ThemeProvider } from "@/components/theme-provider"
@@ -39,12 +40,17 @@ vi.mock("@/components/simulator-workbench", async () => {
 const renderPath = async (path: string) => {
   const history = createMemoryHistory({ initialEntries: [path] })
   const router = createRouter({ routeTree, history, notFoundMode: "root" })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   await router.load()
 
   return render(
-    <ThemeProvider disableTransitionOnChange={false}>
-      <RouterProvider router={router} />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider disableTransitionOnChange={false}>
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 

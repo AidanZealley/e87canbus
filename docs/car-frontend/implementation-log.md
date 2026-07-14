@@ -27,7 +27,7 @@ simulation.
 | 2 — Application settings | Verified | 2026-07-14 | Revisioned SQLite settings, API and query boundary |
 | 3 — Engine telemetry simulation | Verified | 2026-07-14 | Independent synthetic RPM/oil/coolant CAN path |
 | 4 — Device health | Verified | 2026-07-14 | Explicit simulator status projection and controls |
-| 5 — Car UI foundation | Not started | — | Shared data, conversions, warnings and instruments |
+| 5 — Car UI foundation | Verified | 2026-07-14 | Long-lived car data owner, warnings and reusable instruments |
 | 6 — Car screens | Not started | — | Overview, drive, steering and settings views |
 | 7 — Verification and acceptance | Not started | — | Integrated checks and 800x480 browser matrix |
 
@@ -57,6 +57,52 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 5: shared car data and instrument foundation
+
+- **Status:** Verified
+- **Scope:** Implemented the complete Phase 5 `/car` data/settings owner, canonical presentation
+  utilities, persistent temperature warnings, RPM stages, compact shared faults and reusable
+  instruments; final Phase 6 screen composition remains out of scope.
+- **Changed:** Moved the car shell into its component boundary and wrapped every child route in one
+  snapshot/query/WebSocket and settings context. The context exposes masked application telemetry,
+  steering-controller state, devices, connection state, authoritative-or-default settings with a
+  distinct fault/error, and persistent oil/coolant severity. Added telemetry value, temperature
+  gauge, segmented RPM bar and stable-order device footer components.
+- **Decisions:** Reused the existing simulator query key, cache merge and WebSocket implementation
+  rather than adding a parallel store. Connection loss masks live speed/engine presentation and
+  device health; settings and navigation remain usable. Temperature severity is derived from the
+  current render inputs before its result is persisted for later hysteresis, so promotions,
+  invalidation and threshold changes cannot paint an old severity. A settings threshold change
+  derives severity afresh from the current valid canonical reading, while ordinary readings use
+  fixed three-degree Celsius demotion hysteresis. Real offline devices use destructive styling;
+  unavailable placeholders remain muted. Instruments receive formatted/presentation data and do
+  not read API state. No later-phase prerequisite was needed.
+- **Verification:** Focused Phase 5 checks passed 7 pure utility tests and 12 provider/instrument
+  component tests, including first-render severity transitions, fail-closed disconnected devices
+  and destructive-offline versus muted-unavailable presentation. `pnpm test` passed 40 unit and 46
+  component tests; `pnpm typecheck`; `pnpm lint`;
+  `pnpm build`; `uv run pytest -q` (470 passed); `uv run mypy`; `uv run ruff check coordinator`;
+  `uv run python scripts/generate_custom_protocol.py --check`; and `git diff --check` passed. The
+  existing FastAPI TestClient deprecation and Vite development chunk-size warnings remain
+  non-failing.
+- **Visual/physical checks:** The live `/car` shell and a temporary browser-only composition of all
+  foundation instruments were inspected in light and dark with valid, warning, critical,
+  above-redline, stale, unavailable, online and degraded states. At the preview's configured
+  800x480 setting (effective 960x576 CSS viewport), the shell and instrument composition had no
+  horizontal or vertical document overflow. Stopping the backend showed the compact live-data
+  banner while child navigation stayed usable; restarting removed it after reconnect. The preview
+  resize operation timed out after applying, as confirmed by measured viewport state. No physical
+  display or touch-density validation was run.
+- **Documentation:** Updated the frontend README with car data ownership, failure masking,
+  hysteresis and reusable instrument behavior, plus this phase log.
+- **Dependencies/migrations:** None. There are no backend, HTTP/WebSocket, SQLite, generated route,
+  protocol or dependency changes; the new context and components are frontend-internal contracts.
+- **Remaining:** None for Phase 5. Final overview, drive, steering and settings compositions and
+  target-display touch tuning remain assigned to Phases 6 and 7.
+- **Next handoff:** Phase 6 should consume `useCarData` once per screen and project canonical values
+  with the pure helpers into the reusable instruments; do not create another snapshot socket or
+  reset warning state in child routes.
 
 ### 2026-07-14 — Phase 4: explicit simulated device health
 

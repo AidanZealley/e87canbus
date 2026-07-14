@@ -57,6 +57,12 @@ const selectNetworks = (snapshot: WorkbenchSnapshot) => snapshot.networks
 const selectTrace = (snapshot: WorkbenchSnapshot) => snapshot.trace
 const selectNothing = () => null
 
+export const useSimulatorSnapshot = () =>
+  useQuery({
+    ...simulatorQueryOptions,
+    placeholderData: emptySnapshot,
+  })
+
 export const useApplicationSnapshot = () =>
   useSimulatorSelector(selectApplication)
 
