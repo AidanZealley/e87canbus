@@ -1,3 +1,5 @@
+import type { ActiveSteeringCurve } from "@/api/steering"
+
 export type CanNetwork = "kcan" | "ptcan" | "fcan"
 
 export type CanTraceEntry = {
@@ -28,6 +30,7 @@ export type ApplicationSnapshot = {
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   maximum_assistance_active: boolean
+  active_steering_curve: ActiveSteeringCurve | null
 }
 
 export type SteeringControllerSnapshot = {
@@ -65,3 +68,10 @@ export type SnapshotEvent = {
 }
 
 export type SimulatorEvent = SnapshotEvent | CanTraceEntry
+
+export type SteeringProfileCatalogChangedEvent = {
+  type: "steering_profile_catalog_changed"
+}
+
+export type SimulatorSocketEvent =
+  SimulatorEvent | SteeringProfileCatalogChangedEvent

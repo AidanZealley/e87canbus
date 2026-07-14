@@ -1,6 +1,6 @@
 import type {
-  SimulatorEvent,
   SimulatorSnapshot,
+  SimulatorSocketEvent,
 } from "@/components/simulator-workbench/types"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000"
@@ -40,15 +40,17 @@ export const stepSimulator = (index: number) =>
   })
 
 export const connectSimulatorSocket = (
-  onEvent: (event: SimulatorEvent) => void,
+  onEvent: (event: SimulatorSocketEvent) => void,
   onHeartbeat: () => void
 ) => {
   const socket = new WebSocket(WS_BASE)
 
   socket.addEventListener("message", (message) => {
-    const event = JSON.parse(message.data) as SimulatorEvent | {
-      type: "heartbeat"
-    }
+    const event = JSON.parse(message.data) as
+      | SimulatorSocketEvent
+      | {
+          type: "heartbeat"
+        }
     if (event.type === "heartbeat") {
       onHeartbeat()
       return

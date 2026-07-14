@@ -1,22 +1,26 @@
 import pytest
-from e87canbus.config import default_config
 from e87canbus.features.steering import (
+    ASSISTANCE_QUANTIZATION_TOLERANCE,
     clamp_manual_level,
-    interpolate_speed_to_assistance,
+    default_steering_curve_definition,
+    interpolate_steering_curve_definition,
 )
 
 
 def test_assistance_curve_interpolation() -> None:
-    curve = default_config().steering.auto_assistance_curve
+    curve = default_steering_curve_definition()
 
-    assert interpolate_speed_to_assistance(15.0, curve) == pytest.approx(5.0 / 6.0)
+    assert interpolate_steering_curve_definition(15.0, curve) == pytest.approx(
+        5.0 / 6.0,
+        abs=ASSISTANCE_QUANTIZATION_TOLERANCE,
+    )
 
 
 def test_speed_values_clamp_to_curve_bounds() -> None:
-    curve = default_config().steering.auto_assistance_curve
+    curve = default_steering_curve_definition()
 
-    assert interpolate_speed_to_assistance(-10.0, curve) == 1.0
-    assert interpolate_speed_to_assistance(200.0, curve) == 0.0
+    assert interpolate_steering_curve_definition(-10.0, curve) == 1.0
+    assert interpolate_steering_curve_definition(200.0, curve) == 0.0
 
 
 def test_manual_level_clamping() -> None:

@@ -23,6 +23,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
     steering_mode: "auto",
     manual_assistance_level: 0,
     maximum_assistance_active: false,
+    active_steering_curve: null,
   },
   steering_controller: {
     effective_assistance: 0,
@@ -37,8 +38,7 @@ export const emptySnapshot: WorkbenchSnapshot = {
 
 export const formatSteeringReason = (
   reason: SteeringControllerSnapshot["last_command_reason"]
-) =>
-  reason === null ? "No command accepted" : reason.replaceAll("_", " ")
+) => (reason === null ? "No command accepted" : reason.replaceAll("_", " "))
 
 export const mergeSnapshot = (
   current: WorkbenchSnapshot,
@@ -46,8 +46,7 @@ export const mergeSnapshot = (
 ): WorkbenchSnapshot => {
   if (
     next.session_id < current.session_id ||
-    (next.session_id === current.session_id &&
-      next.revision < current.revision)
+    (next.session_id === current.session_id && next.revision < current.revision)
   ) {
     return current
   }

@@ -1,14 +1,15 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
+from e87canbus.application import controller
 from e87canbus.application.controller import (
     ApplicationSnapshot,
-    initial_effects,
+    Transition,
     normalize_state,
-    snapshot,
-    transition,
 )
 from e87canbus.application.events import (
+    ApplicationEffect,
+    ApplicationEvent,
     ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
@@ -28,8 +29,16 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 from e87canbus.config import CanNetwork, SteeringConfig
+from e87canbus.features.steering import (
+    ASSISTANCE_QUANTIZATION_TOLERANCE,
+    SteeringCurveActivationStatus,
+    default_steering_curve_definition,
+    initial_active_steering_curve,
+)
 
 CONFIG = SteeringConfig()
+ACTIVE_CURVE = initial_active_steering_curve()
+CURVE_DEFINITION = default_steering_curve_definition()
 AUTO_LEDS = ButtonLedState(
     (
         LedColour.BLUE,
@@ -57,6 +66,30 @@ MANUAL_MAXIMUM_LEDS = ButtonLedState(
 )
 
 
+def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:
+    return controller.snapshot(
+        state,
+        config,
+        ACTIVE_CURVE,
+        SteeringCurveActivationStatus.ACTIVE,
+    )
+
+
+def transition(
+    state: ApplicationState,
+    event: ApplicationEvent,
+    config: SteeringConfig,
+) -> Transition:
+    return controller.transition(state, event, config, CURVE_DEFINITION)
+
+
+def initial_effects(
+    state: ApplicationState,
+    config: SteeringConfig,
+) -> tuple[ApplicationEffect, ...]:
+    return controller.initial_effects(state, config, CURVE_DEFINITION)
+
+
 def application_state(
     mode: SteeringMode = SteeringMode.AUTO,
     manual_level: int = 0,
@@ -82,6 +115,8 @@ def test_initial_snapshot_and_effects() -> None:
         manual_assistance_level=0,
         maximum_assistance_active=False,
         speed_valid=False,
+        active_steering_curve=ACTIVE_CURVE,
+        steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
     )
     assert initial_effects(state, CONFIG) == (
         SetButtonLeds(AUTO_LEDS),
@@ -280,7 +315,10 @@ def test_fresh_speed_selects_interpolated_auto_assistance() -> None:
     assert len(result.effects) == 1
     command = result.effects[0]
     assert isinstance(command, SetSteeringAssistance)
-    assert command.assistance == pytest.approx(5 / 6)
+    assert command.assistance == pytest.approx(
+        5 / 6,
+        abs=ASSISTANCE_QUANTIZATION_TOLERANCE,
+    )
     assert command.reason is SteeringCommandReason.AUTO
 
 

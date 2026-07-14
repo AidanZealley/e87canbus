@@ -24,6 +24,7 @@ const snapshot = (
     steering_mode: "auto",
     manual_assistance_level: 0,
     maximum_assistance_active: false,
+    active_steering_curve: null,
   },
   steering_controller: {
     effective_assistance: 0,
@@ -37,7 +38,10 @@ const snapshot = (
 })
 
 test("steering command reasons are formatted for display", () => {
-  assert.equal(formatSteeringReason("speed_never_observed"), "speed never observed")
+  assert.equal(
+    formatSteeringReason("speed_never_observed"),
+    "speed never observed"
+  )
   assert.equal(formatSteeringReason("inbox_overflow"), "inbox overflow")
   assert.equal(formatSteeringReason(null), "No command accepted")
   assert.deepEqual(emptySnapshot.steering_controller, {
@@ -125,7 +129,10 @@ test("frame events append once and remain capped", () => {
 test("older snapshots cannot regress state within a session", () => {
   const current = {
     ...snapshot([], 1, 3),
-    application: { ...snapshot().application, steering_mode: "manual" as const },
+    application: {
+      ...snapshot().application,
+      steering_mode: "manual" as const,
+    },
   }
   const stale = snapshot([], 1, 2)
 

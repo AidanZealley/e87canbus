@@ -27,8 +27,12 @@ from e87canbus.application.state import (
 )
 from e87canbus.config import SteeringConfig
 from e87canbus.features.steering import (
+    ActiveSteeringCurve,
+    CurveInterpolation,
+    SteeringCurveActivationStatus,
+    SteeringCurveDefinition,
     clamp_manual_level,
-    interpolate_speed_to_assistance,
+    interpolate_steering_curve_definition,
 )
 
 STEERING_MODE_BUTTON_INDEX = 0
@@ -42,6 +46,12 @@ class ApplicationSnapshot:
     manual_assistance_level: int
     maximum_assistance_active: bool
     speed_valid: bool
+    active_steering_curve: ActiveSteeringCurve
+    steering_curve_activation_status: SteeringCurveActivationStatus
+    supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
+        CurveInterpolation.LINEAR_V1,
+        CurveInterpolation.MONOTONE_CUBIC_V1,
+    )
 
 
 @dataclass(frozen=True)
@@ -54,6 +64,7 @@ def transition(
     state: ApplicationState,
     event: ApplicationEvent,
     config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
 ) -> Transition:
     """Return the complete next state and ordered effects for one event."""
 
@@ -71,7 +82,10 @@ def transition(
                 state,
                 speed_evaluated_at=max(state.speed_evaluated_at, now),
             )
-            return Transition(next_state, (_steering_command(next_state, config),))
+            return Transition(
+                next_state,
+                (_steering_command(next_state, config, active_definition),),
+            )
         case SteeringFallbackRequested(reason):
             return Transition(
                 state,
@@ -94,7 +108,16 @@ def transition(
             assert_never(event)
 
 
-def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:
+def snapshot(
+    state: ApplicationState,
+    config: SteeringConfig,
+    active_curve: ActiveSteeringCurve,
+    activation_status: SteeringCurveActivationStatus,
+    supported_interpolations: tuple[CurveInterpolation, ...] = (
+        CurveInterpolation.LINEAR_V1,
+        CurveInterpolation.MONOTONE_CUBIC_V1,
+    ),
+) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
     return ApplicationSnapshot(
@@ -103,18 +126,22 @@ def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnap
         manual_assistance_level=manual_level,
         maximum_assistance_active=maximum_active,
         speed_valid=_speed_is_valid(state, config),
+        active_steering_curve=active_curve,
+        steering_curve_activation_status=activation_status,
+        supported_steering_curve_interpolations=supported_interpolations,
     )
 
 
 def initial_effects(
     state: ApplicationState,
     config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
 ) -> tuple[ApplicationEffect, ...]:
     """Return the complete output projection for synchronization."""
 
     return (
         SetButtonLeds(button_led_state(state)),
-        _steering_command(state, config),
+        _steering_command(state, config, active_definition),
     )
 
 
@@ -237,6 +264,7 @@ def button_led_state(state: ApplicationState) -> ButtonLedState:
 def _steering_command(
     state: ApplicationState,
     config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
 ) -> SetSteeringAssistance:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
@@ -257,12 +285,28 @@ def _steering_command(
         return SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_STALE)
 
     return SetSteeringAssistance(
-        interpolate_speed_to_assistance(
+        interpolate_steering_curve_definition(
             sample.speed_kph,
-            config.auto_assistance_curve,
+            active_definition,
         ),
         SteeringCommandReason.AUTO,
     )
+
+
+def steering_command_for_active_curve(
+    state: ApplicationState,
+    config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
+) -> SetSteeringAssistance | None:
+    """Recalculate only when activation can immediately affect Auto output."""
+
+    steering = state.steering
+    normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
+    if normal.mode is not SteeringMode.AUTO or isinstance(steering, MaximumAssistance):
+        return None
+    if not _speed_is_valid(state, config):
+        return None
+    return _steering_command(state, config, active_definition)
 
 
 def _speed_is_valid(state: ApplicationState, config: SteeringConfig) -> bool:

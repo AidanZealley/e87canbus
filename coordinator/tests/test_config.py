@@ -63,11 +63,6 @@ def test_custom_can_ids() -> None:
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
-    assert default_config().steering.auto_assistance_curve == (
-        (0.0, 1.0),
-        (30.0, 2 / 3),
-        (100.0, 0.0),
-    )
 
 
 @pytest.mark.parametrize(
@@ -87,8 +82,6 @@ def test_valid_steering_configuration(config: SteeringConfig) -> None:
     [
         ({"manual_level_count": 0}, "manual_level_count"),
         ({"speed_timeout_s": 0.0}, "speed_timeout_s"),
-        ({"auto_assistance_curve": ()}, "auto_assistance_curve"),
-        ({"auto_assistance_curve": ((0.0, 1.1),)}, "between zero and one"),
     ],
 )
 def test_steering_configuration_rejects_invalid_values(

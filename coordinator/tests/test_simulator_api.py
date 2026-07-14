@@ -3,6 +3,8 @@ import time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Any, cast
 
@@ -23,7 +25,17 @@ def make_app(*, command_queue_capacity: int = 64):
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=60.0,
     )
-    return create_app(SimulationEngine(config=config))
+    return make_app_for_engine(SimulationEngine(config=config))
+
+
+def make_app_for_engine(engine: SimulationEngine):
+    profile_directory = TemporaryDirectory()
+    app = create_app(
+        engine,
+        profile_database_path=Path(profile_directory.name) / "profiles.sqlite3",
+    )
+    app.state.test_profile_directory = profile_directory
+    return app
 
 
 @pytest.fixture
@@ -148,7 +160,7 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
 
 def test_failed_first_command_is_published_without_fabricated_reason() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = create_app(
+    app = make_app_for_engine(
         SimulationEngine(
             config=config,
             steering_controller_factory=RejectingStartupController,
@@ -202,7 +214,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = create_app(
+    app = make_app_for_engine(
         SimulationEngine(
             config=config,
             steering_controller_factory=RejectingShutdownController,
@@ -222,7 +234,7 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
     response = client.post("/api/buttons/16/press")
 
     assert response.status_code == 422
-    assert "button_index" in response.json()["detail"]
+    assert "button_index" in response.json()["error"]["message"]
 
 
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
@@ -239,7 +251,7 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
     response = client.post("/api/vehicle/speed", json={"speed_kph": -1.0})
 
     assert response.status_code == 422
-    assert "simulated speed" in response.json()["detail"]
+    assert "simulated speed" in response.json()["error"]["message"]
 
 
 def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
@@ -371,7 +383,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=0.01,
     )
-    app = create_app(
+    app = make_app_for_engine(
         SimulationEngine(
             config=config,
             steering_controller_factory=build_controller,

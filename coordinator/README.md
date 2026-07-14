@@ -20,15 +20,91 @@ The outer `coordinator/` directory names the deployable component. The inner `sr
 directory is the project-specific import namespace, following Python's conventional `src` layout.
 This is why code imports `e87canbus.application` even though it is deployed as the coordinator.
 
+## Steering curve profile contract
+
+`features/steering.py` owns the immutable steering-curve definition and stored-profile metadata
+values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
+160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
+per-mille assistance (`assistance_per_mille`, `0..1000`); float pairs exist only as a calculation
+projection. Version 1 accepts `linear-v1` and `monotone-cubic-v1` and requires assistance to be
+non-increasing as speed rises. Linear profiles retain piecewise-linear behavior. The smooth
+evaluator implements the checked-in Steffen/Hermite
+[numerical contract](../docs/assist-curve/monotone-cubic-v1.md), including endpoint hold, exact
+control-point values, binary64 tolerance and final `0..1` clamping. Python and TypeScript load the
+same language-neutral golden vectors.
+
+Definition identity is the lowercase SHA-256 digest of compact, key-sorted UTF-8 JSON containing
+only `schema_version`, `interpolation`, and the ordered integer point fields. Profile IDs, names,
+revisions, and timestamps are excluded. Stored timestamps use UTC ISO 8601 with six fractional
+digits and a trailing `Z` (for example, `2026-07-14T10:30:00.000000Z`). Profile validation and
+fingerprinting are pure coordinator functions with no FastAPI or persistence dependency.
+
+The active curve is an immutable kernel-owned runtime value, not part of `SteeringConfig`.
+`ActiveSteeringCurve` carries the complete validated definition, fingerprint, runtime-local
+activation revision and optional matching saved profile ID/revision. Startup composition selects
+the built-in or a previously loaded saved definition before constructing the kernel; a new runtime
+starts at activation revision 1, so an unsaved activation does not survive reconstruction.
+`ActivateSteeringCurve` is the only ordered mutation path. A changed definition increments both the
+kernel commit revision and activation revision and immediately recalculates output only when Auto
+mode has a fresh speed sample. Identical definitions emit no steering command and retain the
+activation revision, while a changed saved-profile association is still published as metadata.
+Current in-process activation completes with status `active`; snapshots reserve `activating` and
+`activation_failed` for a future asynchronous consumer without implementing controller transport.
+The kernel activation boundary also carries the consumer's explicit supported-interpolation set.
+An unsupported definition is rejected before state or revision changes, and the API reports
+`unsupported_interpolation` with the supported versions rather than substituting a linear curve.
+
+`features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
+name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
+library SQLite driver. Composition supplies the database path and explicitly calls `initialize()`;
+module import has no filesystem side effect. Initialization applies numbered migrations under an
+exclusive transaction, enables WAL journaling with `FULL` synchronous durability, and seeds the
+stable profile ID `00000000-0000-4000-8000-000000000001` only when the catalog is empty. Operations
+use short-lived connections and each mutation is one transaction. Lists are ordered by
+case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
+closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
+live composition still has no profile-storage consumer and does not open the database.
+
+The simulator API now composes that repository during FastAPI lifespan startup. Its default path is
+`steering-profiles.sqlite3` in the process working directory; `e87canbus-sim-api
+--profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a
+different file. Startup applies migrations and seeding before accepting requests. Tests and other
+compositions inject their own temporary path or repository boundary.
+
+`/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
+accept one complete integer-unit definition; update and delete require `expected_revision`, with
+delete carrying it as a query parameter. Responses contain the complete committed profile.
+`/api/steering/curve-state` returns the authoritative active projection and its `/activate`
+subresource accepts a complete definition with optional saved ID/revision provenance. Claimed
+provenance is published only when the repository row has the same revision and definition.
+Activation is enqueued with timers and simulated-device commands through the bounded simulation
+owner; handlers never dispatch the kernel directly. Save and activation remain separate operations,
+so saving cannot alter active state and applying cannot write a profile row.
+
+API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
+are `404`, name/revision/provenance conflicts are `409`, and storage or bounded-owner overload is
+`503`; an immediate runtime effect failure after activation also returns typed `503` after the
+owner publishes the committed active curve and fatal snapshot. Revision conflicts also return
+`current_revision`; an interpolation capability conflict is `409` and returns
+`supported_interpolations`. Successful saved CRUD publishes only a
+`steering_profile_catalog_changed` WebSocket invalidation. Reconnecting clients receive the full
+active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
+or missed-event replay are required.
+
+The simulator server defaults to loopback and permits the two local Vite development origins. It is
+unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
+`--host` to expose it beyond loopback until authentication, origin policy, and editing-while-moving
+policy have been defined separately from curve validation.
+
 The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
-periodic timers, reader and effect faults, inbox overflow, and shutdown all carry explicit times into
-that ordered path. Each decoded event runs through a pure transition; the kernel commits the returned
-state and revision before the calling composition executes the commit's ordered effects. Unknown CAN
-traffic creates no application commit. Reader, CAN-effect, inbox-overflow, and steering-actuator
-faults update typed immutable diagnostics; the live runner consumes fatal health and exits non-zero.
-Speed evaluation time cannot regress, so an older timer or delayed frame cannot make stale data
-fresh. The simulator adds a synthetic speed decoder that is not imported or enabled by live
-composition; no verified BMW speed decoder is configured.
+periodic timers, curve activations, reader and effect faults, inbox overflow, and shutdown enter that
+ordered path. Timed inputs carry explicit observation times. Each decoded event runs through a pure
+transition; the kernel commits the returned state and revision before the calling composition
+executes the commit's ordered effects. Unknown CAN traffic creates no application commit. Reader,
+CAN-effect, inbox-overflow, and steering-actuator faults update typed immutable diagnostics; the live
+runner consumes fatal health and exits non-zero. Speed evaluation time cannot regress, so an older
+timer or delayed frame cannot make stale data fresh. The simulator adds a synthetic speed decoder
+that is not imported or enabled by live composition; no verified BMW speed decoder is configured.
 
 The coordinator does not automatically forward frames between networks. Transmission is denied by
 the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.

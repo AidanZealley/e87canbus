@@ -46,11 +46,6 @@ class CustomCanIds:
 @dataclass(frozen=True)
 class SteeringConfig:
     manual_level_count: int = 8
-    auto_assistance_curve: tuple[tuple[float, float], ...] = (
-        (0.0, 1.0),
-        (30.0, 2.0 / 3.0),
-        (100.0, 0.0),
-    )
     speed_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:
@@ -58,10 +53,6 @@ class SteeringConfig:
             raise ValueError("manual_level_count must be positive")
         if not math.isfinite(self.speed_timeout_s) or self.speed_timeout_s <= 0:
             raise ValueError("speed_timeout_s must be finite and positive")
-        if not self.auto_assistance_curve:
-            raise ValueError("auto_assistance_curve must not be empty")
-        if any(not 0.0 <= assistance <= 1.0 for _, assistance in self.auto_assistance_curve):
-            raise ValueError("auto assistance values must be between zero and one")
 
 
 @dataclass(frozen=True)

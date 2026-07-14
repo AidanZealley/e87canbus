@@ -12,6 +12,7 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
+from e87canbus.features.steering import CurveInterpolation, SteeringCurveDefinition
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -20,6 +21,8 @@ from e87canbus.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.runtime import (
+    SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
+    ActivateSteeringCurve,
     CanEffectExecutionFailed,
     Commit,
     CoordinatorKernel,
@@ -103,6 +106,13 @@ class ResetSimulation:
     pass
 
 
+@dataclass(frozen=True)
+class ActivateCurve:
+    definition: SteeringCurveDefinition
+    saved_profile_id: str | None = None
+    saved_profile_revision: int | None = None
+
+
 SimulationCommand = (
     PressButton
     | ReleaseButton
@@ -111,6 +121,7 @@ SimulationCommand = (
     | SetVehicleSpeed
     | SilenceVehicleSpeed
     | ResetSimulation
+    | ActivateCurve
 )
 
 
@@ -162,6 +173,8 @@ def snapshot_to_dict(
     *,
     include_trace: bool,
 ) -> dict[str, Any]:
+    active_curve = snapshot.application.active_steering_curve
+    supported_interpolations = snapshot.application.supported_steering_curve_interpolations
     serialized: dict[str, Any] = {
         "session_id": snapshot.session_id,
         "revision": snapshot.revision,
@@ -172,6 +185,27 @@ def snapshot_to_dict(
             "steering_mode": snapshot.application.steering_mode.value,
             "manual_assistance_level": snapshot.application.manual_assistance_level,
             "maximum_assistance_active": snapshot.application.maximum_assistance_active,
+            "active_steering_curve": {
+                "definition": {
+                    "schema_version": active_curve.definition.schema_version,
+                    "interpolation": active_curve.definition.interpolation.value,
+                    "points": [
+                        {
+                            "speed_deci_kph": point.speed_deci_kph,
+                            "assistance_per_mille": point.assistance_per_mille,
+                        }
+                        for point in active_curve.definition.points
+                    ],
+                },
+                "fingerprint": active_curve.fingerprint,
+                "activation_revision": active_curve.activation_revision,
+                "status": snapshot.application.steering_curve_activation_status.value,
+                "saved_profile_id": active_curve.saved_profile_id,
+                "saved_profile_revision": active_curve.saved_profile_revision,
+                "supported_interpolations": [
+                    interpolation.value for interpolation in supported_interpolations
+                ],
+            },
         },
         "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
@@ -211,6 +245,9 @@ class SimulationEngine:
         config: AppConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
         steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
+        supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
+            SUPPORTED_STEERING_CURVE_INTERPOLATIONS
+        ),
     ) -> None:
         if button_count < 1 or button_count > 256:
             raise ValueError("button_count must be between 1 and 256")
@@ -220,6 +257,7 @@ class SimulationEngine:
         self.button_count = button_count
         self._clock = clock
         self._steering_controller_factory = steering_controller_factory
+        self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
         self._build_session()
 
@@ -274,6 +312,14 @@ class SimulationEngine:
                 self.vehicle.set_speed(speed_kph)
             case SilenceVehicleSpeed():
                 self.vehicle.silence_speed()
+            case ActivateCurve(definition, saved_profile_id, saved_profile_revision):
+                self._dispatch(
+                    ActivateSteeringCurve(
+                        definition,
+                        saved_profile_id,
+                        saved_profile_revision,
+                    )
+                )
             case ResetSimulation():
                 replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
@@ -345,6 +391,7 @@ class SimulationEngine:
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             router=router,
+            supported_steering_curve_interpolations=(self._supported_steering_curve_interpolations),
         )
         self.executor = EffectExecutor(
             transmitters,
