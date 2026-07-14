@@ -8,7 +8,7 @@ from threading import Event
 from typing import Any
 
 import pytest
-from e87canbus.api.simulator import create_app
+from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
@@ -147,9 +147,7 @@ def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejec
         before = client.get("/api/steering/curve-state").json()
         response = client.post(
             "/api/steering/curve-state/activate",
-            json={
-                "definition": definition_json(interpolation="monotone-cubic-v1")
-            },
+            json={"definition": definition_json(interpolation="monotone-cubic-v1")},
         )
         after = client.get("/api/steering/curve-state").json()
 
@@ -171,9 +169,7 @@ def test_saved_profiles_survive_api_restart(tmp_path: Path) -> None:
         created = create_profile(first_client)
 
     with TestClient(make_app(database_path)) as restarted_client:
-        fetched = restarted_client.get(
-            f"/api/steering/profiles/{created['profile_id']}"
-        )
+        fetched = restarted_client.get(f"/api/steering/profiles/{created['profile_id']}")
 
     assert fetched.status_code == 200
     assert fetched.json() == created
@@ -267,9 +263,7 @@ def test_not_found_name_conflict_and_revision_conflict_are_typed(
     assert stale.status_code == 409
     assert stale.json()["error"] == {
         "code": "profile_revision_conflict",
-        "message": (
-            f"steering profile {created['profile_id']} is at revision 2, not 1"
-        ),
+        "message": (f"steering profile {created['profile_id']} is at revision 2, not 1"),
         "current_revision": 2,
     }
     assert client.get(f"/api/steering/profiles/{created['profile_id']}").json() == updated.json()

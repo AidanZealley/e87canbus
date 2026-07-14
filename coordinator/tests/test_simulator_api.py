@@ -9,7 +9,8 @@ from threading import Event
 from typing import Any, cast
 
 import pytest
-from e87canbus.api.simulator import ConnectionManager, create_app
+from e87canbus.api.internal.websocket import ConnectionManager
+from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.simulation.devices import SimulatedSteeringController
@@ -310,10 +311,7 @@ def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> Non
 
     snapshots = [events[0] for events in manager.broadcasts]
     frames = [
-        event
-        for events in manager.broadcasts
-        for event in events
-        if event["type"] == "frame"
+        event for events in manager.broadcasts for event in events if event["type"] == "frame"
     ]
     assert len(snapshots) == 2
     assert all(event["type"] == "snapshot" for event in snapshots)
@@ -371,9 +369,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
         nonlocal session_count
         session_count += 1
         controller_type = (
-            FailingFirstSessionController
-            if session_count == 1
-            else SimulatedSteeringController
+            FailingFirstSessionController if session_count == 1 else SimulatedSteeringController
         )
         return controller_type(watchdog_timeout_s, clock)
 
@@ -415,8 +411,10 @@ async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_c
 ) -> None:
     manager = ConnectionManager(0.1)
     snapshot = SimulationEngine().snapshot()
+
     def get_snapshot() -> SimulatorSnapshot:
         return snapshot
+
     broken = FakeWebSocket()
     healthy = FakeWebSocket()
     await manager.connect(cast(WebSocket, broken), get_snapshot)

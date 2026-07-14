@@ -83,21 +83,29 @@ def test_default_live_composition_has_no_transmit_grant() -> None:
 
 
 def test_simulation_protocol_and_devices_stay_inside_simulation_composition() -> None:
+    api_simulation_composition = {
+        PACKAGE / "api" / "main.py",
+        PACKAGE / "api" / "internal" / "simulation.py",
+        PACKAGE / "api" / "internal" / "steering.py",
+        PACKAGE / "api" / "internal" / "websocket.py",
+        PACKAGE / "api" / "routes" / "simulation.py",
+        PACKAGE / "api" / "routes" / "vehicle.py",
+    }
     for path in PACKAGE.rglob("*.py"):
         if "simulation" in path.relative_to(PACKAGE).parts:
             continue
         simulation_imports = {
             module
             for module in imported_modules(path)
-            if module == "e87canbus.simulation"
-            or module.startswith("e87canbus.simulation.")
+            if module == "e87canbus.simulation" or module.startswith("e87canbus.simulation.")
         }
-        if path == PACKAGE / "api" / "simulator.py":
+        if path in api_simulation_composition:
             assert simulation_imports == {"e87canbus.simulation.engine"}
         else:
             assert not simulation_imports, (
                 f"{path.relative_to(PACKAGE)} imports simulation-only code"
             )
+
 
 def test_live_composition_supplies_no_steering_actuator() -> None:
     assert "steering_actuator=" not in (PACKAGE / "live.py").read_text()
