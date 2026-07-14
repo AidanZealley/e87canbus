@@ -32,10 +32,12 @@ import type { CurveEditorState, PendingCurveAction } from "./types"
 import {
   ASSISTANCE_PAGE_INCREMENT_PER_MILLE,
   assistanceBoundsAt,
+  assistanceToPercent,
   assistancePerMilleToPercent,
   assistancePercentToPerMille,
   deriveEditorStatus,
-  evaluateLinearCurve,
+  convertDraftInterpolation,
+  evaluateSteeringCurve,
   reconcileActiveCurve,
   replaceAssistanceAt,
   speedDeciKphToKph,
@@ -44,6 +46,7 @@ import {
 type SteeringCurveEditorProps = {
   activeCurve: ActiveSteeringCurve
   speedKph: number | null
+  activeAssistance?: number | null
 }
 
 const EMPTY_PROFILES: StoredSteeringProfile[] = []
@@ -51,6 +54,7 @@ const EMPTY_PROFILES: StoredSteeringProfile[] = []
 export const SteeringCurveEditor = ({
   activeCurve,
   speedKph,
+  activeAssistance = null,
 }: SteeringCurveEditorProps) => {
   const queryClient = useQueryClient()
   const profilesQuery = useQuery({
@@ -214,23 +218,25 @@ export const SteeringCurveEditor = ({
     }
   }
 
-  const activeAssistance =
+  const activeAssistancePercent =
     speedKph === null
       ? null
-      : assistancePerMilleToPercent(
-          evaluateLinearCurve(state.active.definition, speedKph)
+      : assistanceToPercent(
+          activeAssistance ??
+            evaluateSteeringCurve(state.active.definition, speedKph)
         )
   const draftAssistance =
     speedKph === null
       ? null
-      : assistancePerMilleToPercent(evaluateLinearCurve(state.draft, speedKph))
+      : assistanceToPercent(evaluateSteeringCurve(state.draft, speedKph))
 
   return (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Steering assistance curve</CardTitle>
         <CardDescription>
-          Settings editor · fixed speed points · linear-v1 simulation only
+          Settings editor · fixed speed points · {state.draft.interpolation} ·
+          simulation only
         </CardDescription>
         <CardAction>
           <GitCompareArrowsIcon aria-hidden="true" />
@@ -292,7 +298,7 @@ export const SteeringCurveEditor = ({
           ) : (
             <span>
               At {speedKph.toFixed(1)} km/h: active{" "}
-              {activeAssistance?.toFixed(1)}% · draft preview{" "}
+              {activeAssistancePercent?.toFixed(1)}% · draft preview{" "}
               {draftAssistance?.toFixed(1)}%
             </span>
           )}
@@ -302,6 +308,7 @@ export const SteeringCurveEditor = ({
           active={state.active.definition}
           draft={state.draft}
           speedKph={speedKph}
+          activeAssistance={activeAssistance}
           onPointChange={changePoint}
         />
 
@@ -386,6 +393,10 @@ export const SteeringCurveEditor = ({
           }
           canRevert={!status.draftMatchesActive}
           canDelete={status.selectedProfile !== null}
+          draftInterpolation={state.draft.interpolation}
+          smoothSupported={state.active.supported_interpolations.includes(
+            "monotone-cubic-v1"
+          )}
           confirmAction={
             confirmAction?.type === "delete"
               ? {
@@ -405,14 +416,26 @@ export const SteeringCurveEditor = ({
               })
             }
           }}
+          onConvertInterpolation={() => {
+            setState((current) => ({
+              ...current,
+              draft: convertDraftInterpolation(
+                current.draft,
+                current.draft.interpolation === "linear-v1"
+                  ? "monotone-cubic-v1"
+                  : "linear-v1"
+              ),
+              lastError: null,
+            }))
+          }}
           onConfirm={confirmRequestedAction}
           onCancelConfirm={() => setConfirmAction(null)}
         />
 
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          Editing changes browser draft state only. Apply changes simulator
-          runtime; Save changes SQLite. Neither grants physical steering output
-          authority.
+          Editing and interpolation conversion change browser draft state only.
+          Save creates a saved revision; Apply consciously activates the draft.
+          Neither grants physical steering output authority.
         </p>
       </CardContent>
     </Card>

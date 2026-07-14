@@ -11,16 +11,20 @@ import pytest
 from e87canbus.api.simulator import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import SimulationConfig, simulator_config
-from e87canbus.features.steering import BUILT_IN_STEERING_CURVE
+from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.engine import SimulationEngine
 from fastapi.testclient import TestClient
 
 
-def definition_json(*, second_assistance: int = 889) -> dict[str, Any]:
+def definition_json(
+    *,
+    second_assistance: int = 889,
+    interpolation: str = "linear-v1",
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "interpolation": "linear-v1",
+        "interpolation": interpolation,
         "points": [
             {
                 "speed_deci_kph": point.speed_deci_kph,
@@ -106,6 +110,59 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
     ]
     assert deleted.status_code == 204
     assert client.get(f"/api/steering/profiles/{created['profile_id']}").status_code == 404
+
+
+def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
+    client: TestClient,
+) -> None:
+    smooth = definition_json(interpolation="monotone-cubic-v1")
+
+    saved = client.post(
+        "/api/steering/profiles",
+        json={"name": "Smooth", "definition": smooth},
+    )
+    activated = client.post(
+        "/api/steering/curve-state/activate",
+        json={"definition": smooth},
+    )
+
+    assert saved.status_code == 201
+    assert saved.json()["definition"] == smooth
+    assert activated.status_code == 200
+    assert activated.json()["definition"] == smooth
+    assert activated.json()["supported_interpolations"] == [
+        "linear-v1",
+        "monotone-cubic-v1",
+    ]
+
+
+def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejected(
+    tmp_path: Path,
+) -> None:
+    engine = SimulationEngine(
+        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,)
+    )
+
+    with TestClient(make_app(tmp_path / "profiles.sqlite3", engine=engine)) as client:
+        before = client.get("/api/steering/curve-state").json()
+        response = client.post(
+            "/api/steering/curve-state/activate",
+            json={
+                "definition": definition_json(interpolation="monotone-cubic-v1")
+            },
+        )
+        after = client.get("/api/steering/curve-state").json()
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "unsupported_interpolation",
+        "message": (
+            "steering curve consumer does not support monotone-cubic-v1; "
+            "supported interpolations: linear-v1"
+        ),
+        "supported_interpolations": ["linear-v1"],
+    }
+    assert after == before
 
 
 def test_saved_profiles_survive_api_restart(tmp_path: Path) -> None:

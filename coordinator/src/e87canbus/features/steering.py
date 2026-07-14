@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ STEERING_PROFILE_NAME_MAX_LENGTH = 100
 # One per-mille is the authoritative assistance resolution. Rounding a value to
 # that resolution introduces at most half a per-mille of calculation error.
 ASSISTANCE_QUANTIZATION_TOLERANCE = 0.0005
+STEERING_CURVE_CONFORMANCE_TOLERANCE = 1e-12
 
 
 class CurveInterpolation(StrEnum):
@@ -86,7 +88,10 @@ def validate_steering_curve_definition(definition: SteeringCurveDefinition) -> N
         raise ValueError(f"unsupported steering curve schema_version: {definition.schema_version}")
     if not isinstance(definition.interpolation, CurveInterpolation):
         raise ValueError("interpolation must be a CurveInterpolation value")
-    if definition.interpolation is not CurveInterpolation.LINEAR_V1:
+    if definition.interpolation not in (
+        CurveInterpolation.LINEAR_V1,
+        CurveInterpolation.MONOTONE_CUBIC_V1,
+    ):
         raise ValueError(f"unsupported steering curve interpolation: {definition.interpolation}")
     if not isinstance(definition.points, tuple):
         raise ValueError("points must be an immutable tuple")
@@ -276,9 +281,18 @@ def interpolate_steering_curve_definition(
     speed_kph: float,
     definition: SteeringCurveDefinition,
 ) -> float:
-    """Evaluate a validated definition, holding the nearest endpoint outside its grid."""
+    """Evaluate the definition's versioned algorithm in binary64 calculation units."""
 
-    return interpolate_speed_to_assistance(speed_kph, steering_curve_as_float_pairs(definition))
+    validate_steering_curve_definition(definition)
+    if not math.isfinite(speed_kph):
+        raise ValueError("speed_kph must be finite")
+    match definition.interpolation:
+        case CurveInterpolation.LINEAR_V1:
+            return interpolate_speed_to_assistance(
+                speed_kph, steering_curve_as_float_pairs(definition)
+            )
+        case CurveInterpolation.MONOTONE_CUBIC_V1:
+            return interpolate_monotone_cubic_v1(speed_kph * 10.0, definition.points)
 
 
 def clamp_manual_level(level: int, level_count: int) -> int:
@@ -313,3 +327,100 @@ def interpolate_speed_to_assistance(
             return left_assistance + ratio * (right_assistance - left_assistance)
 
     return points[-1][1]
+
+
+def interpolate_monotone_cubic_v1(
+    speed_deci_kph: float,
+    points: Sequence[SteeringCurvePoint],
+) -> float:
+    """Evaluate Steffen/D3 monotone Hermite points expressed in integer input units."""
+
+    if len(points) < 2:
+        raise ValueError("monotone-cubic-v1 requires at least two points")
+    if not math.isfinite(speed_deci_kph):
+        raise ValueError("speed_deci_kph must be finite")
+
+    x = tuple(float(point.speed_deci_kph) for point in points)
+    y = tuple(point.assistance_per_mille / 1000.0 for point in points)
+    spans = tuple(right - left for left, right in zip(x, x[1:], strict=False))
+    if any(not math.isfinite(span) or span <= 0.0 for span in spans):
+        raise ValueError("monotone-cubic-v1 speeds must be finite and strictly increasing")
+
+    evaluation_x = speed_deci_kph
+    if evaluation_x <= x[0]:
+        return y[0]
+    if evaluation_x >= x[-1]:
+        return y[-1]
+
+    for index, point_x in enumerate(x):
+        if evaluation_x == point_x:
+            return y[index]
+
+    tangents = _steffen_tangents(x, y)
+    for index, (left_x, right_x) in enumerate(zip(x, x[1:], strict=False)):
+        if evaluation_x >= right_x:
+            continue
+        span = right_x - left_x
+        progress = (evaluation_x - left_x) / span
+        progress_squared = progress * progress
+        progress_cubed = progress_squared * progress
+        value = (
+            (2.0 * progress_cubed - 3.0 * progress_squared + 1.0) * y[index]
+            + (progress_cubed - 2.0 * progress_squared + progress) * span * tangents[index]
+            + (-2.0 * progress_cubed + 3.0 * progress_squared) * y[index + 1]
+            + (progress_cubed - progress_squared) * span * tangents[index + 1]
+        )
+        return min(1.0, max(0.0, value))
+
+    return y[-1]
+
+
+def _steffen_tangents(x: tuple[float, ...], y: tuple[float, ...]) -> tuple[float, ...]:
+    if len(x) == 2:
+        secant = (y[1] - y[0]) / (x[1] - x[0])
+        return (secant, secant)
+    interior = tuple(
+        _steffen_interior_tangent(
+            x[index - 1],
+            y[index - 1],
+            x[index],
+            y[index],
+            x[index + 1],
+            y[index + 1],
+        )
+        for index in range(1, len(x) - 1)
+    )
+    first_secant = (y[1] - y[0]) / (x[1] - x[0])
+    last_secant = (y[-1] - y[-2]) / (x[-1] - x[-2])
+    return (
+        (3.0 * first_secant - interior[0]) / 2.0,
+        *interior,
+        (3.0 * last_secant - interior[-1]) / 2.0,
+    )
+
+
+def _steffen_interior_tangent(
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> float:
+    left_span = x1 - x0
+    right_span = x2 - x1
+    left_secant = (y1 - y0) / left_span
+    right_secant = (y2 - y1) / right_span
+    weighted_secant = (left_secant * right_span + right_secant * left_span) / (
+        left_span + right_span
+    )
+    sign_sum = _d3_sign(left_secant) + _d3_sign(right_secant)
+    return sign_sum * min(
+        abs(left_secant),
+        abs(right_secant),
+        0.5 * abs(weighted_secant),
+    )
+
+
+def _d3_sign(value: float) -> int:
+    return -1 if value < 0.0 else 1

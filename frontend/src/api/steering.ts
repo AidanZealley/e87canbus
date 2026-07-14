@@ -5,9 +5,11 @@ export type SteeringCurvePoint = {
 
 export type SteeringCurveDefinition = {
   schema_version: 1
-  interpolation: "linear-v1"
+  interpolation: SteeringCurveInterpolation
   points: SteeringCurvePoint[]
 }
+
+export type SteeringCurveInterpolation = "linear-v1" | "monotone-cubic-v1"
 
 export type ActiveSteeringCurve = {
   definition: SteeringCurveDefinition
@@ -16,6 +18,7 @@ export type ActiveSteeringCurve = {
   status: "active" | "activating" | "activation_failed"
   saved_profile_id: string | null
   saved_profile_revision: number | null
+  supported_interpolations: SteeringCurveInterpolation[]
 }
 
 export type StoredSteeringProfile = {
@@ -32,6 +35,7 @@ type ApiProblemBody = {
     code?: string
     message?: string
     current_revision?: number
+    supported_interpolations?: SteeringCurveInterpolation[]
   }
 }
 
@@ -39,18 +43,21 @@ export class SteeringApiError extends Error {
   readonly status: number
   readonly code: string
   readonly currentRevision?: number
+  readonly supportedInterpolations?: SteeringCurveInterpolation[]
 
   constructor(
     status: number,
     code: string,
     message: string,
-    currentRevision?: number
+    currentRevision?: number,
+    supportedInterpolations?: SteeringCurveInterpolation[]
   ) {
     super(message)
     this.name = "SteeringApiError"
     this.status = status
     this.code = code
     this.currentRevision = currentRevision
+    this.supportedInterpolations = supportedInterpolations
   }
 }
 
@@ -79,7 +86,8 @@ const request = async <Response>(
       problem.error?.code ?? "request_failed",
       problem.error?.message ??
         `Steering API request failed: ${response.status}`,
-      problem.error?.current_revision
+      problem.error?.current_revision,
+      problem.error?.supported_interpolations
     )
   }
 

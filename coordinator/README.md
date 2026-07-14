@@ -26,8 +26,12 @@ This is why code imports `e87canbus.application` even though it is deployed as t
 values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
 160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
 per-mille assistance (`assistance_per_mille`, `0..1000`); float pairs exist only as a calculation
-projection. Version 1 accepts `linear-v1` and requires assistance to be non-increasing as speed
-rises. `monotone-cubic-v1` is reserved and fails validation until its later implementation phase.
+projection. Version 1 accepts `linear-v1` and `monotone-cubic-v1` and requires assistance to be
+non-increasing as speed rises. Linear profiles retain piecewise-linear behavior. The smooth
+evaluator implements the checked-in Steffen/Hermite
+[numerical contract](../docs/assist-curve/monotone-cubic-v1.md), including endpoint hold, exact
+control-point values, binary64 tolerance and final `0..1` clamping. Python and TypeScript load the
+same language-neutral golden vectors.
 
 Definition identity is the lowercase SHA-256 digest of compact, key-sorted UTF-8 JSON containing
 only `schema_version`, `interpolation`, and the ordered integer point fields. Profile IDs, names,
@@ -46,6 +50,9 @@ mode has a fresh speed sample. Identical definitions emit no steering command an
 activation revision, while a changed saved-profile association is still published as metadata.
 Current in-process activation completes with status `active`; snapshots reserve `activating` and
 `activation_failed` for a future asynchronous consumer without implementing controller transport.
+The kernel activation boundary also carries the consumer's explicit supported-interpolation set.
+An unsupported definition is rejected before state or revision changes, and the API reports
+`unsupported_interpolation` with the supported versions rather than substituting a linear curve.
 
 `features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
 name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
@@ -78,7 +85,8 @@ API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`,
 are `404`, name/revision/provenance conflicts are `409`, and storage or bounded-owner overload is
 `503`; an immediate runtime effect failure after activation also returns typed `503` after the
 owner publishes the committed active curve and fatal snapshot. Revision conflicts also return
-`current_revision`. Successful saved CRUD publishes only a
+`current_revision`; an interpolation capability conflict is `409` and returns
+`supported_interpolations`. Successful saved CRUD publishes only a
 `steering_profile_catalog_changed` WebSocket invalidation. Reconnecting clients receive the full
 active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
 or missed-event replay are required.

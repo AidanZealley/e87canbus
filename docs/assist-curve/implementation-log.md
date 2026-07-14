@@ -23,7 +23,7 @@ of commands or a replacement for commit history.
 | 3 — Runtime activation | Verified | 2026-07-14 | Ordered in-memory hot activation implemented |
 | 4 — Profile API | Verified | 2026-07-14 | CRUD, activation and publication contracts implemented |
 | 5 — Interactive editor | Implemented | 2026-07-14 | Automated and selected browser checks pass; touch/pointer verification remains |
-| 6 — Smooth interpolation | Not started | — | — |
+| 6 — Smooth interpolation | Implemented | 2026-07-14 | Cross-language evaluator and activation capability implemented; browser visual check remains |
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass; use `Verified` only after every phase
@@ -50,6 +50,50 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-14 — Phase 6: versioned smooth interpolation implemented
+
+- **Status:** Implemented
+- **Scope:** Added `monotone-cubic-v1` to the coordinator simulator and curve editor while retaining
+  permanent `linear-v1` behavior. No controller transport, firmware implementation or physical
+  output authority was added.
+- **Changed:** Added direct Python and TypeScript implementations of the specified Steffen monotone
+  piecewise cubic Hermite algorithm; a language-neutral numerical contract and shared checked-in
+  golden vectors; exact endpoint/control-point behavior, defensive clamping and finite-input
+  checks; an explicit two-point secant rule; exhaustive integer-speed shape tests across
+  representative valid profiles plus defensive highly unequal/non-positive span cases; an
+  explicit kernel consumer capability set and typed API rejection with supported versions; API
+  storage and activation acceptance for smooth profiles; an explicit browser-local conversion
+  action; and deterministic 1 km/h evaluated chart samples rendered with linear SVG paths. The
+  current-speed active marker now uses backend-reported Auto assistance when available.
+- **Decisions:** Both implementations calculate in IEEE 754 binary64 using integer deci-km/h and
+  per-mille profile inputs, with absolute conformance tolerance `1e-12`. Conversion changes only
+  the draft discriminator; existing Save revision/Save as and Apply actions remain separate so a
+  saved or active behavior change is conscious. The in-process coordinator evaluator advertises
+  both versions by default, while the existing activation boundary can be configured with a
+  narrower capability set and rejects before committing. No future controller abstraction was
+  introduced.
+- **Verification:** `uv run pytest -q` passed 330 tests with the known upstream Starlette warning;
+  `pnpm test` passed 25 unit and 13 component tests; `pnpm lint`, `pnpm typecheck`, `pnpm build`,
+  `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus`, `uv run python
+  scripts/generate_custom_protocol.py --check`, `bash -n scripts/*.sh` and `git diff --check`
+  passed. Tests also prove two-point and highly unequal-span conformance, rejection of non-positive
+  spans, smooth activation/effective output at a non-control-point speed, explicit smooth Apply
+  adoption and linear-only conversion disablement. The build retained the known large-chunk
+  advisory. The collaborative preview opened and the page made successful
+  snapshot/profile/WebSocket requests, but snapshot and even trivial DOM evaluation automation
+  timed out on two fresh tabs, so conversion/Apply and narrow-layout visual interaction were not
+  re-verified in a browser for this phase.
+- **Documentation:** Added the language-neutral `monotone-cubic-v1` contract and vector artifact;
+  updated the coordinator, frontend and roadmap READMEs; updated this status and entry.
+- **Dependencies/migrations:** None. Existing SQLite rows and the schema remain unchanged; the
+  existing interpolation column and canonical definition bytes carry the new discriminator.
+- **Remaining:** Re-run the smooth conversion, save, Apply, evaluated-path and narrow-layout checks
+  in a working collaborative browser. Future embedded firmware must implement the same checked-in
+  contract and vectors only after the existing hardware-evidence and controller-design gates.
+- **Next handoff:** Final integration review can treat the Python/TypeScript/vector conformance,
+  activation capability rejection and editor rendering criteria as automated and passing; browser
+  visual interaction remains the only Phase 6 verification gap.
 
 ### 2026-07-14 — Phase 5: interactive curve editor implemented
 

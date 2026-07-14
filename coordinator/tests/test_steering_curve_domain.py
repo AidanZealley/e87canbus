@@ -74,13 +74,6 @@ def test_builtin_definition_is_the_documented_stable_default() -> None:
         (lambda: replace(BUILT_IN_STEERING_CURVE, schema_version=2), "unsupported.*schema"),
         (lambda: replace(BUILT_IN_STEERING_CURVE, schema_version=True), "must be an integer"),
         (
-            lambda: replace(
-                BUILT_IN_STEERING_CURVE,
-                interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
-            ),
-            "unsupported.*interpolation",
-        ),
-        (
             lambda: replace(BUILT_IN_STEERING_CURVE, interpolation="linear-v1"),
             "CurveInterpolation",
         ),
@@ -180,6 +173,16 @@ def test_assistance_bounds_are_inclusive() -> None:
     )
 
     validate_steering_curve_definition(definition)
+
+
+def test_domain_accepts_both_versioned_interpolation_contracts() -> None:
+    smooth = replace(
+        BUILT_IN_STEERING_CURVE,
+        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
+    )
+
+    validate_steering_curve_definition(BUILT_IN_STEERING_CURVE)
+    validate_steering_curve_definition(smooth)
 
 
 def test_domain_values_are_immutable() -> None:

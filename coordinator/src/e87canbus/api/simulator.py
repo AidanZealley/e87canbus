@@ -35,6 +35,7 @@ from e87canbus.features.steering import (
     StoredSteeringProfile,
     validate_steering_profile_id,
 )
+from e87canbus.runtime import UnsupportedSteeringCurveInterpolation
 from e87canbus.simulation.engine import (
     ActivateCurve,
     PressButton,
@@ -99,11 +100,13 @@ class ApiProblem(Exception):
         message: str,
         *,
         current_revision: int | None = None,
+        supported_interpolations: tuple[str, ...] | None = None,
     ) -> None:
         self.status_code = status_code
         self.code = code
         self.message = message
         self.current_revision = current_revision
+        self.supported_interpolations = supported_interpolations
 
 
 def _definition_from_request(
@@ -157,6 +160,10 @@ def _curve_state_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
         "status": snapshot.application.steering_curve_activation_status.value,
         "saved_profile_id": active.saved_profile_id,
         "saved_profile_revision": active.saved_profile_revision,
+        "supported_interpolations": [
+            interpolation.value
+            for interpolation in snapshot.application.supported_steering_curve_interpolations
+        ],
     }
 
 
@@ -304,6 +311,8 @@ def create_app(
         error: dict[str, Any] = {"code": exc.code, "message": exc.message}
         if exc.current_revision is not None:
             error["current_revision"] = exc.current_revision
+        if exc.supported_interpolations is not None:
+            error["supported_interpolations"] = list(exc.supported_interpolations)
         return JSONResponse(status_code=exc.status_code, content={"error": error})
 
     @app.exception_handler(RequestValidationError)
@@ -459,6 +468,13 @@ def create_app(
                 app,
                 ActivateCurve(definition, saved_profile_id, saved_profile_revision),
             )
+        except UnsupportedSteeringCurveInterpolation as exc:
+            raise ApiProblem(
+                409,
+                "unsupported_interpolation",
+                str(exc),
+                supported_interpolations=tuple(item.value for item in exc.supported_interpolations),
+            ) from exc
         except ValueError as exc:
             raise ApiProblem(422, "validation_error", str(exc)) from exc
         except SimulationSessionFailed as exc:

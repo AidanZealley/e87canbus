@@ -18,6 +18,7 @@ import {
   useSimulatorStatus,
   useActiveSteeringCurve,
   useApplicationSnapshot,
+  useSteeringControllerSnapshot,
 } from "./query"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorTrace } from "./SimulatorTrace"
@@ -28,6 +29,7 @@ export const SimulatorWorkbench = () => {
   const status = useSimulatorStatus()
   const application = useApplicationSnapshot()
   const activeCurve = useActiveSteeringCurve()
+  const steeringController = useSteeringControllerSnapshot()
   const command = useSimulatorCommand()
   const connectionState = useSimulatorSocket(
     status.isFetched && !status.isError
@@ -90,6 +92,12 @@ export const SimulatorWorkbench = () => {
               activeCurve={activeCurve}
               speedKph={
                 application.speed_valid ? application.vehicle_speed_kph : null
+              }
+              activeAssistance={
+                application.speed_valid &&
+                steeringController.last_command_reason === "auto"
+                  ? steeringController.effective_assistance
+                  : null
               }
             />
           </section>

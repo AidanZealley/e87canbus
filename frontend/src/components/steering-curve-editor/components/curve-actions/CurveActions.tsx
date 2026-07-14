@@ -1,4 +1,5 @@
 import type { PendingCurveAction } from "../../types"
+import type { SteeringCurveInterpolation } from "@/api/steering"
 import { Button } from "@/components/ui/button"
 
 type CurveActionsProps = {
@@ -7,12 +8,15 @@ type CurveActionsProps = {
   canSave: boolean
   canRevert: boolean
   canDelete: boolean
+  draftInterpolation: SteeringCurveInterpolation
+  smoothSupported: boolean
   confirmAction:
     { type: "revert" } | { type: "delete"; profileName: string } | null
   onApply: () => void
   onSave: () => void
   onRequestRevert: () => void
   onRequestDelete: () => void
+  onConvertInterpolation: () => void
   onConfirm: () => void
   onCancelConfirm: () => void
 }
@@ -23,11 +27,14 @@ export const CurveActions = ({
   canSave,
   canRevert,
   canDelete,
+  draftInterpolation,
+  smoothSupported,
   confirmAction,
   onApply,
   onSave,
   onRequestRevert,
   onRequestDelete,
+  onConvertInterpolation,
   onConfirm,
   onCancelConfirm,
 }: CurveActionsProps) => {
@@ -48,6 +55,20 @@ export const CurveActions = ({
         onClick={onSave}
       >
         {pendingAction === "save" ? "Saving…" : "Save revision"}
+      </Button>
+      <Button
+        variant="outline"
+        className="h-11 px-4"
+        disabled={
+          pending || (draftInterpolation === "linear-v1" && !smoothSupported)
+        }
+        onClick={onConvertInterpolation}
+      >
+        {draftInterpolation === "linear-v1"
+          ? smoothSupported
+            ? "Convert draft to smooth"
+            : "Smooth unavailable"
+          : "Use linear draft"}
       </Button>
       <Button
         variant="outline"

@@ -12,10 +12,12 @@ from e87canbus.application.state import (
 from e87canbus.config import CanNetwork
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
+    CurveInterpolation,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     initial_active_steering_curve,
+    interpolate_steering_curve_definition,
     steering_curve_fingerprint,
 )
 from e87canbus.runtime import (
@@ -25,8 +27,15 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     SteeringActuatorFailed,
     TimerElapsed,
+    UnsupportedSteeringCurveInterpolation,
 )
-from e87canbus.simulation.engine import SimulationEngine, snapshot_to_dict
+from e87canbus.simulation.engine import (
+    ActivateCurve,
+    RunControlTimer,
+    SetVehicleSpeed,
+    SimulationEngine,
+    snapshot_to_dict,
+)
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
 SAVED_PROFILE_ID = "11111111-1111-4111-8111-111111111111"
@@ -77,12 +86,34 @@ def test_activation_recalculates_fresh_auto_output_immediately() -> None:
     assert commit is not None
     assert commit.revision == 2
     assert commit.snapshot.active_steering_curve.activation_revision == 2
-    assert commit.effects == (
-        SetSteeringAssistance(0.5, SteeringCommandReason.AUTO),
-    )
+    assert commit.effects == (SetSteeringAssistance(0.5, SteeringCommandReason.AUTO),)
     timer = kernel.dispatch(TimerElapsed(1.1))
     assert timer is not None
     assert timer.effects == commit.effects
+
+
+def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -> None:
+    engine = SimulationEngine()
+    smooth = replace(
+        BUILT_IN_STEERING_CURVE,
+        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
+    )
+    speed_kph = 45.0
+    expected = interpolate_steering_curve_definition(speed_kph, smooth)
+
+    engine.execute(SetVehicleSpeed(speed_kph))
+    engine.execute(RunControlTimer(1.0))
+    result = engine.execute(ActivateCurve(smooth))
+    serialized = snapshot_to_dict(result.snapshot, include_trace=False)
+
+    assert result.snapshot.steering_controller.effective_assistance == pytest.approx(expected)
+    assert result.snapshot.steering_controller.last_command_reason is SteeringCommandReason.AUTO
+    assert result.snapshot.application.active_steering_curve.definition == smooth
+    assert serialized["steering_controller"]["effective_assistance"] == pytest.approx(expected)
+    assert (
+        serialized["application"]["active_steering_curve"]["definition"]["interpolation"]
+        == "monotone-cubic-v1"
+    )
 
 
 @pytest.mark.parametrize(
@@ -138,6 +169,26 @@ def test_invalid_activation_leaves_active_state_and_revision_unchanged() -> None
     with pytest.raises(ValueError, match="unsupported.*schema_version"):
         kernel.dispatch(ActivateSteeringCurve(invalid))
 
+    assert kernel.snapshot() == before
+    assert kernel.diagnostics().revision == 1
+
+
+def test_consumer_capability_rejects_unsupported_interpolation_before_activation() -> None:
+    kernel = CoordinatorKernel(
+        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,)
+    )
+    assert kernel.dispatch(KernelStarted(0.0)) is not None
+    smooth = replace(
+        BUILT_IN_STEERING_CURVE,
+        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
+    )
+    before = kernel.snapshot()
+
+    with pytest.raises(UnsupportedSteeringCurveInterpolation) as caught:
+        kernel.dispatch(ActivateSteeringCurve(smooth))
+
+    assert caught.value.interpolation is CurveInterpolation.MONOTONE_CUBIC_V1
+    assert caught.value.supported_interpolations == (CurveInterpolation.LINEAR_V1,)
     assert kernel.snapshot() == before
     assert kernel.diagnostics().revision == 1
 
@@ -240,4 +291,5 @@ def test_serialized_snapshot_contains_complete_authoritative_active_projection()
         "status": "active",
         "saved_profile_id": SAVED_PROFILE_ID,
         "saved_profile_revision": 4,
+        "supported_interpolations": ["linear-v1", "monotone-cubic-v1"],
     }

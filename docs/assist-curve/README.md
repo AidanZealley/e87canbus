@@ -42,6 +42,10 @@ vehicle-speed or steering-hardware fact.
 | 5 | [Interactive editor](05-interactive-editor.md) | Touch-friendly draggable Recharts editor | Phase 4 |
 | 6 | [Smooth interpolation](06-smooth-interpolation.md) | Versioned monotone interpolation shared across implementations | Phases 1–5 |
 
+Phase 6's language-neutral equations and conformance tolerance are recorded in the
+[`monotone-cubic-v1` numerical contract](monotone-cubic-v1.md); both implementations test against
+the adjacent checked-in golden-vector artifact.
+
 Phases 2 and 3 can be implemented in parallel after Phase 1. Phase 4 joins them. Phase 5 should
 initially render the existing linear interpolation honestly. Phase 6 changes the curve algorithm
 only after storage, activation and editing are stable.

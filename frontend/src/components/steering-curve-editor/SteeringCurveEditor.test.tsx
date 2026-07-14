@@ -52,6 +52,7 @@ const active = (
   status: "active",
   saved_profile_id: profile?.profile_id ?? null,
   saved_profile_revision: profile?.revision ?? null,
+  supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
 })
 
 const profile = (
@@ -113,6 +114,116 @@ afterEach(() => {
 })
 
 describe("SteeringCurveEditor", () => {
+  it("converts a linear draft and explicitly applies the smooth definition", async () => {
+    const requests: Array<{
+      url: string
+      method: string
+      definition?: SteeringCurveDefinition
+    }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? "GET"
+        if (method === "GET") return jsonResponse({ profiles: [] })
+        const body = JSON.parse(String(init?.body)) as {
+          definition: SteeringCurveDefinition
+        }
+        requests.push({ url, method, definition: body.definition })
+        if (url.endsWith("/api/steering/curve-state/activate")) {
+          return jsonResponse(active(body.definition, 2))
+        }
+        throw new Error(`Unexpected request: ${method} ${url}`)
+      })
+    )
+
+    renderEditor(active())
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Convert draft to smooth" })
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Apply draft" }))
+
+    expect(await screen.findByText("Active · r2")).toBeTruthy()
+    expect(screen.getByText("Draft matches active")).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Use linear draft" })
+    ).toBeTruthy()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.url).toMatch(/\/curve-state\/activate$/)
+    expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
+    expect(
+      requests.some((request) => request.url.endsWith("/steering/profiles"))
+    ).toBe(false)
+  })
+
+  it("disables smooth conversion when the active consumer advertises linear only", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ profiles: [] }))
+    )
+    const linearOnly = {
+      ...active(),
+      supported_interpolations: ["linear-v1" as const],
+    }
+
+    renderEditor(linearOnly)
+
+    const conversion = await screen.findByRole("button", {
+      name: "Smooth unavailable",
+    })
+    expect((conversion as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText("Draft matches active")).toBeTruthy()
+  })
+
+  it("converts only the draft and saves smooth interpolation as an explicit profile", async () => {
+    const requests: Array<{
+      url: string
+      method: string
+      definition?: SteeringCurveDefinition
+    }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? "GET"
+        if (method === "GET") return jsonResponse({ profiles: [] })
+        const body = JSON.parse(String(init?.body)) as {
+          name: string
+          definition: SteeringCurveDefinition
+        }
+        requests.push({ url, method, definition: body.definition })
+        if (method === "POST" && url.endsWith("/api/steering/profiles")) {
+          return jsonResponse(
+            { ...profile(body.definition), name: body.name },
+            201
+          )
+        }
+        throw new Error(`Unexpected request: ${method} ${url}`)
+      })
+    )
+
+    renderEditor(active())
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Convert draft to smooth" })
+    )
+
+    expect(screen.getByText(/monotone-cubic-v1/)).toBeTruthy()
+    expect(screen.getByText("Draft changed")).toBeTruthy()
+    expect(requests).toHaveLength(0)
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "New profile name" }),
+      { target: { value: "Smooth track" } }
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Save as" }))
+
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
+    expect(requests.some((request) => request.url.endsWith("/activate"))).toBe(
+      false
+    )
+  })
+
   it("uses 44px targets for the saved-profile select and its options", async () => {
     vi.stubGlobal(
       "fetch",

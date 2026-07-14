@@ -12,7 +12,7 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
-from e87canbus.features.steering import SteeringCurveDefinition
+from e87canbus.features.steering import CurveInterpolation, SteeringCurveDefinition
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -21,6 +21,7 @@ from e87canbus.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.runtime import (
+    SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     Commit,
@@ -173,6 +174,7 @@ def snapshot_to_dict(
     include_trace: bool,
 ) -> dict[str, Any]:
     active_curve = snapshot.application.active_steering_curve
+    supported_interpolations = snapshot.application.supported_steering_curve_interpolations
     serialized: dict[str, Any] = {
         "session_id": snapshot.session_id,
         "revision": snapshot.revision,
@@ -200,6 +202,9 @@ def snapshot_to_dict(
                 "status": snapshot.application.steering_curve_activation_status.value,
                 "saved_profile_id": active_curve.saved_profile_id,
                 "saved_profile_revision": active_curve.saved_profile_revision,
+                "supported_interpolations": [
+                    interpolation.value for interpolation in supported_interpolations
+                ],
             },
         },
         "next_pressed": snapshot.next_pressed,
@@ -240,6 +245,9 @@ class SimulationEngine:
         config: AppConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
         steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
+        supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
+            SUPPORTED_STEERING_CURVE_INTERPOLATIONS
+        ),
     ) -> None:
         if button_count < 1 or button_count > 256:
             raise ValueError("button_count must be between 1 and 256")
@@ -249,6 +257,7 @@ class SimulationEngine:
         self.button_count = button_count
         self._clock = clock
         self._steering_controller_factory = steering_controller_factory
+        self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
         self._build_session()
 
@@ -382,6 +391,7 @@ class SimulationEngine:
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             router=router,
+            supported_steering_curve_interpolations=(self._supported_steering_curve_interpolations),
         )
         self.executor = EffectExecutor(
             transmitters,

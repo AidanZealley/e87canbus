@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import {
   CartesianGrid,
   Line,
@@ -14,8 +15,9 @@ import type { SteeringCurveDefinition } from "@/api/steering"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import {
   assistanceBoundsAt,
+  assistanceToPercent,
   assistancePerMilleToPercent,
-  evaluateLinearCurve,
+  sampleSteeringCurve,
   speedDeciKphToKph,
 } from "../../utils"
 import { DraggableCurvePoint } from "./DraggableCurvePoint"
@@ -24,6 +26,7 @@ type CurveChartProps = {
   active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
   speedKph: number | null
+  activeAssistance: number | null
   onPointChange: (index: number, value: number) => void
 }
 
@@ -36,15 +39,20 @@ export const CurveChart = ({
   active,
   draft,
   speedKph,
+  activeAssistance,
   onPointChange,
 }: CurveChartProps) => {
-  const data = draft.points.map((point, index) => ({
-    speedKph: speedDeciKphToKph(point.speed_deci_kph),
-    draft: assistancePerMilleToPercent(point.assistance_per_mille),
-    active: assistancePerMilleToPercent(
-      active.points[index]?.assistance_per_mille ?? point.assistance_per_mille
-    ),
-  }))
+  const data = useMemo(() => {
+    const activeSamples = sampleSteeringCurve(active)
+    const draftSamples = sampleSteeringCurve(draft)
+    return draftSamples.map((sample, index) => ({
+      speedKph: sample.speedKph,
+      draft: assistanceToPercent(sample.assistance),
+      active: assistanceToPercent(
+        activeSamples[index]?.assistance ?? sample.assistance
+      ),
+    }))
+  }, [active, draft])
   const markerSpeed =
     speedKph === null ? null : Math.max(0, Math.min(250, speedKph))
 
@@ -100,12 +108,10 @@ export const CurveChart = ({
           dot={false}
           isAnimationActive={false}
         />
-        {markerSpeed === null ? null : (
+        {markerSpeed === null || activeAssistance === null ? null : (
           <ReferenceDot
             x={markerSpeed}
-            y={assistancePerMilleToPercent(
-              evaluateLinearCurve(active, speedKph ?? markerSpeed)
-            )}
+            y={assistanceToPercent(activeAssistance)}
             r={5}
             fill="var(--color-active)"
             stroke="var(--color-background)"
