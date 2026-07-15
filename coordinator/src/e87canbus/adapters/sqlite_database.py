@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -11,12 +12,14 @@ from typing import Any
 from e87canbus.features.application_settings import DEFAULT_APPLICATION_SETTINGS
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
+    SteeringCurveDefinition,
+    SteeringCurvePoint,
     canonical_steering_curve_bytes,
     steering_curve_fingerprint,
 )
 from e87canbus.features.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 2
+CURRENT_MIGRATION_VERSION = 4
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 
@@ -89,6 +92,10 @@ class SqliteApplicationDatabase:
                     self._apply_migration_1(connection)
                 elif version == 2:
                     self._apply_migration_2(connection)
+                elif version == 3:
+                    self._apply_migration_3(connection)
+                elif version == 4:
+                    self._apply_migration_4(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -184,6 +191,71 @@ class SqliteApplicationDatabase:
         )
         self._record_migration(connection, 2)
 
+    def _apply_migration_3(self, connection: sqlite3.Connection) -> None:
+        self._record_migration(connection, 3)
+
+    def _apply_migration_4(self, connection: sqlite3.Connection) -> None:
+        """Replace algorithm-tagged profiles with points-only smooth definitions."""
+
+        rows = connection.execute(
+            "SELECT profile_id, revision, definition_json FROM steering_profiles"
+        ).fetchall()
+        timestamp = canonical_utc_timestamp(self.clock())
+        for row in rows:
+            raw_definition = json.loads(row["definition_json"])
+            had_interpolation = raw_definition.pop("interpolation", None) is not None
+            definition = SteeringCurveDefinition(
+                schema_version=raw_definition["schema_version"],
+                points=tuple(
+                    SteeringCurvePoint(
+                        speed_deci_kph=point["speed_deci_kph"],
+                        assistance_per_mille=point["assistance_per_mille"],
+                    )
+                    for point in raw_definition["points"]
+                ),
+            )
+            definition_json = canonical_steering_curve_bytes(definition).decode("utf-8")
+            connection.execute(
+                """
+                UPDATE steering_profiles
+                SET revision = ?, definition_json = ?,
+                    definition_fingerprint = ?, updated_at_utc = ?
+                WHERE profile_id = ?
+                """,
+                (
+                    row["revision"] + (1 if had_interpolation else 0),
+                    definition_json,
+                    steering_curve_fingerprint(definition),
+                    timestamp,
+                    row["profile_id"],
+                ),
+            )
+        connection.execute("ALTER TABLE steering_profiles RENAME TO steering_profiles_legacy")
+        connection.execute(
+            """
+            CREATE TABLE steering_profiles (
+                profile_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                revision INTEGER NOT NULL CHECK (revision > 0),
+                schema_version INTEGER NOT NULL,
+                definition_json TEXT NOT NULL,
+                definition_fingerprint TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO steering_profiles
+            SELECT profile_id, name, revision, schema_version, definition_json,
+                   definition_fingerprint, created_at_utc, updated_at_utc
+            FROM steering_profiles_legacy
+            """
+        )
+        connection.execute("DROP TABLE steering_profiles_legacy")
+        self._record_migration(connection, 4)
+
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]
         if count:
@@ -193,15 +265,14 @@ class SqliteApplicationDatabase:
         connection.execute(
             """
             INSERT INTO steering_profiles (
-                profile_id, name, revision, schema_version, interpolation,
+                profile_id, name, revision, schema_version,
                 definition_json, definition_fingerprint, created_at_utc, updated_at_utc
-            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)
             """,
             (
                 BUILT_IN_PROFILE_ID,
                 BUILT_IN_PROFILE_NAME,
                 BUILT_IN_STEERING_CURVE.schema_version,
-                BUILT_IN_STEERING_CURVE.interpolation.value,
                 definition_json,
                 steering_curve_fingerprint(BUILT_IN_STEERING_CURVE),
                 timestamp,

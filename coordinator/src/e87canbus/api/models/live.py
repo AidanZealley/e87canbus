@@ -50,7 +50,6 @@ class SteeringCurvePoint(LiveModel):
 
 class SteeringCurveDefinition(LiveModel):
     schema_version: Literal[1]
-    interpolation: Literal["linear-v1", "monotone-cubic-v1"]
     points: tuple[SteeringCurvePoint, ...]
 
 
@@ -61,7 +60,6 @@ class ActiveSteeringCurveState(LiveModel):
     status: Literal["active", "activating", "activation_failed"]
     saved_profile_id: str | None
     saved_profile_revision: int | None
-    supported_interpolations: tuple[Literal["linear-v1", "monotone-cubic-v1"], ...]
 
 
 class SteeringState(LiveModel):
@@ -267,10 +265,6 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
             status=application.steering_curve_activation_status.value,
             saved_profile_id=active.saved_profile_id,
             saved_profile_revision=active.saved_profile_revision,
-            supported_interpolations=tuple(
-                item.value
-                for item in application.supported_steering_curve_interpolations
-            ),
         ),
     )
 

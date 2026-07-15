@@ -86,7 +86,7 @@ const LoadedSteeringEditor = ({
   const profilesQuery = useQuery(steeringProfilesQueryOptions())
   const profiles = profilesQuery.data ?? []
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
-    null
+    initialActive.saved_profile_id
   )
   const [draft, setDraft] = useState<SteeringCurveDefinition>(
     initialActive.definition
@@ -122,8 +122,11 @@ const LoadedSteeringEditor = ({
     selectedProfile !== null &&
     definitionsEqual(draft, selectedProfile.definition)
   const speedKph = vehicle.speed_valid ? vehicle.speed_kph : null
-  const activeAssistance =
-    speedKph === null ? null : steeringController.effective_assistance
+  const activeAssistance = steering.maximum_assistance_active
+    ? 1
+    : steering.mode === "manual" || speedKph !== null
+      ? steeringController.effective_assistance
+      : null
 
   const selectAndLoad = (profileId: string | null) => {
     const profile = profiles.find((item) => item.profile_id === profileId)

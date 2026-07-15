@@ -9,7 +9,6 @@ from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.models.commands import CommandAcknowledgement
-from e87canbus.runtime import UnsupportedSteeringCurveInterpolation
 from e87canbus.service import (
     ControllerInboxFull,
     ControllerServiceNotRunning,
@@ -38,15 +37,6 @@ async def submit_runtime_work(app: FastAPI, work: object) -> int:
             503,
             "command_timeout",
             "controller command did not complete before the response timeout",
-        ) from exc
-    except UnsupportedSteeringCurveInterpolation as exc:
-        raise ApiProblem(
-            409,
-            "unsupported_interpolation",
-            str(exc),
-            supported_interpolations=tuple(
-                item.value for item in exc.supported_interpolations
-            ),
         ) from exc
     except ControllerWorkUnavailable as exc:
         raise ApiProblem(503, "controller_failed", str(exc)) from exc

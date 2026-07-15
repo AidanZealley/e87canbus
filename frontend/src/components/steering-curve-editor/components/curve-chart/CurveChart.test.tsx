@@ -44,7 +44,6 @@ it("renders eight accessible points on honest linear series", async () => {
   )
   const definition: SteeringCurveDefinition = {
     schema_version: 1,
-    interpolation: "linear-v1",
     points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
       (speed_deci_kph, index) => ({
         speed_deci_kph,
@@ -124,5 +123,11 @@ it("renders eight accessible points on honest linear series", async () => {
       onPointChange={vi.fn()}
     />
   )
-  expect(document.querySelector(".recharts-reference-line line")).toBeNull()
+  const stoppedMarker = document.querySelector(
+    ".recharts-reference-line line"
+  )
+  expect(stoppedMarker).not.toBeNull()
+  expect(stoppedMarker?.getAttribute("y1")).toBe(
+    maximumAssistanceMarker?.getAttribute("y1")
+  )
 })

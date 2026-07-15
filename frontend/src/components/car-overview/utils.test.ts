@@ -10,7 +10,6 @@ import { activeProfileLabel, steeringModeLabel } from "./utils.ts"
 
 const definition: SteeringCurveDefinition = {
   schema_version: 1,
-  interpolation: "linear-v1",
   points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
     (speed_deci_kph, index) => ({
       speed_deci_kph,
@@ -29,7 +28,6 @@ const steering: SteeringState = {
     status: "active",
     saved_profile_id: "11111111-1111-4111-8111-111111111111",
     saved_profile_revision: 3,
-    supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
   },
 }
 const profile: StoredSteeringProfile = {

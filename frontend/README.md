@@ -118,15 +118,14 @@ definition and the selected saved SQLite profile. Dragging, keyboard changes and
 edit the draft only. **Apply draft** changes simulator runtime state; **Save revision** and **Save
 as** change the saved catalog. Loading or deleting a saved profile never applies it.
 
-Curve points use the fixed schema-version-1 speed grid. Both `linear-v1` and
-`monotone-cubic-v1` use the same pure TypeScript evaluator as the numeric preview. The chart samples
+Curve points use the fixed schema-version-1 speed grid and the sole smooth evaluator used by the
+numeric preview. The chart samples
 that evaluator once per draft change on a deterministic 1 km/h grid, renders those samples with
 linear SVG paths and keeps the original points as separate handles in a layer above both curves.
 The checked-in language-neutral vectors also drive the Python coordinator tests.
 
-**Convert draft to smooth** changes only the interpolation discriminator in browser draft state.
-It is available only when the runtime advertises `monotone-cubic-v1`; saving that draft creates an
-explicit profile revision or new profile, and Apply remains a separate conscious activation. A
+Saving a draft creates an explicit profile revision or new profile, and Apply remains a separate
+conscious activation. A
 dirty draft is retained across Socket.IO reconnects and external active changes; profile revision
 conflicts retain it until the operator explicitly loads refreshed saved values. These profile
 operations remain simulation-only and grant no physical output authority.

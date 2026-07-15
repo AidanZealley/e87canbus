@@ -13,7 +13,6 @@ import {
   assistancePerMilleToPercent,
   definitionsEqual,
   deriveEditorStatus,
-  convertDraftInterpolation,
   evaluateSteeringCurve,
   normalizeAssistanceAt,
   reconcileActiveCurve,
@@ -26,7 +25,6 @@ const definition = (
   values = [1000, 890, 780, 670, 380, 0, 0, 0]
 ): SteeringCurveDefinition => ({
   schema_version: 1,
-  interpolation: "linear-v1",
   points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
     (speed_deci_kph, index) => ({
       speed_deci_kph,
@@ -45,7 +43,6 @@ const active = (
   status: "active",
   saved_profile_id: null,
   saved_profile_revision: null,
-  supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
 })
 
 test("integer units convert to display units without changing authority", () => {
@@ -102,11 +99,11 @@ test("definition equality and dirty state compare complete integer definitions",
   })
 })
 
-test("linear evaluation holds endpoints and uses the selected definition", () => {
+test("smooth evaluation holds endpoints and uses the selected definition", () => {
   const activeDefinition = definition()
   const draftDefinition = replaceAssistanceAt(activeDefinition, 1, 800)
   assert.equal(evaluateSteeringCurve(activeDefinition, -5), 1)
-  assert.equal(evaluateSteeringCurve(activeDefinition, 5), 0.945)
+  assert.ok(Math.abs(evaluateSteeringCurve(activeDefinition, 5) - 0.945) < 1e-12)
   assert.equal(evaluateSteeringCurve(activeDefinition, 300), 0)
   assert.equal(evaluateSteeringCurve(activeDefinition, 10), 0.89)
   assert.equal(evaluateSteeringCurve(draftDefinition, 10), 0.8)
@@ -138,7 +135,6 @@ test("monotone cubic matches the shared language-neutral golden vectors", () => 
   for (const vector of vectors.cases) {
     const value: SteeringCurveDefinition = {
       schema_version: 1,
-      interpolation: vectors.algorithm,
       points: vectors.speeds_deci_kph.map((speed_deci_kph, index) => ({
         speed_deci_kph,
         assistance_per_mille: vector.assistance_per_mille[index] ?? 0,
@@ -155,10 +151,7 @@ test("monotone cubic matches the shared language-neutral golden vectors", () => 
 })
 
 test("smooth evaluation is bounded, monotone and exactly reproduces points", () => {
-  const smooth = convertDraftInterpolation(
-    definition([1000, 800, 800, 500, 500, 200, 200, 0]),
-    "monotone-cubic-v1"
-  )
+  const smooth = definition([1000, 800, 800, 500, 500, 200, 200, 0])
   const samples = Array.from({ length: 2501 }, (_, speed) =>
     evaluateSteeringCurve(smooth, speed / 10)
   )
@@ -180,7 +173,7 @@ test("smooth evaluation is bounded, monotone and exactly reproduces points", () 
 })
 
 test("chart sampling evaluates a bounded deterministic one-km/h grid", () => {
-  const smooth = convertDraftInterpolation(definition(), "monotone-cubic-v1")
+  const smooth = definition()
   const samples = sampleSteeringCurve(smooth)
 
   assert.equal(samples.length, 251)
@@ -189,19 +182,13 @@ test("chart sampling evaluates a bounded deterministic one-km/h grid", () => {
   assert.equal(samples[45]?.assistance, evaluateSteeringCurve(smooth, 45))
 })
 
-test("unknown algorithms and invalid evaluation inputs fail closed", () => {
-  const unknown = { ...definition(), interpolation: "future-v9" }
-  assert.throws(
-    () => evaluateSteeringCurve(unknown as SteeringCurveDefinition, 10),
-    /Unsupported steering curve interpolation/
-  )
+test("invalid evaluation inputs fail closed", () => {
   assert.throws(() => evaluateSteeringCurve(definition(), Number.NaN), /finite/)
 })
 
 test("two-point monotone cubic reduces exactly to its secant line", () => {
   const value: SteeringCurveDefinition = {
     schema_version: 1,
-    interpolation: "monotone-cubic-v1",
     points: [
       { speed_deci_kph: 30, assistance_per_mille: 900 },
       { speed_deci_kph: 770, assistance_per_mille: 100 },
@@ -216,7 +203,6 @@ test("two-point monotone cubic reduces exactly to its secant line", () => {
 test("defensive smooth evaluator handles unequal spans and rejects non-positive spans", () => {
   const value: SteeringCurveDefinition = {
     schema_version: 1,
-    interpolation: "monotone-cubic-v1",
     points: [
       { speed_deci_kph: 0, assistance_per_mille: 1000 },
       { speed_deci_kph: 1, assistance_per_mille: 900 },
@@ -324,7 +310,6 @@ test("same-revision active updates adopt authoritative provenance and status", (
     status: "activation_failed",
     saved_profile_id: "11111111-1111-4111-8111-111111111111",
     saved_profile_revision: 3,
-    supported_interpolations: ["linear-v1"],
   }
 
   const reconciled = reconcileActiveCurve(state, incoming)
@@ -336,7 +321,6 @@ test("same-revision active updates adopt authoritative provenance and status", (
     incoming.saved_profile_revision
   )
   assert.equal(reconciled.active.status, "activation_failed")
-  assert.deepEqual(reconciled.active.supported_interpolations, ["linear-v1"])
   assert.equal(reconciled.draft, dirty)
   assert.equal(reconciled.draftBaseActivationRevision, 1)
   assert.equal(reconciled.draftBaseFingerprint, initial.fingerprint)

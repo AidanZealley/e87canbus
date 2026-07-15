@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -24,7 +25,6 @@ from e87canbus.features.settings_repository import (
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
     canonical_steering_curve_bytes,
-    steering_curve_fingerprint,
 )
 
 NOW = datetime(2026, 7, 14, 12, 30, tzinfo=UTC)
@@ -40,7 +40,9 @@ def repositories(path: Path):
 
 
 def create_version_1_database(path: Path) -> None:
-    definition_json = canonical_steering_curve_bytes(BUILT_IN_STEERING_CURVE).decode()
+    raw_definition = json.loads(canonical_steering_curve_bytes(BUILT_IN_STEERING_CURVE))
+    raw_definition["interpolation"] = "linear-v1"
+    definition_json = json.dumps(raw_definition, sort_keys=True, separators=(",", ":"))
     with sqlite3.connect(path) as connection:
         connection.executescript(
             """
@@ -72,16 +74,16 @@ def create_version_1_database(path: Path) -> None:
             (
                 BUILT_IN_PROFILE_ID,
                 "Preserved profile",
-                BUILT_IN_STEERING_CURVE.interpolation.value,
+                "linear-v1",
                 definition_json,
-                steering_curve_fingerprint(BUILT_IN_STEERING_CURVE),
+                "legacy-fingerprint",
                 "2026-07-14T10:00:00.000000Z",
                 "2026-07-14T11:00:00.000000Z",
             ),
         )
 
 
-def test_fresh_database_applies_both_migrations_and_seeds(tmp_path: Path) -> None:
+def test_fresh_database_applies_all_migrations_and_seeds(tmp_path: Path) -> None:
     path = tmp_path / "application.sqlite3"
     database, profiles, settings = repositories(path)
 
@@ -92,26 +94,35 @@ def test_fresh_database_applies_both_migrations_and_seeds(tmp_path: Path) -> Non
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-    assert versions == [(1,), (2,)]
+    assert versions == [(1,), (2,), (3,), (4,)]
     assert journal_mode == "wal"
     assert profiles.get_profile(BUILT_IN_PROFILE_ID) is not None
     assert settings.get_settings() == DEFAULT_APPLICATION_SETTINGS
 
 
-def test_version_1_upgrade_preserves_profile_exactly(tmp_path: Path) -> None:
+def test_version_1_upgrade_converts_legacy_profile_to_smooth(tmp_path: Path) -> None:
     path = tmp_path / "application.sqlite3"
     create_version_1_database(path)
     database, profiles, settings = repositories(path)
-    before = profiles.get_profile(BUILT_IN_PROFILE_ID)
-
     database.initialize()
 
-    assert profiles.get_profile(BUILT_IN_PROFILE_ID) == before
+    after = profiles.get_profile(BUILT_IN_PROFILE_ID)
+    assert after is not None
+    assert after.revision == 5
     assert settings.get_settings() == DEFAULT_APPLICATION_SETTINGS
     with sqlite3.connect(path) as connection:
         assert connection.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
-        ).fetchall() == [(1,), (CURRENT_MIGRATION_VERSION,)]
+        ).fetchall() == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")
+        }
+        stored_json = connection.execute(
+            "SELECT definition_json FROM steering_profiles WHERE profile_id = ?",
+            (BUILT_IN_PROFILE_ID,),
+        ).fetchone()[0]
+    assert "interpolation" not in columns
+    assert "interpolation" not in json.loads(stored_json)
 
 
 def test_repeat_initialization_preserves_edited_settings(tmp_path: Path) -> None:

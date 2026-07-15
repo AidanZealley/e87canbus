@@ -51,8 +51,8 @@ export const SteeringCurveEditor = ({
         <ProfileSelector />
         <CurveActions />
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          Editing and interpolation conversion change browser draft state only.
-          Save creates a saved revision; Apply consciously activates the draft.
+          Editing changes browser draft state only. Save creates a saved revision;
+          Apply consciously activates the draft.
           Neither grants physical steering output authority.
         </p>
       </CardContent>

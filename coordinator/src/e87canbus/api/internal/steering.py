@@ -23,7 +23,6 @@ from e87canbus.features.profile_repository import (
     SteeringProfileStorageError,
 )
 from e87canbus.features.steering import (
-    CurveInterpolation,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
@@ -37,10 +36,8 @@ def definition_from_request(
     request: SteeringCurveDefinitionRequest,
 ) -> SteeringCurveDefinition:
     try:
-        interpolation = CurveInterpolation(request.interpolation)
         return SteeringCurveDefinition(
             schema_version=request.schema_version,
-            interpolation=interpolation,
             points=tuple(
                 SteeringCurvePoint(point.speed_deci_kph, point.assistance_per_mille)
                 for point in request.points

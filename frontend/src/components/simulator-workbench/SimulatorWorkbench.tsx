@@ -81,7 +81,13 @@ export const SimulatorWorkbench = () => {
               <SteeringCurveCard
                 activeCurve={steering.active_curve}
                 speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
-                activeAssistance={steeringController.effective_assistance}
+                activeAssistance={
+                  steering.maximum_assistance_active
+                    ? 1
+                    : steering.mode === "manual" || vehicle.speed_valid
+                      ? steeringController.effective_assistance
+                      : null
+                }
               />
             </section>
           ) : null}

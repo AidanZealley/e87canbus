@@ -10,7 +10,6 @@ const steering = {
   active_curve: {
     definition: {
       schema_version: 1 as const,
-      interpolation: "linear-v1" as const,
       points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
         (speed_deci_kph, index) => ({
           speed_deci_kph,
@@ -23,7 +22,6 @@ const steering = {
     status: "active" as const,
     saved_profile_id: null,
     saved_profile_revision: null,
-    supported_interpolations: ["linear-v1" as const],
   },
 }
 

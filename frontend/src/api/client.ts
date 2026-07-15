@@ -3,7 +3,6 @@ type ApiProblemBody = {
     code?: string
     message?: string
     current_revision?: number
-    supported_interpolations?: string[]
   }
 }
 
@@ -55,7 +54,6 @@ export const requestApi = async <Response>(
       problem.error?.message ??
         `${resourceName} API request failed: ${response.status}`,
       problem.error?.current_revision,
-      problem.error?.supported_interpolations
     )
   }
 

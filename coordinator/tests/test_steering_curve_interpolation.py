@@ -8,13 +8,10 @@ import pytest
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
     STEERING_CURVE_CONFORMANCE_TOLERANCE,
-    CurveInterpolation,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     interpolate_monotone_cubic_v1,
-    interpolate_speed_to_assistance,
     interpolate_steering_curve_definition,
-    steering_curve_as_float_pairs,
 )
 
 VECTOR_PATH = Path(__file__).parents[2] / "docs" / "assist-curve" / "monotone-cubic-v1-vectors.json"
@@ -23,7 +20,6 @@ VECTOR_PATH = Path(__file__).parents[2] / "docs" / "assist-curve" / "monotone-cu
 def _definition(values: list[int]) -> SteeringCurveDefinition:
     return SteeringCurveDefinition(
         schema_version=1,
-        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
         points=tuple(
             SteeringCurvePoint(point.speed_deci_kph, assistance)
             for point, assistance in zip(BUILT_IN_STEERING_CURVE.points, values, strict=True)
@@ -39,7 +35,7 @@ def _load_vectors() -> dict[str, Any]:
 def test_monotone_cubic_matches_checked_in_language_neutral_vectors() -> None:
     vectors = _load_vectors()
 
-    assert vectors["algorithm"] == CurveInterpolation.MONOTONE_CUBIC_V1.value
+    assert vectors["algorithm"] == "monotone-cubic-v1"
     assert vectors["schema_version"] == 1
     assert vectors["floating_point"] == "IEEE 754 binary64"
     assert vectors["absolute_tolerance"] == STEERING_CURVE_CONFORMANCE_TOLERANCE
@@ -51,17 +47,6 @@ def test_monotone_cubic_matches_checked_in_language_neutral_vectors() -> None:
                 expected,
                 abs=STEERING_CURVE_CONFORMANCE_TOLERANCE,
             ), f"{case['name']} at {speed_deci_kph} deci-km/h"
-
-
-def test_linear_v1_retains_the_existing_piecewise_linear_result() -> None:
-    for speed_deci_kph in range(-10, 2511):
-        speed_kph = speed_deci_kph / 10.0
-        assert interpolate_steering_curve_definition(
-            speed_kph, BUILT_IN_STEERING_CURVE
-        ) == interpolate_speed_to_assistance(
-            speed_kph,
-            steering_curve_as_float_pairs(BUILT_IN_STEERING_CURVE),
-        )
 
 
 @pytest.mark.parametrize(
@@ -116,7 +101,6 @@ def test_monotone_cubic_is_bounded_non_increasing_and_has_no_segment_overshoot(
 def test_monotone_cubic_holds_endpoints_and_rejects_non_finite_evaluation_speed() -> None:
     definition = replace(
         BUILT_IN_STEERING_CURVE,
-        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
     )
 
     assert interpolate_steering_curve_definition(-1.0, definition) == 1.0

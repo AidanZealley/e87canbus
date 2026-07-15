@@ -54,7 +54,6 @@ const definition = (
   values = [1000, 890, 780, 670, 380, 0, 0, 0]
 ): SteeringCurveDefinition => ({
   schema_version: 1,
-  interpolation: "linear-v1",
   points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
     (speed_deci_kph, index) => ({
       speed_deci_kph,
@@ -90,7 +89,6 @@ const active = (
   status: "active",
   saved_profile_id: saved?.profile_id ?? null,
   saved_profile_revision: saved?.revision ?? null,
-  supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
 })
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -233,6 +231,9 @@ it("keeps steering draft local across active updates and activates without false
   renderScreen(<CarSteeringEditor />, {
     profiles: [profile(), profile("Wet track")],
   })
+  expect(
+    screen.getByRole("combobox", { name: "Saved profile" }).textContent
+  ).toContain("Dry track")
   fireEvent.click(screen.getByRole("button", { name: "Drag draft point" }))
   expect(screen.getByText("active 890 draft 800")).toBeTruthy()
 

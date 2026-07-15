@@ -62,8 +62,12 @@ def test_fresh_migration_and_repeat_initialization(tmp_path: Path) -> None:
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-    assert versions == [(1,), (CURRENT_MIGRATION_VERSION,)]
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")
+        }
+    assert versions == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
     assert journal_mode == "wal"
+    assert "interpolation" not in columns
     assert repository.list_profiles() == (repository.get_profile(BUILT_IN_PROFILE_ID),)
 
 
@@ -241,11 +245,6 @@ def test_delete_removes_matching_revision(tmp_path: Path) -> None:
             2,
             "schema_version column disagrees",
         ),
-        (
-            "UPDATE steering_profiles SET interpolation = ? WHERE profile_id = ?",
-            "monotone-cubic-v1",
-            "interpolation column disagrees",
-        ),
     ],
 )
 def test_corrupt_columns_and_malformed_json_fail_closed(
@@ -264,7 +263,6 @@ def test_corrupt_columns_and_malformed_json_fail_closed(
     ("field", "value", "message"),
     [
         ("schema_version", 2, "unsupported steering curve schema_version"),
-        ("interpolation", "future-v2", "not a valid CurveInterpolation"),
     ],
 )
 def test_unsupported_future_definition_fails_closed(

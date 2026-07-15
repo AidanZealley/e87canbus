@@ -22,6 +22,7 @@ import {
   assistanceBoundsAt,
   assistanceToPercent,
   assistancePerMilleToPercent,
+  evaluateSteeringCurve,
   sampleSteeringCurve,
   speedDeciKphToKph,
 } from "../../utils"
@@ -72,6 +73,9 @@ export const CurveChart = ({
   onPointChange,
 }: CurveChartProps) => {
   const [isAdjustingPoint, setIsAdjustingPoint] = useState(false)
+  const markerSpeedKph = activeSpeedKph ?? 0
+  const markerAssistance =
+    activeAssistance ?? evaluateSteeringCurve(active, markerSpeedKph)
   const data = useMemo(() => {
     const activeSamples = sampleSteeringCurve(active)
     const draftSamples = sampleSteeringCurve(draft)
@@ -162,8 +166,8 @@ export const CurveChart = ({
           isAnimationActive={false}
         />
         <CurvePositionMarker
-          speedKph={activeSpeedKph}
-          activeAssistance={activeAssistance}
+          speedKph={markerSpeedKph}
+          activeAssistance={markerAssistance}
         />
         <CurvePoints
           definition={draft}

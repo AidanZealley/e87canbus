@@ -8,9 +8,7 @@ from collections.abc import Callable
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_config
 from e87canbus.device import DeviceSource
-from e87canbus.features.steering import CurveInterpolation
 from e87canbus.live import LiveControllerRuntime
-from e87canbus.runtime import SUPPORTED_STEERING_CURVE_INTERPOLATIONS
 from e87canbus.service import ControllerMode, ControllerService
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.runtime import SimulatedControllerRuntime
@@ -66,9 +64,6 @@ def build_simulated_controller_service(
     steering_controller_factory: Callable[
         [float, Callable[[], float]], SimulatedSteeringController
     ] = SimulatedSteeringController,
-    supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
-        SUPPORTED_STEERING_CURVE_INTERPOLATIONS
-    ),
 ) -> ControllerService:
     selected_config = config or simulator_config()
     _validate_networks(selected_config)
@@ -93,9 +88,6 @@ def build_simulated_controller_service(
             button_pad_source=selected_button_pad,
             clock=clock,
             steering_controller_factory=steering_controller_factory,
-            supported_steering_curve_interpolations=(
-                supported_steering_curve_interpolations
-            ),
         ),
         mode=ControllerMode.SIMULATED,
         clock=clock,

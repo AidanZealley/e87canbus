@@ -11,7 +11,7 @@ from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
-from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
+from e87canbus.features.steering import BUILT_IN_STEERING_CURVE
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
 
@@ -19,11 +19,9 @@ from fastapi.testclient import TestClient
 def definition_json(
     *,
     second_assistance: int = 889,
-    interpolation: str = "linear-v1",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "interpolation": interpolation,
         "points": [
             {
                 "speed_deci_kph": point.speed_deci_kph,
@@ -43,7 +41,6 @@ def profile_payload(name: str = "Dry track", *, second_assistance: int = 850) ->
 def definition_primitive(definition) -> dict[str, Any]:
     return {
         "schema_version": definition.schema_version,
-        "interpolation": definition.interpolation.value,
         "points": [
             {
                 "speed_deci_kph": point.speed_deci_kph,
@@ -59,10 +56,6 @@ def make_app(
     *,
     config=None,
     steering_controller_factory=SimulatedSteeringController,
-    supported_steering_curve_interpolations=(
-        CurveInterpolation.LINEAR_V1,
-        CurveInterpolation.MONOTONE_CUBIC_V1,
-    ),
 ):
     config = config or replace(
         simulator_config(), tick_interval_s=60.0
@@ -70,7 +63,6 @@ def make_app(
     service = build_simulated_controller_service(
         config=config,
         steering_controller_factory=steering_controller_factory,
-        supported_steering_curve_interpolations=supported_steering_curve_interpolations,
     )
     return create_app(
         controller_service=service,
@@ -140,7 +132,7 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
 def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
     client: TestClient,
 ) -> None:
-    smooth = definition_json(interpolation="monotone-cubic-v1")
+    smooth = definition_json()
 
     saved = client.post(
         "/api/steering/profiles",
@@ -157,37 +149,6 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
     assert activated.status_code == 200
     assert set(activated.json()) == {"accepted", "boot_id", "revision"}
     assert definition_primitive(active.active_steering_curve.definition) == smooth
-    assert [item.value for item in active.supported_steering_curve_interpolations] == [
-        "linear-v1",
-        "monotone-cubic-v1",
-    ]
-
-
-def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejected(
-    tmp_path: Path,
-) -> None:
-    app = make_app(
-        tmp_path / "profiles.sqlite3",
-        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,),
-    )
-    with TestClient(app) as client:
-        before = app.state.controller_service.snapshot().application
-        response = client.put(
-            "/api/commands/steering-curve",
-            json={"definition": definition_json(interpolation="monotone-cubic-v1")},
-        )
-        after = app.state.controller_service.snapshot().application
-
-    assert response.status_code == 409
-    assert response.json()["error"] == {
-        "code": "unsupported_interpolation",
-        "message": (
-            "steering curve consumer does not support monotone-cubic-v1; "
-            "supported interpolations: linear-v1"
-        ),
-        "supported_interpolations": ["linear-v1"],
-    }
-    assert after == before
 
 
 def test_saved_profiles_survive_api_restart(tmp_path: Path) -> None:
@@ -207,7 +168,7 @@ def test_saved_profiles_survive_api_restart(tmp_path: Path) -> None:
     [
         profile_payload(" Track "),
         {**profile_payload(), "definition": {**definition_json(), "schema_version": 2}},
-        {**profile_payload(), "definition": {**definition_json(), "interpolation": "cubic"}},
+        {**profile_payload(), "definition": {**definition_json(), "unexpected": "value"}},
         {
             **profile_payload(),
             "definition": {**definition_json(), "points": definition_json()["points"][:-1]},

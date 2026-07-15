@@ -12,7 +12,6 @@ from e87canbus.application.state import (
 from e87canbus.config import CanNetwork
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
-    CurveInterpolation,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,
     SteeringCurvePoint,
@@ -28,7 +27,6 @@ from e87canbus.runtime import (
     StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
-    UnsupportedSteeringCurveInterpolation,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 from e87canbus.simulation.runtime import (
@@ -97,7 +95,6 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
     engine.start()
     smooth = replace(
         BUILT_IN_STEERING_CURVE,
-        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
     )
     speed_kph = 45.0
     expected = interpolate_steering_curve_definition(speed_kph, smooth)
@@ -110,9 +107,6 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
     assert adapter.steering.effective_assistance == pytest.approx(expected)
     assert adapter.steering.last_command_reason == SteeringCommandReason.AUTO.value
     assert application.active_steering_curve.definition == smooth
-    assert application.active_steering_curve.definition.interpolation.value == (
-        "monotone-cubic-v1"
-    )
 
 
 @pytest.mark.parametrize(
@@ -178,26 +172,6 @@ def test_invalid_activation_leaves_active_state_and_revision_unchanged() -> None
     with pytest.raises(ValueError, match="unsupported.*schema_version"):
         kernel.dispatch(ActivateSteeringCurve(invalid, requested_at=1.0))
 
-    assert kernel.snapshot() == before
-    assert kernel.diagnostics().revision == 1
-
-
-def test_consumer_capability_rejects_unsupported_interpolation_before_activation() -> None:
-    kernel = CoordinatorKernel(
-        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,)
-    )
-    assert kernel.dispatch(KernelStarted(0.0)) is not None
-    smooth = replace(
-        BUILT_IN_STEERING_CURVE,
-        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
-    )
-    before = kernel.snapshot()
-
-    with pytest.raises(UnsupportedSteeringCurveInterpolation) as caught:
-        kernel.dispatch(ActivateSteeringCurve(smooth, requested_at=1.0))
-
-    assert caught.value.interpolation is CurveInterpolation.MONOTONE_CUBIC_V1
-    assert caught.value.supported_interpolations == (CurveInterpolation.LINEAR_V1,)
     assert kernel.snapshot() == before
     assert kernel.diagnostics().revision == 1
 

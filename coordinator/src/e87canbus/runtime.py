@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import assert_never
@@ -31,7 +30,6 @@ from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
 from e87canbus.device import DeviceRole
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
-    CurveInterpolation,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,
     initial_active_steering_curve,
@@ -43,29 +41,6 @@ from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
-
-SUPPORTED_STEERING_CURVE_INTERPOLATIONS = (
-    CurveInterpolation.LINEAR_V1,
-    CurveInterpolation.MONOTONE_CUBIC_V1,
-)
-
-
-class UnsupportedSteeringCurveInterpolation(ValueError):
-    """Raised when the current curve consumer cannot evaluate a definition."""
-
-    def __init__(
-        self,
-        interpolation: CurveInterpolation,
-        supported_interpolations: tuple[CurveInterpolation, ...],
-    ) -> None:
-        self.interpolation = interpolation
-        self.supported_interpolations = supported_interpolations
-        supported = ", ".join(item.value for item in supported_interpolations) or "none"
-        super().__init__(
-            f"steering curve consumer does not support {interpolation.value}; "
-            f"supported interpolations: {supported}"
-        )
-
 
 @dataclass(frozen=True)
 class KernelStarted:
@@ -345,9 +320,6 @@ class CoordinatorKernel:
         engine_telemetry_config: EngineTelemetryConfig | None = None,
         router: ProtocolRouter | None = None,
         active_steering_curve: ActiveSteeringCurve | None = None,
-        supported_steering_curve_interpolations: Iterable[CurveInterpolation] = (
-            SUPPORTED_STEERING_CURVE_INTERPOLATIONS
-        ),
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
@@ -360,24 +332,6 @@ class CoordinatorKernel:
             active_steering_curve or initial_active_steering_curve()
         )
         validate_active_steering_curve(self._active_steering_curve)
-        self._supported_steering_curve_interpolations = tuple(
-            dict.fromkeys(supported_steering_curve_interpolations)
-        )
-        if any(
-            not isinstance(item, CurveInterpolation)
-            for item in self._supported_steering_curve_interpolations
-        ):
-            raise ValueError(
-                "supported steering curve interpolations must be CurveInterpolation values"
-            )
-        if (
-            self._active_steering_curve.definition.interpolation
-            not in self._supported_steering_curve_interpolations
-        ):
-            raise UnsupportedSteeringCurveInterpolation(
-                self._active_steering_curve.definition.interpolation,
-                self._supported_steering_curve_interpolations,
-            )
         self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
         self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
@@ -398,7 +352,6 @@ class CoordinatorKernel:
             self._engine_telemetry_config,
             self._active_steering_curve,
             self._steering_curve_activation_status,
-            self._supported_steering_curve_interpolations,
         )
 
     def diagnostics(self) -> DiagnosticSnapshot:
@@ -568,11 +521,6 @@ class CoordinatorKernel:
 
     def _activate_steering_curve(self, request: ActivateSteeringCurve) -> Commit:
         validate_steering_curve_definition(request.definition)
-        if request.definition.interpolation not in self._supported_steering_curve_interpolations:
-            raise UnsupportedSteeringCurveInterpolation(
-                request.definition.interpolation,
-                self._supported_steering_curve_interpolations,
-            )
         current = self._active_steering_curve
         fingerprint = steering_curve_fingerprint(request.definition)
         definition_changed = fingerprint != current.fingerprint
@@ -640,10 +588,6 @@ def _changed_controller_topics(
         or (
             current.steering_curve_activation_status
             != previous.steering_curve_activation_status
-        )
-        or (
-            current.supported_steering_curve_interpolations
-            != previous.supported_steering_curve_interpolations
         )
     ):
         changed.add(StateTopic.STEERING)

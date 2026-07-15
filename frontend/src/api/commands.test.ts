@@ -59,7 +59,6 @@ it("separates saved-profile identity from unsaved curve activation", async () =>
   vi.stubGlobal("fetch", fetchMock)
   const definition = {
     schema_version: 1,
-    interpolation: "linear-v1",
     points: [],
   } satisfies SteeringCurveDefinition
   const profile = {

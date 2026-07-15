@@ -35,7 +35,6 @@ from e87canbus.application.state import (
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
-    CurveInterpolation,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,
     clamp_manual_level,
@@ -75,10 +74,6 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
-    supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
-        CurveInterpolation.LINEAR_V1,
-        CurveInterpolation.MONOTONE_CUBIC_V1,
-    )
 
 
 @dataclass(frozen=True)
@@ -155,10 +150,6 @@ def snapshot(
     engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
-    supported_interpolations: tuple[CurveInterpolation, ...] = (
-        CurveInterpolation.LINEAR_V1,
-        CurveInterpolation.MONOTONE_CUBIC_V1,
-    ),
 ) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -198,7 +189,6 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
-        supported_steering_curve_interpolations=supported_interpolations,
     )
 
 

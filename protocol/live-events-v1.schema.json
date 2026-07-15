@@ -50,17 +50,6 @@
             ],
             "title": "Status",
             "type": "string"
-          },
-          "supported_interpolations": {
-            "items": {
-              "enum": [
-                "linear-v1",
-                "monotone-cubic-v1"
-              ],
-              "type": "string"
-            },
-            "title": "Supported Interpolations",
-            "type": "array"
           }
         },
         "required": [
@@ -69,8 +58,7 @@
           "activation_revision",
           "status",
           "saved_profile_id",
-          "saved_profile_revision",
-          "supported_interpolations"
+          "saved_profile_revision"
         ],
         "title": "ActiveSteeringCurveState",
         "type": "object"
@@ -696,14 +684,6 @@
       "SteeringCurveDefinition": {
         "additionalProperties": false,
         "properties": {
-          "interpolation": {
-            "enum": [
-              "linear-v1",
-              "monotone-cubic-v1"
-            ],
-            "title": "Interpolation",
-            "type": "string"
-          },
           "points": {
             "items": {
               "$ref": "#/$defs/SteeringCurvePoint"
@@ -719,7 +699,6 @@
         },
         "required": [
           "schema_version",
-          "interpolation",
           "points"
         ],
         "title": "SteeringCurveDefinition",

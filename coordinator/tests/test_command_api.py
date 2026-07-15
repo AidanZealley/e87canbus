@@ -25,7 +25,6 @@ def command_app(path: Path):
 def definition_json() -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "interpolation": "linear-v1",
         "points": [
             {"speed_deci_kph": speed, "assistance_per_mille": assistance}
             for speed, assistance in zip(

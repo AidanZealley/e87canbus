@@ -17,13 +17,11 @@ class ApiProblem(Exception):
         message: str,
         *,
         current_revision: int | None = None,
-        supported_interpolations: tuple[str, ...] | None = None,
     ) -> None:
         self.status_code = status_code
         self.code = code
         self.message = message
         self.current_revision = current_revision
-        self.supported_interpolations = supported_interpolations
 
 
 def install_exception_handlers(app: FastAPI) -> None:
@@ -34,8 +32,6 @@ def install_exception_handlers(app: FastAPI) -> None:
         error: dict[str, Any] = {"code": exc.code, "message": exc.message}
         if exc.current_revision is not None:
             error["current_revision"] = exc.current_revision
-        if exc.supported_interpolations is not None:
-            error["supported_interpolations"] = list(exc.supported_interpolations)
         return JSONResponse(status_code=exc.status_code, content={"error": error})
 
     @app.exception_handler(RequestValidationError)

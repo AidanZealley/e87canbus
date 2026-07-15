@@ -9,24 +9,17 @@ import { ReloadActiveButton } from "./components/reload-active-button/ReloadActi
 export const CurveActions = () => {
   const {
     pendingAction,
-    draftInterpolation,
-    smoothSupported,
     applyDraft,
     saveRevision,
     reloadActive,
     deleteSaved,
-    convertInterpolation,
   } = useSteeringCurveEditorStore(
     useShallow((state) => ({
       pendingAction: state.pendingAction,
-      draftInterpolation: state.draft.interpolation,
-      smoothSupported:
-        state.active.supported_interpolations.includes("monotone-cubic-v1"),
       applyDraft: state.applyDraft,
       saveRevision: state.saveRevision,
       reloadActive: state.reloadActive,
       deleteSaved: state.deleteSaved,
-      convertInterpolation: state.convertInterpolation,
     }))
   )
   const status = useSteeringCurveEditorStore(useShallow(selectStatus))
@@ -47,19 +40,6 @@ export const CurveActions = () => {
         onClick={() => void saveRevision()}
       >
         {pendingAction === "save" ? "Saving…" : "Save revision"}
-      </Button>
-      <Button
-        variant="outline"
-        disabled={
-          pending || (draftInterpolation === "linear-v1" && !smoothSupported)
-        }
-        onClick={convertInterpolation}
-      >
-        {draftInterpolation === "linear-v1"
-          ? smoothSupported
-            ? "Convert draft to smooth"
-            : "Smooth unavailable"
-          : "Use linear draft"}
       </Button>
       <ReloadActiveButton
         disabled={!canRevert || pending}

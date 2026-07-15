@@ -19,7 +19,6 @@ export const definitionsEqual = (
   right: SteeringCurveDefinition
 ) =>
   left.schema_version === right.schema_version &&
-  left.interpolation === right.interpolation &&
   left.points.length === right.points.length &&
   left.points.every(
     (point, index) =>
@@ -73,47 +72,7 @@ export const evaluateSteeringCurve = (
   if (!Number.isFinite(speedKph)) {
     throw new Error("speedKph must be finite")
   }
-  switch (definition.interpolation) {
-    case "linear-v1":
-      return evaluateLinearCurve(definition, speedKph)
-    case "monotone-cubic-v1":
-      return evaluateMonotoneCubicCurve(definition, speedKph)
-    default:
-      throw new Error(
-        `Unsupported steering curve interpolation: ${String(definition.interpolation)}`
-      )
-  }
-}
-
-const evaluateLinearCurve = (
-  definition: SteeringCurveDefinition,
-  speedKph: number
-) => {
-  const speedDeciKph = speedKph * 10
-  const first = definition.points[0]
-  const last = definition.points.at(-1)
-  if (!first || !last) return 0
-  if (speedDeciKph <= first.speed_deci_kph) {
-    return first.assistance_per_mille / 1000
-  }
-  if (speedDeciKph >= last.speed_deci_kph) {
-    return last.assistance_per_mille / 1000
-  }
-
-  for (let index = 1; index < definition.points.length; index += 1) {
-    const right = definition.points[index]
-    const left = definition.points[index - 1]
-    if (!left || !right || speedDeciKph > right.speed_deci_kph) continue
-    const progress =
-      (speedDeciKph - left.speed_deci_kph) /
-      (right.speed_deci_kph - left.speed_deci_kph)
-    return (
-      (left.assistance_per_mille +
-        progress * (right.assistance_per_mille - left.assistance_per_mille)) /
-      1000
-    )
-  }
-  return last.assistance_per_mille / 1000
+  return evaluateMonotoneCubicCurve(definition, speedKph)
 }
 
 const evaluateMonotoneCubicCurve = (
@@ -222,11 +181,6 @@ export const sampleSteeringCurve = (
   }))
 }
 
-export const convertDraftInterpolation = (
-  definition: SteeringCurveDefinition,
-  interpolation: SteeringCurveDefinition["interpolation"]
-): SteeringCurveDefinition => ({ ...definition, interpolation })
-
 export const deriveEditorStatus = (
   state: CurveEditorState,
   savedCatalog: StoredSteeringProfile[]
@@ -258,12 +212,6 @@ export const reconcileActiveCurve = (
     state.active.status === active.status &&
     state.active.saved_profile_id === active.saved_profile_id &&
     state.active.saved_profile_revision === active.saved_profile_revision &&
-    state.active.supported_interpolations.length ===
-      active.supported_interpolations.length &&
-    state.active.supported_interpolations.every(
-      (interpolation, index) =>
-        interpolation === active.supported_interpolations[index]
-    ) &&
     definitionsEqual(state.active.definition, active.definition)
   ) {
     return state

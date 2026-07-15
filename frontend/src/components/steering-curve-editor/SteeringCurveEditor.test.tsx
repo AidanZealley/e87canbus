@@ -21,10 +21,17 @@ import { SteeringCurveCard } from "@/components/simulator-workbench/components/s
 vi.mock("./components/curve-chart", () => ({
   CurveChart: ({
     onPointChange,
+    activeAssistance,
   }: {
     onPointChange: (index: number, value: number) => void
+    activeAssistance?: number | null
   }) => (
-    <button onClick={() => onPointChange(1, 800)}>Simulate point drag</button>
+    <button
+      data-active-assistance={activeAssistance ?? "none"}
+      onClick={() => onPointChange(1, 800)}
+    >
+      Simulate point drag
+    </button>
   ),
 }))
 
@@ -32,7 +39,6 @@ const definition = (
   values = [1000, 890, 780, 670, 380, 0, 0, 0]
 ): SteeringCurveDefinition => ({
   schema_version: 1,
-  interpolation: "linear-v1",
   points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
     (speed_deci_kph, index) => ({
       speed_deci_kph,
@@ -52,7 +58,6 @@ const active = (
   status: "active",
   saved_profile_id: profile?.profile_id ?? null,
   saved_profile_revision: profile?.revision ?? null,
-  supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
 })
 
 const profile = (
@@ -75,7 +80,8 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 const renderEditor = (
   activeCurve: ActiveSteeringCurve,
-  speedKph: number | null = 10
+  speedKph: number | null = 10,
+  activeAssistance: number | null = null
 ) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -84,7 +90,11 @@ const renderEditor = (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   )
   const result = render(
-    <SteeringCurveCard activeCurve={activeCurve} speedKph={speedKph} />,
+    <SteeringCurveCard
+      activeCurve={activeCurve}
+      speedKph={speedKph}
+      activeAssistance={activeAssistance}
+    />,
     { wrapper: Wrapper }
   )
   return { ...result, client }
@@ -114,115 +124,33 @@ afterEach(() => {
 })
 
 describe("SteeringCurveEditor", () => {
-  it("converts a linear draft and explicitly applies the smooth definition", async () => {
-    const requests: Array<{
-      url: string
-      method: string
-      definition?: SteeringCurveDefinition
-    }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
-        if (method === "GET") return jsonResponse({ profiles: [] })
-        const body = JSON.parse(String(init?.body)) as {
-          definition: SteeringCurveDefinition
-        }
-        requests.push({ url, method, definition: body.definition })
-        if (url.endsWith("/api/commands/steering-curve")) {
-          return commandResponse()
-        }
-        throw new Error(`Unexpected request: ${method} ${url}`)
-      })
-    )
-
-    renderEditor(active())
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Convert draft to smooth" })
-    )
-    fireEvent.click(screen.getByRole("button", { name: "Apply draft" }))
-
-    await waitFor(() => expect(requests).toHaveLength(1))
-    expect(screen.getByText("Active · r1")).toBeTruthy()
-    expect(screen.getByText("Draft changed")).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Use linear draft" })
-    ).toBeTruthy()
-    expect(requests).toHaveLength(1)
-    expect(requests[0]?.url).toMatch(/\/api\/commands\/steering-curve$/)
-    expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
-    expect(
-      requests.some((request) => request.url.endsWith("/steering/profiles"))
-    ).toBe(false)
-  })
-
-  it("disables smooth conversion when the active consumer advertises linear only", async () => {
+  it("keeps current manual assistance on the chart without a speed sample", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse({ profiles: [] }))
     )
-    const linearOnly = {
-      ...active(),
-      supported_interpolations: ["linear-v1" as const],
-    }
 
-    renderEditor(linearOnly)
+    renderEditor(active(), null, 3 / 7)
 
-    const conversion = await screen.findByRole("button", {
-      name: "Smooth unavailable",
-    })
-    expect((conversion as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByText("Draft matches active")).toBeTruthy()
+    expect(
+      screen
+        .getByText("Simulate point drag")
+        .getAttribute("data-active-assistance")
+    ).toBe(String(3 / 7))
   })
 
-  it("converts only the draft and saves smooth interpolation as an explicit profile", async () => {
-    const requests: Array<{
-      url: string
-      method: string
-      definition?: SteeringCurveDefinition
-    }> = []
+  it("always presents a smooth curve without an interpolation control", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
-        if (method === "GET") return jsonResponse({ profiles: [] })
-        const body = JSON.parse(String(init?.body)) as {
-          name: string
-          definition: SteeringCurveDefinition
-        }
-        requests.push({ url, method, definition: body.definition })
-        if (method === "POST" && url.endsWith("/api/steering/profiles")) {
-          return jsonResponse(
-            { ...profile(body.definition), name: body.name },
-            201
-          )
-        }
-        throw new Error(`Unexpected request: ${method} ${url}`)
-      })
+      vi.fn(async () => jsonResponse({ profiles: [] }))
     )
-
     renderEditor(active())
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Convert draft to smooth" })
-    )
-
-    expect(screen.getByText(/monotone-cubic-v1/)).toBeTruthy()
-    expect(screen.getByText("Draft changed")).toBeTruthy()
-    expect(requests).toHaveLength(0)
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "New profile name" }),
-      { target: { value: "Smooth track" } }
-    )
-    fireEvent.click(screen.getByRole("button", { name: "Save as" }))
-
-    await waitFor(() => expect(requests).toHaveLength(1))
-    expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
+    expect(await screen.findByText(/smooth assistance/)).toBeTruthy()
     expect(
-      requests.some((request) => request.url.includes("/api/commands/"))
-    ).toBe(false)
+      screen.queryByRole("button", {
+        name: /linear|convert|smooth unavailable/i,
+      })
+    ).toBeNull()
   })
 
   it("keeps Apply and Save as separate operations and evaluates active separately", async () => {

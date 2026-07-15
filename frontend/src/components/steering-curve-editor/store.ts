@@ -8,7 +8,6 @@ import type {
   SteeringCurveEditorEffects,
 } from "./types"
 import {
-  convertDraftInterpolation,
   deriveEditorStatus,
   reconcileActiveCurve,
   replaceAssistanceAt,
@@ -27,7 +26,6 @@ export type SteeringCurveEditorStore = CurveEditorState & {
   setNewProfileName: (name: string) => void
   loadSelected: () => void
   reloadActive: () => void
-  convertInterpolation: () => void
   applyDraft: () => Promise<void>
   saveRevision: () => Promise<void>
   saveAs: () => Promise<void>
@@ -104,16 +102,6 @@ export const createSteeringCurveEditorStore = ({
         revisionConflict: false,
       })
     },
-    convertInterpolation: () =>
-      set((state) => ({
-        draft: convertDraftInterpolation(
-          state.draft,
-          state.draft.interpolation === "linear-v1"
-            ? "monotone-cubic-v1"
-            : "linear-v1"
-        ),
-        lastError: null,
-      })),
 
     applyDraft: () =>
       runAction(set, get, "apply", async () => {

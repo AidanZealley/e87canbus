@@ -27,10 +27,9 @@ This is why code imports `e87canbus.application` even though it is deployed as t
 `features/steering.py` owns the immutable steering-curve definition and stored-profile metadata
 values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
 160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
-per-mille assistance (`assistance_per_mille`, `0..1000`); float pairs exist only as a calculation
-projection. Version 1 accepts `linear-v1` and `monotone-cubic-v1` and requires assistance to be
-non-increasing as speed rises. Linear profiles retain piecewise-linear behavior. The smooth
-evaluator implements the checked-in Steffen/Hermite
+per-mille assistance (`assistance_per_mille`, `0..1000`) and requires assistance to be
+non-increasing as speed rises. Curve definitions contain points only; the smooth evaluator
+implements the checked-in Steffen/Hermite
 [numerical contract](../docs/assist-curve/monotone-cubic-v1.md), including endpoint hold, exact
 control-point values, binary64 tolerance and final `0..1` clamping. Python and TypeScript load the
 same language-neutral golden vectors.
@@ -101,8 +100,7 @@ facade. Save and activation remain separate operations.
 API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
 are `404`, name/revision conflicts are `409`, and storage, timeout, unavailable adapter or
 bounded-owner overload is `503`. Revision conflicts also return
-`current_revision`; an interpolation capability conflict is `409` and returns
-`supported_interpolations`. Successful saved CRUD publishes an exact `resources.changed` event
+`current_revision`. Successful saved CRUD publishes an exact `resources.changed` event
 with resource ID and revision. Reconnecting clients receive the full
 active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
 or missed-event replay are required.

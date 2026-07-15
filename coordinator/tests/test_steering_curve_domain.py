@@ -4,20 +4,16 @@ from typing import Any
 
 import pytest
 from e87canbus.features.steering import (
-    ASSISTANCE_QUANTIZATION_TOLERANCE,
     BUILT_IN_STEERING_CURVE,
     STEERING_CURVE_V1_SPEEDS_DECI_KPH,
     STEERING_PROFILE_NAME_MAX_LENGTH,
-    CurveInterpolation,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
     canonical_steering_curve_bytes,
     canonical_utc_timestamp,
     default_steering_curve_definition,
-    interpolate_speed_to_assistance,
     interpolate_steering_curve_definition,
-    steering_curve_as_float_pairs,
     steering_curve_fingerprint,
     validate_steering_curve_definition,
 )
@@ -52,7 +48,6 @@ def test_builtin_definition_is_the_documented_stable_default() -> None:
     validate_steering_curve_definition(definition)
     assert definition is BUILT_IN_STEERING_CURVE
     assert definition.schema_version == 1
-    assert definition.interpolation is CurveInterpolation.LINEAR_V1
     assert tuple(point.speed_deci_kph for point in definition.points) == (
         STEERING_CURVE_V1_SPEEDS_DECI_KPH
     )
@@ -73,10 +68,6 @@ def test_builtin_definition_is_the_documented_stable_default() -> None:
     [
         (lambda: replace(BUILT_IN_STEERING_CURVE, schema_version=2), "unsupported.*schema"),
         (lambda: replace(BUILT_IN_STEERING_CURVE, schema_version=True), "must be an integer"),
-        (
-            lambda: replace(BUILT_IN_STEERING_CURVE, interpolation="linear-v1"),
-            "CurveInterpolation",
-        ),
         (lambda: replace(BUILT_IN_STEERING_CURVE, points=[]), "immutable tuple"),
         (lambda: replace(BUILT_IN_STEERING_CURVE, points=()), "requires 8 points"),
         (
@@ -175,14 +166,8 @@ def test_assistance_bounds_are_inclusive() -> None:
     validate_steering_curve_definition(definition)
 
 
-def test_domain_accepts_both_versioned_interpolation_contracts() -> None:
-    smooth = replace(
-        BUILT_IN_STEERING_CURVE,
-        interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
-    )
-
+def test_domain_accepts_the_points_only_contract() -> None:
     validate_steering_curve_definition(BUILT_IN_STEERING_CURVE)
-    validate_steering_curve_definition(smooth)
 
 
 def test_domain_values_are_immutable() -> None:
@@ -205,12 +190,11 @@ def test_canonical_bytes_and_fingerprint_are_stable() -> None:
             )
             for point in BUILT_IN_STEERING_CURVE.points
         ),
-        interpolation=CurveInterpolation.LINEAR_V1,
         schema_version=1,
     )
 
     assert canonical_steering_curve_bytes(constructed_with_different_argument_order) == (
-        b'{"interpolation":"linear-v1","points":['
+        b'{"points":['
         b'{"assistance_per_mille":1000,"speed_deci_kph":0},'
         b'{"assistance_per_mille":889,"speed_deci_kph":100},'
         b'{"assistance_per_mille":778,"speed_deci_kph":200},'
@@ -221,7 +205,7 @@ def test_canonical_bytes_and_fingerprint_are_stable() -> None:
         b'{"assistance_per_mille":0,"speed_deci_kph":2500}],"schema_version":1}'
     )
     assert steering_curve_fingerprint(constructed_with_different_argument_order) == (
-        "a71bc312fed723d3aed114c01acba33a97fb9a3f9025999a21da1b9697c70179"
+        "80d5cb2a0743b7714899f7d60831f66810d77720e17f843c7a0ef92178dfd96a"
     )
 
 
@@ -282,12 +266,10 @@ def test_timestamp_formatter_normalizes_aware_values_to_canonical_utc() -> None:
 
 
 def test_integer_projection_and_definition_evaluation_preserve_resolution() -> None:
-    float_pairs = steering_curve_as_float_pairs(BUILT_IN_STEERING_CURVE)
-
-    assert tuple(round(speed * 10) for speed, _ in float_pairs) == (
+    assert tuple(point.speed_deci_kph for point in BUILT_IN_STEERING_CURVE.points) == (
         STEERING_CURVE_V1_SPEEDS_DECI_KPH
     )
-    assert tuple(round(assistance * 1000) for _, assistance in float_pairs) == (
+    assert tuple(point.assistance_per_mille for point in BUILT_IN_STEERING_CURVE.points) == (
         1000,
         889,
         778,
@@ -297,14 +279,10 @@ def test_integer_projection_and_definition_evaluation_preserve_resolution() -> N
         0,
         0,
     )
-    for speed, _ in float_pairs:
-        old_value = interpolate_speed_to_assistance(
-            speed,
-            ((0.0, 1.0), (30.0, 2.0 / 3.0), (100.0, 0.0)),
-        )
+    for point in BUILT_IN_STEERING_CURVE.points:
         assert interpolate_steering_curve_definition(
-            speed, BUILT_IN_STEERING_CURVE
-        ) == pytest.approx(old_value, abs=ASSISTANCE_QUANTIZATION_TOLERANCE)
+            point.speed_deci_kph / 10, BUILT_IN_STEERING_CURVE
+        ) == point.assistance_per_mille / 1000
 
 
 def test_definition_evaluation_holds_endpoint_values_outside_grid() -> None:

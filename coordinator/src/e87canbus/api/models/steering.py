@@ -14,7 +14,6 @@ class SteeringCurvePointRequest(StrictRequest):
 
 class SteeringCurveDefinitionRequest(StrictRequest):
     schema_version: int
-    interpolation: str
     points: list[SteeringCurvePointRequest]
 
 

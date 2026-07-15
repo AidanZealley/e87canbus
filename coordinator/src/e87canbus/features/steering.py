@@ -17,8 +17,6 @@ from e87canbus.features.timestamps import (
     validate_canonical_utc_timestamp,
 )
 
-SpeedAssistanceCurve = Sequence[tuple[float, float]]
-
 STEERING_CURVE_SCHEMA_VERSION = 1
 STEERING_CURVE_V1_SPEEDS_DECI_KPH = (0, 100, 200, 300, 600, 1000, 1600, 2500)
 STEERING_PROFILE_NAME_MAX_LENGTH = 100
@@ -27,11 +25,6 @@ STEERING_PROFILE_NAME_MAX_LENGTH = 100
 # that resolution introduces at most half a per-mille of calculation error.
 ASSISTANCE_QUANTIZATION_TOLERANCE = 0.0005
 STEERING_CURVE_CONFORMANCE_TOLERANCE = 1e-12
-
-
-class CurveInterpolation(StrEnum):
-    LINEAR_V1 = "linear-v1"
-    MONOTONE_CUBIC_V1 = "monotone-cubic-v1"
 
 
 @dataclass(frozen=True)
@@ -43,7 +36,6 @@ class SteeringCurvePoint:
 @dataclass(frozen=True)
 class SteeringCurveDefinition:
     schema_version: int
-    interpolation: CurveInterpolation
     points: tuple[SteeringCurvePoint, ...]
 
     def __post_init__(self) -> None:
@@ -92,13 +84,6 @@ def validate_steering_curve_definition(definition: SteeringCurveDefinition) -> N
         raise ValueError("schema_version must be an integer")
     if definition.schema_version != STEERING_CURVE_SCHEMA_VERSION:
         raise ValueError(f"unsupported steering curve schema_version: {definition.schema_version}")
-    if not isinstance(definition.interpolation, CurveInterpolation):
-        raise ValueError("interpolation must be a CurveInterpolation value")
-    if definition.interpolation not in (
-        CurveInterpolation.LINEAR_V1,
-        CurveInterpolation.MONOTONE_CUBIC_V1,
-    ):
-        raise ValueError(f"unsupported steering curve interpolation: {definition.interpolation}")
     if not isinstance(definition.points, tuple):
         raise ValueError("points must be an immutable tuple")
     if len(definition.points) != len(STEERING_CURVE_V1_SPEEDS_DECI_KPH):
@@ -193,7 +178,6 @@ def canonical_steering_curve_bytes(definition: SteeringCurveDefinition) -> bytes
 
     validate_steering_curve_definition(definition)
     value = {
-        "interpolation": definition.interpolation.value,
         "points": [
             {
                 "assistance_per_mille": point.assistance_per_mille,
@@ -216,7 +200,6 @@ def steering_curve_fingerprint(definition: SteeringCurveDefinition) -> str:
 
 BUILT_IN_STEERING_CURVE = SteeringCurveDefinition(
     schema_version=STEERING_CURVE_SCHEMA_VERSION,
-    interpolation=CurveInterpolation.LINEAR_V1,
     points=tuple(
         SteeringCurvePoint(speed_deci_kph=speed, assistance_per_mille=assistance)
         for speed, assistance in zip(
@@ -252,18 +235,6 @@ def initial_active_steering_curve(
     )
 
 
-def steering_curve_as_float_pairs(
-    definition: SteeringCurveDefinition,
-) -> tuple[tuple[float, float], ...]:
-    """Project authoritative integer units to calculation units of km/h and ``0.0..1.0``."""
-
-    validate_steering_curve_definition(definition)
-    return tuple(
-        (point.speed_deci_kph / 10.0, point.assistance_per_mille / 1000.0)
-        for point in definition.points
-    )
-
-
 def interpolate_steering_curve_definition(
     speed_kph: float,
     definition: SteeringCurveDefinition,
@@ -273,47 +244,13 @@ def interpolate_steering_curve_definition(
     validate_steering_curve_definition(definition)
     if not math.isfinite(speed_kph):
         raise ValueError("speed_kph must be finite")
-    match definition.interpolation:
-        case CurveInterpolation.LINEAR_V1:
-            return interpolate_speed_to_assistance(
-                speed_kph, steering_curve_as_float_pairs(definition)
-            )
-        case CurveInterpolation.MONOTONE_CUBIC_V1:
-            return interpolate_monotone_cubic_v1(speed_kph * 10.0, definition.points)
+    return interpolate_monotone_cubic_v1(speed_kph * 10.0, definition.points)
 
 
 def clamp_manual_level(level: int, level_count: int) -> int:
     if level_count < 1:
         raise ValueError("level_count must be at least 1")
     return min(max(level, 0), level_count - 1)
-
-
-def interpolate_speed_to_assistance(
-    speed_kph: float,
-    curve: SpeedAssistanceCurve,
-) -> float:
-    if not curve:
-        raise ValueError("curve must contain at least one point")
-    points = sorted(curve, key=lambda point: point[0])
-
-    if speed_kph <= points[0][0]:
-        return points[0][1]
-    if speed_kph >= points[-1][0]:
-        return points[-1][1]
-
-    for (left_speed, left_assistance), (right_speed, right_assistance) in zip(
-        points,
-        points[1:],
-        strict=False,
-    ):
-        if left_speed <= speed_kph <= right_speed:
-            span = right_speed - left_speed
-            if span == 0:
-                return right_assistance
-            ratio = (speed_kph - left_speed) / span
-            return left_assistance + ratio * (right_assistance - left_assistance)
-
-    return points[-1][1]
 
 
 def interpolate_monotone_cubic_v1(

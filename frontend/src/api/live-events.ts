@@ -41,7 +41,6 @@ export type SteeringState = {
   active_curve: {
     definition: {
       schema_version: 1
-      interpolation: "linear-v1" | "monotone-cubic-v1"
       points: SteeringCurvePoint[]
     }
     fingerprint: string
@@ -49,7 +48,6 @@ export type SteeringState = {
     status: "active" | "activating" | "activation_failed"
     saved_profile_id: string | null
     saved_profile_revision: number | null
-    supported_interpolations: Array<"linear-v1" | "monotone-cubic-v1">
   }
 }
 

@@ -33,7 +33,6 @@ from e87canbus.features.profile_repository import (
     StoredProfileDataError,
 )
 from e87canbus.features.steering import (
-    CurveInterpolation,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
@@ -169,14 +168,13 @@ class SqliteSteeringProfileRepository:
                 """
                 UPDATE steering_profiles
                 SET name = ?, revision = revision + 1, schema_version = ?,
-                    interpolation = ?, definition_json = ?, definition_fingerprint = ?,
+                    definition_json = ?, definition_fingerprint = ?,
                     updated_at_utc = ?
                 WHERE profile_id = ? AND revision = ?
                 """,
                 (
                     name,
                     definition.schema_version,
-                    definition.interpolation.value,
                     definition_json,
                     steering_curve_fingerprint(definition),
                     timestamp,
@@ -260,16 +258,15 @@ class SqliteSteeringProfileRepository:
         connection.execute(
             """
             INSERT INTO steering_profiles (
-                profile_id, name, revision, schema_version, interpolation,
+                profile_id, name, revision, schema_version,
                 definition_json, definition_fingerprint, created_at_utc, updated_at_utc
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile.profile_id,
                 profile.name,
                 profile.revision,
                 profile.definition.schema_version,
-                profile.definition.interpolation.value,
                 definition_json,
                 steering_curve_fingerprint(profile.definition),
                 profile.created_at,
@@ -287,7 +284,6 @@ class SqliteSteeringProfileRepository:
             value = json.loads(definition_json)
             if not isinstance(value, dict) or set(value) != {
                 "schema_version",
-                "interpolation",
                 "points",
             }:
                 raise ValueError("definition_json has unexpected fields")
@@ -309,13 +305,10 @@ class SqliteSteeringProfileRepository:
                 )
             definition = SteeringCurveDefinition(
                 schema_version=value["schema_version"],
-                interpolation=CurveInterpolation(value["interpolation"]),
                 points=tuple(points),
             )
             if row["schema_version"] != definition.schema_version:
                 raise ValueError("schema_version column disagrees with definition_json")
-            if row["interpolation"] != definition.interpolation.value:
-                raise ValueError("interpolation column disagrees with definition_json")
             canonical_json = canonical_steering_curve_bytes(definition).decode("utf-8")
             if definition_json != canonical_json:
                 raise ValueError("definition_json is not canonical")

@@ -12,7 +12,6 @@ from e87canbus.application.controller import ApplicationSnapshot, button_led_sta
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
-from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -22,7 +21,6 @@ from e87canbus.output import (
 )
 from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.runtime import (
-    SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     Commit,
@@ -172,9 +170,6 @@ class SimulatedControllerRuntime:
         steering_controller_factory: Callable[
             [float, Callable[[], float]], SimulatedSteeringController
         ] = SimulatedSteeringController,
-        supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
-            SUPPORTED_STEERING_CURVE_INTERPOLATIONS
-        ),
     ) -> None:
         self.config = config or simulator_config()
         if ids is not None:
@@ -184,7 +179,6 @@ class SimulatedControllerRuntime:
         self.button_pad_source = button_pad_source
         self._clock = clock
         self._steering_controller_factory = steering_controller_factory
-        self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
         self._started = False
         self._execution_commits: list[Commit] = []
@@ -339,7 +333,6 @@ class SimulatedControllerRuntime:
             steering_config=self.config.steering,
             engine_telemetry_config=self.config.engine_telemetry,
             router=router,
-            supported_steering_curve_interpolations=(self._supported_steering_curve_interpolations),
         )
         self.executor = EffectExecutor(
             transmitters,
