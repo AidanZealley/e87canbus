@@ -109,7 +109,7 @@ compare actions.
 ## Actions and feedback
 
 - **Apply:** activate the current draft; disable while pending; replace active projection only from
-  the server response/snapshot.
+  authoritative Socket.IO state after the acknowledgement.
 - **Save:** create or update using the selected saved revision; update local catalog from the
   committed server response.
 - **Save as:** require a new name and create a new profile ID.

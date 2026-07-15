@@ -79,7 +79,6 @@ class SimulatorSnapshot:
     steering_controller: SimulatedSteeringSnapshot
     devices: tuple[DeviceProjection, ...]
     networks: tuple[SimulatedNetworkStatus, ...]
-    trace: tuple[SimulatedCanTraceEntry, ...]
 
 
 @dataclass(frozen=True)
@@ -261,7 +260,6 @@ class SimulatedControllerRuntime:
                 )
                 for network_config in self.config.can_networks
             ),
-            trace=self.topology.trace(),
         )
 
     def execute(self, command: SimulationCommand) -> SimulationResult:

@@ -44,7 +44,7 @@ class SpaStaticFiles(StaticFiles):
     """Serve the built SPA entry for client routes while preserving asset 404s."""
 
     async def get_response(self, path: str, scope: Scope) -> Response:
-        server_prefixes = ("api", "health", "socket.io")
+        server_prefixes = ("api", "health", "socket.io", "ws")
         first_segment = path.split("/", maxsplit=1)[0]
         fallback = (
             first_segment not in server_prefixes

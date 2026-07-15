@@ -193,6 +193,7 @@ HTTP
   /api/commands/maximum-assistance
   /api/commands/steering-mode
   /api/commands/activate-steering-profile
+  /api/commands/steering-curve
   /api/dev/simulation/*                 development composition only
 
 Socket.IO server events
@@ -214,8 +215,8 @@ schema platform.
 ## Compatibility and cutover policy
 
 - The repository has completed the frontend ownership cutover.
-- Raw `/ws`, `GET /api/snapshot`, HTTP response snapshots and their compatibility publisher/state
-  seams are removed.
+- Raw `/ws`, `GET /api/snapshot`, `GET /api/steering/curve-state`, HTTP response snapshots and
+  their compatibility publisher/state seams are removed.
 - No feature may add a second runtime, live-state owner or transport facade.
 - CLI operation must construct the canonical composition; an alias is acceptable only when it is a
   documented thin invocation of that same composition.

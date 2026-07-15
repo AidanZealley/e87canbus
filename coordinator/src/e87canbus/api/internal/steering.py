@@ -15,7 +15,6 @@ from e87canbus.api.models.steering import (
     SteeringCurveDefinitionRequest,
     UpdateProfileRequest,
 )
-from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.features.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
@@ -72,22 +71,6 @@ def profile_to_dict(profile: StoredSteeringProfile) -> dict[str, Any]:
         "definition": definition_to_dict(profile.definition),
         "created_at": profile.created_at,
         "updated_at": profile.updated_at,
-    }
-
-
-def curve_state_to_dict(application: ApplicationSnapshot) -> dict[str, Any]:
-    active = application.active_steering_curve
-    return {
-        "definition": definition_to_dict(active.definition),
-        "fingerprint": active.fingerprint,
-        "activation_revision": active.activation_revision,
-        "status": application.steering_curve_activation_status.value,
-        "saved_profile_id": active.saved_profile_id,
-        "saved_profile_revision": active.saved_profile_revision,
-        "supported_interpolations": [
-            interpolation.value
-            for interpolation in application.supported_steering_curve_interpolations
-        ],
     }
 
 

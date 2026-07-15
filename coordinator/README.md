@@ -89,13 +89,14 @@ storage is a typed `503`. Theme remains browser-local and is absent from this co
 `/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
 accept one complete integer-unit definition; update and delete require `expected_revision`, with
 delete carrying it as a query parameter. Responses contain the complete committed profile.
-`/api/steering/curve-state` returns the authoritative active projection. Saved profiles are
-activated by identity and expected revision through
+Saved profiles are activated by identity and expected revision through
 `POST /api/commands/activate-steering-profile`; an unsaved editor draft uses the explicit
 idempotent `PUT /api/commands/steering-curve` command. Maximum assistance and steering mode use
 their corresponding `PUT /api/commands/*` set commands. Every command enters the bounded
 controller service and returns only `accepted`, `boot_id` and the matched commit `revision`;
-handlers never dispatch the kernel directly. Save and activation remain separate operations.
+handlers never dispatch the kernel directly. The active curve is live operational state and is
+published only in `controller.snapshot` and `steering.state`, not through an overlapping HTTP read
+facade. Save and activation remain separate operations.
 
 API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
 are `404`, name/revision conflicts are `409`, and storage, timeout, unavailable adapter or

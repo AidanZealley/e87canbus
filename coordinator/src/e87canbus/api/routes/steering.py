@@ -61,9 +61,3 @@ async def delete_steering_profile(
         profile_id,
         expected_revision,
     )
-
-
-@router.get("/curve-state")
-async def steering_curve_state(request: Request) -> dict[str, Any]:
-    application = request.app.state.controller_service.snapshot().application
-    return steering.curve_state_to_dict(application)

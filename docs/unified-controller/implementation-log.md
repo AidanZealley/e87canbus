@@ -30,18 +30,20 @@ simulation.
 | 5 — Frontend data ownership | Verified | 2026-07-15 | One bounded Socket.IO/Zustand path and Query ownership pass browser acceptance |
 | 6 — Simulation/device convergence | Verified | 2026-07-15 | Physical, emulated, observer and disabled pathways converge honestly |
 | 7 — Reliability/deployment | Verified | 2026-07-15 | Bounded health/failure policy, deterministic shutdown, soak and Pi service verified |
-| 8 — Cutover/acceptance | Verified | 2026-07-15 | Legacy removed; integrated, browser and bounded-retention acceptance passed |
+| 8 — Cutover/acceptance | Verified | 2026-07-15 | Legacy removed; integrated acceptance and final no-facade audit passed |
 
 ## Current handoff
 
-All eight unified-controller phases are verified. One canonical controller/application architecture
-remains, with HTTP command/resource ownership, Socket.IO/Zustand live ownership, bounded diagnostics
-and deny-by-default physical output. Preserve the service-owned failure policy, exact readiness
-semantics, loopback production trust boundary, fixed shutdown order and no-facade cutover. Real CAN
-TX, physical steering and optional read-only hardware checks remain under the existing
-`docs/requires-hardware` evidence boundaries and are not authorized by this roadmap. Proceed to the
-final repository review and completed-work report; do not reopen retired transports or infer
-physical behavior from simulation.
+All eight unified-controller phases and the final repository review are verified. One canonical
+controller/application architecture remains, with HTTP command/resource ownership,
+Socket.IO/Zustand live ownership, bounded diagnostics and deny-by-default physical output. The
+final audit removed the last overlapping active-curve HTTP read, the internal simulation snapshot's
+duplicate trace projection and stale deleted-WebSocket references. Preserve the service-owned
+failure policy, exact readiness semantics, loopback production trust boundary, fixed shutdown
+order and no-facade cutover. Real CAN TX, physical steering and optional read-only hardware checks
+remain under the existing `docs/requires-hardware` evidence boundaries and are not authorized by
+this roadmap. The software work is ready for the completed-work report; do not reopen retired
+transports or infer physical behavior from simulation.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -70,6 +72,55 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Final review: residual live-read and trace projections removed
+
+- **Status:** Verified
+- **Scope:** Audited the final Phase 1–8 tree against every completion criterion, with focused
+  ownership, transport, reconnect, bounded-retention, failure, shutdown, deployment and physical
+  output safety review; implemented only concrete no-facade corrections found by that audit.
+- **Changed:** Removed `trace` from the internal `SimulatorSnapshot`, so each runtime operation no
+  longer copies the topology's retained 2,000-row ring into its result; operation-local frame events
+  remain the sole input to the bounded live trace publisher. Removed the unused and overlapping
+  `GET /api/steering/curve-state` live-read route and serializer; active steering state is now
+  available only from `controller.snapshot`/`steering.state`, while HTTP retains durable profile
+  resources and semantic commands. Production SPA fallback now preserves an honest 404 for retired
+  `/ws`, and architecture coverage no longer names the deleted raw-WebSocket module. Development
+  actions now validate their exact `SimulationResult` and return a typed 503 instead of an accepted
+  acknowledgement if the action leaves the controller fatal or returns an invalid result.
+- **Decisions:** The in-memory topology remains the one bounded simulation trace store and exposes
+  deltas to publication without embedding a second trace projection in every immutable runtime
+  snapshot. Active curve state is operational live state, not an HTTP resource; profile CRUD remains
+  revisioned SQLite state. No compatibility response, alias route or replacement facade was added.
+- **Verification:** Full `uv run pytest -q` passed with 502 tests and the existing single
+  Starlette/httpx deprecation warning. `uv run ruff check .`, `uv run mypy
+  coordinator/src/e87canbus` (61 source files), the generated custom-protocol check, `bash -n
+  scripts/*.sh` and `git diff --check` passed. `pnpm test` passed 30 unit and 58 component tests;
+  `pnpm lint`, `pnpm typecheck` and `pnpm build` passed with 2,968 transformed modules. PlatformIO
+  passed at 21.5% RAM and 25.6% flash. Focused simulator/runtime/profile/command/reliability and
+  architecture checks also passed before the full run. A post-review direct guard focus passed two
+  tests proving that neither a fatal `SimulationResult` nor a non-`SimulationResult` can produce a
+  development-action acknowledgement; Ruff, mypy and diff checks remained clean. Dead-path
+  searches find no production curve-state route/serializer, snapshot trace field, raw-WebSocket
+  owner or stale compatibility symbol.
+- **Browser/soak/physical checks:** No additional browser or soak run was needed for these backend
+  contract-removal and internal-retention fixes. Phase 8's verified development/production route,
+  reconnect, listener/DOM/heap and overload evidence remains applicable; removing an unused HTTP
+  read and internal duplicate trace cannot introduce another browser owner. The user's attached
+  application tabs remain the independent long-running observation beyond the former 5–10 minute
+  crash window. Real CAN TX, physical steering and physical read-only checks remained unavailable
+  and were not enabled.
+- **Documentation:** Corrected coordinator, assist-curve, ADR 0008 and unified-controller guidance
+  so active curve authority is Socket.IO/Zustand only and the final retired contracts are explicit.
+- **Dependencies/migrations:** None. No dependency, lockfile, generated schema, SQLite schema, CAN
+  wire or firmware change.
+- **Compatibility/removal:** No compatibility path remains. The unused active-curve HTTP read is
+  intentionally removed alongside the earlier snapshot/raw-WebSocket cutover; its explicit 404 is
+  covered in the command API tests, including production SPA handling for `/ws`.
+- **Remaining:** None for the software roadmap. Optional physical/read-only evidence remains under
+  `docs/requires-hardware` and is not blocking; no physical TX or steering capability is granted.
+- **Next handoff:** Commit the final audit fixes on the implementation branch and deliver the
+  completed-work report with the hardware-evidence boundary stated explicitly.
 
 ### 2026-07-15 — Phase 8: legacy ownership removed and integrated cutover verified
 

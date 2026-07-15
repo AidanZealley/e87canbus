@@ -95,7 +95,6 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
             path: {"e87canbus.simulation.runtime"}
                 for path in (
                     PACKAGE / "api" / "internal" / "simulation.py",
-                    PACKAGE / "api" / "internal" / "websocket.py",
                     PACKAGE / "api" / "routes" / "simulation.py",
                 )
         },

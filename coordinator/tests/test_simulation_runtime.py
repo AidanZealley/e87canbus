@@ -1,7 +1,7 @@
 import gc
 import weakref
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import fields, replace
 
 import pytest
 from e87canbus.application.controller import EngineTelemetryStatus, EngineTelemetryValue
@@ -147,7 +147,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert button_pad.observed_led_colours == AUTO_LEDS
     assert button_pad.last_seen_monotonic_s is not None
     assert button_pad.last_output_fault is None
-    assert snapshot.trace == ()
+    assert controller.topology.trace() == ()
 
 
 @pytest.mark.parametrize("source", [DeviceSource.OBSERVER, DeviceSource.DISABLED])
@@ -174,7 +174,7 @@ def test_observer_projects_controller_desire_without_fabricating_observation() -
     assert button_pad.desired_led_colours == MAXIMUM_LEDS
     assert button_pad.observed_led_colours is None
     assert button_pad.last_output_fault is None
-    assert all(entry.source != "pi" for entry in result.snapshot.trace)
+    assert all(entry.source != "pi" for entry in controller.topology.trace())
 
 
 def test_emulator_failure_is_reported_without_claiming_physical_health() -> None:
@@ -239,23 +239,36 @@ def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
 def test_pressing_button_creates_button_event_frame() -> None:
     controller = build_test_engine()
 
-    snapshot = controller.execute(PressButton(0)).snapshot
+    result = controller.execute(PressButton(0))
+    trace = controller.topology.trace()
 
-    assert snapshot.trace[0].source == "button-pad-emulator"
-    assert snapshot.trace[0].frame.arbitration_id == 0x700
-    assert snapshot.trace[0].frame.data == b"\x00\x01"
-    assert snapshot.trace[0].network is CanNetwork.KCAN
-    assert snapshot.trace[0].sequence == 1
+    assert result.events[0]["source"] == "button-pad-emulator"
+    assert trace[0].source == "button-pad-emulator"
+    assert trace[0].frame.arbitration_id == 0x700
+    assert trace[0].frame.data == b"\x00\x01"
+    assert trace[0].network is CanNetwork.KCAN
+    assert trace[0].sequence == 1
+
+
+def test_snapshot_does_not_duplicate_the_retained_trace() -> None:
+    controller = build_test_engine()
+
+    result = controller.execute(PressButton(0))
+
+    assert "trace" not in {field.name for field in fields(result.snapshot)}
+    assert len(controller.topology.trace()) == 2
+    assert [event["sequence"] for event in result.events] == [1, 2]
 
 
 def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> None:
     controller = build_test_engine()
 
     snapshot = controller.execute(PressButton(0)).snapshot
+    trace = controller.topology.trace()
 
-    assert snapshot.trace[1].source == "pi"
-    assert snapshot.trace[1].frame.arbitration_id == 0x701
-    assert snapshot.trace[1].frame.data == b"\x04\x00\x00\x00\x00\x00\x00\x00"
+    assert trace[1].source == "pi"
+    assert trace[1].frame.arbitration_id == 0x701
+    assert trace[1].frame.data == b"\x04\x00\x00\x00\x00\x00\x00\x00"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert snapshot.led_colours == MANUAL_LEDS
 
@@ -266,7 +279,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     snapshot = controller.execute(ReleaseButton(0)).snapshot
 
-    assert snapshot.trace[-1].frame.data == b"\x00\x00"
+    assert controller.topology.trace()[-1].frame.data == b"\x00\x00"
     assert snapshot.application.steering_mode is SteeringMode.MANUAL
     assert snapshot.led_colours == MANUAL_LEDS
 
@@ -294,10 +307,10 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
     assert snapshot.led_colours == AUTO_LEDS
     assert snapshot.devices[0].observed_led_colours == AUTO_LEDS
-    assert snapshot.trace == ()
+    assert controller.topology.trace() == ()
 
-    next_snapshot = controller.execute(PressButton(0)).snapshot
-    assert next_snapshot.trace[0].sequence == 1
+    controller.execute(PressButton(0))
+    assert controller.topology.trace()[0].sequence == 1
 
 
 def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
@@ -480,9 +493,9 @@ def test_engine_clock_is_used_for_ingress_and_trace() -> None:
     clock = MutableClock(8.5)
     controller = build_test_engine(clock=clock)
 
-    snapshot = controller.execute(PressButton(0)).snapshot
+    controller.execute(PressButton(0))
 
-    assert {entry.monotonic_s for entry in snapshot.trace} == {8.5}
+    assert {entry.monotonic_s for entry in controller.topology.trace()} == {8.5}
 
 
 def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> None:
@@ -499,6 +512,7 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     accepted = controller.execute(PressButton(0)).snapshot
     controller.execute(ReleaseButton(0))
     dropped = controller.execute(PressButton(0)).snapshot
+    dropped_trace = controller.topology.trace()
 
     assert accepted.application.steering_mode is SteeringMode.MANUAL
     assert accepted.led_colours == MANUAL_LEDS
@@ -506,20 +520,22 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     assert dropped.application.steering_mode is SteeringMode.AUTO
     assert dropped.led_colours == AUTO_LEDS
     assert dropped.devices[0].observed_led_colours == MANUAL_LEDS
-    assert [entry.source for entry in dropped.trace].count("pi") == 1
+    assert [entry.source for entry in dropped_trace].count("pi") == 1
 
     clock.now = 1.0
     before_next_decision = controller.snapshot()
+    before_next_decision_trace = controller.topology.trace()
 
     assert before_next_decision.led_colours == AUTO_LEDS
     assert before_next_decision.devices[0].observed_led_colours == MANUAL_LEDS
-    assert [entry.source for entry in before_next_decision.trace].count("pi") == 1
+    assert [entry.source for entry in before_next_decision_trace].count("pi") == 1
 
     converged = controller.execute(PressButton(3)).snapshot
+    converged_trace = controller.topology.trace()
 
     assert converged.application.maximum_assistance_active is True
     assert converged.led_colours == MAXIMUM_LEDS
-    pi_frames = [entry.frame for entry in converged.trace if entry.source == "pi"]
+    pi_frames = [entry.frame for entry in converged_trace if entry.source == "pi"]
     assert pi_frames == [
         CanFrame(0x701, b"\x04\x00\x00\x00\x00\x00\x00\x00"),
         CanFrame(0x701, b"\x04\x50\x00\x00\x00\x00\x00\x00"),
@@ -536,21 +552,23 @@ def test_startup_and_reset_session_synchronization_each_use_network_budget() -> 
 
     initial = controller.snapshot()
     after_initial_startup = controller.execute(PressButton(0)).snapshot
+    after_initial_trace = controller.topology.trace()
 
     assert initial.led_colours == AUTO_LEDS
     assert after_initial_startup.application.steering_mode is SteeringMode.MANUAL
     assert after_initial_startup.led_colours == MANUAL_LEDS
     assert after_initial_startup.devices[0].observed_led_colours == AUTO_LEDS
-    assert all(entry.source != "pi" for entry in after_initial_startup.trace)
+    assert all(entry.source != "pi" for entry in after_initial_trace)
 
     reset = controller.execute(ResetSimulation()).snapshot
     after_reset_startup = controller.execute(PressButton(0)).snapshot
+    after_reset_trace = controller.topology.trace()
 
     assert reset.led_colours == AUTO_LEDS
     assert after_reset_startup.application.steering_mode is SteeringMode.MANUAL
     assert after_reset_startup.led_colours == MANUAL_LEDS
     assert after_reset_startup.devices[0].observed_led_colours == AUTO_LEDS
-    assert all(entry.source != "pi" for entry in after_reset_startup.trace)
+    assert all(entry.source != "pi" for entry in after_reset_trace)
 
 
 def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
@@ -558,11 +576,12 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     controller = build_test_engine(clock=clock)
 
     speed = controller.execute(SetVehicleSpeed(15.0)).snapshot
+    speed_trace = controller.topology.trace()
     clock.now = 10.1
     controlled = controller.execute(RunControlTimer(clock())).snapshot
 
-    assert speed.trace[-1].source == "simulated-vehicle"
-    assert speed.trace[-1].network is CanNetwork.FCAN
+    assert speed_trace[-1].source == "simulated-vehicle"
+    assert speed_trace[-1].network is CanNetwork.FCAN
     assert speed.application.vehicle_speed_kph == 15.0
     assert controller.vehicle.speed_kph == 15.0
     assert controlled.steering_controller.effective_assistance == pytest.approx(
@@ -581,7 +600,7 @@ def test_engine_signals_use_trace_decode_transition_and_canonical_snapshot_path(
 
     engine_frames = [
         entry
-        for entry in snapshot.trace
+        for entry in controller.topology.trace()
         if entry.frame.arbitration_id
         in {
             SIMULATION_ONLY_ENGINE_RPM_ID,
@@ -615,7 +634,7 @@ def test_timer_reemits_active_engine_signals_and_silence_ages_only_one() -> None
     clock.now = 2.001
     snapshot = controller.execute(RunControlTimer(clock())).snapshot
 
-    ids = [entry.frame.arbitration_id for entry in snapshot.trace]
+    ids = [entry.frame.arbitration_id for entry in controller.topology.trace()]
     assert ids.count(SIMULATION_ONLY_ENGINE_RPM_ID) == 2
     assert ids.count(SIMULATION_ONLY_OIL_TEMPERATURE_ID) == 1
     assert ids.count(SIMULATION_ONLY_COOLANT_TEMPERATURE_ID) == 2
@@ -637,7 +656,9 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     clock.now = 3.5
     second = controller.execute(RunControlTimer(clock())).snapshot
 
-    assert [entry.source for entry in second.trace].count("simulated-vehicle") == 3
+    assert [entry.source for entry in controller.topology.trace()].count(
+        "simulated-vehicle"
+    ) == 3
     assert first.application.speed_valid is True
     assert second.application.speed_valid is True
     assert second.steering_controller.effective_assistance == pytest.approx(

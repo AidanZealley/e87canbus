@@ -127,6 +127,7 @@ def test_built_frontend_is_served_same_origin(tmp_path: Path) -> None:
         assert client.get("/assets/missing.js").status_code == 404
         assert client.get("/api/health").status_code == 404
         assert client.get("/api/unknown").status_code == 404
+        assert client.get("/ws").status_code == 404
         assert client.get("/health/unknown").status_code == 404
         assert client.get("/health/ready").status_code == 200
 

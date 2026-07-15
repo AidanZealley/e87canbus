@@ -105,8 +105,10 @@ does not accept ADR 0007, select a BMW identifier or authorize physical steering
 
 ## Implementation note — 2026-07-15
 
-Phase 8 completed the planned cutover. The raw `/ws` endpoint, `GET /api/snapshot`, simulator
-response snapshots, compatibility connection manager and second publication queue are removed.
+Phase 8 completed the planned cutover. The raw `/ws` endpoint, `GET /api/snapshot`, overlapping
+`GET /api/steering/curve-state`, simulator response snapshots, compatibility connection manager
+and second publication queue are removed. Internal simulation snapshots no longer duplicate the
+bounded diagnostic trace; operation-local trace deltas feed the sole live trace publisher.
 Current browser live state flows only from Socket.IO into Zustand; durable HTTP resources remain in
 TanStack Query. Development HTTP actions return only `accepted` and the stable process `boot_id`,
 while revisioned/session-scoped authority arrives through Socket.IO rather than an HTTP facade.

@@ -89,21 +89,27 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
                 "expected_revision": created["revision"],
             },
         )
-        saved_state = client.get("/api/steering/curve-state").json()
+        saved_state = client.app.state.controller_service.snapshot().application
         unsaved_definition = definition_json()
         unsaved_definition["points"][1]["assistance_per_mille"] = 870
         unsaved = client.put(
             "/api/commands/steering-curve",
             json={"definition": unsaved_definition},
         )
-        unsaved_state = client.get("/api/steering/curve-state").json()
+        unsaved_state = client.app.state.controller_service.snapshot().application
 
     assert saved.status_code == repeated_saved.status_code == unsaved.status_code == 200
     assert repeated_saved.json()["revision"] > saved.json()["revision"]
-    assert saved_state["saved_profile_id"] == created["profile_id"]
-    assert saved_state["saved_profile_revision"] == created["revision"]
-    assert unsaved_state["definition"] == unsaved_definition
-    assert unsaved_state["saved_profile_id"] is None
+    assert saved_state.active_steering_curve.saved_profile_id == created["profile_id"]
+    assert saved_state.active_steering_curve.saved_profile_revision == created["revision"]
+    assert [
+        {
+            "speed_deci_kph": point.speed_deci_kph,
+            "assistance_per_mille": point.assistance_per_mille,
+        }
+        for point in unsaved_state.active_steering_curve.definition.points
+    ] == unsaved_definition["points"]
+    assert unsaved_state.active_steering_curve.saved_profile_id is None
 
 
 def test_commands_are_strict_and_old_mutation_routes_are_removed(tmp_path: Path) -> None:
@@ -116,6 +122,7 @@ def test_commands_are_strict_and_old_mutation_routes_are_removed(tmp_path: Path)
             client.post("/api/reset"),
             client.post("/api/buttons/0/press"),
             client.post("/api/vehicle/speed", json={"speed_kph": 20.0}),
+            client.get("/api/steering/curve-state"),
             client.post(
                 "/api/steering/curve-state/activate",
                 json={"definition": definition_json()},
@@ -217,17 +224,15 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
                 "expected_revision": profile["revision"],
             },
         )
-        curve_state = client.get("/api/steering/curve-state")
         dev_action = client.post("/api/dev/simulation/reset")
         application = app.state.controller_service.snapshot().application
 
     assert all(
         response.status_code == 200
-        for response in (maximum, mode, normal, activated, curve_state)
+        for response in (maximum, mode, normal, activated)
     )
     assert application.maximum_assistance_active is False
     assert application.steering_mode is SteeringMode.MANUAL
     assert application.manual_assistance_level == 3
     assert application.active_steering_curve.saved_profile_id == profile["profile_id"]
-    assert curve_state.json()["saved_profile_id"] == profile["profile_id"]
     assert dev_action.status_code == 404

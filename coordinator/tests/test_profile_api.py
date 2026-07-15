@@ -152,14 +152,14 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
         "/api/commands/steering-curve",
         json={"definition": smooth},
     )
-    active = client.get("/api/steering/curve-state")
+    active = client.app.state.controller_service.snapshot().application
 
     assert saved.status_code == 201
     assert saved.json()["definition"] == smooth
     assert activated.status_code == 200
     assert set(activated.json()) == {"accepted", "boot_id", "revision"}
-    assert active.json()["definition"] == smooth
-    assert active.json()["supported_interpolations"] == [
+    assert definition_primitive(active.active_steering_curve.definition) == smooth
+    assert [item.value for item in active.supported_steering_curve_interpolations] == [
         "linear-v1",
         "monotone-cubic-v1",
     ]
@@ -168,18 +168,17 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
 def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejected(
     tmp_path: Path,
 ) -> None:
-    with TestClient(
-        make_app(
-            tmp_path / "profiles.sqlite3",
-            supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,),
-        )
-    ) as client:
-        before = client.get("/api/steering/curve-state").json()
+    app = make_app(
+        tmp_path / "profiles.sqlite3",
+        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,),
+    )
+    with TestClient(app) as client:
+        before = app.state.controller_service.snapshot().application
         response = client.put(
             "/api/commands/steering-curve",
             json={"definition": definition_json(interpolation="monotone-cubic-v1")},
         )
-        after = client.get("/api/steering/curve-state").json()
+        after = app.state.controller_service.snapshot().application
 
     assert response.status_code == 409
     assert response.json()["error"] == {
@@ -317,34 +316,39 @@ def test_stale_delete_preserves_the_newer_profile(client: TestClient) -> None:
 
 
 def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
-    initial_curve = client.get("/api/steering/curve-state").json()
+    initial_curve = (
+        client.app.state.controller_service.snapshot().application.active_steering_curve
+    )
     applied_definition = definition_json(second_assistance=850)
 
     applied = client.put(
         "/api/commands/steering-curve",
         json={"definition": applied_definition},
     )
-    active_after_apply = client.get("/api/steering/curve-state").json()
+    active_after_apply = client.app.state.controller_service.snapshot().application
     catalog_after_apply = client.get("/api/steering/profiles").json()["profiles"]
     saved = create_profile(client, "Saved only")
-    curve_after_save = client.get("/api/steering/curve-state").json()
+    curve_after_save = client.app.state.controller_service.snapshot().application
 
     assert applied.status_code == 200
     assert applied.json()["accepted"] is True
-    assert active_after_apply["definition"] == applied_definition
     assert (
-        active_after_apply["activation_revision"]
-        == initial_curve["activation_revision"] + 1
+        definition_primitive(active_after_apply.active_steering_curve.definition)
+        == applied_definition
     )
-    assert active_after_apply["saved_profile_id"] is None
+    assert (
+        active_after_apply.active_steering_curve.activation_revision
+        == initial_curve.activation_revision + 1
+    )
+    assert active_after_apply.active_steering_curve.saved_profile_id is None
     assert len(catalog_after_apply) == 1
     assert saved["definition"] == applied_definition
-    assert curve_after_save == active_after_apply
+    assert curve_after_save.active_steering_curve == active_after_apply.active_steering_curve
 
 
 def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     saved = create_profile(client)
-    before = client.get("/api/steering/curve-state").json()
+    before = client.app.state.controller_service.snapshot().application
 
     response = client.post(
         "/api/commands/activate-steering-profile",
@@ -354,7 +358,7 @@ def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "profile_revision_conflict"
     assert response.json()["error"]["current_revision"] == 1
-    assert client.get("/api/steering/curve-state").json() == before
+    assert client.app.state.controller_service.snapshot().application == before
 
 
 def test_matching_saved_profile_is_activated(client: TestClient) -> None:
@@ -367,12 +371,12 @@ def test_matching_saved_profile_is_activated(client: TestClient) -> None:
             "expected_revision": saved["revision"],
         },
     )
-    active = client.get("/api/steering/curve-state").json()
+    active = client.app.state.controller_service.snapshot().application.active_steering_curve
 
     assert response.status_code == 200
     assert response.json()["accepted"] is True
-    assert active["saved_profile_id"] == saved["profile_id"]
-    assert active["saved_profile_revision"] == 1
+    assert active.saved_profile_id == saved["profile_id"]
+    assert active.saved_profile_revision == 1
 
 
 def test_saved_profile_command_rejects_unknown_fields(client: TestClient) -> None:
@@ -526,7 +530,6 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
             },
         )
         fetched = client.get(f"/api/steering/profiles/{saved['profile_id']}")
-        curve_state = client.get("/api/steering/curve-state")
         runtime_snapshot = app.state.controller_service.snapshot()
 
     assert before.diagnostics.health.fatal is False
@@ -537,13 +540,14 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     }
     assert fetched.status_code == 200
     assert fetched.json() == saved
-    assert curve_state.status_code == 200
-    assert curve_state.json()["definition"] == saved["definition"]
-    assert curve_state.json()["saved_profile_id"] == saved["profile_id"]
     assert runtime_snapshot.diagnostics.health.fatal is True
     assert (
         definition_primitive(runtime_snapshot.application.active_steering_curve.definition)
         == saved["definition"]
+    )
+    assert (
+        runtime_snapshot.application.active_steering_curve.saved_profile_id
+        == saved["profile_id"]
     )
 
 
