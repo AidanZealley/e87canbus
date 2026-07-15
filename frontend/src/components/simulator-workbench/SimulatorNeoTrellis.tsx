@@ -1,6 +1,6 @@
 import {
   NeoTrellisPanel,
-  type NeoTrellisButton,
+  type NeoTrellisButtonState,
 } from "./components/neo-trellis-panel/NeoTrellisPanel"
 import { useMutation } from "@tanstack/react-query"
 import { tapButton } from "@/api/simulator"
@@ -44,7 +44,7 @@ export const SimulatorNeoTrellis = ({
     observedLedColours === null
       ? "Observed LEDs unknown; showing controller desired LEDs."
       : "Showing LEDs decoded by the emulator from the output frame."
-  const buttons: NeoTrellisButton[] = Array.from(
+  const buttons: NeoTrellisButtonState[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
       index,
@@ -67,7 +67,7 @@ export const SimulatorNeoTrellis = ({
   )
 }
 
-const rgbForColourCode = (colourCode: number): NeoTrellisButton["rgb"] => {
+const rgbForColourCode = (colourCode: number): NeoTrellisButtonState["rgb"] => {
   switch (colourCode) {
     case 1:
       return [255, 0, 0]

@@ -11,14 +11,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { NeoTrellisButton } from "./components/neo-trellis-button"
 
-export type NeoTrellisButton = {
+export type NeoTrellisButtonState = {
   index: number
   rgb: readonly [red: number, green: number, blue: number]
 }
 
 type NeoTrellisPanelProps = {
-  buttons: NeoTrellisButton[]
+  buttons: NeoTrellisButtonState[]
   sourceMode: "physical" | "emulated" | "observer" | "disabled" | "unavailable"
   observationLabel: string
   emulatorControlsAvailable: boolean
@@ -94,18 +95,12 @@ export const NeoTrellisPanel = ({
         <div className="grid grid-cols-4 gap-2">
           {buttons.map(({ index, rgb }) => (
             <div key={index} className="flex min-w-0 flex-col gap-1">
-              <Button
-                variant="outline"
-                className="aspect-square h-auto min-h-14 rounded-4xl p-1 active:scale-[0.98] active:bg-input/40"
-                style={{
-                  boxShadow: buttonGlow(rgb),
-                }}
-                aria-label={`Button ${index}`}
+              <NeoTrellisButton
+                index={index}
+                rgb={rgb}
                 disabled={!emulatorControlsAvailable}
-                onClick={() => onClick(index)}
-              >
-                <span className="font-heading text-2xl">{index}</span>
-              </Button>
+                onClick={onClick}
+              />
             </div>
           ))}
         </div>
@@ -120,9 +115,3 @@ export const NeoTrellisPanel = ({
     </CardFooter>
   </Card>
 )
-
-const buttonGlow = (rgb: NeoTrellisButton["rgb"]) => {
-  const colour = rgb.join(" ")
-
-  return `inset 0 0 0 4px rgb(${colour}), 0 0 10px rgb(${colour} / 25%)`
-}

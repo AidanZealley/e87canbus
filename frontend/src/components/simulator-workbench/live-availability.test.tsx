@@ -60,12 +60,12 @@ it("clears retained LED observations and disables controls when unsynchronized",
   )
 
   const firstButton = screen.getByRole("button", { name: "Button 0" })
-  expect(firstButton.style.boxShadow).toContain("0 0 255")
+  expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 0 255")
   expect((firstButton as HTMLButtonElement).disabled).toBe(true)
 
   act(() => useLiveStore.getState().transportDisconnected())
 
-  expect(firstButton.style.boxShadow).toContain("0 0 0")
+  expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 0 0")
   expect(
     (
       screen.getByRole("button", {
@@ -101,7 +101,7 @@ it("sends emulator taps separately from semantic controller commands", async () 
   )
 
   const firstButton = screen.getByRole("button", { name: "Button 0" })
-  expect(firstButton.style.boxShadow).toContain("0 255 0")
+  expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 255 0")
   fireEvent.click(firstButton)
   await waitFor(() => expect(tapButton).toHaveBeenCalledWith(0))
   expect(onMaximumAssistanceChange).not.toHaveBeenCalled()
