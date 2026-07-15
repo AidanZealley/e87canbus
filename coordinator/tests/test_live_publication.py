@@ -13,7 +13,7 @@ from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.runtime import SetMaximumAssistance, StateTopic
 from e87canbus.service import ControllerService, RuntimeExecution
-from e87canbus.simulation.runtime import ResetSimulation, SetVehicleSpeed
+from e87canbus.simulation.runtime import ResetSimulation, SetVehicleSpeed, TapButton
 
 
 class RecordingSocketServer:
@@ -130,6 +130,7 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         "engine",
         "steering",
         "buttons",
+        "lighting",
         "devices",
         "health",
     }
@@ -139,6 +140,12 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         for topic, revision in first_payload["data"]["topic_revisions"].items()
         if topic != "health"
     } == {1}
+    assert first_payload["data"]["lighting"] == {
+        "high_beam_enabled": False,
+        "high_beam_strobe_active": False,
+        "high_beam_strobe_cycles_remaining": 0,
+        "observed_high_beam_enabled": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -170,6 +177,39 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
     assert result <= before_reset_revision
     assert set(events) == {"steering.state", "buttons.state", "devices.state"}
     assert after_reset_revision > before_reset_revision
+
+
+@pytest.mark.asyncio
+async def test_lighting_topic_publishes_requested_and_observed_high_beam_state() -> None:
+    service = controller_service()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await asyncio.to_thread(service.start, publisher.offer)
+    await publisher.start()
+    try:
+        await wait_until(lambda: len(socket_server.emissions) >= 7)
+        socket_server.emissions.clear()
+        await asyncio.wrap_future(service.submit(TapButton(4)))
+        await wait_until(
+            lambda: any(
+                event == "lighting.state" for event, *_ in socket_server.emissions
+            )
+        )
+    finally:
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
+
+    payload = next(
+        payload
+        for event, payload, _, _ in socket_server.emissions
+        if event == "lighting.state"
+    )
+    assert payload["data"] == {
+        "high_beam_enabled": True,
+        "high_beam_strobe_active": True,
+        "high_beam_strobe_cycles_remaining": 5,
+        "observed_high_beam_enabled": True,
+    }
 
 
 @pytest.mark.asyncio

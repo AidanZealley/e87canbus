@@ -5,9 +5,10 @@ Hardware-aware, locally testable software for a track-only BMW E87 CAN bus proje
 Current milestone: the hardware-independent coordinator kernel owns application state and is
 exercised through the visual simulator's bounded, single-owner command path. NeoTrellis button `0`
 toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
-manual level, and button `3` toggles a reversible maximum-assistance override. Together these
-steering controls populate the full top row. BMW CAN IDs, DSC replay, high-beam strobe, Servotronic
-output, physical Trellis integration, and the in-car touchscreen UI remain out of scope.
+manual level, and button `3` toggles a reversible maximum-assistance override. Button `4` starts a
+simulator-only, bounded high-beam flash-to-pass strobe. BMW CAN IDs, DSC replay, live high-beam
+actuation, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain
+out of scope.
 
 The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
 PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated vehicle have an
@@ -82,7 +83,10 @@ maximum override disables it and selects Auto. Pressing `1` or `2` during the ma
 instead returns to Manual at the saved level; the next press adjusts
 it normally. The mode LED is blue for Auto or amber for Manual, while button `3` is white when its
 override is active. Manual level memory is currently process-local and is reset on coordinator or
-Pi restart.
+Pi restart. Button `4` starts exactly five high/on then low/off phases, each 80 ms, through a
+private synthetic extended K-CAN frame. The virtual vehicle observes that state and the workbench
+trace records the Pi-to-vehicle frames; repeated presses while it is active do not extend the
+sequence.
 
 Upload button-pad firmware from the host:
 
@@ -122,14 +126,19 @@ pio run
 The default live composition disables application transmission on every CAN network. K-CAN transmission
 is granted only by the isolated simulator and bench compositions, where coordinator output remains
 rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
-hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,
-high-beam K-CAN commands, and physical Servotronic output are intentionally not implemented yet.
+hardware in listen-only mode, which remains a recommended deployment defense. The high-beam strobe
+has a separate simulator-only actuator capability: a live K-CAN TX grant alone cannot create or
+enable it. Its extended synthetic frame is not a BMW ID, has no live router/actuator mapping, and
+cannot be sent to a real car by this application. DSC replay, capture-backed BMW high-beam commands,
+and physical Servotronic output are intentionally not implemented yet.
 Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
-as confirmed. The simulator's synthetic speed input is an explicitly simulation-only extended CAN
-frame. It still travels from the simulated vehicle through ingress timestamping, decoding,
-transition, commit, and effect execution; the live router cannot decode it. Future verified vehicle
-inputs must replace synthetic definitions with captured network-specific frames. There is no
-simulator-only state injection boundary.
+as confirmed. In particular, a future high-beam implementation needs named captures of stalk
+pull and release, counter/checksum behavior and normal cadence, followed by controlled validation
+before any live actuator can exist. The simulator's synthetic speed input is an explicitly
+simulation-only extended CAN frame. It still travels from the simulated vehicle through ingress
+timestamping, decoding, transition, commit, and effect execution; the live router cannot decode it.
+Future verified vehicle inputs must replace synthetic definitions with captured network-specific
+frames. There is no simulator-only state injection boundary.
 
 The bench-only `0x700`/`0x701` IDs are provisional and require collision checks against a real
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,

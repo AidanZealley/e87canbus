@@ -57,7 +57,6 @@ it("renders only a bounded virtual window for a full trace", async () => {
       networks={networks}
       selectedNetworks={new Set(["fcan"])}
       selected={null}
-      autoScroll
       onSelect={vi.fn()}
       onToggleNetwork={vi.fn()}
     />
@@ -89,7 +88,6 @@ it("pauses following when scrolled up and offers a jump to latest", async () => 
       networks={networks}
       selectedNetworks={new Set(["fcan"])}
       selected={null}
-      autoScroll
       onSelect={vi.fn()}
       onToggleNetwork={vi.fn()}
     />

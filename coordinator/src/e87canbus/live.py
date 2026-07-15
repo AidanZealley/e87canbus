@@ -11,6 +11,7 @@ from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
+from e87canbus.application.events import HighBeamStrobeDeadlineReached
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
@@ -18,6 +19,7 @@ from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
     EffectFailure,
+    HighBeamActuatorFailure,
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
@@ -162,6 +164,10 @@ def _effect_failure_input(
             return CanEffectExecutionFailed(network, failed_at, message)
         case SteeringActuatorFailure(message):
             return SteeringActuatorFailed(failed_at, message)
+        case HighBeamActuatorFailure(message):
+            # Live composition never grants this capability.  Retain a conservative
+            # failure mapping should a future adapter violate that boundary.
+            return CanEffectExecutionFailed(CanNetwork.KCAN, failed_at, message)
         case _:
             assert_never(failure)
 
@@ -198,6 +204,7 @@ class LiveControllerRuntime:
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
+            high_beam_strobe_config=config.high_beam_strobe,
             router=self._router,
         )
         self._executor = EffectExecutor(router=self._router)
@@ -285,6 +292,13 @@ class LiveControllerRuntime:
     def timer(self, now: float) -> RuntimeExecution | None:
         return self._dispatch(TimerElapsed(now))
 
+    def next_deadline(self) -> float | None:
+        """Return the application-owned strobe phase deadline, if armed."""
+        return self._kernel.state.high_beam_next_transition_at
+
+    def deadline(self, now: float) -> RuntimeExecution | None:
+        return self._dispatch(HighBeamStrobeDeadlineReached(now))
+
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self._reader_stop.set()
         execution = self._dispatch(ShutdownRequested(now)) if self._started else None
@@ -345,6 +359,7 @@ class LiveControllerRuntime:
                     for item in enabled
                 ),
                 steering=None,
+                lighting=None,
             ),
         )
 

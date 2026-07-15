@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { CarFrontIcon, PowerIcon } from "lucide-react"
+import { CarFrontIcon, LightbulbIcon, PowerIcon } from "lucide-react"
 import type { EngineState } from "@/api/live-events"
 
 import {
@@ -34,11 +34,13 @@ const OPERATING_TEMPERATURE_C = 90
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
   engine: EngineState
+  observedHighBeamEnabled: boolean | null
 }
 
 export const SimulatedVehicleControls = ({
   speedKph,
   engine,
+  observedHighBeamEnabled,
 }: SimulatedVehicleControlsProps) => {
   const [speed, setSpeed] = useState(speedKph ?? 0)
   const [rpm, setRpm] = useState(engine.rpm.value ?? IDLE_RPM)
@@ -86,7 +88,28 @@ export const SimulatedVehicleControls = ({
         <CardTitle>Simulated vehicle</CardTitle>
         <CardDescription>External vehicle inputs on simulated CAN</CardDescription>
         <CardAction>
-          <CarFrontIcon aria-hidden="true" />
+          <div className="flex items-center gap-2">
+            <span
+              role="img"
+              aria-label={
+                observedHighBeamEnabled === null
+                  ? "Virtual-car high beam unavailable"
+                  : observedHighBeamEnabled
+                    ? "Virtual-car high beam on"
+                    : "Virtual-car high beam off"
+              }
+            >
+              <LightbulbIcon
+                aria-hidden="true"
+                className={
+                  observedHighBeamEnabled
+                    ? "text-sky-400"
+                    : "text-muted-foreground"
+                }
+              />
+            </span>
+            <CarFrontIcon aria-hidden="true" />
+          </div>
         </CardAction>
       </CardHeader>
 

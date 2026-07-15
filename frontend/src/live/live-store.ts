@@ -7,6 +7,7 @@ import {
   type ControllerSnapshotData,
   type DevicesState,
   type EngineState,
+  type LightingState,
   type LiveEnvelope,
   type SteeringState,
   type TopicName,
@@ -39,6 +40,7 @@ type LiveSlices = {
   engine: EngineState
   steering: SteeringState | null
   buttons: ButtonsState
+  lighting: LightingState
   devices: DevicesState
   health: ControllerHealthState
 }
@@ -53,6 +55,7 @@ export type LiveState = LiveSlices & {
   applyEngine: (envelope: LiveEnvelope<EngineState>) => TopicApplyDecision
   applySteering: (envelope: LiveEnvelope<SteeringState>) => TopicApplyDecision
   applyButtons: (envelope: LiveEnvelope<ButtonsState>) => TopicApplyDecision
+  applyLighting: (envelope: LiveEnvelope<LightingState>) => TopicApplyDecision
   applyDevices: (envelope: LiveEnvelope<DevicesState>) => TopicApplyDecision
   applyHealth: (
     envelope: LiveEnvelope<ControllerHealthState>
@@ -65,6 +68,7 @@ const zeroRevisions = (): TopicRevisions => ({
   engine: 0,
   steering: 0,
   buttons: 0,
+  lighting: 0,
   devices: 0,
   health: 0,
 })
@@ -81,6 +85,12 @@ const emptySlices = (): LiveSlices => ({
   },
   steering: null,
   buttons: { led_colours: Array<number>(16).fill(0) },
+  lighting: {
+    high_beam_enabled: false,
+    high_beam_strobe_active: false,
+    high_beam_strobe_cycles_remaining: 0,
+    observed_high_beam_enabled: null,
+  },
   devices: { devices: [], networks: [], steering_controller: null },
   health: {
     ready: false,
@@ -204,6 +214,7 @@ export const useLiveStore = create<LiveState>((set, get) => {
         engine: envelope.data.engine,
         steering: envelope.data.steering,
         buttons: envelope.data.buttons,
+        lighting: envelope.data.lighting,
         devices: envelope.data.devices,
         health: envelope.data.health,
         connection: {
@@ -218,6 +229,7 @@ export const useLiveStore = create<LiveState>((set, get) => {
     applyEngine: (envelope) => applyTopic("engine", "engine", envelope),
     applySteering: (envelope) => applyTopic("steering", "steering", envelope),
     applyButtons: (envelope) => applyTopic("buttons", "buttons", envelope),
+    applyLighting: (envelope) => applyTopic("lighting", "lighting", envelope),
     applyDevices: (envelope) => applyTopic("devices", "devices", envelope),
     applyHealth: (envelope) => applyTopic("health", "health", envelope),
     reset: () => set({ ...emptySlices(), connection: initialConnection() }),

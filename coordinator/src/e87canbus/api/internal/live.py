@@ -21,6 +21,7 @@ from e87canbus.api.models.live import (
     devices_state,
     engine_state,
     health_state,
+    lighting_state,
     snapshot_data,
     steering_state,
     vehicle_state,
@@ -43,6 +44,7 @@ TOPIC_EVENTS = {
     StateTopic.ENGINE: "engine.state",
     StateTopic.STEERING: "steering.state",
     StateTopic.BUTTONS: "buttons.state",
+    StateTopic.LIGHTING: "lighting.state",
     StateTopic.DEVICES: "devices.state",
     StateTopic.HEALTH: "controller.health",
 }
@@ -384,6 +386,8 @@ def _topic_data(topic: StateTopic, snapshot: ControllerServiceSnapshot) -> LiveD
         return steering_state(snapshot)
     if topic is StateTopic.BUTTONS:
         return buttons_state(snapshot)
+    if topic is StateTopic.LIGHTING:
+        return lighting_state(snapshot)
     if topic is StateTopic.DEVICES:
         return devices_state(snapshot)
     if topic is StateTopic.HEALTH:

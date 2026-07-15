@@ -64,6 +64,13 @@ class RecordingRuntime:
         del now
         return None
 
+    def next_deadline(self) -> float | None:
+        return None
+
+    def deadline(self, now: float) -> RuntimeExecution | None:
+        del now
+        return None
+
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self.stops += 1
         self.lifecycle_events.append("shutdown")
@@ -102,6 +109,54 @@ class FailingTimerRuntime(RecordingRuntime):
     def timer(self, now: float) -> RuntimeExecution | None:
         del now
         raise RuntimeError("timer failed")
+
+
+class MutableClock:
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+class DeadlineOrderingRuntime(RecordingRuntime):
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = replace(self.config, tick_interval_s=0.1)
+        self.deadline_at: float | None = 0.1
+        self.calls: list[str] = []
+        self.timer_called = threading.Event()
+
+    def next_deadline(self) -> float | None:
+        return self.deadline_at
+
+    def deadline(self, now: float) -> RuntimeExecution | None:
+        assert now == 0.1
+        self.calls.append("deadline")
+        self.deadline_at = None
+        return None
+
+    def timer(self, now: float) -> RuntimeExecution | None:
+        assert now == 0.1
+        self.calls.append("timer")
+        self.timer_called.set()
+        return None
+
+
+def test_service_dispatches_coincident_deadline_before_periodic_tick() -> None:
+    clock = MutableClock()
+    runtime = DeadlineOrderingRuntime()
+    service = ControllerService(runtime, mode=ControllerMode.LIVE, clock=clock)
+
+    service.start()
+    try:
+        # The owner is blocked on its normal inbox poll.  Advancing the controllable clock
+        # makes the strobe deadline and periodic tick simultaneously overdue at that wake-up.
+        clock.now = 0.1
+        assert runtime.timer_called.wait(timeout=1.0)
+        assert runtime.calls == ["deadline", "timer"]
+    finally:
+        service.stop()
 
 
 def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(

@@ -18,6 +18,7 @@ SERVER_EVENTS = (
     "engine.state",
     "steering.state",
     "buttons.state",
+    "lighting.state",
     "devices.state",
     "controller.health",
     "resources.changed",

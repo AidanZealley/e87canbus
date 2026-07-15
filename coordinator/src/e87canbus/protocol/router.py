@@ -49,7 +49,7 @@ class ProtocolRouter:
     def decode(
         self,
         routed: RoutedCanFrame,
-        _observed_at: float,
+        observed_at: float,
     ) -> ApplicationEvent | None:
         if (
             not self.button_input_enabled
@@ -61,7 +61,7 @@ class ProtocolRouter:
         assert payload is not None
         if not payload.pressed:
             return None
-        return ButtonPressed(payload.button_index)
+        return ButtonPressed(payload.button_index, observed_at)
 
     def encode(self, effect: SetButtonLeds) -> RoutedCanFrame:
         return RoutedCanFrame(

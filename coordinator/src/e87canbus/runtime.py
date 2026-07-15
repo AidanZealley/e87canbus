@@ -20,13 +20,19 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ControlTimerElapsed,
+    HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
     SteeringFallbackReason,
     SteeringFallbackRequested,
     SteeringModeSet,
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
-from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
+from e87canbus.config import (
+    CanNetwork,
+    EngineTelemetryConfig,
+    HighBeamStrobeConfig,
+    SteeringConfig,
+)
 from e87canbus.device import DeviceRole
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
@@ -41,6 +47,7 @@ from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class KernelStarted:
@@ -135,6 +142,7 @@ ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
     | TimerElapsed
+    | HighBeamStrobeDeadlineReached
     | CanReaderFailed
     | CanEffectExecutionFailed
     | SteeringActuatorFailed
@@ -146,6 +154,7 @@ ControllerInput = (
     | SetSteeringMode
 )
 
+
 class StateTopic(StrEnum):
     """Closed service projection topics; not a runtime-extensible event bus."""
 
@@ -153,6 +162,7 @@ class StateTopic(StrEnum):
     ENGINE = "engine"
     STEERING = "steering"
     BUTTONS = "buttons"
+    LIGHTING = "lighting"
     DEVICES = "devices"
     HEALTH = "health"
 
@@ -163,6 +173,7 @@ INITIAL_KERNEL_TOPICS = frozenset(
         StateTopic.ENGINE,
         StateTopic.STEERING,
         StateTopic.BUTTONS,
+        StateTopic.LIGHTING,
         StateTopic.HEALTH,
     }
 )
@@ -214,9 +225,7 @@ class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
     steering_actuator_fault: RuntimeFault | None = None
     inbox_overflow_fault: RuntimeFault | None = None
-    devices: tuple[DeviceRuntimeHealth, ...] = (
-        DeviceRuntimeHealth(DeviceRole.BUTTON_PAD),
-    )
+    devices: tuple[DeviceRuntimeHealth, ...] = (DeviceRuntimeHealth(DeviceRole.BUTTON_PAD),)
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
@@ -256,8 +265,7 @@ class RuntimeHealth:
         return replace(
             self,
             devices=tuple(
-                replace(item, fault=fault) if item.role is role else item
-                for item in self.devices
+                replace(item, fault=fault) if item.role is role else item for item in self.devices
             ),
         )
 
@@ -318,19 +326,19 @@ class CoordinatorKernel:
         state: ApplicationState | None = None,
         steering_config: SteeringConfig | None = None,
         engine_telemetry_config: EngineTelemetryConfig | None = None,
+        high_beam_strobe_config: HighBeamStrobeConfig | None = None,
         router: ProtocolRouter | None = None,
         active_steering_curve: ActiveSteeringCurve | None = None,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
+        self._high_beam_strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
         self._state = normalize_state(
             state or ApplicationState(),
             self._steering_config,
         )
         self._router = router or ProtocolRouter()
-        self._active_steering_curve = (
-            active_steering_curve or initial_active_steering_curve()
-        )
+        self._active_steering_curve = active_steering_curve or initial_active_steering_curve()
         validate_active_steering_curve(self._active_steering_curve)
         self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
         self._revision = 0
@@ -360,12 +368,9 @@ class CoordinatorKernel:
     def dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         """Accept the kernel's only state-changing input path."""
 
-        if (
-            self._lifecycle is KernelLifecycle.STOPPED
-            and not isinstance(
-                kernel_input,
-                (CanEffectExecutionFailed, SteeringActuatorFailed, ShutdownRequested),
-            )
+        if self._lifecycle is KernelLifecycle.STOPPED and not isinstance(
+            kernel_input,
+            (CanEffectExecutionFailed, SteeringActuatorFailed, ShutdownRequested),
         ):
             return None
 
@@ -437,6 +442,10 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._transition(ControlTimerElapsed(now))
+            case HighBeamStrobeDeadlineReached():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(kernel_input)
             case ActivateSteeringCurve():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -485,6 +494,7 @@ class CoordinatorKernel:
             event,
             self._steering_config,
             self._active_steering_curve.definition,
+            self._high_beam_strobe_config,
         )
         self._state = result.state
         self._revision += 1
@@ -493,9 +503,7 @@ class CoordinatorKernel:
             previous_snapshot,
             committed_snapshot,
             buttons_changed=button_led_state(self._state) != previous_button_leds,
-            health_changed=(
-                previous_health is not None and self._health != previous_health
-            ),
+            health_changed=(previous_health is not None and self._health != previous_health),
         )
         return Commit(
             revision=self._revision,
@@ -585,14 +593,20 @@ def _changed_controller_topics(
         or current.manual_assistance_level != previous.manual_assistance_level
         or current.maximum_assistance_active != previous.maximum_assistance_active
         or current.active_steering_curve != previous.active_steering_curve
-        or (
-            current.steering_curve_activation_status
-            != previous.steering_curve_activation_status
-        )
+        or (current.steering_curve_activation_status != previous.steering_curve_activation_status)
     ):
         changed.add(StateTopic.STEERING)
     if buttons_changed:
         changed.add(StateTopic.BUTTONS)
+    if (
+        current.high_beam_enabled != previous.high_beam_enabled
+        or current.high_beam_strobe_active != previous.high_beam_strobe_active
+        or (
+            current.high_beam_strobe_cycles_remaining
+            != previous.high_beam_strobe_cycles_remaining
+        )
+    ):
+        changed.add(StateTopic.LIGHTING)
     if health_changed:
         changed.add(StateTopic.HEALTH)
     return frozenset(changed)

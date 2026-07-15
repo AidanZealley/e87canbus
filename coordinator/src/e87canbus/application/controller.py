@@ -15,10 +15,12 @@ from e87canbus.application.events import (
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
+    HighBeamStrobeDeadlineReached,
     LedColour,
     MaximumAssistanceSet,
     OilTemperatureObserved,
     SetButtonLeds,
+    SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -32,7 +34,7 @@ from e87canbus.application.state import (
     SteeringMode,
     SteeringState,
 )
-from e87canbus.config import EngineTelemetryConfig, SteeringConfig
+from e87canbus.config import EngineTelemetryConfig, HighBeamStrobeConfig, SteeringConfig
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
@@ -74,6 +76,10 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
+    high_beam_enabled: bool
+    high_beam_strobe_active: bool
+    high_beam_strobe_cycles_remaining: int
+    high_beam_next_transition_at: float | None
 
 
 @dataclass(frozen=True)
@@ -87,10 +93,17 @@ def transition(
     event: ApplicationEvent,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
+    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> Transition:
     """Return the complete next state and ordered effects for one event."""
 
     match event:
+        case HighBeamStrobeDeadlineReached(now):
+            return _advance_high_beam_strobe(
+                state,
+                now,
+                high_beam_strobe_config or HighBeamStrobeConfig(),
+            )
         case SpeedObserved(sample):
             return Transition(
                 replace(
@@ -132,13 +145,22 @@ def transition(
                     ),
                 ),
             )
-        case ButtonPressed(button_index):
-            new_state = _button_transition(state, button_index, config)
+        case ButtonPressed(button_index, observed_at):
+            strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
+            new_state = _button_transition(
+                state,
+                button_index,
+                observed_at,
+                config,
+                strobe_config,
+            )
             previous_leds = button_led_state(state)
             new_leds = button_led_state(new_state)
-            effects: tuple[ApplicationEffect, ...] = (
-                () if new_leds == previous_leds else (SetButtonLeds(new_leds),)
-            )
+            effects: tuple[ApplicationEffect, ...] = ()
+            if new_leds != previous_leds:
+                effects += (SetButtonLeds(new_leds),)
+            if new_state.high_beam_enabled != state.high_beam_enabled:
+                effects += (SetHighBeam(new_state.high_beam_enabled),)
             return Transition(new_state, effects)
         case _:
             assert_never(event)
@@ -189,6 +211,10 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
+        high_beam_enabled=state.high_beam_enabled,
+        high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
+        high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
+        high_beam_next_transition_at=state.high_beam_next_transition_at,
     )
 
 
@@ -225,7 +251,9 @@ def normalize_state(state: ApplicationState, config: SteeringConfig) -> Applicat
 def _button_transition(
     state: ApplicationState,
     button_index: int,
+    observed_at: float,
     config: SteeringConfig,
+    high_beam_strobe_config: HighBeamStrobeConfig,
 ) -> ApplicationState:
     match button_index:
         case 0:
@@ -236,8 +264,61 @@ def _button_transition(
             return _adjust_assistance(state, 1, config)
         case 3:
             return _toggle_maximum_assistance(state)
+        case index if index == high_beam_strobe_config.button_index:
+            return _start_high_beam_strobe(state, observed_at, high_beam_strobe_config)
         case _:
             return state
+
+
+def _start_high_beam_strobe(
+    state: ApplicationState,
+    observed_at: float,
+    config: HighBeamStrobeConfig,
+) -> ApplicationState:
+    """Start a plan from the ingress timestamp; active plans are intentionally unchanged."""
+
+    if state.high_beam_strobe_cycles_remaining > 0:
+        return state
+    return replace(
+        state,
+        high_beam_enabled=True,
+        high_beam_strobe_cycles_remaining=config.cycle_count,
+        high_beam_next_transition_at=observed_at + config.asserted_duration_s,
+    )
+
+
+def _advance_high_beam_strobe(
+    state: ApplicationState,
+    now: float,
+    config: HighBeamStrobeConfig,
+) -> Transition:
+    deadline = state.high_beam_next_transition_at
+    if deadline is None or now < deadline:
+        return Transition(state)
+    if state.high_beam_enabled:
+        next_state = replace(
+            state,
+            high_beam_enabled=False,
+            high_beam_next_transition_at=now + config.deasserted_duration_s,
+        )
+        return Transition(next_state, (SetHighBeam(False),))
+
+    remaining = state.high_beam_strobe_cycles_remaining - 1
+    if remaining == 0:
+        return Transition(
+            replace(
+                state,
+                high_beam_strobe_cycles_remaining=0,
+                high_beam_next_transition_at=None,
+            )
+        )
+    next_state = replace(
+        state,
+        high_beam_enabled=True,
+        high_beam_strobe_cycles_remaining=remaining,
+        high_beam_next_transition_at=now + config.asserted_duration_s,
+    )
+    return Transition(next_state, (SetHighBeam(True),))
 
 
 def _toggle_steering_mode(state: ApplicationState) -> ApplicationState:
@@ -320,9 +401,7 @@ def _set_steering_mode(
         if type(manual_level) is not int:
             raise ValueError("manual_level must be an integer")
         if not 0 <= manual_level < config.manual_level_count:
-            raise ValueError(
-                f"manual_level must be between 0 and {config.manual_level_count - 1}"
-            )
+            raise ValueError(f"manual_level must be between 0 and {config.manual_level_count - 1}")
     steering = state.steering
     normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_normal = replace(

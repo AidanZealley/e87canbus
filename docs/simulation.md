@@ -88,6 +88,13 @@ vehicle signals to never-observed without retaining old endpoints.
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
+Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
+for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
+turns each phase into a private extended K-CAN command from the Pi to the virtual vehicle, so the
+chronological trace shows the transmission and the lighting panel distinguishes requested from
+observed virtual-car state. This is deliberately a virtual-car protocol only: it is neither a BMW
+frame/ID nor a live vehicle command.
+
 Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
 simulation-only CAN frame on the in-memory F-CAN. The runtime timestamps and decodes that frame
@@ -137,6 +144,11 @@ external devices remain unrestricted. A later accepted `0x701` snapshot replaces
 LED colours and repairs a missed intermediate state. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
+The high-beam strobe additionally requires its own simulator-only actuator capability. Live mode
+does not construct that actuator and its router has no high-beam frame mapping; a future live K-CAN
+grant therefore cannot enable this output accidentally. No BMW high-beam frame, live high-beam
+actuator, or real-car TX capability exists in this repository.
+
 The emulator and physical pad share the generated provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
@@ -145,9 +157,12 @@ The emulator and physical pad share the generated provisional project protocol o
 The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700` and `0x701` require collision
 validation against a real K-CAN capture before any in-car transmission.
 
-It does not simulate verified BMW vehicle control traffic. Its synthetic extended speed message is
-defined only in `e87canbus.simulation.protocol`, is never installed in live composition, and is not
-a candidate BMW ID. Placeholder BMW IDs remain notes only and must not be used as replay commands
-until real captures, counters, and payload behavior have been verified. Future simulated inputs
-must still pass through an external simulated node, encoded CAN frame, ingress timestamp, and
-central decoder; no simulator API may inject domain events or coordinator state.
+It does not simulate verified BMW vehicle control traffic. Its synthetic extended speed and
+high-beam-command messages are defined only in `e87canbus.simulation.protocol`, are never installed
+in live composition, and are not BMW candidates. Placeholder BMW IDs remain notes only and must not
+be used as replay commands until real captures, counters/checksums, payload behavior and cadence
+have been verified. Specifically, a real high-beam path needs named stalk-pull and stalk-release
+captures plus controlled validation before a deliberately new live actuator capability could be
+considered. Future simulated inputs must still pass through an external simulated node, encoded CAN
+frame, ingress timestamp, and central decoder; no simulator API may inject domain events or
+coordinator state.

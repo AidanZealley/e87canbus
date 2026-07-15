@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
+from e87canbus.application.events import HighBeamStrobeDeadlineReached
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
@@ -16,6 +17,7 @@ from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
     EffectFailure,
+    HighBeamActuatorFailure,
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
@@ -42,6 +44,7 @@ from e87canbus.runtime import (
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ControllerWorkUnavailable,
+    ObservedLightingSnapshot,
     ObservedNetworkSnapshot,
     ObservedSteeringSnapshot,
     RuntimeExecution,
@@ -49,6 +52,7 @@ from e87canbus.service import (
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
+    SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
     SimulatedSteeringController,
     SimulatedVehicleNode,
@@ -269,6 +273,18 @@ class SimulatedControllerRuntime:
             return None
         return self.execute(RunControlTimer(now))
 
+    def next_deadline(self) -> float | None:
+        return self.kernel.state.high_beam_next_transition_at
+
+    def deadline(self, now: float) -> RuntimeExecution | None:
+        if self.kernel.health.fatal:
+            return None
+        self._require_started()
+        self._execution_commits = []
+        before_sequence = self.topology.latest_sequence
+        self._dispatch(HighBeamStrobeDeadlineReached(now))
+        return self._process_pending(before_sequence)
+
     def shutdown(self, now: float | None = None) -> RuntimeExecution:
         del now
         self._require_started()
@@ -332,12 +348,18 @@ class SimulatedControllerRuntime:
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             engine_telemetry_config=self.config.engine_telemetry,
+            high_beam_strobe_config=self.config.high_beam_strobe,
             router=router,
         )
         self.executor = EffectExecutor(
             transmitters,
             router,
             steering_actuator=self.steering_controller,
+            high_beam_actuator=(
+                None
+                if (transmitter := transmitters.get(CanNetwork.KCAN)) is None
+                else SimulatedHighBeamActuator(transmitter)
+            ),
         )
 
         startup = self._dispatch(KernelStarted(self._clock()))
@@ -434,6 +456,8 @@ class SimulatedControllerRuntime:
                 changed_topics.add(StateTopic.DEVICES)
             if previous.led_colours != projection.led_colours:
                 changed_topics.add(StateTopic.BUTTONS)
+            if previous.lighting != projection.lighting:
+                changed_topics.add(StateTopic.LIGHTING)
         self._previous_projection = projection
         self._previous_diagnostics = diagnostics
         if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
@@ -550,6 +574,9 @@ class SimulatedControllerRuntime:
                 ),
                 watchdog_timed_out=self.steering_controller.watchdog_timed_out,
             ),
+            lighting=ObservedLightingSnapshot(
+                high_beam_enabled=self.vehicle.high_beam_enabled,
+            ),
         )
 
     def _process_button_output(self) -> None:
@@ -586,5 +613,7 @@ def _effect_failure_input(
             return CanEffectExecutionFailed(network, failed_at, message)
         case SteeringActuatorFailure(message):
             return SteeringActuatorFailed(failed_at, message)
+        case HighBeamActuatorFailure(message):
+            return CanEffectExecutionFailed(CanNetwork.KCAN, failed_at, message)
         case _:
             assert_never(failure)

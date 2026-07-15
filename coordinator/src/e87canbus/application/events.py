@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -43,6 +44,11 @@ OFF_BUTTON_LEDS = ButtonLedState((LedColour.OFF,) * BUTTON_LED_COUNT)
 @dataclass(frozen=True)
 class ButtonPressed:
     button_index: int
+    observed_at: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.observed_at):
+            raise ValueError("button observation time must be finite")
 
 
 @dataclass(frozen=True)
@@ -68,6 +74,17 @@ class CoolantTemperatureObserved:
 @dataclass(frozen=True)
 class ControlTimerElapsed:
     now: float
+
+
+@dataclass(frozen=True)
+class HighBeamStrobeDeadlineReached:
+    """A separately scheduled high-beam strobe phase deadline."""
+
+    now: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.now):
+            raise ValueError("high-beam strobe deadline must be finite")
 
 
 @dataclass(frozen=True)
@@ -110,6 +127,7 @@ ApplicationEvent = (
     | OilTemperatureObserved
     | CoolantTemperatureObserved
     | ControlTimerElapsed
+    | HighBeamStrobeDeadlineReached
     | MaximumAssistanceSet
     | SteeringModeSet
     | SteeringFallbackRequested
@@ -133,4 +151,15 @@ class SetSteeringAssistance:
             raise ValueError("steering assistance must be between zero and one")
 
 
-ApplicationEffect = SetButtonLeds | SetSteeringAssistance
+@dataclass(frozen=True)
+class SetHighBeam:
+    """Protocol-independent high-beam capability request."""
+
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        if type(self.enabled) is not bool:
+            raise ValueError("high-beam enabled must be a boolean")
+
+
+ApplicationEffect = SetButtonLeds | SetSteeringAssistance | SetHighBeam

@@ -1,7 +1,13 @@
 export const LIVE_PROTOCOL_VERSION = 1 as const
 
 export type TopicName =
-  "vehicle" | "engine" | "steering" | "buttons" | "devices" | "health"
+  | "vehicle"
+  | "engine"
+  | "steering"
+  | "buttons"
+  | "lighting"
+  | "devices"
+  | "health"
 
 export type TopicRevisions = Record<TopicName, number>
 
@@ -53,6 +59,13 @@ export type SteeringState = {
 
 export type ButtonsState = {
   led_colours: number[]
+}
+
+export type LightingState = {
+  high_beam_enabled: boolean
+  high_beam_strobe_active: boolean
+  high_beam_strobe_cycles_remaining: number
+  observed_high_beam_enabled: boolean | null
 }
 
 export type DevicesState = {
@@ -140,6 +153,7 @@ export type ControllerSnapshotData = {
   engine: EngineState
   steering: SteeringState
   buttons: ButtonsState
+  lighting: LightingState
   devices: DevicesState
   health: ControllerHealthState
 }
@@ -172,6 +186,7 @@ export type ServerToClientEvents = {
   "engine.state": (payload: LiveEnvelope<EngineState>) => void
   "steering.state": (payload: LiveEnvelope<SteeringState>) => void
   "buttons.state": (payload: LiveEnvelope<ButtonsState>) => void
+  "lighting.state": (payload: LiveEnvelope<LightingState>) => void
   "devices.state": (payload: LiveEnvelope<DevicesState>) => void
   "controller.health": (payload: LiveEnvelope<ControllerHealthState>) => void
   "resources.changed": (payload: ResourceChangedEvent) => void

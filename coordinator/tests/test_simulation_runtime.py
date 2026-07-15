@@ -11,7 +11,13 @@ from e87canbus.application.events import (
     SteeringCommandReason,
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
-from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
+from e87canbus.config import (
+    CanNetwork,
+    HighBeamStrobeConfig,
+    TxPolicyConfig,
+    default_config,
+    simulator_config,
+)
 from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.protocol.can import CanFrame
@@ -28,6 +34,7 @@ from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
     SIMULATION_ONLY_ENGINE_RPM_ID,
+    SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
 from e87canbus.simulation.runtime import (
@@ -520,6 +527,35 @@ def test_engine_clock_is_used_for_ingress_and_trace() -> None:
     controller.execute(PressButton(0))
 
     assert {entry.monotonic_s for entry in controller.topology.trace()} == {8.5}
+
+
+def test_high_beam_strobe_emits_all_pulses_to_virtual_vehicle_without_control_ticks() -> None:
+    clock = MutableClock()
+    config = replace(
+        TEST_SIMULATOR_CONFIG,
+        high_beam_strobe=HighBeamStrobeConfig(cycle_count=5),
+    )
+    controller = SimulatedControllerRuntime(config=config, clock=clock)
+    controller.start()
+
+    controller.execute(TapButton(4))
+    for _ in range(10):
+        assert controller.next_deadline() is not None
+        clock.now = controller.next_deadline()
+        controller.deadline(clock.now)
+
+    high_beam_frames = [
+        entry.frame
+        for entry in controller.topology.trace()
+        if entry.source == "pi"
+        and entry.frame.arbitration_id == SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID
+    ]
+    assert high_beam_frames == [
+        CanFrame(SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID, bytes((value,)), is_extended_id=True)
+        for value in (1, 0) * 5
+    ]
+    assert controller.vehicle.high_beam_enabled is False
+    assert application(controller).high_beam_strobe_active is False
 
 
 def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> None:

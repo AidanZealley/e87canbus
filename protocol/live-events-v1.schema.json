@@ -150,6 +150,9 @@
           "health": {
             "$ref": "#/$defs/ControllerHealthState"
           },
+          "lighting": {
+            "$ref": "#/$defs/LightingState"
+          },
           "simulation_session_id": {
             "anyOf": [
               {
@@ -178,6 +181,7 @@
           "engine",
           "steering",
           "buttons",
+          "lighting",
           "devices",
           "health"
         ],
@@ -433,6 +437,43 @@
           "overflow_latched"
         ],
         "title": "InboxHealthState",
+        "type": "object"
+      },
+      "LightingState": {
+        "additionalProperties": false,
+        "properties": {
+          "high_beam_enabled": {
+            "title": "High Beam Enabled",
+            "type": "boolean"
+          },
+          "high_beam_strobe_active": {
+            "title": "High Beam Strobe Active",
+            "type": "boolean"
+          },
+          "high_beam_strobe_cycles_remaining": {
+            "minimum": 0,
+            "title": "High Beam Strobe Cycles Remaining",
+            "type": "integer"
+          },
+          "observed_high_beam_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed High Beam Enabled"
+          }
+        },
+        "required": [
+          "high_beam_enabled",
+          "high_beam_strobe_active",
+          "high_beam_strobe_cycles_remaining",
+          "observed_high_beam_enabled"
+        ],
+        "title": "LightingState",
         "type": "object"
       },
       "NetworkHealthState": {
@@ -779,6 +820,11 @@
             "title": "Health",
             "type": "integer"
           },
+          "lighting": {
+            "minimum": 0,
+            "title": "Lighting",
+            "type": "integer"
+          },
           "steering": {
             "minimum": 0,
             "title": "Steering",
@@ -795,6 +841,7 @@
           "engine",
           "steering",
           "buttons",
+          "lighting",
           "devices",
           "health"
         ],
@@ -930,6 +977,9 @@
             "$ref": "#/$defs/ButtonsState"
           },
           {
+            "$ref": "#/$defs/LightingState"
+          },
+          {
             "$ref": "#/$defs/DevicesState"
           },
           {
@@ -1016,6 +1066,7 @@
     "engine.state",
     "steering.state",
     "buttons.state",
+    "lighting.state",
     "devices.state",
     "controller.health",
     "resources.changed",

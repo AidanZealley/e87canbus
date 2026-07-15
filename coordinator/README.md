@@ -193,6 +193,14 @@ is detached from the controller owner, so a stalled peer can delay only browser 
 latest topic values replace older pending values; a saturated peer is then disconnected. Incremental
 trace frames use the session ID with their reset-local sequence number.
 
+The high-beam strobe is a separately scheduled simulator feature, not a BMW protocol claim.
+Button `4` starts one bounded five-cycle flash-to-pass plan: 80 ms asserted and 80 ms deasserted
+per cycle. Each transition produces a private synthetic extended K-CAN command to the virtual
+vehicle, which exposes its observed high-beam state; those Pi-to-vehicle commands remain in the
+normal simulated trace. The live composition has no high-beam actuator and the live
+`ProtocolRouter` has no encoding or decoding for this frame, so enabling live K-CAN TX alone cannot
+enable or transmit this output.
+
 Every development action returns only `accepted` and the process `boot_id`. It does not report a
 revision or session because later queued work may complete before the HTTP coroutine resumes. It
 never returns or owns a parallel live snapshot; clients converge from Socket.IO state.
@@ -236,6 +244,11 @@ not claim SocketCAN kernel or hardware listen-only mode; configure that separate
 deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
 compositions. Custom IDs `0x700` and `0x701` still require collision validation before any future
 in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
+
+The simulated high-beam frame is not in that custom registry and is not a BMW candidate. Any future
+live high-beam work requires named captures of stalk pull and release, verified counter/checksum and
+message-cadence behavior, then controlled vehicle validation and a newly explicit live actuator
+capability. It must not be enabled by changing a generic K-CAN transmit grant.
 
 Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
 routes are registered only in simulated mode; live mode returns `404` for those development-only

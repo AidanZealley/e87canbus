@@ -27,8 +27,6 @@ vi.mock("@/components/simulator-workbench", async () => {
         <p>Existing simulator workbench</p>
         <SimulatorToolbar
           connectionState="connected"
-          autoScroll
-          onAutoScrollChange={vi.fn()}
           onReset={vi.fn()}
         />
       </div>

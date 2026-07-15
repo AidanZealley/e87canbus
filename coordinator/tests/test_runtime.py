@@ -39,8 +39,7 @@ from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simul
 AUTO_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
 MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
 MAXIMUM_LEDS = ButtonLedState(
-    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE)
-    + (LedColour.OFF,) * 12
+    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE) + (LedColour.OFF,) * 12
 )
 
 
@@ -60,9 +59,7 @@ class SpeedRouter(ProtocolRouter):
         routed: RoutedCanFrame,
         observed_at: float,
     ) -> ApplicationEvent | None:
-        return SpeedObserved(
-            SpeedSample(float(routed.frame.data[0]), observed_at, routed.network)
-        )
+        return SpeedObserved(SpeedSample(float(routed.frame.data[0]), observed_at, routed.network))
 
 
 def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() -> None:
@@ -74,7 +71,7 @@ def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() ->
     assert router.decode(RoutedCanFrame(CanNetwork.PTCAN, pressed), 1.0) is None
     assert router.decode(RoutedCanFrame(CanNetwork.FCAN, pressed), 1.0) is None
     assert router.decode(RoutedCanFrame(CanNetwork.KCAN, released), 1.0) is None
-    assert router.decode(RoutedCanFrame(CanNetwork.KCAN, pressed), 1.0) == ButtonPressed(0)
+    assert router.decode(RoutedCanFrame(CanNetwork.KCAN, pressed), 1.0) == ButtonPressed(0, 1.0)
 
 
 def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() -> None:
@@ -109,9 +106,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
     assert first_commits[1].effects == (SetButtonLeds(MANUAL_LEDS),)
     assert first_commits[2] is not None
-    assert first_commits[2].effects == (
-        SetSteeringAssistance(0.0, SteeringCommandReason.MANUAL),
-    )
+    assert first_commits[2].effects == (SetSteeringAssistance(0.0, SteeringCommandReason.MANUAL),)
     assert first_commits[2].changed_topics == frozenset()
     assert first_commits[2].state_changed is False
 
@@ -168,9 +163,7 @@ def test_unknown_and_malformed_frames_create_no_commits(
     kernel.dispatch(KernelStarted(0.0))
 
     with caplog.at_level(logging.WARNING):
-        unknown = kernel.dispatch(
-            ReceivedCanFrame(CanNetwork.KCAN, CanFrame(0x123, b"\x00"), 1.0)
-        )
+        unknown = kernel.dispatch(ReceivedCanFrame(CanNetwork.KCAN, CanFrame(0x123, b"\x00"), 1.0))
         malformed = kernel.dispatch(
             ReceivedCanFrame(
                 CanNetwork.KCAN,
@@ -201,9 +194,7 @@ def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> No
     )
 
     assert commit is not None
-    led_effects = tuple(
-        effect for effect in commit.effects if isinstance(effect, SetButtonLeds)
-    )
+    led_effects = tuple(effect for effect in commit.effects if isinstance(effect, SetButtonLeds))
     assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
     assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
     assert len(led_effects[0].colours.colours) == 16
@@ -249,9 +240,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     else:
         assert commit is not None
         assert commit.changed_topics == {StateTopic.HEALTH}
-        assert commit.effects == (
-            SetSteeringAssistance(0.0, fallback_reason),
-        )
+        assert commit.effects == (SetSteeringAssistance(0.0, fallback_reason),)
 
 
 def test_steering_actuator_failure_has_explicit_fatal_health() -> None:
@@ -289,9 +278,7 @@ def test_old_queued_speed_frame_keeps_ingress_time_when_processed_later() -> Non
     kernel = CoordinatorKernel(router=SpeedRouter())
     kernel.dispatch(KernelStarted(0.0))
 
-    kernel.dispatch(
-        ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"), received_at=1.0)
-    )
+    kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x2a"), received_at=1.0))
     kernel.dispatch(TimerElapsed(5.0))
 
     assert kernel.state.speed_sample == SpeedSample(42.0, 1.0, CanNetwork.FCAN)
@@ -324,9 +311,7 @@ def test_startup_and_shutdown_are_idempotent() -> None:
     assert kernel.dispatch(KernelStarted(2.0)) is None
     shutdown = kernel.dispatch(ShutdownRequested(3.0))
     assert shutdown is not None
-    assert shutdown.effects == (
-        SetSteeringAssistance(0.0, SteeringCommandReason.SHUTDOWN),
-    )
+    assert shutdown.effects == (SetSteeringAssistance(0.0, SteeringCommandReason.SHUTDOWN),)
     assert kernel.dispatch(ShutdownRequested(4.0)) is None
     assert kernel.dispatch(TimerElapsed(5.0)) is None
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED

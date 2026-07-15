@@ -15,10 +15,29 @@ from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_ENGINE_RPM_ID,
     SIMULATION_ONLY_OIL_TEMPERATURE_ID,
     SimulationProtocolRouter,
+    decode_simulated_high_beam_command,
     encode_simulated_coolant_temperature,
     encode_simulated_engine_rpm,
+    encode_simulated_high_beam_command,
     encode_simulated_oil_temperature,
 )
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_simulated_high_beam_command_is_private_extended_kcan_frame(enabled: bool) -> None:
+    frame = encode_simulated_high_beam_command(enabled)
+
+    assert frame.is_extended_id is True
+    assert frame.data == bytes((int(enabled),))
+    assert decode_simulated_high_beam_command(frame) is enabled
+    assert ProtocolRouter().decode(RoutedCanFrame(CanNetwork.KCAN, frame), 1.0) is None
+    assert SimulationProtocolRouter().decode(RoutedCanFrame(CanNetwork.KCAN, frame), 1.0) is None
+
+
+@pytest.mark.parametrize("enabled", [0, 1, "true"])
+def test_simulated_high_beam_command_rejects_non_boolean_values(enabled: object) -> None:
+    with pytest.raises(ValueError, match="high-beam command"):
+        encode_simulated_high_beam_command(enabled)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("rpm", [0, 3500, MAX_SIMULATED_ENGINE_RPM])

@@ -65,6 +65,28 @@ class EngineTelemetryConfig:
 
 
 @dataclass(frozen=True)
+class HighBeamStrobeConfig:
+    """Bounded flash-to-pass plan, expressed independently of any CAN protocol."""
+
+    button_index: int = 4
+    cycle_count: int = 5
+    asserted_duration_s: float = 0.08
+    deasserted_duration_s: float = 0.08
+
+    def __post_init__(self) -> None:
+        if type(self.button_index) is not int or self.button_index < 0:
+            raise ValueError("high-beam strobe button_index must be a non-negative integer")
+        if type(self.cycle_count) is not int or self.cycle_count < 1:
+            raise ValueError("high-beam strobe cycle_count must be a positive integer")
+        for name, value in (
+            ("asserted_duration_s", self.asserted_duration_s),
+            ("deasserted_duration_s", self.deasserted_duration_s),
+        ):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"high-beam strobe {name} must be finite and positive")
+
+
+@dataclass(frozen=True)
 class PlaceholderBmwIds:
     """Unverified candidate IDs from project context, not replay constants."""
 
@@ -85,6 +107,8 @@ class SimulationConfig:
             or self.steering_watchdog_timeout_s <= 0
         ):
             raise ValueError("simulation steering watchdog timeout must be finite and positive")
+
+
 @dataclass(frozen=True)
 class LivePublicationConfig:
     telemetry_hz: float = 25.0
@@ -135,6 +159,7 @@ class AppConfig:
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)
+    high_beam_strobe: HighBeamStrobeConfig = field(default_factory=HighBeamStrobeConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
     tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1
@@ -152,10 +177,7 @@ class AppConfig:
             or self.runtime_queue_latency_warning_s < 0
         ):
             raise ValueError("runtime_queue_latency_warning_s must be finite and non-negative")
-        if (
-            not math.isfinite(self.runtime_command_timeout_s)
-            or self.runtime_command_timeout_s <= 0
-        ):
+        if not math.isfinite(self.runtime_command_timeout_s) or self.runtime_command_timeout_s <= 0:
             raise ValueError("runtime_command_timeout_s must be finite and positive")
 
 
@@ -168,7 +190,6 @@ def simulator_config() -> AppConfig:
 
     config = default_config()
     networks = tuple(
-        replace(item, tx_enabled=item.network is CanNetwork.KCAN)
-        for item in config.can_networks
+        replace(item, tx_enabled=item.network is CanNetwork.KCAN) for item in config.can_networks
     )
     return replace(config, can_networks=networks)

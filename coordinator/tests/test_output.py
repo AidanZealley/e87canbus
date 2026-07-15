@@ -5,6 +5,7 @@ from e87canbus.application.events import (
     ButtonLedState,
     LedColour,
     SetButtonLeds,
+    SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
@@ -62,6 +63,18 @@ def test_default_executor_has_no_transmit_capability(
         EffectExecutor().execute((SetButtonLeds(BLUE_LEDS),))
 
     assert "unavailable TX capability" in caplog.text
+
+
+def test_high_beam_requires_its_own_explicit_actuator_capability() -> None:
+    """Network TX alone must not authorize the simulator-only high-beam command."""
+
+    raw = FakeTransmitter()
+    executor = EffectExecutor(
+        {CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())}
+    )
+
+    assert executor.execute((SetHighBeam(True),)) == ()
+    assert raw.sent == []
 
 
 def test_explicit_transmit_capability_encodes_led_effect() -> None:

@@ -39,6 +39,7 @@ export const snapshot = (
       engine: revision,
       steering: revision,
       buttons: revision,
+      lighting: revision,
       devices: revision,
       health: revision,
     },
@@ -52,6 +53,12 @@ export const snapshot = (
     steering,
     buttons: {
       led_colours: Array<number>(16).fill(revision),
+    },
+    lighting: {
+      high_beam_enabled: false,
+      high_beam_strobe_active: false,
+      high_beam_strobe_cycles_remaining: 0,
+      observed_high_beam_enabled: false,
     },
     devices: { devices: [], networks: [], steering_controller: null },
     health: {

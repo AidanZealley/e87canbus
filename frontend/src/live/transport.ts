@@ -66,6 +66,8 @@ export const createLiveTransport = ({
       applyTopic(useLiveStore.getState().applySteering(payload)),
     "buttons.state": (payload) =>
       applyTopic(useLiveStore.getState().applyButtons(payload)),
+    "lighting.state": (payload) =>
+      applyTopic(useLiveStore.getState().applyLighting(payload)),
     "devices.state": (payload) =>
       applyTopic(useLiveStore.getState().applyDevices(payload)),
     "controller.health": (payload) =>

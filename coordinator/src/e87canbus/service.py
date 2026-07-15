@@ -78,6 +78,13 @@ class ObservedSteeringSnapshot:
 
 
 @dataclass(frozen=True)
+class ObservedLightingSnapshot:
+    """Adapter-owned observation of the vehicle high-beam output."""
+
+    high_beam_enabled: bool | None
+
+
+@dataclass(frozen=True)
 class ControllerAdapterSnapshot:
     """Immutable observations and desired outputs owned outside the controller core."""
 
@@ -86,6 +93,7 @@ class ControllerAdapterSnapshot:
     devices: tuple[DeviceProjection, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
     steering: ObservedSteeringSnapshot | None
+    lighting: ObservedLightingSnapshot | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +155,10 @@ class ControllerRuntimeAdapter(Protocol):
     def execute(self, work: object) -> RuntimeExecution: ...
 
     def timer(self, now: float) -> RuntimeExecution | None: ...
+
+    def next_deadline(self) -> float | None: ...
+
+    def deadline(self, now: float) -> RuntimeExecution | None: ...
 
     def shutdown(self, now: float) -> RuntimeExecution | None: ...
 
@@ -380,10 +392,10 @@ class ControllerService:
                     self._fatal_exit.set()
                     self._stop.set()
                     break
-                timeout = min(
-                    max(next_tick - self._clock(), 0.0),
-                    self._POLL_INTERVAL_S,
-                )
+                now = self._clock()
+                deadline = self._runtime.next_deadline()
+                next_wakeup = next_tick if deadline is None else min(next_tick, deadline)
+                timeout = min(max(next_wakeup - now, 0.0), self._POLL_INTERVAL_S)
                 try:
                     queued = self._inbox.get(timeout=timeout)
                 except queue.Empty:
@@ -421,6 +433,14 @@ class ControllerService:
                         self._inbox.task_done()
 
                 now = self._clock()
+                # Process an overdue phase before the periodic control tick.  The transition
+                # receives the actual owner time, preserving the application's defined
+                # overdue-deadline behavior rather than quantizing it to a control tick.
+                deadline = self._runtime.next_deadline()
+                if deadline is not None and now >= deadline and not self._runtime.terminal:
+                    deadline_execution = self._runtime.deadline(now)
+                    if deadline_execution is not None:
+                        self._record(deadline_execution)
                 if now >= next_tick and not self._runtime.terminal:
                     timer_execution = self._runtime.timer(now)
                     if timer_execution is not None:

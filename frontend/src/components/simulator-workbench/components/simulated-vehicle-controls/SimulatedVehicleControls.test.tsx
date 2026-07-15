@@ -43,7 +43,10 @@ const engine = {
   coolant_temperature_c: { value: null, status: "never_observed" as const },
 }
 
-const renderControls = (speedKph: number | null = null) =>
+const renderControls = (
+  speedKph: number | null = null,
+  observedHighBeamEnabled: boolean | null = false
+) =>
   render(
     <QueryClientProvider
       client={
@@ -52,7 +55,11 @@ const renderControls = (speedKph: number | null = null) =>
         })
       }
     >
-      <SimulatedVehicleControls speedKph={speedKph} engine={engine} />
+      <SimulatedVehicleControls
+        speedKph={speedKph}
+        engine={engine}
+        observedHighBeamEnabled={observedHighBeamEnabled}
+      />
     </QueryClientProvider>
   )
 
@@ -90,4 +97,28 @@ it("commits a slider value without a separate set action", async () => {
   )
 
   await waitFor(() => expect(api.setVehicleSpeed.mock.calls[0]?.[0]).toBe(1))
+})
+
+it("shows the observed virtual-car high-beam indicator", () => {
+  const { rerender } = renderControls(0, false)
+
+  expect(
+    screen.getByRole("img", { name: "Virtual-car high beam off" })
+  ).toBeTruthy()
+  expect(document.querySelector("svg.text-muted-foreground")).toBeTruthy()
+
+  rerender(
+    <QueryClientProvider client={new QueryClient()}>
+      <SimulatedVehicleControls
+        speedKph={0}
+        engine={engine}
+        observedHighBeamEnabled={true}
+      />
+    </QueryClientProvider>
+  )
+
+  expect(
+    screen.getByRole("img", { name: "Virtual-car high beam on" })
+  ).toBeTruthy()
+  expect(document.querySelector("svg.text-sky-400")).toBeTruthy()
 })

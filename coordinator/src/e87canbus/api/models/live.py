@@ -23,6 +23,7 @@ class TopicRevisions(LiveModel):
     engine: int = Field(ge=0)
     steering: int = Field(ge=0)
     buttons: int = Field(ge=0)
+    lighting: int = Field(ge=0)
     devices: int = Field(ge=0)
     health: int = Field(ge=0)
 
@@ -71,6 +72,13 @@ class SteeringState(LiveModel):
 
 class ButtonsState(LiveModel):
     led_colours: LedSnapshot
+
+
+class LightingState(LiveModel):
+    high_beam_enabled: bool
+    high_beam_strobe_active: bool
+    high_beam_strobe_cycles_remaining: int = Field(ge=0)
+    observed_high_beam_enabled: bool | None
 
 
 class DeviceState(LiveModel):
@@ -183,6 +191,7 @@ class ControllerSnapshotData(LiveModel):
     engine: EngineState
     steering: SteeringState
     buttons: ButtonsState
+    lighting: LightingState
     devices: DevicesState
     health: ControllerHealthState
 
@@ -210,6 +219,7 @@ LiveData = (
     | EngineState
     | SteeringState
     | ButtonsState
+    | LightingState
     | DevicesState
     | ControllerHealthState
     | TraceBatchData
@@ -232,6 +242,7 @@ def snapshot_data(snapshot: ControllerServiceSnapshot) -> ControllerSnapshotData
         engine=engine_state(snapshot),
         steering=steering_state(snapshot),
         buttons=buttons_state(snapshot),
+        lighting=lighting_state(snapshot),
         devices=devices_state(snapshot),
         health=health_state(snapshot),
     )
@@ -272,6 +283,19 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
 def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     return ButtonsState(
         led_colours=snapshot.adapter.led_colours,
+    )
+
+
+def lighting_state(snapshot: ControllerServiceSnapshot) -> LightingState:
+    application = snapshot.application
+    lighting = snapshot.adapter.lighting
+    return LightingState(
+        high_beam_enabled=application.high_beam_enabled,
+        high_beam_strobe_active=application.high_beam_strobe_active,
+        high_beam_strobe_cycles_remaining=application.high_beam_strobe_cycles_remaining,
+        observed_high_beam_enabled=(
+            None if lighting is None else lighting.high_beam_enabled
+        ),
     )
 
 

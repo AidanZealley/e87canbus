@@ -3,23 +3,18 @@ import { Link } from "@tanstack/react-router"
 
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { ConnectionBadge } from "../connection-badge/ConnectionBadge"
 import type { LiveConnectionStatus } from "@/live/live-store"
 
 type SimulatorToolbarProps = {
   connectionState: LiveConnectionStatus
-  autoScroll: boolean
-  onAutoScrollChange: (enabled: boolean) => void
   onReset: () => void
   resetPending?: boolean
 }
 
 export const SimulatorToolbar = ({
   connectionState,
-  autoScroll,
-  onAutoScrollChange,
   onReset,
   resetPending = false,
 }: SimulatorToolbarProps) => (
@@ -46,14 +41,6 @@ export const SimulatorToolbar = ({
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Switch
-            checked={autoScroll}
-            onCheckedChange={onAutoScrollChange}
-            aria-label="Auto-scroll CAN trace"
-          />
-          Auto-scroll
-        </label>
         <Button
           variant="outline"
           size="sm"

@@ -4,6 +4,7 @@ import { ArrowDownIcon, RadioTowerIcon } from "lucide-react"
 import type { DevicesState, TraceRow } from "@/api/live-events"
 
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import {
   Card,
   CardAction,
@@ -44,7 +45,6 @@ type CanTraceTableProps = {
   networks: NetworkStatus[]
   selectedNetworks: Set<CanNetwork>
   selected: TraceRow | null
-  autoScroll: boolean
   onSelect: (entry: TraceRow) => void
   onToggleNetwork: (network: CanNetwork) => void
 }
@@ -55,7 +55,6 @@ export const CanTraceTable = ({
   networks,
   selectedNetworks,
   selected,
-  autoScroll,
   onSelect,
   onToggleNetwork,
 }: CanTraceTableProps) => {
@@ -64,6 +63,7 @@ export const CanTraceTable = ({
   const scrollAnimationFrameRef = useRef<number | null>(null)
   const ignoreScrollUntilRef = useRef(0)
   const followingLatestRef = useRef(true)
+  const [autoScroll, setAutoScroll] = useState(true)
   const [isFollowingLatest, setIsFollowingLatest] = useState(true)
   // TanStack Virtual manages a mutable external store; React Compiler must not memoize it.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -163,12 +163,20 @@ export const CanTraceTable = ({
       </CardHeader>
 
       <CardContent>
-        <div className="mb-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <NetworkFilters
             networks={networks}
             selected={selectedNetworks}
             onToggle={onToggleNetwork}
           />
+          <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+            <Switch
+              checked={autoScroll}
+              onCheckedChange={setAutoScroll}
+              aria-label="Auto-scroll CAN trace"
+            />
+            Auto-scroll
+          </label>
         </div>
         {trace.length > 0 ? (
           <div className="relative">

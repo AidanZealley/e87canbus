@@ -68,6 +68,31 @@ describe("live ownership", () => {
     expect(useLiveStore.getState().applyHealth(health)).toBe("ignored")
   })
 
+  it("applies lighting separately from the button and steering state", () => {
+    useLiveStore.getState().reset()
+    const initial = snapshot("boot", 3)
+    expect(useLiveStore.getState().applySnapshot(initial)).toBe(true)
+    const buttons = useLiveStore.getState().buttons
+    const lighting = {
+      ...initial,
+      revision: 4,
+      data: {
+        high_beam_enabled: true,
+        high_beam_strobe_active: true,
+        high_beam_strobe_cycles_remaining: 2,
+        observed_high_beam_enabled: true,
+      },
+    }
+
+    expect(useLiveStore.getState().applyLighting(lighting)).toBe("applied")
+    expect(useLiveStore.getState().buttons).toBe(buttons)
+    expect(useLiveStore.getState().lighting).toMatchObject({
+      high_beam_enabled: true,
+      high_beam_strobe_cycles_remaining: 2,
+      observed_high_beam_enabled: true,
+    })
+  })
+
   it("bounds and clears diagnostic trace across sessions", () => {
     useTraceStore.getState().clear()
     const rows: TraceRow[] = Array.from(

@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 
 import { resetSimulator } from "@/api/simulator"
@@ -8,6 +7,7 @@ import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
 import { SteeringCurveCard } from "./components/steering-curve-card"
 import { SteeringStatus } from "./components/steering-status/SteeringStatus"
+import { LightingStatus } from "./components/lighting-status/LightingStatus"
 import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorTrace } from "./SimulatorTrace"
@@ -19,11 +19,11 @@ const unavailableEngine = {
   coolant_temperature_c: { value: null, status: "stale" as const },
 }
 export const SimulatorWorkbench = () => {
-  const [autoScroll, setAutoScroll] = useState(true)
   const connection = useLiveStore((state) => state.connection)
   const synchronized = connection.synchronized
   const vehicle = useLiveStore((state) => state.vehicle)
   const engine = useLiveStore((state) => state.engine)
+  const lighting = useLiveStore((state) => state.lighting)
   const steering = useLiveStore((state) => state.steering)
   const steeringController = useLiveStore(
     (state) => state.devices.steering_controller
@@ -41,8 +41,6 @@ export const SimulatorWorkbench = () => {
     <div className="min-h-svh bg-muted/30">
       <SimulatorToolbar
         connectionState={connection.status}
-        autoScroll={autoScroll}
-        onAutoScrollChange={setAutoScroll}
         onReset={() => {
           reset.mutate()
         }}
@@ -72,6 +70,9 @@ export const SimulatorWorkbench = () => {
                   synchronized && vehicle.speed_valid ? vehicle.speed_kph : null
                 }
                 engine={synchronized ? engine : unavailableEngine}
+                observedHighBeamEnabled={
+                  synchronized ? lighting.observed_high_beam_enabled : null
+                }
               />
             </section>
           </div>
@@ -95,10 +96,11 @@ export const SimulatorWorkbench = () => {
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-2">
           <SteeringStatus />
+          <LightingStatus />
           <NetworkTopology />
         </div>
 
-        <SimulatorTrace autoScroll={autoScroll} />
+        <SimulatorTrace />
       </main>
     </div>
   )

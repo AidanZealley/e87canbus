@@ -7,9 +7,14 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.application.events import (
+    SetHighBeam,
+    SetSteeringAssistance,
+    SteeringCommandReason,
+)
 from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.output import SafeCanTransmitter
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     CanFrame,
@@ -19,6 +24,8 @@ from e87canbus.protocol.can import (
 )
 from e87canbus.protocol.generated import LED_COLOUR_OFF, LED_COUNT
 from e87canbus.simulation.protocol import (
+    SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
+    decode_simulated_high_beam_command,
     decode_simulated_temperature,
     encode_simulated_coolant_temperature,
     encode_simulated_engine_rpm,
@@ -27,6 +34,18 @@ from e87canbus.simulation.protocol import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SimulatedHighBeamActuator:
+    """Simulator-only high-beam capability using the private virtual-car frame."""
+
+    transmitter: SafeCanTransmitter
+
+    def set_high_beam(self, command: SetHighBeam) -> None:
+        from e87canbus.simulation.protocol import encode_simulated_high_beam_command
+
+        self.transmitter.send(encode_simulated_high_beam_command(command.enabled))
 
 
 @dataclass
@@ -89,6 +108,7 @@ class SimulatedVehicleNode:
     rpm: int | None = None
     oil_temperature_c: float | None = None
     coolant_temperature_c: float | None = None
+    high_beam_enabled: bool = False
 
     def set_speed(self, speed_kph: float) -> CanFrame:
         frame = encode_simulated_speed(speed_kph)
@@ -160,9 +180,26 @@ class SimulatedVehicleNode:
             bus = self.buses.get(network)
             if bus is None:
                 continue
-            while bus.receive(timeout_s=0) is not None:
+            while (frame := bus.receive(timeout_s=0)) is not None:
                 drained += 1
+                self._consume_frame(network, frame)
         return drained
+
+    def _consume_frame(self, network: CanNetwork, frame: CanFrame) -> None:
+        if (
+            network is not CanNetwork.KCAN
+            or not frame.is_extended_id
+            or frame.arbitration_id != SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID
+        ):
+            return
+        try:
+            self.high_beam_enabled = decode_simulated_high_beam_command(frame)
+        except ValueError as exc:
+            LOGGER.warning(
+                "simulated vehicle ignored malformed high-beam command: data=%s error=%s",
+                frame.data.hex(),
+                exc,
+            )
 
 
 @dataclass

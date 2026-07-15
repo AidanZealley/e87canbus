@@ -12,6 +12,7 @@ from typing import Protocol, assert_never
 from e87canbus.application.events import (
     ApplicationEffect,
     SetButtonLeds,
+    SetHighBeam,
     SetSteeringAssistance,
 )
 from e87canbus.can_io import CanTransmitter
@@ -33,12 +34,24 @@ class SteeringActuatorFailure:
     message: str
 
 
-EffectFailure = CanEffectFailure | SteeringActuatorFailure
+@dataclass(frozen=True)
+class HighBeamActuatorFailure:
+    message: str
+
+
+EffectFailure = CanEffectFailure | SteeringActuatorFailure | HighBeamActuatorFailure
 
 
 class SteeringActuator(Protocol):
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         """Apply one already-selected, dimensionless assistance command."""
+
+
+class HighBeamActuator(Protocol):
+    """Explicit output capability; live composition intentionally does not provide one."""
+
+    def set_high_beam(self, command: SetHighBeam) -> None:
+        """Apply one protocol-independent high-beam request."""
 
 
 class SafeCanTransmitter:
@@ -83,10 +96,12 @@ class EffectExecutor:
         transmitters: Mapping[CanNetwork, SafeCanTransmitter] | None = None,
         router: ProtocolRouter | None = None,
         steering_actuator: SteeringActuator | None = None,
+        high_beam_actuator: HighBeamActuator | None = None,
     ) -> None:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
         self._steering_actuator = steering_actuator
+        self._high_beam_actuator = high_beam_actuator
 
     def execute(self, effects: tuple[ApplicationEffect, ...]) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
@@ -100,6 +115,10 @@ class EffectExecutor:
                     can_failure = self._execute_can(effect)
                     if can_failure is not None:
                         failures.append(can_failure)
+                case SetHighBeam():
+                    high_beam_failure = self._execute_high_beam(effect)
+                    if high_beam_failure is not None:
+                        failures.append(high_beam_failure)
                 case _:
                     assert_never(effect)
         return tuple(failures)
@@ -137,6 +156,16 @@ class EffectExecutor:
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("failed to execute steering effect: error=%s", exc)
             return SteeringActuatorFailure(str(exc))
+        return None
+
+    def _execute_high_beam(self, command: SetHighBeam) -> HighBeamActuatorFailure | None:
+        if self._high_beam_actuator is None:
+            return None
+        try:
+            self._high_beam_actuator.set_high_beam(command)
+        except (OSError, RuntimeError) as exc:
+            LOGGER.warning("failed to execute high-beam effect: error=%s", exc)
+            return HighBeamActuatorFailure(str(exc))
         return None
 
 

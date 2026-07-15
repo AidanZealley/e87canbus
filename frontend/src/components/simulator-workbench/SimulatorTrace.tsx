@@ -10,11 +10,7 @@ type CanNetwork = TraceRow["network"]
 
 const allNetworks: CanNetwork[] = ["kcan", "ptcan", "fcan"]
 
-type SimulatorTraceProps = {
-  autoScroll: boolean
-}
-
-export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
+export const SimulatorTrace = () => {
   const trace = useTraceStore((state) => state.rows)
   const networks = useLiveStore((state) => state.devices.networks)
   const synchronized = useLiveStore((state) => state.connection.synchronized)
@@ -56,7 +52,6 @@ export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
         networks={displayedNetworks}
         selectedNetworks={selectedNetworks}
         selected={selectedFrame}
-        autoScroll={autoScroll}
         onSelect={(entry: TraceRow) => setSelectedSequence(entry.sequence)}
         onToggleNetwork={toggleNetwork}
       />

@@ -25,13 +25,44 @@ SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
 SIMULATION_ONLY_ENGINE_RPM_ID = 0x1FFFFF01
 SIMULATION_ONLY_OIL_TEMPERATURE_ID = 0x1FFFFF02
 SIMULATION_ONLY_COOLANT_TEMPERATURE_ID = 0x1FFFFF03
+SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID = 0x1FFFFF04
 SIMULATION_ONLY_SPEED_LENGTH = 2
 SIMULATION_ONLY_ENGINE_RPM_LENGTH = 2
 SIMULATION_ONLY_TEMPERATURE_LENGTH = 2
+SIMULATION_ONLY_HIGH_BEAM_COMMAND_LENGTH = 1
 MAX_SIMULATED_SPEED_KPH = 300.0
 MAX_SIMULATED_ENGINE_RPM = 12_000
 MIN_SIMULATED_TEMPERATURE_C = -40.0
 MAX_SIMULATED_TEMPERATURE_C = 250.0
+
+
+def encode_simulated_high_beam_command(enabled: bool) -> CanFrame:
+    """Encode the simulator-private Pi-to-vehicle high-beam command.
+
+    This extended-ID frame deliberately has no BMW mapping and is consumed only
+    by :class:`SimulatedVehicleNode`.  It must never be added to the live router.
+    """
+
+    if not isinstance(enabled, bool):
+        raise ValueError("simulated high-beam command must be a boolean")
+    return CanFrame(
+        SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
+        bytes((int(enabled),)),
+        is_extended_id=True,
+    )
+
+
+def decode_simulated_high_beam_command(frame: CanFrame) -> bool:
+    """Decode the payload of a recognized simulator-private high-beam command."""
+
+    if len(frame.data) != SIMULATION_ONLY_HIGH_BEAM_COMMAND_LENGTH:
+        raise ValueError(
+            "simulated high-beam command payload must be exactly "
+            f"{SIMULATION_ONLY_HIGH_BEAM_COMMAND_LENGTH} byte"
+        )
+    if frame.data not in (b"\x00", b"\x01"):
+        raise ValueError("simulated high-beam command payload must be 0 or 1")
+    return bool(frame.data[0])
 
 
 def encode_simulated_speed(speed_kph: float) -> CanFrame:

@@ -18,9 +18,11 @@ from e87canbus.application.events import (
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
+    HighBeamStrobeDeadlineReached,
     LedColour,
     OilTemperatureObserved,
     SetButtonLeds,
+    SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -37,7 +39,12 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
+from e87canbus.config import (
+    CanNetwork,
+    EngineTelemetryConfig,
+    HighBeamStrobeConfig,
+    SteeringConfig,
+)
 from e87canbus.features.steering import (
     ASSISTANCE_QUANTIZATION_TOLERANCE,
     SteeringCurveActivationStatus,
@@ -138,11 +145,99 @@ def test_initial_snapshot_and_effects() -> None:
         ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
+        high_beam_enabled=False,
+        high_beam_strobe_active=False,
+        high_beam_strobe_cycles_remaining=0,
+        high_beam_next_transition_at=None,
     )
     assert initial_effects(state, CONFIG) == (
         SetButtonLeds(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
+
+
+def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:
+    config = HighBeamStrobeConfig(
+        cycle_count=2, asserted_duration_s=0.08, deasserted_duration_s=0.1
+    )
+    state = ApplicationState()
+
+    started = controller.transition(
+        state,
+        ButtonPressed(4, 12.0),
+        CONFIG,
+        CURVE_DEFINITION,
+        config,
+    )
+
+    assert started.state.high_beam_enabled is True
+    assert started.state.high_beam_strobe_cycles_remaining == 2
+    assert started.state.high_beam_next_transition_at == pytest.approx(12.08)
+    assert started.effects == (SetHighBeam(True),)
+    assert snapshot(started.state, CONFIG).high_beam_strobe_active is True
+
+    repeated = controller.transition(
+        started.state,
+        ButtonPressed(4, 12.01),
+        CONFIG,
+        CURVE_DEFINITION,
+        config,
+    )
+    assert repeated.state is started.state
+    assert repeated.effects == ()
+
+
+def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted() -> None:
+    config = HighBeamStrobeConfig(
+        cycle_count=2, asserted_duration_s=0.08, deasserted_duration_s=0.1
+    )
+    state = controller.transition(
+        ApplicationState(), ButtonPressed(4, 12.0), CONFIG, CURVE_DEFINITION, config
+    ).state
+
+    early = controller.transition(
+        state, HighBeamStrobeDeadlineReached(12.079), CONFIG, CURVE_DEFINITION, config
+    )
+    assert early.state is state
+    assert early.effects == ()
+
+    deasserted = controller.transition(
+        state, HighBeamStrobeDeadlineReached(12.08), CONFIG, CURVE_DEFINITION, config
+    )
+    assert deasserted.state.high_beam_enabled is False
+    assert deasserted.state.high_beam_strobe_cycles_remaining == 2
+    assert deasserted.state.high_beam_next_transition_at == pytest.approx(12.18)
+    assert deasserted.effects == (SetHighBeam(False),)
+
+    reasserted = controller.transition(
+        deasserted.state,
+        HighBeamStrobeDeadlineReached(12.18),
+        CONFIG,
+        CURVE_DEFINITION,
+        config,
+    )
+    assert reasserted.state.high_beam_enabled is True
+    assert reasserted.state.high_beam_strobe_cycles_remaining == 1
+    assert reasserted.effects == (SetHighBeam(True),)
+
+    second_deasserted = controller.transition(
+        reasserted.state,
+        HighBeamStrobeDeadlineReached(12.26),
+        CONFIG,
+        CURVE_DEFINITION,
+        config,
+    )
+    completed = controller.transition(
+        second_deasserted.state,
+        HighBeamStrobeDeadlineReached(12.36),
+        CONFIG,
+        CURVE_DEFINITION,
+        config,
+    )
+    assert completed.state.high_beam_enabled is False
+    assert completed.state.high_beam_strobe_cycles_remaining == 0
+    assert completed.state.high_beam_next_transition_at is None
+    assert completed.effects == ()
 
 
 @pytest.mark.parametrize(

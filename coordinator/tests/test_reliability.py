@@ -171,4 +171,12 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
 
 def test_health_topic_is_closed_and_not_runtime_registered() -> None:
     assert StateTopic.HEALTH.value == "health"
-    assert len(StateTopic) == 6
+    assert set(StateTopic) == {
+        StateTopic.VEHICLE,
+        StateTopic.ENGINE,
+        StateTopic.STEERING,
+        StateTopic.BUTTONS,
+        StateTopic.LIGHTING,
+        StateTopic.DEVICES,
+        StateTopic.HEALTH,
+    }
