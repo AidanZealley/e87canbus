@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react"
+import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { CarFrontIcon } from "lucide-react"
+import { CarFrontIcon, PowerIcon } from "lucide-react"
 import type { EngineState } from "@/api/live-events"
 
 import {
@@ -24,13 +24,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { TelemetrySignalControl } from "./TelemetrySignalControl"
+import { TelemetrySlider } from "./TelemetrySlider"
 
 const MIN_SPEED_KPH = 0
 const MAX_SPEED_KPH = 300
+const IDLE_RPM = 600
+const OPERATING_TEMPERATURE_C = 90
 
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
@@ -41,161 +40,127 @@ export const SimulatedVehicleControls = ({
   speedKph,
   engine,
 }: SimulatedVehicleControlsProps) => {
-  const [draftSpeed, setDraftSpeed] = useState<number | "">(speedKph ?? 0)
-  const speedMutation = useMutation({
-    mutationFn: (value: number | null) =>
-      value === null ? silenceVehicleSpeed() : setVehicleSpeed(value),
-  })
-  const rpmMutation = useMutation({
-    mutationFn: (value: number | null) =>
-      value === null ? silenceEngineRpm() : setEngineRpm(value),
-  })
-  const oilMutation = useMutation({
-    mutationFn: (value: number | null) =>
-      value === null ? silenceOilTemperature() : setOilTemperature(value),
-  })
-  const coolantMutation = useMutation({
-    mutationFn: (value: number | null) =>
-      value === null
-        ? silenceCoolantTemperature()
-        : setCoolantTemperature(value),
+  const [speed, setSpeed] = useState(speedKph ?? 0)
+  const [rpm, setRpm] = useState(engine.rpm.value ?? IDLE_RPM)
+  const [oilTemperature, setOilTemperatureDraft] = useState(
+    engine.oil_temperature_c.value ?? OPERATING_TEMPERATURE_C
+  )
+  const [coolantTemperature, setCoolantTemperatureDraft] = useState(
+    engine.coolant_temperature_c.value ?? OPERATING_TEMPERATURE_C
+  )
+  const speedMutation = useMutation({ mutationFn: setVehicleSpeed })
+  const rpmMutation = useMutation({ mutationFn: setEngineRpm })
+  const oilMutation = useMutation({ mutationFn: setOilTemperature })
+  const coolantMutation = useMutation({ mutationFn: setCoolantTemperature })
+  const carMutation = useMutation({
+    mutationFn: (running: boolean) =>
+      running
+        ? Promise.all([
+            setVehicleSpeed(0),
+            setEngineRpm(IDLE_RPM),
+            setOilTemperature(OPERATING_TEMPERATURE_C),
+            setCoolantTemperature(OPERATING_TEMPERATURE_C),
+          ])
+        : Promise.all([
+            silenceVehicleSpeed(),
+            silenceEngineRpm(),
+            silenceOilTemperature(),
+            silenceCoolantTemperature(),
+          ]),
+    onSuccess: (_, running) => {
+      if (running) {
+        setSpeed(0)
+        setRpm(IDLE_RPM)
+        setOilTemperatureDraft(OPERATING_TEMPERATURE_C)
+        setCoolantTemperatureDraft(OPERATING_TEMPERATURE_C)
+      }
+    },
   })
 
-  const setBoundedDraft = (value: number) => {
-    if (Number.isFinite(value)) {
-      setDraftSpeed(Math.min(MAX_SPEED_KPH, Math.max(MIN_SPEED_KPH, value)))
-    }
-  }
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (draftSpeed !== "") {
-      speedMutation.mutate(draftSpeed)
-    }
-  }
+  const isRunning = speedKph !== null
+  const controlsDisabled = carMutation.isPending
 
   return (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Simulated vehicle</CardTitle>
-        <CardDescription>
-          External vehicle inputs on simulated CAN
-        </CardDescription>
+        <CardDescription>External vehicle inputs on simulated CAN</CardDescription>
         <CardAction>
           <CarFrontIcon aria-hidden="true" />
         </CardAction>
       </CardHeader>
 
-      <CardContent>
-        <div className="grid gap-4">
-          <form className="grid gap-4" onSubmit={handleSubmit}>
-            <div className="flex items-end gap-2">
-              <div className="grid min-w-0 flex-1 gap-1.5">
-                <Label htmlFor="simulated-speed">Vehicle speed</Label>
-                <div className="relative">
-                  <Input
-                    id="simulated-speed"
-                    type="number"
-                    min={MIN_SPEED_KPH}
-                    max={MAX_SPEED_KPH}
-                    step={0.1}
-                    value={draftSpeed}
-                    disabled={speedMutation.isPending}
-                    className="pr-14"
-                    onChange={(event) => {
-                      if (event.target.value === "") {
-                        setDraftSpeed("")
-                      } else {
-                        setBoundedDraft(event.target.valueAsNumber)
-                      }
-                    }}
-                  />
-                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
-                    km/h
-                  </span>
-                </div>
-              </div>
-              <Button
-                type="submit"
-                disabled={speedMutation.isPending || draftSpeed === ""}
-              >
-                Set speed
-              </Button>
-            </div>
+      <CardContent className="grid gap-5">
+        <Button
+          type="button"
+          variant={isRunning ? "outline" : "default"}
+          disabled={controlsDisabled}
+          onClick={() => carMutation.mutate(!isRunning)}
+        >
+          <PowerIcon aria-hidden="true" />
+          {isRunning ? "Stop car" : "Start car"}
+        </Button>
 
-            <Slider
-              min={MIN_SPEED_KPH}
-              max={MAX_SPEED_KPH}
-              step={1}
-              value={[draftSpeed === "" ? MIN_SPEED_KPH : draftSpeed]}
-              disabled={speedMutation.isPending}
-              aria-label="Simulated vehicle speed"
-              onValueChange={(value) =>
-                setBoundedDraft(Array.isArray(value) ? value[0] : value)
-              }
-            />
-
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className="text-xs text-muted-foreground"
-                aria-live="polite"
-              >
-                {speedKph === null
-                  ? "No fresh speed signal"
-                  : `Sending ${speedKph.toFixed(1)} km/h`}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={speedMutation.isPending || speedKph === null}
-                onClick={() => speedMutation.mutate(null)}
-              >
-                Stop signal
-              </Button>
-            </div>
-          </form>
-
-          <TelemetrySignalControl
-            id="simulated-rpm"
-            label="Engine RPM"
-            unit="rpm"
-            minimum={0}
-            maximum={9000}
-            step={100}
-            initialDraft={3000}
-            telemetry={engine.rpm}
-            disabled={rpmMutation.isPending}
-            onSet={(value) => rpmMutation.mutate(value)}
-            onSilence={() => rpmMutation.mutate(null)}
-          />
-          <TelemetrySignalControl
-            id="simulated-oil-temperature"
-            label="Oil temperature"
-            unit="°C"
-            minimum={-40}
-            maximum={200}
-            step={1}
-            initialDraft={90}
-            telemetry={engine.oil_temperature_c}
-            disabled={oilMutation.isPending}
-            onSet={(value) => oilMutation.mutate(value)}
-            onSilence={() => oilMutation.mutate(null)}
-          />
-          <TelemetrySignalControl
-            id="simulated-coolant-temperature"
-            label="Coolant temperature"
-            unit="°C"
-            minimum={-40}
-            maximum={200}
-            step={1}
-            initialDraft={90}
-            telemetry={engine.coolant_temperature_c}
-            disabled={coolantMutation.isPending}
-            onSet={(value) => coolantMutation.mutate(value)}
-            onSilence={() => coolantMutation.mutate(null)}
-          />
-
-        </div>
+        <TelemetrySlider
+          id="simulated-speed"
+          label="Vehicle speed"
+          unit="km/h"
+          minimum={MIN_SPEED_KPH}
+          maximum={MAX_SPEED_KPH}
+          step={1}
+          value={speed}
+          disabled={!isRunning || controlsDisabled || speedMutation.isPending}
+          onValueChange={setSpeed}
+          onCommit={(value) => {
+            setSpeed(value)
+            speedMutation.mutate(value)
+          }}
+        />
+        <TelemetrySlider
+          id="simulated-rpm"
+          label="Engine RPM"
+          unit="rpm"
+          minimum={0}
+          maximum={9000}
+          step={100}
+          value={rpm}
+          disabled={!isRunning || controlsDisabled || rpmMutation.isPending}
+          onValueChange={setRpm}
+          onCommit={(value) => {
+            setRpm(value)
+            rpmMutation.mutate(value)
+          }}
+        />
+        <TelemetrySlider
+          id="simulated-oil-temperature"
+          label="Oil temperature"
+          unit="°C"
+          minimum={-40}
+          maximum={200}
+          step={1}
+          value={oilTemperature}
+          disabled={!isRunning || controlsDisabled || oilMutation.isPending}
+          onValueChange={setOilTemperatureDraft}
+          onCommit={(value) => {
+            setOilTemperatureDraft(value)
+            oilMutation.mutate(value)
+          }}
+        />
+        <TelemetrySlider
+          id="simulated-coolant-temperature"
+          label="Coolant temperature"
+          unit="°C"
+          minimum={-40}
+          maximum={200}
+          step={1}
+          value={coolantTemperature}
+          disabled={!isRunning || controlsDisabled || coolantMutation.isPending}
+          onValueChange={setCoolantTemperatureDraft}
+          onCommit={(value) => {
+            setCoolantTemperatureDraft(value)
+            coolantMutation.mutate(value)
+          }}
+        />
       </CardContent>
 
       <CardFooter>
