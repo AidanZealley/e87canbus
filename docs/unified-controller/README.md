@@ -5,6 +5,11 @@ to one controller application with replaceable physical and simulated adapters. 
 truth for the approved architecture, sequencing, ownership boundaries, public contracts and
 verification requirements.
 
+The migration is complete. A follow-up
+[unified-controller reduction roadmap](../unified-controller-reduction/README.md) addresses the
+production-code and cognitive growth introduced while preserving this roadmap's verified ownership,
+reconnect, bounded-resource and safety outcomes.
+
 The roadmap optimizes for the lowest practical complexity that still provides deterministic
 control, bounded resource use, honest simulation, safe output and a performant frontend. It does
 not grant authority for unverified BMW decoding, physical steering output or live CAN
