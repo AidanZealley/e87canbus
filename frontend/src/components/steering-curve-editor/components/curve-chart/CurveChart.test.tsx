@@ -68,8 +68,8 @@ it("renders eight accessible points on honest linear series", async () => {
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
-  const marker = document.querySelector(".recharts-reference-dot circle")
-  expect(marker?.getAttribute("stroke")).toBe("var(--color-primary)")
+  const marker = document.querySelector(".recharts-reference-line line")
+  expect(marker?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
   expect(document.querySelector(".recharts-tooltip-wrapper")).not.toBeNull()
   const tooltip = document.querySelector<HTMLElement>(
     ".recharts-tooltip-wrapper"
@@ -91,7 +91,7 @@ it("renders eight accessible points on honest linear series", async () => {
   const activeCurvePath = document
     .querySelectorAll(".recharts-line-curve")[0]
     ?.getAttribute("d")
-  const markerYAtCurveAssistance = marker?.getAttribute("cy")
+  const markerYAtCurveAssistance = marker?.getAttribute("y1")
 
   rerender(
     <CurveChart
@@ -103,12 +103,12 @@ it("renders eight accessible points on honest linear series", async () => {
     />
   )
   const maximumAssistanceMarker = document.querySelector(
-    ".recharts-reference-dot circle"
+    ".recharts-reference-line line"
   )
   expect(maximumAssistanceMarker?.getAttribute("stroke")).toBe(
-    "var(--color-primary)"
+    "var(--color-indigo-500)"
   )
-  expect(maximumAssistanceMarker?.getAttribute("cy")).not.toBe(
+  expect(maximumAssistanceMarker?.getAttribute("y1")).not.toBe(
     markerYAtCurveAssistance
   )
   expect(
@@ -124,5 +124,5 @@ it("renders eight accessible points on honest linear series", async () => {
       onPointChange={vi.fn()}
     />
   )
-  expect(document.querySelector(".recharts-reference-dot circle")).toBeNull()
+  expect(document.querySelector(".recharts-reference-line line")).toBeNull()
 })
