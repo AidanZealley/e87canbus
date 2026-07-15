@@ -1,0 +1,368 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable, Sequence
+from dataclasses import replace
+from typing import Any, cast
+
+import pytest
+import socketio  # type: ignore[import-untyped]
+from e87canbus.api.internal.live import LiveStatePublisher
+from e87canbus.api.internal.websocket import ConnectionManager
+from e87canbus.api.models.resources import ResourceChangedEvent
+from e87canbus.composition import build_controller_service
+from e87canbus.config import LivePublicationConfig, simulator_config
+from e87canbus.runtime import SetMaximumAssistance, StateTopic
+from e87canbus.service import ControllerMode, ControllerService, RuntimeExecution
+from e87canbus.simulation.runtime import ResetSimulation, SetVehicleSpeed
+
+
+class RecordingSocketServer:
+    def __init__(self) -> None:
+        self.emissions: list[tuple[str, dict[str, Any], str | None, str | None]] = []
+        self.rooms: dict[str, set[str]] = {}
+        self.block = False
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.shutdown_block = False
+        self.shutdown_entered = asyncio.Event()
+        self.shutdown_release = asyncio.Event()
+        self.error: Exception | None = None
+
+    async def emit(
+        self,
+        event: str,
+        payload: dict[str, Any],
+        *,
+        to: str | None = None,
+        room: str | None = None,
+    ) -> None:
+        if self.block:
+            self.entered.set()
+            await self.release.wait()
+        if self.error is not None:
+            raise self.error
+        self.emissions.append((event, payload, to, room))
+
+    async def enter_room(self, sid: str, room: str) -> None:
+        self.rooms.setdefault(room, set()).add(sid)
+
+    async def leave_room(self, sid: str, room: str) -> None:
+        self.rooms.get(room, set()).discard(sid)
+
+    async def shutdown(self) -> None:
+        if self.shutdown_block:
+            self.shutdown_entered.set()
+            await self.shutdown_release.wait()
+
+
+class RecordingLegacyManager:
+    def __init__(self) -> None:
+        self.broadcasts: list[Sequence[dict[str, object]]] = []
+
+    async def broadcast(self, events: Sequence[dict[str, object]]) -> None:
+        self.broadcasts.append(events)
+
+
+def controller_service(
+    *,
+    trace_batch_size: int = 4,
+    shutdown_timeout_s: float = 2.0,
+) -> ControllerService:
+    config = replace(
+        simulator_config(),
+        tick_interval_s=60.0,
+        live_publication=LivePublicationConfig(
+            telemetry_hz=25.0,
+            trace_hz=100.0,
+            trace_batch_size=trace_batch_size,
+            resource_capacity=8,
+            shutdown_timeout_s=shutdown_timeout_s,
+        ),
+    )
+    return build_controller_service(ControllerMode.SIMULATED, config=config)
+
+
+def publisher_for(
+    service: ControllerService,
+    socket_server: RecordingSocketServer,
+    legacy: RecordingLegacyManager | None = None,
+) -> LiveStatePublisher:
+    return LiveStatePublisher(
+        cast(socketio.AsyncServer, socket_server),
+        service,
+        cast(ConnectionManager, legacy or RecordingLegacyManager()),
+        service.config,
+    )
+
+
+async def wait_until(predicate: Callable[[], bool], timeout_s: float = 1.0) -> None:
+    async def poll() -> None:
+        while not predicate():
+            await asyncio.sleep(0.005)
+
+    await asyncio.wait_for(poll(), timeout=timeout_s)
+
+
+@pytest.mark.asyncio
+async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
+    first = controller_service()
+    second = controller_service()
+    first.start()
+    second.start()
+    first_socket = RecordingSocketServer()
+    second_socket = RecordingSocketServer()
+    first_publisher = publisher_for(first, first_socket)
+    second_publisher = publisher_for(second, second_socket)
+    await first_publisher.start()
+    await second_publisher.start()
+    try:
+        await first_publisher.send_snapshot("first-client")
+        await second_publisher.send_snapshot("second-client")
+    finally:
+        first.stop()
+        second.stop()
+        await first_publisher.stop()
+        await second_publisher.stop()
+
+    first_event, first_payload, first_to, _ = first_socket.emissions[0]
+    _, second_payload, _, _ = second_socket.emissions[0]
+    assert first_event == "controller.snapshot"
+    assert first_to == "first-client"
+    assert first_payload["protocol_version"] == 1
+    assert first_payload["boot_id"] != second_payload["boot_id"]
+    assert first_payload["revision"] == 1
+    assert set(first_payload["data"]) == {
+        "topic_revisions",
+        "simulation_session_id",
+        "vehicle",
+        "engine",
+        "steering",
+        "buttons",
+        "devices",
+        "health",
+    }
+    assert set(first_payload["data"]["topic_revisions"].values()) == {1}
+
+
+@pytest.mark.asyncio
+async def test_only_changed_topic_publishes_and_service_revision_survives_reset() -> None:
+    service = controller_service()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    await asyncio.to_thread(service.start, publisher.offer)
+    try:
+        await wait_until(lambda: len(socket_server.emissions) >= 6)
+        socket_server.emissions.clear()
+        result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
+        await wait_until(
+            lambda: {event for event, *_ in socket_server.emissions}
+            >= {"steering.state", "buttons.state"}
+        )
+        events = [event for event, *_ in socket_server.emissions]
+        before_reset_revision = service.snapshot().revision
+        await asyncio.wrap_future(service.submit(ResetSimulation()))
+        after_reset_revision = service.snapshot().revision
+    finally:
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
+
+    assert result.revision == before_reset_revision
+    assert set(events) == {"steering.state", "buttons.state"}
+    assert after_reset_revision > before_reset_revision
+
+
+@pytest.mark.asyncio
+async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
+    service = controller_service()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    await asyncio.to_thread(service.start, publisher.offer)
+    await wait_until(lambda: len(socket_server.emissions) >= 6)
+    socket_server.emissions.clear()
+    socket_server.block = True
+    execution = RuntimeExecution(
+        result=None,
+        compatibility_snapshot=service.latest_compatibility_snapshot,
+        changed_topics=frozenset({StateTopic.VEHICLE}),
+        commit_count=1,
+    )
+    try:
+        controller_result = await asyncio.wait_for(
+            asyncio.wrap_future(service.submit(SetVehicleSpeed(42.0))),
+            timeout=1.0,
+        )
+        await asyncio.wait_for(socket_server.entered.wait(), timeout=1.0)
+        for _ in range(1_000):
+            publisher.offer(execution)
+        assert controller_result.snapshot.application.vehicle_speed_kph == 42.0
+        assert publisher.pending_topic_count <= 1
+        assert publisher.diagnostics.max_pending_topics <= len(StateTopic)
+        assert service.snapshot().diagnostics.health.fatal is False
+    finally:
+        socket_server.release.set()
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
+
+
+def frame(sequence: int) -> dict[str, object]:
+    return {
+        "type": "frame",
+        "session_id": 1,
+        "sequence": sequence,
+        "network": "kcan",
+        "source": "test",
+        "arbitration_id": 0x700,
+        "arbitration_id_hex": "0x700",
+        "data_hex": "0001",
+        "is_extended_id": False,
+        "monotonic_s": float(sequence),
+    }
+
+
+@pytest.mark.asyncio
+async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
+    service = controller_service(trace_batch_size=3)
+    service.start()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    execution = RuntimeExecution(
+        result=None,
+        compatibility_snapshot=service.latest_compatibility_snapshot,
+        events=tuple(frame(index) for index in range(1, 7)),
+    )
+    try:
+        publisher.offer(execution)
+        await asyncio.sleep(0.03)
+        assert all(event != "trace.batch" for event, *_ in socket_server.emissions)
+        await publisher.subscribe_trace("trace-client")
+        publisher.offer(execution)
+        await wait_until(
+            lambda: any(event == "trace.batch" for event, *_ in socket_server.emissions)
+        )
+        trace_payload = next(
+            payload
+            for event, payload, _, _ in socket_server.emissions
+            if event == "trace.batch"
+        )
+        await publisher.unsubscribe_trace("trace-client")
+        prior_batches = sum(event == "trace.batch" for event, *_ in socket_server.emissions)
+        publisher.offer(execution)
+        await asyncio.sleep(0.03)
+    finally:
+        service.stop()
+        await publisher.stop()
+
+    assert [row["sequence"] for row in trace_payload["data"]["rows"]] == [4, 5, 6]
+    assert sum(event == "trace.batch" for event, *_ in socket_server.emissions) == prior_batches
+    assert publisher.trace_ring_length == 0
+
+
+@pytest.mark.asyncio
+async def test_multiple_clients_receive_independent_current_snapshots() -> None:
+    service = controller_service()
+    service.start()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    try:
+        await publisher.send_snapshot("client-a")
+        await publisher.send_snapshot("client-b")
+    finally:
+        service.stop()
+        await publisher.stop()
+
+    assert [item[2] for item in socket_server.emissions] == ["client-a", "client-b"]
+    first = {**socket_server.emissions[0][1], "emitted_at": None}
+    second = {**socket_server.emissions[1][1], "emitted_at": None}
+    assert first == second
+
+
+@pytest.mark.asyncio
+async def test_resource_change_is_exact_and_legacy_compatibility_uses_same_offer() -> None:
+    service = controller_service()
+    service.start()
+    socket_server = RecordingSocketServer()
+    legacy = RecordingLegacyManager()
+    publisher = publisher_for(service, socket_server, legacy)
+    await publisher.start()
+    change = ResourceChangedEvent(
+        resource="steering_profile",
+        id="profile-1",
+        revision=7,
+    )
+    try:
+        publisher.offer_resource(change)
+        await wait_until(
+            lambda: any(event == "resources.changed" for event, *_ in socket_server.emissions)
+        )
+    finally:
+        service.stop()
+        await publisher.stop()
+
+    payload = next(
+        payload
+        for event, payload, _, _ in socket_server.emissions
+        if event == "resources.changed"
+    )
+    assert payload == {
+        "type": "resources.changed",
+        "resource": "steering_profile",
+        "id": "profile-1",
+        "revision": 7,
+    }
+    assert legacy.broadcasts == [(payload,)]
+
+
+@pytest.mark.asyncio
+async def test_socket_failure_is_transport_diagnostic_only() -> None:
+    service = controller_service()
+    service.start()
+    socket_server = RecordingSocketServer()
+    socket_server.error = OSError("socket failed")
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    try:
+        await publisher.send_snapshot("broken-client")
+    finally:
+        service.stop()
+        await publisher.stop()
+
+    assert publisher.diagnostics.failures == 1
+    assert service.snapshot().diagnostics.health.fatal is False
+
+
+@pytest.mark.asyncio
+async def test_stalled_shutdown_has_one_deadline_and_leaves_no_tasks() -> None:
+    service = controller_service(shutdown_timeout_s=0.05)
+    service.start()
+    socket_server = RecordingSocketServer()
+    socket_server.block = True
+    socket_server.shutdown_block = True
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    publisher.offer_resource(
+        ResourceChangedEvent(
+            resource="steering_profile",
+            id="stalled-peer",
+            revision=1,
+        )
+    )
+    await asyncio.wait_for(socket_server.entered.wait(), timeout=1.0)
+
+    start = asyncio.get_running_loop().time()
+    service.stop()
+    await publisher.stop()
+    elapsed = asyncio.get_running_loop().time() - start
+
+    assert elapsed < 0.25
+    assert publisher.running is False
+    assert publisher.diagnostics.failures >= 1
+    assert not {
+        task.get_name()
+        for task in asyncio.all_tasks()
+        if task is not asyncio.current_task()
+    } & {"live-state-publisher", "socketio-shutdown"}

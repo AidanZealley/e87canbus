@@ -8,13 +8,13 @@ import time
 import uuid
 from collections.abc import Callable
 from concurrent.futures import Future
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
 
 from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.config import AppConfig
-from e87canbus.runtime import DiagnosticSnapshot
+from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.runtime import DiagnosticSnapshot, StateTopic
 
 
 class ControllerServiceError(RuntimeError):
@@ -51,6 +51,12 @@ class RuntimeExecution:
     result: object
     compatibility_snapshot: object
     events: tuple[dict[str, object], ...] = ()
+    changed_topics: frozenset[StateTopic] = frozenset()
+    commit_count: int = 0
+
+    def __post_init__(self) -> None:
+        if self.commit_count < 0:
+            raise ValueError("commit_count must be non-negative")
 
 
 @dataclass(frozen=True)
@@ -62,13 +68,52 @@ class ControllerCommandResult:
 
 
 @dataclass(frozen=True)
+class ObservedDeviceSnapshot:
+    id: str
+    label: str
+    status: str
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class ObservedNetworkSnapshot:
+    network: CanNetwork
+    label: str
+    interface: str
+    bitrate: int
+    connected: bool
+    nodes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ObservedSteeringSnapshot:
+    effective_assistance: float
+    last_command_reason: str | None
+    watchdog_timed_out: bool
+
+
+@dataclass(frozen=True)
+class ControllerAdapterSnapshot:
+    """Immutable observations and desired outputs owned outside the controller core."""
+
+    simulation_session_id: int | None
+    led_colours: tuple[int, ...]
+    next_pressed: bool | None
+    devices: tuple[ObservedDeviceSnapshot, ...]
+    networks: tuple[ObservedNetworkSnapshot, ...]
+    steering: ObservedSteeringSnapshot | None
+
+
+@dataclass(frozen=True)
 class ControllerServiceSnapshot:
     """Immutable service-owned projection scoped to one opaque process boot."""
 
     boot_id: str
     revision: int
+    topic_revisions: tuple[tuple[StateTopic, int], ...]
     application: ApplicationSnapshot
     diagnostics: DiagnosticSnapshot
+    adapter: ControllerAdapterSnapshot
 
 
 RuntimeNotification = Callable[[RuntimeExecution], None]
@@ -89,7 +134,9 @@ class ControllerRuntimeAdapter(Protocol):
 
     def shutdown(self, now: float) -> RuntimeExecution | None: ...
 
-    def projection(self) -> tuple[int, ApplicationSnapshot, DiagnosticSnapshot]: ...
+    def projection(
+        self,
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]: ...
 
     @property
     def terminal(self) -> bool: ...
@@ -130,6 +177,8 @@ class ControllerService:
         self._boot_id: str | None = None
         self._latest_execution: RuntimeExecution | None = None
         self._latest_snapshot: ControllerServiceSnapshot | None = None
+        self._revision = 0
+        self._topic_revisions = {topic: 0 for topic in StateTopic}
         self._failure: BaseException | None = None
 
     @property
@@ -259,7 +308,7 @@ class ControllerService:
                 if queued is not None:
                     try:
                         execution = self._runtime.execute(queued.value)
-                        self._record(execution)
+                        execution = self._record(execution)
                     except Exception as exc:
                         if queued.future is not None:
                             queued.future.set_exception(exc)
@@ -299,20 +348,41 @@ class ControllerService:
             if self._failure is None:
                 self._failure = failure
 
-    def _record(self, execution: RuntimeExecution, *, notify: bool = True) -> None:
-        revision, application, diagnostics = self._runtime.projection()
+    def _record(
+        self,
+        execution: RuntimeExecution,
+        *,
+        notify: bool = True,
+    ) -> RuntimeExecution:
+        application, diagnostics, adapter = self._runtime.projection()
         with self._lock:
+            if self._latest_snapshot is None and not execution.changed_topics:
+                execution = replace(execution, changed_topics=frozenset(StateTopic))
+            revision_increment = execution.commit_count
+            if revision_increment == 0 and execution.changed_topics:
+                revision_increment = 1
+            self._revision += revision_increment
+            for topic in execution.changed_topics:
+                self._topic_revisions[topic] = self._revision
+            if isinstance(execution.result, ControllerCommandResult):
+                execution = replace(
+                    execution,
+                    result=replace(execution.result, revision=self._revision),
+                )
             self._latest_execution = execution
             assert self._boot_id is not None
             self._latest_snapshot = ControllerServiceSnapshot(
                 boot_id=self._boot_id,
-                revision=revision,
+                revision=self._revision,
+                topic_revisions=tuple(self._topic_revisions.items()),
                 application=application,
                 diagnostics=diagnostics,
+                adapter=adapter,
             )
             notification = self._notification
         if notify and notification is not None:
             notification(execution)
+        return execution
 
     def _fail_pending(self) -> None:
         while True:

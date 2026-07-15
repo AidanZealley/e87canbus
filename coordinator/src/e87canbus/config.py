@@ -94,6 +94,30 @@ class SimulationConfig:
 
 
 @dataclass(frozen=True)
+class LivePublicationConfig:
+    telemetry_hz: float = 25.0
+    trace_hz: float = 10.0
+    trace_batch_size: int = 100
+    resource_capacity: int = 256
+    client_queue_capacity: int = 64
+    shutdown_timeout_s: float = 2.0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.telemetry_hz) or self.telemetry_hz <= 0:
+            raise ValueError("live telemetry rate must be finite and positive")
+        if not math.isfinite(self.trace_hz) or self.trace_hz <= 0:
+            raise ValueError("live trace rate must be finite and positive")
+        if self.trace_batch_size < 1:
+            raise ValueError("live trace batch size must be positive")
+        if self.resource_capacity < 1:
+            raise ValueError("live resource publication capacity must be positive")
+        if self.client_queue_capacity < 1:
+            raise ValueError("live client queue capacity must be positive")
+        if not math.isfinite(self.shutdown_timeout_s) or self.shutdown_timeout_s <= 0:
+            raise ValueError("live publisher shutdown timeout must be finite and positive")
+
+
+@dataclass(frozen=True)
 class TxPolicyConfig:
     network_window_s: float = 1.0
     max_frames_per_network_window: int = 20
@@ -109,6 +133,7 @@ class TxPolicyConfig:
 class AppConfig:
     can_networks: tuple[CanNetworkConfig, ...] = field(default_factory=default_can_networks)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
+    live_publication: LivePublicationConfig = field(default_factory=LivePublicationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)

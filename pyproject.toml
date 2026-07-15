@@ -8,6 +8,7 @@ dependencies = [
     "cantools>=40.0",
     "fastapi>=0.115",
     "python-can>=4.4",
+    "python-socketio>=5.13",
     "uvicorn[standard]>=0.30",
 ]
 

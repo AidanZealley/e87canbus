@@ -23,6 +23,7 @@ from e87canbus.runtime import (
     ShutdownRequested,
 )
 from e87canbus.service import (
+    ControllerAdapterSnapshot,
     ControllerService,
     ControllerServiceLifecycle,
     RuntimeExecution,
@@ -49,7 +50,12 @@ class RecordingRuntime:
         self.starts += 1
         commit = self.kernel.dispatch(KernelStarted(1.0))
         assert commit is not None
-        return RuntimeExecution(commit, commit.snapshot)
+        return RuntimeExecution(
+            commit,
+            commit.snapshot,
+            changed_topics=commit.changed_topics,
+            commit_count=1,
+        )
 
     def execute(self, work: object) -> RuntimeExecution:
         raise TypeError(f"unsupported test work: {work!r}")
@@ -63,11 +69,22 @@ class RecordingRuntime:
         commit = self.kernel.dispatch(ShutdownRequested(now))
         if commit is None:
             return None
-        return RuntimeExecution(commit, commit.snapshot)
+        return RuntimeExecution(
+            commit,
+            commit.snapshot,
+            changed_topics=commit.changed_topics,
+            commit_count=1,
+        )
 
-    def projection(self) -> tuple[int, ApplicationSnapshot, DiagnosticSnapshot]:
+    def projection(
+        self,
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         diagnostics = self.kernel.diagnostics()
-        return diagnostics.revision, self.kernel.snapshot(), diagnostics
+        return (
+            self.kernel.snapshot(),
+            diagnostics,
+            ControllerAdapterSnapshot(None, (3,) + (0,) * 15, None, (), (), None),
+        )
 
     @property
     def terminal(self) -> bool:
@@ -88,9 +105,11 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
     with TestClient(app) as client:
         assert client.get("/api/health").status_code == 200
         assert service.lifecycle is ControllerServiceLifecycle.RUNNING
+        assert app.state.live_publisher.running is True
 
     assert (runtime.starts, runtime.stops) == (1, 1)
     assert service.lifecycle is ControllerServiceLifecycle.STOPPED
+    assert app.state.live_publisher.running is False
 
 
 def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:

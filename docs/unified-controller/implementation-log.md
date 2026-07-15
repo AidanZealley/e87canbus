@@ -26,7 +26,7 @@ simulation.
 | 1 — Runtime contracts | Verified | 2026-07-15 | Architecture, runtime contracts and regression baseline complete |
 | 2 — Unified composition | Verified | 2026-07-15 | One bounded controller/API lifecycle with validated adapter selection |
 | 3 — Commands and resources | Verified | 2026-07-15 | Typed commands, development actions and precise durable resources complete |
-| 4 — Socket.IO publication | Not started | — | Fixed topics, reconnect snapshot and bounded delivery |
+| 4 — Socket.IO publication | Verified | 2026-07-15 | Fixed topics, reconnect snapshot and bounded delivery complete |
 | 5 — Frontend data ownership | Not started | — | Zustand live state and TanStack Query HTTP ownership |
 | 6 — Simulation/device convergence | Not started | — | Physical, emulated and observer pathways |
 | 7 — Reliability/deployment | Not started | — | Failure policy, health, shutdown and service operation |
@@ -34,13 +34,15 @@ simulation.
 
 ## Current handoff
 
-Start Phase 4 from `ControllerCommandResult`, `ResourceChangedEvent` and the service snapshot: add
-one bounded Socket.IO publication path with fixed topics, complete reconnect snapshots and
-boot-scoped revisions. Preserve the exact command acknowledgement revision, separate simulation
-`session_id`, synchronous ordered effect execution, deny-by-default live output and the remaining
-raw `/api/snapshot` plus `/ws` read compatibility until their Phase 5/8 consumers move. Phase 7
-still owns the recorded effect/actuator-failure health commit gap. The obsolete `KernelInput` alias
-is gone; use `ControllerInput` directly.
+Start Phase 5 from the generated protocol-v1 live schema and explicit TypeScript event map. Create
+one `socket.io-client` connection outside React, replace complete snapshots on `boot_id` change,
+reject older/duplicate topic revisions in Zustand, subscribe to trace only while needed, and move
+HTTP resources/mutations exclusively to TanStack Query. Invalidate/refetch the small durable set
+once after reconnect because `resources.changed` is not replayed. Remove the frontend's raw `/ws`
+and `/api/snapshot` ownership in Phase 5, but leave the backend compatibility reads for Phase 8.
+Preserve HTTP-only business commands, separate simulation `session_id`, boot-scoped service and
+topic revisions, bounded trace, exact CORS, deny-by-default live output, and the Phase 7
+effect/actuator-failure health-commit handoff.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -69,6 +71,70 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 4: bounded Socket.IO live-state publication
+
+- **Status:** Verified
+- **Scope:** Added the fixed protocol-v1 Socket.IO live-state transport, complete connection/resync
+  snapshots, boot/topic revisions, latest-state coalescing, opt-in bounded trace and precise
+  resource changes. Frontend ownership remains Phase 5; raw simulated reads remain compatibility.
+- **Changed:** Mounted one `python-socketio` server with FastAPI at `/socket.io` under the exact
+  same-origin/development-origin policy. Added `controller.snapshot`, `vehicle.state`,
+  `engine.state`, `steering.state`, `buttons.state`, `devices.state`, `controller.health`,
+  `resources.changed` and `trace.batch`, plus transport-only resync/trace controls. Service
+  snapshots now compose immutable application, diagnostics, desired LED and selected-adapter
+  observations with a monotonic boot-scoped revision and fixed topic revisions; simulation reset
+  retains its distinct reset-local `session_id`. Runtime executions expose actual commit topics and
+  counts so exact HTTP command acknowledgements are remapped to their matched service revision.
+  The owner hands snapshots to a six-entry latest-topic map, bounded trace/resource rings and one
+  loop wakeup without awaiting ASGI or creating per-commit tasks. Telemetry is capped at 25 Hz;
+  trace is opt-in at 10 Hz with at most 100 rows per batch. Each Engine.IO peer has a finite
+  64-packet outbound queue; saturation aborts that peer and increments a bounded transport counter
+  instead of blocking an emitter or evicting arbitrary Socket.IO control/data packets. Publisher
+  flushing and Socket.IO teardown share one two-second shutdown deadline, after which remaining
+  tasks are cancelled and awaited. Pydantic models generate
+  `protocol/live-events-v1.schema.json`; an explicit checked TypeScript map defines client events
+  and stale/duplicate/new-boot handling without introducing frontend socket ownership yet.
+- **Decisions:** Used a thread-safe latest-topic map and one async publisher rather than an event
+  queue. The service owns monotonic publication identity across simulation resets while legacy
+  compatibility snapshots keep their reset-local revision. Adapter-only device observation changes
+  receive a service revision without mutating controller state. Transport failures increment
+  publisher diagnostics only; Phase 7 still owns controller-health reconciliation. Socket.IO
+  recovery is always a complete snapshot and does not depend on durable replay. Slow peers are
+  disconnected on queue saturation because silently dropping an oldest queued packet could discard
+  a control packet or complete snapshot. The raw `/ws` mirror keeps bounded, ordered whole execution
+  batches from the same publisher to avoid mixing snapshots and trace across simulation sessions.
+- **Verification:** Full `uv run pytest -q`: 503 passed with one existing Starlette/httpx
+  deprecation warning. `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus`, `uv run
+  python scripts/generate_custom_protocol.py --check`, `uv run python
+  scripts/generate_live_contract.py --check`, `bash -n scripts/*.sh` and `git diff --check` passed.
+  `pnpm test`: 46 unit and 55 component tests passed. `pnpm lint`, `pnpm typecheck` and `pnpm build`
+  passed; Vite 8.1.4 transformed 2,936 modules.
+- **Browser/soak/physical checks:** A bounded 500-input synthetic burst processed at 6,914.2/s in
+  0.072315 s. Across the 0.422953 s observation it emitted two `vehicle.state` and two
+  `trace.batch` events, retained at most six fixed topics and 298 of 2,000 trace rows, bounded each
+  trace batch to 100, reached controller inbox depth 426 and maximum measured command completion
+  latency 0.059263 s, and recorded zero publication failures with healthy controller diagnostics.
+  A real Uvicorn plus Socket.IO websocket client received a complete protocol-v1 snapshot over the
+  websocket transport; automated polling composition tests cover the same payload. No browser
+  visual or physical check was required. An installed-Engine.IO integration test proves the stock
+  queue is unbounded, the composed queue is finite, and a third undrained packet at capacity two
+  aborts only that peer while retaining a saturation diagnostic. A stalled-emitter/stalled-socket
+  teardown test proves one 50 ms test deadline and no remaining named publisher tasks. Real CAN TX
+  was unavailable and not enabled; no physical CAN or steering evidence was claimed.
+- **Documentation:** Updated coordinator, simulation, root and protocol guidance; generated and
+  checked the protocol-v1 JSON schema; updated this status/handoff record.
+- **Dependencies/migrations:** Added `python-socketio` 5.16.3 and locked `python-engineio`, `bidict`,
+  `simple-websocket` and `wsproto`. No SQLite or generated CAN protocol migration changed.
+- **Compatibility/removal:** Retained simulated `GET /api/snapshot` and raw `/ws` as bounded reads
+  from the canonical service/publisher; Phase 5 removes their frontend consumers and Phase 8 removes
+  the backend endpoint/adapter. No Socket.IO business-command or alternate state-owner facade was
+  added.
+- **Remaining:** None for Phase 4. Phase 5 owns frontend Socket.IO/Zustand and TanStack Query data
+  ownership; Phase 7 still owns effect/actuator-failure health commits.
+- **Next handoff:** Use `frontend/src/api/live-events.ts` and the generated schema as the Phase 5
+  boundary. A changed `boot_id` replaces the whole live store; matching boots compare each topic's
+  revision independently. Resource events are hints and reconnect performs one bounded refetch.
 
 ### 2026-07-15 — Phase 3: typed commands and precise durable resources
 

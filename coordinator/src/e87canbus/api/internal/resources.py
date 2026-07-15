@@ -19,4 +19,4 @@ async def publish_resource_change(
         id=resource_id,
         revision=revision,
     )
-    await app.state.manager.broadcast((event.model_dump(),))
+    app.state.live_publisher.offer_resource(event)

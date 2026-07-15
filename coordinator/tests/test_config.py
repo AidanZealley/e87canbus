@@ -4,6 +4,7 @@ import pytest
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
+    LivePublicationConfig,
     SimulationConfig,
     SteeringConfig,
     TxPolicyConfig,
@@ -37,6 +38,35 @@ def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
     assert default_config().simulation.steering_watchdog_timeout_s == 0.25
     assert default_config().simulation.websocket_send_timeout_s == 1.0
+
+
+def test_default_live_publication_bounds() -> None:
+    publication = default_config().live_publication
+
+    assert publication.telemetry_hz == 25.0
+    assert publication.trace_hz == 10.0
+    assert publication.trace_batch_size == 100
+    assert publication.resource_capacity == 256
+    assert publication.client_queue_capacity == 64
+    assert publication.shutdown_timeout_s == 2.0
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"telemetry_hz": 0.0},
+        {"trace_hz": float("inf")},
+        {"trace_batch_size": 0},
+        {"resource_capacity": 0},
+        {"client_queue_capacity": 0},
+        {"shutdown_timeout_s": float("nan")},
+    ],
+)
+def test_live_publication_bounds_reject_invalid_values(
+    changes: dict[str, int | float],
+) -> None:
+    with pytest.raises(ValueError, match="live"):
+        LivePublicationConfig(**changes)
 
 
 @pytest.mark.parametrize(

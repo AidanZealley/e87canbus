@@ -18,12 +18,17 @@ from e87canbus.runtime import (
     DiagnosticSnapshot,
     SetMaximumAssistance,
     SetSteeringMode,
+    StateTopic,
 )
 from e87canbus.service import (
+    ControllerAdapterSnapshot,
     ControllerCommandResult,
     ControllerMode,
     ControllerRuntimeAdapter,
     ControllerService,
+    ObservedDeviceSnapshot,
+    ObservedNetworkSnapshot,
+    ObservedSteeringSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
 )
@@ -45,6 +50,7 @@ from e87canbus.simulation.runtime import (
     SimulatedControllerRuntime,
     SimulationCommand,
     SimulationSessionFailed,
+    SimulatorSnapshot,
     StepButton,
 )
 
@@ -285,6 +291,7 @@ _SEMANTIC_CONTROLLER_COMMAND_TYPES = (
 class _SimulatedRuntimeAdapter:
     def __init__(self, runtime: SimulatedControllerRuntime) -> None:
         self._runtime = runtime
+        self._previous_snapshot: SimulatorSnapshot | None = None
 
     @property
     def config(self) -> AppConfig:
@@ -308,6 +315,8 @@ class _SimulatedRuntimeAdapter:
                 ),
                 execution.compatibility_snapshot,
                 execution.events,
+                execution.changed_topics,
+                execution.commit_count,
             )
         raise TypeError(f"unsupported simulated controller work: {work!r}")
 
@@ -321,12 +330,47 @@ class _SimulatedRuntimeAdapter:
         del now
         return self._execution(self._runtime.shutdown())
 
-    def projection(self) -> tuple[int, ApplicationSnapshot, DiagnosticSnapshot]:
+    def projection(
+        self,
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         snapshot = self._runtime.snapshot()
         return (
-            snapshot.revision,
             snapshot.application,
             self._runtime.kernel.diagnostics(),
+            ControllerAdapterSnapshot(
+                simulation_session_id=snapshot.session_id,
+                led_colours=snapshot.led_colours,
+                next_pressed=snapshot.next_pressed,
+                devices=tuple(
+                    ObservedDeviceSnapshot(
+                        id=device.id.value,
+                        label=device.label,
+                        status=device.status.value,
+                        reason=None if device.reason is None else device.reason.value,
+                    )
+                    for device in snapshot.devices
+                ),
+                networks=tuple(
+                    ObservedNetworkSnapshot(
+                        network=network.config.network,
+                        label=network.config.label,
+                        interface=network.config.interface,
+                        bitrate=network.config.bitrate,
+                        connected=network.connected,
+                        nodes=network.nodes,
+                    )
+                    for network in snapshot.networks
+                ),
+                steering=ObservedSteeringSnapshot(
+                    effective_assistance=snapshot.steering_controller.effective_assistance,
+                    last_command_reason=(
+                        None
+                        if snapshot.steering_controller.last_command_reason is None
+                        else snapshot.steering_controller.last_command_reason.value
+                    ),
+                    watchdog_timed_out=snapshot.steering_controller.watchdog_timed_out,
+                ),
+            ),
         )
 
     @property
@@ -334,10 +378,37 @@ class _SimulatedRuntimeAdapter:
         # A fatal simulated session stays available for the explicit reset command.
         return False
 
-    @staticmethod
-    def _execution(result: object) -> RuntimeExecution:
+    def _execution(self, result: object) -> RuntimeExecution:
         from e87canbus.simulation.runtime import SimulationResult
 
         if not isinstance(result, SimulationResult):
             raise TypeError(f"unexpected simulated runtime result: {result!r}")
-        return RuntimeExecution(result, result.snapshot, result.events)
+        changed_topics: set[StateTopic] = set()
+        for commit in result.commits:
+            changed_topics.update(commit.changed_topics)
+        previous = self._previous_snapshot
+        if previous is None:
+            changed_topics.add(StateTopic.DEVICES)
+        else:
+            if (
+                previous.devices != result.snapshot.devices
+                or previous.networks != result.snapshot.networks
+                or previous.steering_controller != result.snapshot.steering_controller
+            ):
+                changed_topics.add(StateTopic.DEVICES)
+            if (
+                previous.led_colours != result.snapshot.led_colours
+                or previous.next_pressed != result.snapshot.next_pressed
+            ):
+                changed_topics.add(StateTopic.BUTTONS)
+        self._previous_snapshot = result.snapshot
+        commit_count = len(result.commits)
+        if commit_count == 0 and changed_topics:
+            commit_count = 1
+        return RuntimeExecution(
+            result,
+            result.snapshot,
+            result.events,
+            frozenset(changed_topics),
+            commit_count,
+        )

@@ -38,9 +38,10 @@ pair of session ID and sequence. Initial loads and resets carry the complete tra
 snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
 publish a snapshot only when that operation changes the public application, controller, or fatal
 projection; refreshed external speed frames remain ordinary incremental trace events.
-WebSocket sends, including the initial full snapshot, have a one-second default timeout. A stalled
-or failed peer is removed while publication continues in order to the remaining peers; publication
-is not detached from the owning operation. The browser retries initial HTTP startup twice before
+The raw `/ws` stream is a temporary compatibility read for the current frontend. Its sends have a
+one-second default timeout and are fed from the same bounded publisher as Socket.IO. A stalled or
+failed peer can delay only publication; it cannot block the controller owner, CAN input processing,
+or effect execution. The browser retries initial HTTP startup twice before
 reporting the backend as unavailable, then probes it every ten seconds so the UI can recover. It
 reconnects a closed WebSocket with jittered exponential backoff capped at ten seconds. The first
 full snapshot on every connection is authoritative, so a restarted backend can safely reset its

@@ -20,3 +20,9 @@ hardware evidence.
 
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
+
+`live-events-v1.schema.json` is the generated Pydantic-owned Socket.IO payload schema. Run
+`uv run python scripts/generate_live_contract.py` after changing a live payload model and use
+`--check` in verification. The explicit TypeScript event map in
+`frontend/src/api/live-events.ts` is checked against the schema's fixed event names; it contains
+transport types only and does not duplicate controller behavior or CAN constants.

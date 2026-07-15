@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Protocol, assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.controller import ApplicationSnapshot
+from e87canbus.application.controller import ApplicationSnapshot, button_led_state
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.output import (
@@ -20,7 +20,7 @@ from e87canbus.output import (
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
-from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.protocol.router import LED_COLOUR_CODES, ProtocolRouter
 from e87canbus.runtime import (
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
@@ -35,10 +35,17 @@ from e87canbus.runtime import (
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
+    StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.service import ControllerCommandResult, RuntimeExecution, RuntimeInputSink
+from e87canbus.service import (
+    ControllerAdapterSnapshot,
+    ControllerCommandResult,
+    ObservedNetworkSnapshot,
+    RuntimeExecution,
+    RuntimeInputSink,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -261,6 +268,13 @@ class LiveControllerRuntime:
         execution = self._dispatch(KernelStarted(self._clock()))
         if execution is None:
             raise RuntimeError("live controller kernel did not start")
+        execution = RuntimeExecution(
+            execution.result,
+            execution.compatibility_snapshot,
+            execution.events,
+            execution.changed_topics | {StateTopic.DEVICES},
+            execution.commit_count,
+        )
 
         reader_inbox = _ServiceReaderInbox(submit_input, self.config.runtime_inbox_capacity)
         self._readers = [
@@ -303,6 +317,8 @@ class LiveControllerRuntime:
                 ),
                 completed.compatibility_snapshot,
                 completed.events,
+                completed.changed_topics,
+                completed.commit_count,
             )
         return completed
 
@@ -326,9 +342,37 @@ class LiveControllerRuntime:
             raise RuntimeError(f"live CAN readers did not stop after adapter close: {names}")
         return execution
 
-    def projection(self) -> tuple[int, ApplicationSnapshot, DiagnosticSnapshot]:
+    def projection(
+        self,
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         diagnostics = self._kernel.diagnostics()
-        return diagnostics.revision, self._kernel.snapshot(), diagnostics
+        application = self._kernel.snapshot()
+        enabled = tuple(item for item in self.config.can_networks if item.enabled)
+        return (
+            application,
+            diagnostics,
+            ControllerAdapterSnapshot(
+                simulation_session_id=None,
+                led_colours=tuple(
+                    LED_COLOUR_CODES[colour]
+                    for colour in button_led_state(self._kernel.state).colours
+                ),
+                next_pressed=None,
+                devices=(),
+                networks=tuple(
+                    ObservedNetworkSnapshot(
+                        network=item.network,
+                        label=item.label,
+                        interface=item.interface,
+                        bitrate=item.bitrate,
+                        connected=item.network in self._raw_buses,
+                        nodes=(),
+                    )
+                    for item in enabled
+                ),
+                steering=None,
+            ),
+        )
 
     @property
     def terminal(self) -> bool:
@@ -342,7 +386,13 @@ class LiveControllerRuntime:
         return None if commit is None else self._current_execution(commit)
 
     def _current_execution(self, result: object) -> RuntimeExecution:
-        return RuntimeExecution(result, self._kernel.snapshot())
+        commit = result if isinstance(result, Commit) else None
+        return RuntimeExecution(
+            result,
+            self._kernel.snapshot(),
+            changed_topics=(frozenset() if commit is None else commit.changed_topics),
+            commit_count=0 if commit is None else 1,
+        )
 
     def _close_buses(self) -> None:
         for network, bus in tuple(self._raw_buses.items()):

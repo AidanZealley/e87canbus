@@ -14,7 +14,7 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/live.py` — SocketCAN readers and the live runtime adapter.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
-- `src/e87canbus/api/` — HTTP and WebSocket interface used by the frontend.
+- `src/e87canbus/api/` — HTTP, Socket.IO live publication, and temporary raw-WebSocket reads.
 - `src/e87canbus/cli/` — executable entry points and bench utilities.
 - `tests/` — tests arranged to mirror the source responsibilities.
 
@@ -106,6 +106,22 @@ with resource ID and revision. Reconnecting clients receive the full
 active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
 or missed-event replay are required.
 
+Socket.IO is mounted with FastAPI at `/socket.io` and uses one namespace. Every connection receives
+`controller.snapshot`, containing protocol version 1, the opaque service `boot_id`, a monotonic
+boot-scoped revision, fixed per-topic revisions and every current projection. Incremental server
+events are `vehicle.state`, `engine.state`, `steering.state`, `buttons.state`, `devices.state`,
+`controller.health`, `resources.changed`, and opt-in `trace.batch`. Only
+`controller.resync`, `trace.subscribe`, and `trace.unsubscribe` are accepted from sockets; business
+commands remain HTTP-only. Vehicle and engine values coalesce to 25 Hz, topic handoff retains one
+latest unsent value, trace storage/batches and resource changes are bounded, and each Engine.IO
+client has a finite 64-packet outbound queue. A client that fills that queue is disconnected and
+counted as a transport saturation instead of blocking publication or losing arbitrary protocol
+packets. No network client can block the controller owner or effect execution. Publisher and socket
+shutdown share one two-second deadline and cancel all remaining publication tasks if it expires.
+The generated contract is documented in
+`protocol/README.md`. The simulated raw `/ws` endpoint remains a bounded read compatibility path
+for the current frontend and is removed in Phase 8 after Phase 5 migrates its consumer.
+
 The simulator server defaults to loopback and permits the two local Vite development origins. It is
 unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
 `--host` to expose it beyond loopback until authentication, origin policy, and editing-while-moving
@@ -142,14 +158,18 @@ The controller service owns one bounded inbox and dedicated owner thread in live
 composition. It serializes button-device commands, persistent synthetic vehicle-speed selection and
 silence, control timers, resets, kernel commits, ordered effects and compatibility publication.
 Before each control timer, a selected speed is
-re-emitted by the external vehicle and decoded through the kernel. Browser snapshots expose the
-kernel-owned revision, simulation session ID, fatal-health status, and the ideal simulated
+re-emitted by the external vehicle and decoded through the kernel. Browser compatibility snapshots
+expose the reset-local kernel revision, simulation session ID, fatal-health status, and the ideal simulated
 controller's effective dimensionless assistance, optional last accepted command reason, and
-watchdog state. An output fault terminates the session after one committed shutdown attempt; normal
+watchdog state. The service revision remains monotonic across simulation reset while that separate
+session identity and compatibility revision restart. An output fault terminates the session after
+one committed shutdown attempt; normal
 commands are rejected until reset creates a fresh kernel at revision one. A reset-time shutdown
 fault is recorded on the stopped session and retained in logs while the reset response reports the
-new healthy session. Initial and incremental WebSocket sends are bounded by the simulation send
-timeout, and a stalled peer is removed without detaching or reordering publication. Incremental
+new healthy session. Socket.IO and compatibility WebSocket sends are bounded by the simulation send
+timeout, and Socket.IO client queues have a separate finite packet capacity. Their bounded publisher
+is detached from the controller owner, so a stalled peer can delay only browser publication while
+latest topic values replace older pending values; a saturated peer is then disconnected. Incremental
 trace frames use the session ID with their reset-local sequence number.
 
 The same simulated vehicle can independently select or silence RPM, oil temperature and coolant

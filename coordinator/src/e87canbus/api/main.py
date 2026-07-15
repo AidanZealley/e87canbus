@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+import socketio  # type: ignore[import-untyped]
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +16,8 @@ from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
+from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
+from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.routes import commands, health, settings, simulation, steering, websocket
 from e87canbus.composition import build_controller_service
@@ -32,6 +35,24 @@ DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 )
+
+
+def socket_origin_policy(
+    development_origins: Sequence[str],
+) -> Callable[[str | None, dict[str, str]], bool]:
+    allowed_development = frozenset(development_origins)
+
+    def is_allowed(origin: str | None, environ: dict[str, str]) -> bool:
+        if origin is None:
+            return True
+        scheme = environ.get("HTTP_X_FORWARDED_PROTO", environ.get("wsgi.url_scheme", "http"))
+        host = environ.get("HTTP_X_FORWARDED_HOST", environ.get("HTTP_HOST", ""))
+        forwarded_scheme = scheme.split(",", maxsplit=1)[0].strip()
+        forwarded_host = host.split(",", maxsplit=1)[0].strip()
+        same_origin = f"{forwarded_scheme}://{forwarded_host}"
+        return origin == same_origin or origin in allowed_development
+
+    return is_allowed
 
 
 def create_app(
@@ -64,9 +85,18 @@ def create_app(
         assert database is not None
         settings_repository = SqliteApplicationSettingsRepository(database)
 
+    manager = ConnectionManager(service.config.simulation.websocket_send_timeout_s)
+    sio = BoundedSocketIoServer(
+        async_mode="asgi",
+        cors_allowed_origins=socket_origin_policy(cors_origins),
+        outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
+    )
+    publisher = LiveStatePublisher(sio, service, manager, service.config)
+    install_socket_handlers(sio, publisher)
+
     app = FastAPI(
         title="E87 CAN Bus Controller API",
-        lifespan=create_lifespan(service, database),
+        lifespan=create_lifespan(service, database, publisher),
     )
     install_exception_handlers(app)
     app.add_middleware(
@@ -78,7 +108,9 @@ def create_app(
 
     app.state.controller_service = service
     app.state.controller_mode = mode
-    app.state.manager = ConnectionManager(service.config.simulation.websocket_send_timeout_s)
+    app.state.manager = manager
+    app.state.socketio = sio
+    app.state.live_publisher = publisher
     app.state.profile_repository = profile_repository
     app.state.settings_repository = settings_repository
     app.state.monotonic_clock = clock
@@ -92,6 +124,11 @@ def create_app(
         # Phase 8 removes these raw simulator read transports after the frontend migrates.
         app.include_router(simulation.snapshot_router)
         app.include_router(websocket.router)
+    app.mount(
+        "/",
+        socketio.ASGIApp(sio),
+        name="socket.io",
+    )
     return app
 
 

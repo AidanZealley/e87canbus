@@ -197,6 +197,7 @@ SemanticControllerCommand = (
 class SimulationResult:
     snapshot: SimulatorSnapshot
     events: tuple[dict[str, Any], ...]
+    commits: tuple[Commit, ...] = ()
 
 
 class SimulationSessionFailed(ControllerWorkUnavailable):
@@ -354,14 +355,16 @@ class SimulatedControllerRuntime:
         self._session_id = 0
         self._started = False
         self._devices: tuple[SimulatedDeviceSnapshot, ...]
+        self._execution_commits: list[Commit] = []
 
     def start(self) -> SimulationResult:
         if self._started:
             raise RuntimeError("simulated controller runtime may be started exactly once")
         self._started = True
+        self._execution_commits = []
         self._build_session()
         snapshot = self.snapshot()
-        return SimulationResult(snapshot, ())
+        return SimulationResult(snapshot, (), tuple(self._execution_commits))
 
     def snapshot(self) -> SimulatorSnapshot:
         self._require_started()
@@ -393,6 +396,7 @@ class SimulatedControllerRuntime:
                 "simulation session has fatal kernel health; reset required"
             )
 
+        self._execution_commits = []
         before_sequence = self.topology.latest_sequence
         before_application = self.kernel.snapshot()
         before_steering = self._steering_snapshot()
@@ -481,11 +485,13 @@ class SimulatedControllerRuntime:
                 "simulation session has fatal kernel health; reset required"
             )
         before_sequence = self.topology.latest_sequence
+        self._execution_commits = []
         self._dispatch(command)
         return self._process_pending(before_sequence, snapshot_trace=False)
 
     def shutdown(self) -> SimulationResult:
         self._require_started()
+        self._execution_commits = []
         before_sequence = self.topology.latest_sequence
         self._dispatch(ShutdownRequested(self._clock()))
         return self._process_pending(before_sequence, snapshot_trace=False)
@@ -568,7 +574,7 @@ class SimulatedControllerRuntime:
         if snapshot_trace is not None:
             events.append(snapshot_event(snapshot, include_trace=snapshot_trace))
         events.extend(trace_entry_to_event(entry, self._session_id) for entry in new_trace)
-        return SimulationResult(snapshot, tuple(events))
+        return SimulationResult(snapshot, tuple(events), tuple(self._execution_commits))
 
     def _drain_kernel_inputs(self) -> int:
         processed = 0
@@ -590,6 +596,7 @@ class SimulatedControllerRuntime:
         commit = self.kernel.dispatch(kernel_input)
         if commit is None:
             return None
+        self._execution_commits.append(commit)
         failures = self.executor.execute(commit.effects)
         if not failures:
             return commit
@@ -599,6 +606,7 @@ class SimulatedControllerRuntime:
 
         shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
         if shutdown is not None:
+            self._execution_commits.append(shutdown)
             # The terminal fallback is attempted once. A second actuator failure is not fed
             # back into the stopped kernel or retried, preserving the original fault.
             for terminal_failure in self.executor.execute(shutdown.effects):

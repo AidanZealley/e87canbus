@@ -1,4 +1,3 @@
-import asyncio
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -398,14 +397,24 @@ def test_concurrent_updates_allow_one_expected_revision_to_win(client: TestClien
     assert client.get(path).json()["revision"] == 2
 
 
-class BlockingManager:
-    def __init__(self) -> None:
+class BlockingShutdownController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+        *,
+        block_shutdown: bool,
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.block_shutdown = block_shutdown
         self.entered = Event()
         self.release = Event()
 
-    async def broadcast(self, _events: Any) -> None:
-        self.entered.set()
-        await asyncio.to_thread(self.release.wait)
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        if self.block_shutdown and command.reason is SteeringCommandReason.SHUTDOWN:
+            self.entered.set()
+            assert self.release.wait(timeout=10.0)
+        super().set_assistance(command)
 
 
 def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
@@ -415,19 +424,33 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         tick_interval_s=60.0,
         runtime_inbox_capacity=1,
     )
+    controllers: list[BlockingShutdownController] = []
+
+    def build_controller(
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> BlockingShutdownController:
+        controller = BlockingShutdownController(
+            watchdog_timeout_s,
+            clock,
+            block_shutdown=not controllers,
+        )
+        controllers.append(controller)
+        return controller
+
     app = make_app(
         tmp_path / "profiles.sqlite3",
         config=config,
+        steering_controller_factory=build_controller,
     )
-    manager = BlockingManager()
-    app.state.manager = manager
 
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=3) as pool:
         first = pool.submit(
             client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+            "/api/dev/simulation/reset",
         )
-        assert manager.entered.wait(timeout=1.0)
+        controller = controllers[0]
+        assert controller.entered.wait(timeout=1.0)
         second = pool.submit(
             client.post,
             "/api/dev/simulation/devices/button-pad/buttons/0/release",
@@ -436,16 +459,20 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
         assert app.state.controller_service.inbox_depth == 1
-        overloaded = client.put(
+        overloaded = pool.submit(
+            client.put,
             "/api/commands/steering-curve",
             json={"definition": definition_json(second_assistance=850)},
         )
-        manager.release.set()
+        try:
+            overloaded_response = overloaded.result(timeout=1.0)
+        finally:
+            controller.release.set()
         assert first.result().status_code == 200
         assert second.result().status_code == 200
 
-    assert overloaded.status_code == 503
-    assert overloaded.json()["error"]["code"] == "runtime_queue_full"
+    assert overloaded_response.status_code == 503
+    assert overloaded_response.json()["error"]["code"] == "runtime_queue_full"
 
 
 class RejectingActivationController(SimulatedSteeringController):
