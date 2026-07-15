@@ -4,55 +4,22 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_config
 from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.live import LiveControllerRuntime
-from e87canbus.runtime import (
-    SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
-    ActivateSteeringCurve,
-    DeviceAdapterFailed,
-    DiagnosticSnapshot,
-    InboxOverflowed,
-    SetMaximumAssistance,
-    SetSteeringMode,
-    StateTopic,
-)
+from e87canbus.runtime import SUPPORTED_STEERING_CURVE_INTERPOLATIONS
 from e87canbus.service import (
-    ControllerAdapterSnapshot,
-    ControllerCommandResult,
     ControllerMode,
     ControllerRuntimeAdapter,
     ControllerService,
-    ObservedNetworkSnapshot,
-    ObservedSteeringSnapshot,
-    RuntimeExecution,
-    RuntimeInputSink,
 )
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.runtime import (
-    PressButton,
-    ReleaseButton,
-    ResetSimulation,
-    RunControlTimer,
-    SetCoolantTemperature,
-    SetEngineRpm,
-    SetOilTemperature,
-    SetVehicleSpeed,
-    SilenceCoolantTemperature,
-    SilenceEngineRpm,
-    SilenceOilTemperature,
-    SilenceVehicleSpeed,
-    SimulatedControllerRuntime,
-    SimulationCommand,
-    SimulationSessionFailed,
-    SimulatorSnapshot,
-)
+from e87canbus.simulation.runtime import SimulatedControllerRuntime
 
 
 class CanAdapterKind(StrEnum):
@@ -186,21 +153,16 @@ def simulated_selection(config: AppConfig | None = None) -> CompositionSelection
     )
 
 
-SteeringControllerFactory = Callable[
-    [float, Callable[[], float]],
-    SimulatedSteeringController,
-]
-SocketCanFactory = Callable[[str], SocketCanBus]
-
-
 def build_controller_service(
     mode: ControllerMode,
     *,
     config: AppConfig | None = None,
     selection: CompositionSelection | None = None,
     clock: Callable[[], float] = time.monotonic,
-    socketcan_factory: SocketCanFactory = SocketCanBus,
-    steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
+    socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
+    steering_controller_factory: Callable[
+        [float, Callable[[], float]], SimulatedSteeringController
+    ] = SimulatedSteeringController,
     supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
         SUPPORTED_STEERING_CURVE_INTERPOLATIONS
     ),
@@ -219,16 +181,14 @@ def build_controller_service(
 
     if mode is ControllerMode.SIMULATED:
         button_source = selected.device_source(DeviceRole.BUTTON_PAD)
-        runtime: ControllerRuntimeAdapter = _SimulatedRuntimeAdapter(
-            SimulatedControllerRuntime(
-                config=selected_config,
-                button_pad_source=button_source,
-                clock=clock,
-                steering_controller_factory=steering_controller_factory,
-                supported_steering_curve_interpolations=(
-                    supported_steering_curve_interpolations
-                ),
-            )
+        runtime: ControllerRuntimeAdapter = SimulatedControllerRuntime(
+            config=selected_config,
+            button_pad_source=button_source,
+            clock=clock,
+            steering_controller_factory=steering_controller_factory,
+            supported_steering_curve_interpolations=(
+                supported_steering_curve_interpolations
+            ),
         )
     else:
         runtime = LiveControllerRuntime(
@@ -269,199 +229,3 @@ def _validate_network_selection(
             raise ValueError(
                 f"CAN TX grant for {configured.network.value} has no enabled transmitter"
             )
-
-
-_SIMULATION_COMMAND_TYPES = (
-    PressButton,
-    ReleaseButton,
-    RunControlTimer,
-    SetVehicleSpeed,
-    SilenceVehicleSpeed,
-    SetEngineRpm,
-    SilenceEngineRpm,
-    SetOilTemperature,
-    SilenceOilTemperature,
-    SetCoolantTemperature,
-    SilenceCoolantTemperature,
-    ResetSimulation,
-)
-
-_SEMANTIC_CONTROLLER_COMMAND_TYPES = (
-    ActivateSteeringCurve,
-    SetMaximumAssistance,
-    SetSteeringMode,
-)
-
-
-class _SimulatedRuntimeAdapter:
-    def __init__(self, runtime: SimulatedControllerRuntime) -> None:
-        self._runtime = runtime
-        self._previous_snapshot: SimulatorSnapshot | None = None
-        self._previous_diagnostics: DiagnosticSnapshot | None = None
-        self._frame_history = {
-            network: [0, 0, 0, 0]
-            for network in CanNetwork
-        }
-
-    @property
-    def config(self) -> AppConfig:
-        return self._runtime.config
-
-    def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
-        del submit_input
-        return self._execution(self._runtime.start())
-
-    def execute(self, work: object) -> RuntimeExecution:
-        if isinstance(work, _SIMULATION_COMMAND_TYPES):
-            command: SimulationCommand = work
-            return self._execution(self._runtime.execute(command))
-        if isinstance(work, _SEMANTIC_CONTROLLER_COMMAND_TYPES):
-            result = self._runtime.execute_controller_command(work)
-            execution = self._execution(result)
-            return RuntimeExecution(
-                ControllerCommandResult(
-                    result.snapshot.revision,
-                    result.snapshot.fatal,
-                ),
-                execution.events,
-                execution.changed_topics,
-                execution.commit_count,
-            )
-        if isinstance(work, (InboxOverflowed, DeviceAdapterFailed)):
-            return self._execution(self._runtime.execute_controller_failure(work))
-        raise TypeError(f"unsupported simulated controller work: {work!r}")
-
-    def timer(self, now: float) -> RuntimeExecution | None:
-        try:
-            return self._execution(self._runtime.execute(RunControlTimer(now)))
-        except SimulationSessionFailed:
-            return None
-
-    def shutdown(self, now: float) -> RuntimeExecution | None:
-        del now
-        return self._execution(self._runtime.shutdown())
-
-    def close(self) -> None:
-        """The in-process simulation runtime has no external endpoints to close."""
-
-    def projection(
-        self,
-    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
-        snapshot = self._runtime.snapshot()
-        diagnostics = self._runtime.kernel.diagnostics()
-        health = diagnostics.health
-        diagnostics = replace(
-            diagnostics,
-            health=replace(
-                health,
-                networks=tuple(
-                    replace(
-                        network,
-                        received_frames=(
-                            network.received_frames + self._frame_history[network.network][0]
-                        ),
-                        decoded_frames=(
-                            network.decoded_frames + self._frame_history[network.network][1]
-                        ),
-                        ignored_frames=(
-                            network.ignored_frames + self._frame_history[network.network][2]
-                        ),
-                        malformed_frames=(
-                            network.malformed_frames + self._frame_history[network.network][3]
-                        ),
-                    )
-                    for network in health.networks
-                ),
-            ),
-        )
-        return (
-            snapshot.application,
-            diagnostics,
-            ControllerAdapterSnapshot(
-                simulation_session_id=snapshot.session_id,
-                led_colours=snapshot.led_colours,
-                devices=snapshot.devices,
-                networks=tuple(
-                    ObservedNetworkSnapshot(
-                        network=network.config.network,
-                        label=network.config.label,
-                        interface=network.config.interface,
-                        bitrate=network.config.bitrate,
-                        connected=network.connected,
-                        nodes=network.nodes,
-                    )
-                    for network in snapshot.networks
-                ),
-                steering=ObservedSteeringSnapshot(
-                    effective_assistance=snapshot.steering_controller.effective_assistance,
-                    last_command_reason=(
-                        None
-                        if snapshot.steering_controller.last_command_reason is None
-                        else snapshot.steering_controller.last_command_reason.value
-                    ),
-                    watchdog_timed_out=snapshot.steering_controller.watchdog_timed_out,
-                ),
-                effects=self._runtime.effect_diagnostics,
-            ),
-        )
-
-    @property
-    def terminal(self) -> bool:
-        # A fatal simulated session stays available for the explicit reset command.
-        return False
-
-    def _execution(self, result: object) -> RuntimeExecution:
-        from e87canbus.simulation.runtime import SimulationResult
-
-        if not isinstance(result, SimulationResult):
-            raise TypeError(f"unexpected simulated runtime result: {result!r}")
-        changed_topics: set[StateTopic] = set()
-        for commit in result.commits:
-            changed_topics.update(commit.changed_topics)
-        previous = self._previous_snapshot
-        diagnostics = self._runtime.kernel.diagnostics()
-        previous_diagnostics = self._previous_diagnostics
-        if (
-            previous is not None
-            and previous.session_id != result.snapshot.session_id
-            and previous_diagnostics is not None
-        ):
-            for network in previous_diagnostics.health.networks:
-                history = self._frame_history[network.network]
-                history[0] += network.received_frames
-                history[1] += network.decoded_frames
-                history[2] += network.ignored_frames
-                history[3] += network.malformed_frames
-        if previous is None:
-            changed_topics.add(StateTopic.DEVICES)
-        else:
-            if (
-                previous.devices != result.snapshot.devices
-                or previous.networks != result.snapshot.networks
-                or previous.steering_controller != result.snapshot.steering_controller
-            ):
-                changed_topics.add(StateTopic.DEVICES)
-            if previous.led_colours != result.snapshot.led_colours:
-                changed_topics.add(StateTopic.BUTTONS)
-        self._previous_snapshot = result.snapshot
-        self._previous_diagnostics = diagnostics
-        if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
-            changed_topics.add(StateTopic.HEALTH)
-            if any(
-                current.fault != prior.fault
-                for current, prior in zip(
-                    diagnostics.health.devices,
-                    previous_diagnostics.health.devices,
-                    strict=True,
-                )
-            ):
-                changed_topics.add(StateTopic.DEVICES)
-        commit_count = len(result.commits)
-        if commit_count == 0 and changed_topics:
-            commit_count = 1
-        return RuntimeExecution(
-            result,
-            result.events,
-            frozenset(changed_topics),
-            commit_count,
-        )

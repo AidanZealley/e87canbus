@@ -166,8 +166,8 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
         await asyncio.to_thread(service.stop)
         await publisher.stop()
 
-    assert result.revision == command_topic_revision
-    assert result.revision <= before_reset_revision
+    assert result == command_topic_revision
+    assert result <= before_reset_revision
     assert set(events) == {"steering.state", "buttons.state", "devices.state"}
     assert after_reset_revision > before_reset_revision
 
@@ -266,7 +266,6 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
     socket_server.emissions.clear()
     socket_server.block = True
     execution = RuntimeExecution(
-        result=None,
         changed_topics=frozenset({StateTopic.VEHICLE}),
         commit_count=1,
     )
@@ -278,7 +277,8 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
         await asyncio.wait_for(socket_server.entered.wait(), timeout=1.0)
         for _ in range(1_000):
             publisher.offer(execution)
-        assert controller_result.snapshot.application.vehicle_speed_kph == 42.0
+        assert type(controller_result) is int
+        assert service.snapshot().application.vehicle_speed_kph == 42.0
         assert publisher.pending_topic_count <= 2
         assert publisher.diagnostics.max_pending_topics <= len(StateTopic)
         assert service.snapshot().diagnostics.health.fatal is False
@@ -311,7 +311,6 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
     publisher = publisher_for(service, socket_server)
     await publisher.start()
     execution = RuntimeExecution(
-        result=None,
         events=tuple(frame(index) for index in range(1, 7)),
     )
     try:

@@ -6,11 +6,8 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
-from types import SimpleNamespace
 
 import pytest
-from e87canbus.api.errors import ApiProblem
-from e87canbus.api.internal import simulation as simulation_api
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
@@ -19,8 +16,6 @@ from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.service import ControllerMode
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.runtime import PressButton, SimulationResult
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
@@ -211,43 +206,6 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
     assert snapshot.adapter.steering.effective_assistance == 0.0
     assert snapshot.adapter.steering.last_command_reason is None
     assert snapshot.adapter.steering.watchdog_timed_out is True
-
-
-@pytest.mark.asyncio
-async def test_development_action_does_not_acknowledge_a_fatal_result(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fatal_result(_app: FastAPI, _command: object) -> SimulationResult:
-        return SimulationResult(SimpleNamespace(fatal=True), ())  # type: ignore[arg-type]
-
-    monkeypatch.setattr(simulation_api, "submit_runtime_work", fatal_result)
-    app = FastAPI()
-    app.state.controller_service = SimpleNamespace(boot_id="unused")
-
-    with pytest.raises(ApiProblem) as caught:
-        await simulation_api.run_command(app, PressButton(0))
-
-    assert caught.value.status_code == 503
-    assert caught.value.code == "controller_failed"
-
-
-@pytest.mark.asyncio
-async def test_development_action_does_not_acknowledge_an_invalid_result(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def invalid_result(_app: FastAPI, _command: object) -> object:
-        return object()
-
-    monkeypatch.setattr(simulation_api, "submit_runtime_work", invalid_result)
-    app = FastAPI()
-    app.state.controller_service = SimpleNamespace(boot_id="unused")
-
-    with pytest.raises(ApiProblem) as caught:
-        await simulation_api.run_command(app, PressButton(0))
-
-    assert caught.value.status_code == 503
-    assert caught.value.code == "controller_runtime_error"
-    assert caught.value.message == "controller returned an invalid development-action result"
 
 
 @pytest.mark.parametrize(

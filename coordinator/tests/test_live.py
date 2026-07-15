@@ -2,6 +2,7 @@ import logging
 import queue
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import replace
 
 import e87canbus.live as live
@@ -9,7 +10,7 @@ import pytest
 from e87canbus.composition import build_controller_service, live_selection
 from e87canbus.config import CanNetwork, default_config, simulator_config
 from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
-from e87canbus.live import InboxOverflow, read_frames_into_queue
+from e87canbus.live import read_frames_into_queue
 from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
 from e87canbus.runtime import (
     CanReaderFailed,
@@ -47,6 +48,14 @@ class MutableClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+def queue_sink(inbox: queue.Queue[ControllerInput]) -> Callable[[object], bool]:
+    def submit(item: object) -> bool:
+        inbox.put_nowait(item)  # type: ignore[arg-type]
+        return True
+
+    return submit
 
 
 class FakeSocketCanBus:
@@ -122,12 +131,11 @@ def test_reader_timestamps_frame_at_receive_and_stops() -> None:
     bus = BlockingFakeBus()
     inbox: queue.Queue[ControllerInput] = queue.Queue()
     stop = threading.Event()
-    overflow = InboxOverflow()
     clock = MutableClock(12.5)
     frame = CanFrame(0x123, b"\x01")
     reader = threading.Thread(
         target=read_frames_into_queue,
-        args=(CanNetwork.PTCAN, bus, inbox, stop, overflow, clock, 0.01),
+        args=(CanNetwork.PTCAN, bus, queue_sink(inbox), 0, stop, clock, 0.01),
     )
 
     reader.start()
@@ -137,7 +145,6 @@ def test_reader_timestamps_frame_at_receive_and_stops() -> None:
     reader.join(timeout=0.2)
 
     assert received == ReceivedCanFrame(CanNetwork.PTCAN, frame, 12.5)
-    assert overflow.kernel_input is None
     assert not reader.is_alive()
 
 
@@ -150,7 +157,7 @@ def test_reader_recovers_after_one_receive_error(
     frame = CanFrame(0x123, b"\x01")
     reader = threading.Thread(
         target=read_frames_into_queue,
-        args=(CanNetwork.FCAN, bus, inbox, stop, InboxOverflow(), time.monotonic, 0.01),
+        args=(CanNetwork.FCAN, bus, queue_sink(inbox), 0, stop, time.monotonic, 0.01),
     )
 
     with caplog.at_level(logging.WARNING):
@@ -174,7 +181,7 @@ def test_repeated_reader_errors_become_one_kernel_input_and_reader_exits() -> No
     for _ in range(live.MAX_CONSECUTIVE_READER_ERRORS):
         bus.received.put(OSError("receive failed"))
 
-    read_frames_into_queue(CanNetwork.FCAN, bus, inbox, stop, InboxOverflow())
+    read_frames_into_queue(CanNetwork.FCAN, bus, queue_sink(inbox), 0, stop)
 
     failure = inbox.get_nowait()
     assert isinstance(failure, CanReaderFailed)

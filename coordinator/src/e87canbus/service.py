@@ -56,24 +56,9 @@ class ControllerMode(StrEnum):
 
 @dataclass(frozen=True)
 class RuntimeExecution:
-    """One runtime operation and any ordered diagnostic events it produced."""
-
-    result: object
     events: tuple[dict[str, object], ...] = ()
     changed_topics: frozenset[StateTopic] = frozenset()
     commit_count: int = 0
-
-    def __post_init__(self) -> None:
-        if self.commit_count < 0:
-            raise ValueError("commit_count must be non-negative")
-
-
-@dataclass(frozen=True)
-class ControllerCommandResult:
-    """Boot-local revision committed for one matched semantic command."""
-
-    revision: int
-    controller_failed: bool
 
 
 @dataclass(frozen=True)
@@ -165,8 +150,6 @@ RuntimeInputSink = Callable[[object], bool]
 
 
 class ControllerRuntimeAdapter(Protocol):
-    """Selected physical or simulated runtime behind the common owner loop."""
-
     @property
     def config(self) -> AppConfig: ...
 
@@ -394,8 +377,6 @@ class ControllerService:
             ) from failure
 
     def close_adapter(self) -> None:
-        """Close runtime endpoints after the owner and publisher have stopped."""
-
         with self._lock:
             if self._adapter_closed:
                 return
@@ -438,13 +419,26 @@ class ControllerService:
                             execution,
                             changed_topics=execution.changed_topics | {StateTopic.HEALTH},
                         )
-                        execution = self._record(execution)
+                        revision = self._record(execution)
                     except Exception as exc:
                         if queued.future is not None:
                             queued.future.set_exception(exc)
                     else:
                         if queued.future is not None:
-                            queued.future.set_result(execution.result)
+                            with self._lock:
+                                failed = bool(
+                                    self._latest_snapshot
+                                    and self._latest_snapshot.diagnostics.health.fatal
+                                )
+                            if failed:
+                                queued.future.set_exception(
+                                    ControllerWorkUnavailable(
+                                        "controller entered a failed state while "
+                                        "processing the command"
+                                    )
+                                )
+                            else:
+                                queued.future.set_result(revision)
                     finally:
                         self._inbox.task_done()
 
@@ -489,7 +483,7 @@ class ControllerService:
         execution: RuntimeExecution,
         *,
         notify: bool = True,
-    ) -> RuntimeExecution:
+    ) -> int:
         application, diagnostics, adapter = self._runtime.projection()
         with self._lock:
             if self._latest_snapshot is None and not execution.changed_topics:
@@ -500,11 +494,6 @@ class ControllerService:
             self._revision += revision_increment
             for topic in execution.changed_topics:
                 self._topic_revisions[topic] = self._revision
-            if isinstance(execution.result, ControllerCommandResult):
-                execution = replace(
-                    execution,
-                    result=replace(execution.result, revision=self._revision),
-                )
             assert self._boot_id is not None
             self._latest_snapshot = ControllerServiceSnapshot(
                 boot_id=self._boot_id,
@@ -515,10 +504,11 @@ class ControllerService:
                 adapter=adapter,
                 service=self._service_diagnostics_locked(),
             )
+            recorded_revision = self._revision
             notification = self._notification
         if notify and notification is not None:
             notification(execution)
-        return execution
+        return recorded_revision
 
     def _fail_pending(self) -> None:
         while True:
@@ -637,7 +627,6 @@ class ControllerService:
                 service=service,
             )
             execution = RuntimeExecution(
-                result=None,
                 changed_topics=frozenset({StateTopic.HEALTH}),
             )
             notification = self._notification

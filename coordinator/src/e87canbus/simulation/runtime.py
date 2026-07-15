@@ -9,15 +9,13 @@ from dataclasses import dataclass, replace
 from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
-from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
-from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
+from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
     EMPTY_EFFECT_DIAGNOSTICS,
     CanEffectFailure,
-    EffectExecutionDiagnostics,
     EffectExecutor,
     EffectFailure,
     SafeCanTransmitter,
@@ -33,6 +31,7 @@ from e87canbus.runtime import (
     ControllerInput,
     CoordinatorKernel,
     DeviceAdapterFailed,
+    DiagnosticSnapshot,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
@@ -40,10 +39,18 @@ from e87canbus.runtime import (
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
+    StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.service import ControllerWorkUnavailable
+from e87canbus.service import (
+    ControllerAdapterSnapshot,
+    ControllerWorkUnavailable,
+    ObservedNetworkSnapshot,
+    ObservedSteeringSnapshot,
+    RuntimeExecution,
+    RuntimeInputSink,
+)
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
     SimulatedNeoTrellisNode,
@@ -53,32 +60,6 @@ from e87canbus.simulation.devices import (
 from e87canbus.simulation.protocol import SimulationProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class SimulatedNetworkStatus:
-    config: CanNetworkConfig
-    connected: bool
-    nodes: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class SimulatedSteeringSnapshot:
-    effective_assistance: float
-    last_command_reason: SteeringCommandReason | None
-    watchdog_timed_out: bool
-
-
-@dataclass(frozen=True)
-class SimulatorSnapshot:
-    session_id: int
-    revision: int
-    fatal: bool
-    application: ApplicationSnapshot
-    led_colours: tuple[int, ...]
-    steering_controller: SimulatedSteeringSnapshot
-    devices: tuple[DeviceProjection, ...]
-    networks: tuple[SimulatedNetworkStatus, ...]
 
 
 @dataclass(frozen=True)
@@ -156,28 +137,6 @@ SimulationCommand = (
     | ResetSimulation
 )
 
-SemanticControllerCommand = (
-    ActivateSteeringCurve | SetMaximumAssistance | SetSteeringMode
-)
-
-ControllerFailure = InboxOverflowed | DeviceAdapterFailed
-
-
-@dataclass(frozen=True)
-class SimulationResult:
-    snapshot: SimulatorSnapshot
-    events: tuple[dict[str, Any], ...]
-    commits: tuple[Commit, ...] = ()
-
-
-class SimulationSessionFailed(ControllerWorkUnavailable):
-    """Raised when a normal command targets a terminal simulation session."""
-
-
-SteeringControllerFactory = Callable[
-    [float, Callable[[], float]],
-    SimulatedSteeringController,
-]
 EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
 
 
@@ -206,7 +165,9 @@ class SimulatedControllerRuntime:
         config: AppConfig | None = None,
         button_pad_source: DeviceSource = DeviceSource.EMULATED,
         clock: Callable[[], float] = time.monotonic,
-        steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
+        steering_controller_factory: Callable[
+            [float, Callable[[], float]], SimulatedSteeringController
+        ] = SimulatedSteeringController,
         supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
             SUPPORTED_STEERING_CURVE_INTERPOLATIONS
         ),
@@ -224,6 +185,9 @@ class SimulatedControllerRuntime:
         self._started = False
         self._execution_commits: list[Commit] = []
         self._effect_history = EMPTY_EFFECT_DIAGNOSTICS
+        self._previous_projection: ControllerAdapterSnapshot | None = None
+        self._previous_diagnostics: DiagnosticSnapshot | None = None
+        self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
         self.pi_buses: dict[CanNetwork, CanReceiver]
         self.vehicle: SimulatedVehicleNode
@@ -232,40 +196,19 @@ class SimulatedControllerRuntime:
         self.kernel: CoordinatorKernel
         self.executor: EffectExecutor
 
-    def start(self) -> SimulationResult:
+    def start(self, submit_input: RuntimeInputSink | None = None) -> RuntimeExecution:
+        del submit_input
         if self._started:
             raise RuntimeError("simulated controller runtime may be started exactly once")
         self._started = True
         self._execution_commits = []
         self._build_session()
-        snapshot = self.snapshot()
-        return SimulationResult(snapshot, (), tuple(self._execution_commits))
+        return self._complete((), initial=True)
 
-    def snapshot(self) -> SimulatorSnapshot:
-        self._require_started()
-        diagnostics = self.kernel.diagnostics()
-        return SimulatorSnapshot(
-            session_id=self._session_id,
-            revision=diagnostics.revision,
-            fatal=diagnostics.health.fatal,
-            application=self.kernel.snapshot(),
-            led_colours=self._desired_led_colours(),
-            steering_controller=self._steering_snapshot(),
-            devices=self._device_projections(),
-            networks=tuple(
-                SimulatedNetworkStatus(
-                    config=network_config,
-                    connected=network_config.network in self.pi_buses,
-                    nodes=self.topology.nodes(network_config.network),
-                )
-                for network_config in self.config.can_networks
-            ),
-        )
-
-    def execute(self, command: SimulationCommand) -> SimulationResult:
+    def execute(self, command: object) -> RuntimeExecution:
         self._require_started()
         if self.kernel.health.fatal and not isinstance(command, ResetSimulation):
-            raise SimulationSessionFailed(
+            raise ControllerWorkUnavailable(
                 "simulation session has fatal kernel health; reset required"
             )
 
@@ -310,44 +253,32 @@ class SimulatedControllerRuntime:
                     )
                 self._build_session()
                 before_sequence = 0
+            case ActivateSteeringCurve() | SetMaximumAssistance() | SetSteeringMode():
+                self._dispatch(command)
+            case InboxOverflowed() | DeviceAdapterFailed():
+                self._dispatch(command)
+                if self.kernel.health.fatal:
+                    self._dispatch(ShutdownRequested(self._clock()))
             case _:
                 raise TypeError(f"unsupported simulation command: {command!r}")
 
         return self._process_pending(before_sequence)
 
-    def execute_controller_command(
-        self,
-        command: SemanticControllerCommand,
-    ) -> SimulationResult:
-        """Run semantic controller intent through the same kernel/effect path."""
-
-        self._require_started()
+    def timer(self, now: float) -> RuntimeExecution | None:
         if self.kernel.health.fatal:
-            raise SimulationSessionFailed(
-                "simulation session has fatal kernel health; reset required"
-            )
-        before_sequence = self.topology.latest_sequence
-        self._execution_commits = []
-        self._dispatch(command)
-        return self._process_pending(before_sequence)
+            return None
+        return self.execute(RunControlTimer(now))
 
-    def execute_controller_failure(self, failure: ControllerFailure) -> SimulationResult:
-        """Record a service/adapter failure through the ordered kernel boundary."""
-
-        self._require_started()
-        before_sequence = self.topology.latest_sequence
-        self._execution_commits = []
-        self._dispatch(failure)
-        if self.kernel.health.fatal:
-            self._dispatch(ShutdownRequested(self._clock()))
-        return self._process_pending(before_sequence)
-
-    def shutdown(self) -> SimulationResult:
+    def shutdown(self, now: float | None = None) -> RuntimeExecution:
+        del now
         self._require_started()
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
         self._dispatch(ShutdownRequested(self._clock()))
         return self._process_pending(before_sequence)
+
+    def close(self) -> None:
+        """The in-process simulation runtime has no external endpoints to close."""
 
     def _build_session(self) -> None:
         if hasattr(self, "executor"):
@@ -422,10 +353,6 @@ class SimulatedControllerRuntime:
         self.vehicle.drain_pending()
         self.topology.clear_trace()
 
-    @property
-    def effect_diagnostics(self) -> EffectExecutionDiagnostics:
-        return add_effect_diagnostics(self._effect_history, self.executor.diagnostics)
-
     def _send_button(self, button_index: int, pressed: bool) -> None:
         neotrellis = self._require_emulated_button_pad()
         neotrellis.send_button_event(button_index, pressed)
@@ -433,17 +360,103 @@ class SimulatedControllerRuntime:
     def _process_pending(
         self,
         before_sequence: int,
-    ) -> SimulationResult:
+    ) -> RuntimeExecution:
         self._drain_kernel_inputs()
         self._process_button_output()
         self.vehicle.drain_pending()
 
-        snapshot = self.snapshot()
-        new_trace = tuple(
-            entry for entry in self.topology.trace() if entry.sequence > before_sequence
+        return self._complete(
+            tuple(
+                trace_entry_to_event(entry, self._session_id)
+                for entry in self.topology.trace()
+                if entry.sequence > before_sequence
+            )
         )
-        events = [trace_entry_to_event(entry, self._session_id) for entry in new_trace]
-        return SimulationResult(snapshot, tuple(events), tuple(self._execution_commits))
+
+    def projection(
+        self,
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
+        diagnostics = self.kernel.diagnostics()
+        health = diagnostics.health
+        diagnostics = replace(
+            diagnostics,
+            health=replace(
+                health,
+                networks=tuple(
+                    replace(
+                        network,
+                        received_frames=network.received_frames
+                        + self._frame_history[network.network][0],
+                        decoded_frames=network.decoded_frames
+                        + self._frame_history[network.network][1],
+                        ignored_frames=network.ignored_frames
+                        + self._frame_history[network.network][2],
+                        malformed_frames=network.malformed_frames
+                        + self._frame_history[network.network][3],
+                    )
+                    for network in health.networks
+                ),
+            ),
+        )
+        return self.kernel.snapshot(), diagnostics, self._adapter_projection()
+
+    @property
+    def terminal(self) -> bool:
+        # A fatal simulated session stays available for the explicit reset command.
+        return False
+
+    def _complete(
+        self,
+        events: tuple[dict[str, Any], ...],
+        *,
+        initial: bool = False,
+    ) -> RuntimeExecution:
+        changed_topics = {
+            topic for commit in self._execution_commits for topic in commit.changed_topics
+        }
+        projection = self._adapter_projection()
+        diagnostics = self.kernel.diagnostics()
+        previous = self._previous_projection
+        previous_diagnostics = self._previous_diagnostics
+        if (
+            previous is not None
+            and previous.simulation_session_id != projection.simulation_session_id
+            and previous_diagnostics is not None
+        ):
+            for network in previous_diagnostics.health.networks:
+                history = self._frame_history[network.network]
+                history[0] += network.received_frames
+                history[1] += network.decoded_frames
+                history[2] += network.ignored_frames
+                history[3] += network.malformed_frames
+        if initial:
+            changed_topics.add(StateTopic.DEVICES)
+        elif previous is not None:
+            if (
+                previous.devices != projection.devices
+                or previous.networks != projection.networks
+                or previous.steering != projection.steering
+            ):
+                changed_topics.add(StateTopic.DEVICES)
+            if previous.led_colours != projection.led_colours:
+                changed_topics.add(StateTopic.BUTTONS)
+        self._previous_projection = projection
+        self._previous_diagnostics = diagnostics
+        if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
+            changed_topics.add(StateTopic.HEALTH)
+            if any(
+                current.fault != prior.fault
+                for current, prior in zip(
+                    diagnostics.health.devices,
+                    previous_diagnostics.health.devices,
+                    strict=True,
+                )
+            ):
+                changed_topics.add(StateTopic.DEVICES)
+        commit_count = len(self._execution_commits)
+        if commit_count == 0 and changed_topics:
+            commit_count = 1
+        return RuntimeExecution(events, frozenset(changed_topics), commit_count)
 
     def _drain_kernel_inputs(self) -> int:
         processed = 0
@@ -484,52 +497,70 @@ class SimulatedControllerRuntime:
                 )
         return commit
 
-    def _steering_snapshot(self) -> SimulatedSteeringSnapshot:
-        return SimulatedSteeringSnapshot(
-            effective_assistance=self.steering_controller.effective_assistance,
-            last_command_reason=self.steering_controller.last_command_reason,
-            watchdog_timed_out=self.steering_controller.watchdog_timed_out,
-        )
-
-    def _desired_led_colours(self) -> tuple[int, ...]:
-        return tuple(
+    def _adapter_projection(self) -> ControllerAdapterSnapshot:
+        led_colours = tuple(
             LED_COLOUR_CODES[colour]
             for colour in button_led_state(self.kernel.state).colours
         )
-
-    def _device_projections(self) -> tuple[DeviceProjection, ...]:
-        if self.button_pad_source is DeviceSource.DISABLED:
-            return ()
         emulator = self.neotrellis
-        return (
-            DeviceProjection(
-                id=DeviceRole.BUTTON_PAD,
-                label="Button pad",
-                source_mode=self.button_pad_source,
-                connected=True if emulator is not None else None,
-                last_seen_monotonic_s=(
-                    None if emulator is None else emulator.last_seen_monotonic_s
-                ),
-                desired_led_colours=self._desired_led_colours(),
-                observed_led_colours=(
-                    None if emulator is None else emulator.led_colours
-                ),
-                last_output_fault=self._button_output_fault(),
-            ),
-        )
-
-    def _button_output_fault(self) -> str | None:
-        network = next(
-            item
+        kcan_fault = next(
+            item.fault
             for item in self.kernel.health.networks
             if item.network is CanNetwork.KCAN
         )
-        if (
-            network.fault is None
-            or network.fault.kind is not RuntimeFaultKind.CAN_EFFECT_EXECUTION
-        ):
-            return None
-        return network.fault.message
+        return ControllerAdapterSnapshot(
+            simulation_session_id=self._session_id,
+            led_colours=led_colours,
+            devices=(
+                ()
+                if self.button_pad_source is DeviceSource.DISABLED
+                else (
+                    DeviceProjection(
+                        id=DeviceRole.BUTTON_PAD,
+                        label="Button pad",
+                        source_mode=self.button_pad_source,
+                        connected=True if emulator is not None else None,
+                        last_seen_monotonic_s=(
+                            None if emulator is None else emulator.last_seen_monotonic_s
+                        ),
+                        desired_led_colours=led_colours,
+                        observed_led_colours=(
+                            None if emulator is None else emulator.led_colours
+                        ),
+                        last_output_fault=(
+                            kcan_fault.message
+                            if kcan_fault is not None
+                            and kcan_fault.kind is RuntimeFaultKind.CAN_EFFECT_EXECUTION
+                            else None
+                        ),
+                    ),
+                )
+            ),
+            networks=tuple(
+                ObservedNetworkSnapshot(
+                    network=item.network,
+                    label=item.label,
+                    interface=item.interface,
+                    bitrate=item.bitrate,
+                    connected=item.network in self.pi_buses,
+                    nodes=self.topology.nodes(item.network),
+                )
+                for item in self.config.can_networks
+            ),
+            steering=ObservedSteeringSnapshot(
+                effective_assistance=self.steering_controller.effective_assistance,
+                last_command_reason=(
+                    None
+                    if self.steering_controller.last_command_reason is None
+                    else self.steering_controller.last_command_reason.value
+                ),
+                watchdog_timed_out=self.steering_controller.watchdog_timed_out,
+            ),
+            effects=add_effect_diagnostics(
+                self._effect_history,
+                self.executor.diagnostics,
+            ),
+        )
 
     def _process_button_output(self) -> None:
         emulator = self.neotrellis

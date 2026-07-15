@@ -10,7 +10,7 @@ or reformatted code as simplification.
 |---:|---|---|---:|---|
 | 1 — Baseline and deletion map | Verified | 2026-07-15 | 0 | Baseline, seven flow maps and candidate ledger recorded |
 | 2 — Contract/model consolidation | Verified | 2026-07-15 | 90 | Typed values cross framework boundaries directly; target variance accepted |
-| 3 — Runtime/service reduction | Not started | — | — | Shorten the single-owner path |
+| 3 — Runtime/service reduction | Verified | 2026-07-15 | 302 | One shared adapter update and projection path |
 | 4 — Publication/diagnostics reduction | Not started | — | — | Preserve bounds with fewer mechanisms |
 | 5 — Composition/frontend seams | Not started | — | — | Remove construction and consumption layers |
 | 6 — Test-suite reduction | Not started | — | — | Remove implementation archaeology and redundant tests |
@@ -18,17 +18,15 @@ or reformatted code as simplification.
 
 ## Current handoff
 
-Start Phase 3 from the controlling Phase 2 commit once recorded; its hash is pending and must not be
-inferred from this uncommitted handoff. The recorded roadmap base remains
+Start Phase 4 from the controlling Phase 3 commit once recorded. The recorded roadmap base remains
 `a31d2f8016bb3d6766425ae5fb244a5058fecc63`; reproduce cumulative accounting with the commands in
-`phase-1-baseline.md`. Collapse `RuntimeExecution`, `ControllerCommandResult`, the boolean-to-
-`queue.Full` reader adapter and duplicate simulated/service observation projections where their
-facts can stay on canonical `Commit`, service and adapter owners. Preserve the one bounded ordered
-inbox, owner-thread mutation, ingress timestamps, commit-before-effect behavior, command revision
-matching, production-codec simulation, fatal-result rejection and default no-TX composition. Do not
-pull the Phase 4 publisher/service/public diagnostic consolidation forward. Phase 2's 90-line target
-variance and direct FastAPI dataclass response boundary are accepted. No compatibility path exists
-or is authorized.
+`phase-1-baseline.md`. The simulated runtime now implements the selected adapter contract directly,
+and `RuntimeExecution` is only the common changed-topic/event update; the service owns matched
+completion revisions and fatal rejection. Preserve the single bounded service inbox, reader ingress
+timestamps, process-lifetime simulation counters, deterministic shutdown and direct canonical
+adapter projection. Phase 4 may consolidate publisher/service/public diagnostics, but must retain
+latest-topic, resource, trace and Engine.IO bounds plus non-recursive health publication. No
+compatibility path exists or is authorized.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 `Implemented` requires a measurable simplification and focused checks. `Verified` requires all
@@ -62,6 +60,103 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Phase 3: runtime results and simulation adapter collapsed
+
+- **Status:** Verified
+- **Scope:** Shortened the live and simulated adapter-to-service path while leaving the controller
+  owner, public HTTP/Socket.IO contracts, publisher diagnostics and composition safety selection
+  intact.
+- **Deletion hypothesis:** The arbitrary `RuntimeExecution.result`, `ControllerCommandResult` and
+  `SimulationResult` rewrapped facts that the service could own at the exact completion point.
+  `_SimulatedRuntimeAdapter` converted one private simulator snapshot tree into the already-canonical
+  service adapter projection. `_ServiceReaderInbox` converted a boolean sink to `queue.Full`, while
+  a second live overflow latch duplicated the service's atomic overflow owner.
+- **Production accounting:** Phase base
+  `058d6374b7ced306e341a987dd1566e1ffd17789`. Backend production is +241/-543, net -302 across six
+  touched files, with 0 files added or deleted: `api/internal/commands.py` +2/-9,
+  `api/internal/simulation.py` +2/-15, `composition.py` +15/-251, `live.py` +19/-85,
+  `service.py` +18/-29 and `simulation/runtime.py` +185/-154. Directory totals are API internal
+  +4/-24, backend root +52/-365 and simulation +185/-154. Frontend production +0/-0. Tests are
+  +226/-214, net +12 across seven touched backend files: `test_command_api.py` +2/-2,
+  `test_controller_service.py` +0/-2, `test_live.py` +13/-6,
+  `test_live_publication.py` +4/-5, `test_runtime_activation.py` +8/-8,
+  `test_simulation_runtime.py` +199/-149 and `test_simulator_api.py` +0/-42. Documentation is this
+  log +106/-11; generated artifacts +0/-0; temporary compatibility +0/-0. Cumulatively from roadmap
+  base `a31d2f8`, production is +280/-672, net -392: backend +276/-650, net -374, and frontend
+  +4/-22, net -18. Cumulative documentation is +584/-9. The largest production addition is +185 in
+  `simulation/runtime.py`: the existing
+  session-counter carry-forward, changed-topic comparison and canonical adapter projection policy
+  moved from the deleted 251-line forwarding adapter into its actual simulated-runtime owner. This
+  move is not counted alone as reduction; the measurable result is the eliminated intermediate
+  snapshot/result models and the cumulative net deletion. No later deletion is required to justify
+  a surviving addition.
+- **Cognitive accounting:** Operational owners remain 1/1, bounded operational queues 1/1,
+  lifecycle owners 1/1 and public schemas 0 added/0 removed. Removed named production concepts:
+  `ControllerCommandResult`, `SimulationResult`, `SimulatorSnapshot`, `SimulatedNetworkStatus`,
+  `SimulatedSteeringSnapshot`, `_SimulatedRuntimeAdapter`, `ReaderInbox`, `_ServiceReaderInbox`,
+  the duplicate live `InboxOverflow`, `SimulationSessionFailed` and two copied factory aliases.
+  Added concepts: 0. The common simulated command path changes from `Commit` ->
+  `SimulationResult` -> `_SimulatedRuntimeAdapter` -> `RuntimeExecution` ->
+  `ControllerCommandResult` -> service revision remap to `Commit` -> one `RuntimeExecution` topic/
+  event update -> service-owned matched revision. Simulation projection changes from
+  `SimulatorSnapshot` -> adapter field remap -> `ControllerAdapterSnapshot` to direct canonical
+  projection. Live reader submission loses the boolean-to-exception adapter and duplicate overflow
+  handoff. Private contract copies added/removed: 0/6; flow wrappers/hops added/removed: 0/4;
+  queues, schemas and owners added/removed: 0/0.
+- **Changed:** Both runtimes return the same reduced update. The service captures the operation's
+  revision under its lock before synchronous publisher notification can advance external-health
+  revisions, completes successful futures with that exact integer, and rejects the matched future
+  when its post-operation controller projection is fatal. The simulated runtime directly supplies
+  canonical application, diagnostic and adapter projections and retains process-lifetime CAN
+  counters across reset. Live readers call the service sink directly; the service remains the one
+  atomic overflow latch. API acknowledgements and error payloads are unchanged.
+- **Protected behavior:** One bounded ordered owner and one mutation thread remain; ingress receipt
+  timestamps still drive queue latency; overflow remains nonblocking and fatal; commit effects run
+  before the operation completes; semantic acknowledgements carry the exact matched service
+  revision even when publisher health advances synchronously; fatal work returns 503; reset can
+  replace a fatal simulated session; production codecs/transitions/effects remain in the simulated
+  path; startup/shutdown/publisher/adapter close order remains deterministic; default live
+  composition remains unable to transmit.
+- **Tests:** Retained public command/development acknowledgement and error assertions, safety/no-TX
+  and grant tests, owner/overflow/latency and blocked-reader concurrency tests, repeated lifecycle
+  cleanup, concurrent reset/action, fatal timer/reset recovery, process-counter and production-codec
+  domain/integration coverage. Removed two tests that monkeypatched private `SimulationResult`
+  values into the API; that private result no longer exists, while real fatal activation and runtime
+  paths continue to prove rejection. Tests now assert standalone simulation behavior through the
+  canonical application/diagnostic/adapter projections rather than reconstructing the deleted
+  simulator snapshot shape.
+- **Test accounting:** Backend tests remain 32 files and change from 7,525 to 7,537 physical lines;
+  collected cases change from 502 to 500. The +12 lines are direct canonical projection assertions,
+  not a mirror model or production seam. Focused owner/runtime/live/simulation/command/lifecycle
+  verification passed 145 tests in 6.45 seconds. The full suite passed 500 tests in 10.23 seconds
+  with the existing Starlette/httpx deprecation warning. Public behavior, safety, concurrency/
+  bounds, real regressions and useful domain examples remain represented.
+- **Verification:** Focused 145-test run and full `uv run pytest -q` passed. `uv run ruff check .`,
+  `uv run mypy coordinator/src/e87canbus` (61 source files), `uv run python
+  scripts/generate_custom_protocol.py --check`, `bash -n scripts/*.sh` and `git diff --check`
+  passed. Repeated app construction/shutdown, blocked-reader close, concurrent command/reset,
+  queue-overflow, exact command revision, fatal activation and reset recovery regressions are in the
+  focused/full runs. Dead-symbol searches find no active production or test reference to the
+  removed result, snapshot, forwarding-adapter, reader-adapter or duplicate-overflow concepts;
+  historical roadmap/log references remain factual.
+- **Browser/soak/physical checks:** Not run; no public wire, frontend, publisher bound or physical
+  adapter capability changed. The full integration suites exercise publication and simulated
+  lifecycle behavior. Real CAN TX and physical steering remain unavailable and were not enabled or
+  claimed.
+- **Dependencies/migrations:** None. No package, lockfile, SQLite schema, generated schema, custom
+  CAN protocol, firmware or tracked database artifact changed.
+- **Compatibility/removal:** None. No alias, facade, forwarding method, deprecated import or
+  temporary result/projection path remains; therefore there is no consumer, removal condition or
+  later removal phase. All in-repository callers moved in this phase.
+- **Target variance:** The minimum is met with 302 net backend production lines removed. Tests,
+  documentation and moved policy are excluded from that reduction claim. Cumulative production
+  reduction is 392 lines from the roadmap base.
+- **Remaining:** None for Phase 3. Publisher/service/public diagnostic copies remain deliberately
+  deferred to Phase 4, where their bounds and non-recursive health policy must stay explicit.
+- **Next handoff:** Phase 4 should reduce diagnostic representations and forwarding while retaining
+  the publisher's bounded latest-topic/resource/trace stores and Engine.IO peer queue; it must not
+  recreate a runtime result or adapter projection facade.
 
 ### 2026-07-15 — Phase 2: typed boundary values replace copied representations
 

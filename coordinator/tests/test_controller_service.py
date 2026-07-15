@@ -50,7 +50,6 @@ class RecordingRuntime:
         commit = self.kernel.dispatch(KernelStarted(1.0))
         assert commit is not None
         return RuntimeExecution(
-            commit,
             changed_topics=commit.changed_topics,
             commit_count=1,
         )
@@ -69,7 +68,6 @@ class RecordingRuntime:
         if commit is None:
             return None
         return RuntimeExecution(
-            commit,
             changed_topics=commit.changed_topics,
             commit_count=1,
         )

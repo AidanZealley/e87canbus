@@ -11,7 +11,6 @@ from e87canbus.api.errors import ApiProblem
 from e87canbus.api.models.commands import CommandAcknowledgement
 from e87canbus.runtime import UnsupportedSteeringCurveInterpolation
 from e87canbus.service import (
-    ControllerCommandResult,
     ControllerInboxFull,
     ControllerServiceNotRunning,
     ControllerWorkUnavailable,
@@ -67,20 +66,14 @@ async def submit_command(app: FastAPI, command: object) -> CommandAcknowledgemen
     """Submit semantic intent and acknowledge the resulting boot/revision."""
 
     result = await submit_runtime_work(app, command)
-    if not isinstance(result, ControllerCommandResult):
+    if type(result) is not int:
         raise ApiProblem(
             503,
             "controller_runtime_error",
             "controller returned an invalid command result",
         )
     service = app.state.controller_service
-    if result.controller_failed:
-        raise ApiProblem(
-            503,
-            "controller_failed",
-            "controller entered a failed state while processing the command",
-        )
     return CommandAcknowledgement(
         boot_id=service.boot_id,
-        revision=result.revision,
+        revision=result,
     )

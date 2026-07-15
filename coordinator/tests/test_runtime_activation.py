@@ -104,13 +104,13 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
 
     engine.execute(SetVehicleSpeed(speed_kph))
     engine.execute(RunControlTimer(1.0))
-    result = engine.execute_controller_command(
-        ActivateSteeringCurve(smooth, requested_at=1.0)
-    )
-    assert result.snapshot.steering_controller.effective_assistance == pytest.approx(expected)
-    assert result.snapshot.steering_controller.last_command_reason is SteeringCommandReason.AUTO
-    assert result.snapshot.application.active_steering_curve.definition == smooth
-    assert result.snapshot.application.active_steering_curve.definition.interpolation.value == (
+    engine.execute(ActivateSteeringCurve(smooth, requested_at=1.0))
+    application, _, adapter = engine.projection()
+    assert adapter.steering is not None
+    assert adapter.steering.effective_assistance == pytest.approx(expected)
+    assert adapter.steering.last_command_reason == SteeringCommandReason.AUTO.value
+    assert application.active_steering_curve.definition == smooth
+    assert application.active_steering_curve.definition.interpolation.value == (
         "monotone-cubic-v1"
     )
 
@@ -285,7 +285,7 @@ def test_runtime_snapshot_contains_complete_authoritative_active_projection() ->
     )
     assert commit is not None
 
-    active = engine.snapshot().application.active_steering_curve
+    active = engine.projection()[0].active_steering_curve
     assert active.definition == custom
     assert active.fingerprint == steering_curve_fingerprint(custom)
     assert active.activation_revision == 2

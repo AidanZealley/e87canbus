@@ -11,7 +11,7 @@ from e87canbus.runtime import (
     SetMaximumAssistance,
     SetSteeringMode,
 )
-from e87canbus.service import ControllerCommandResult, ControllerMode
+from e87canbus.service import ControllerMode
 from fastapi.testclient import TestClient
 
 
@@ -149,7 +149,7 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
         def record(work: object) -> Future[object]:
             submissions.append(work)
             future: Future[object] = Future()
-            future.set_result(ControllerCommandResult(10 + len(submissions), False))
+            future.set_result(10 + len(submissions))
             return future
 
         app.state.controller_service.submit = record

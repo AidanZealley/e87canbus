@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-import queue
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Protocol, assert_never
+from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
@@ -45,7 +44,6 @@ from e87canbus.runtime import (
 )
 from e87canbus.service import (
     ControllerAdapterSnapshot,
-    ControllerCommandResult,
     ObservedNetworkSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
@@ -75,52 +73,12 @@ CONTROLLER_INPUT_TYPES = (
 )
 
 
-class ReaderInbox(Protocol):
-    maxsize: int
-
-    def put_nowait(self, item: ControllerInput) -> None: ...
-
-
-class _ServiceReaderInbox:
-    def __init__(self, sink: RuntimeInputSink, capacity: int) -> None:
-        self._sink = sink
-        self.maxsize = capacity
-
-    def put_nowait(self, item: ControllerInput) -> None:
-        if not self._sink(item):
-            raise queue.Full
-
-
-class InboxOverflow:
-    """Atomically retain the fault that cannot fit in an already-full inbox."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._input: InboxOverflowed | None = None
-
-    def latch(self, network: CanNetwork, failed_at: float, capacity: int) -> bool:
-        with self._lock:
-            if self._input is not None:
-                return False
-            self._input = InboxOverflowed(
-                network,
-                failed_at,
-                f"live CAN inbox capacity {capacity} exceeded",
-            )
-            return True
-
-    @property
-    def kernel_input(self) -> InboxOverflowed | None:
-        with self._lock:
-            return self._input
-
-
 def read_frames_into_queue(
     network: CanNetwork,
     bus: CanReceiver,
-    inbox: ReaderInbox,
+    submit_input: RuntimeInputSink,
+    capacity: int,
     stop: threading.Event,
-    overflow: InboxOverflow,
     clock: Callable[[], float] = time.monotonic,
     receive_timeout_s: float = 0.2,
 ) -> None:
@@ -142,7 +100,7 @@ def read_frames_into_queue(
                     consecutive_errors,
                     exc,
                 )
-                _enqueue_or_overflow(failed, inbox, stop, overflow, failed_at)
+                _submit_or_stop(failed, submit_input, capacity, stop)
                 return
             LOGGER.warning(
                 "failed to receive CAN frame and continued: network=%s error=%s",
@@ -159,32 +117,26 @@ def read_frames_into_queue(
             continue
 
         received_at = clock()
-        _enqueue_or_overflow(
+        _submit_or_stop(
             ReceivedCanFrame(network=network, frame=frame, received_at=received_at),
-            inbox,
+            submit_input,
+            capacity,
             stop,
-            overflow,
-            received_at,
         )
 
 
-def _enqueue_or_overflow(
+def _submit_or_stop(
     kernel_input: ReaderInput,
-    inbox: ReaderInbox,
+    submit_input: RuntimeInputSink,
+    capacity: int,
     stop: threading.Event,
-    overflow: InboxOverflow,
-    failed_at: float,
 ) -> None:
-    try:
-        inbox.put_nowait(kernel_input)
-    except queue.Full:
-        network = kernel_input.network
-        if overflow.latch(network, failed_at, inbox.maxsize):
-            LOGGER.error(
-                "live CAN inbox overflow; stopping: network=%s capacity=%d",
-                network.value,
-                inbox.maxsize,
-            )
+    if not submit_input(kernel_input):
+        LOGGER.error(
+            "live CAN inbox overflow; stopping: network=%s capacity=%d",
+            kernel_input.network.value,
+            capacity,
+        )
         stop.set()
 
 
@@ -252,7 +204,6 @@ class LiveControllerRuntime:
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
-        self._overflow = InboxOverflow()
         self._started = False
         self._button_last_seen_monotonic_s: float | None = None
 
@@ -286,22 +237,20 @@ class LiveControllerRuntime:
         if execution is None:
             raise RuntimeError("live controller kernel did not start")
         execution = RuntimeExecution(
-            execution.result,
             execution.events,
             execution.changed_topics | {StateTopic.DEVICES},
             execution.commit_count,
         )
 
-        reader_inbox = _ServiceReaderInbox(submit_input, self.config.runtime_inbox_capacity)
         self._readers = [
             threading.Thread(
                 target=read_frames_into_queue,
                 args=(
                     item.network,
                     self._raw_buses[item.network],
-                    reader_inbox,
+                    submit_input,
+                    self.config.runtime_inbox_capacity,
                     self._reader_stop,
-                    self._overflow,
                 ),
                 daemon=True,
                 name=f"{item.network.value}-reader",
@@ -331,22 +280,9 @@ class LiveControllerRuntime:
                 completed,
                 changed_topics=completed.changed_topics | {StateTopic.DEVICES},
             )
-        if isinstance(work, (ActivateSteeringCurve, SetMaximumAssistance, SetSteeringMode)):
-            return RuntimeExecution(
-                ControllerCommandResult(
-                    self._kernel.diagnostics().revision,
-                    self._kernel.health.fatal,
-                ),
-                completed.events,
-                completed.changed_topics,
-                completed.commit_count,
-            )
         return completed
 
     def timer(self, now: float) -> RuntimeExecution | None:
-        overflow = self._overflow.kernel_input
-        if overflow is not None:
-            return self._dispatch(overflow)
         return self._dispatch(TimerElapsed(now))
 
     def shutdown(self, now: float) -> RuntimeExecution | None:
@@ -434,10 +370,8 @@ class LiveControllerRuntime:
             execution = replace(execution, changed_topics=topics)
         return execution
 
-    def _current_execution(self, result: object) -> RuntimeExecution:
-        commit = result if isinstance(result, Commit) else None
+    def _current_execution(self, commit: Commit | None) -> RuntimeExecution:
         return RuntimeExecution(
-            result,
             changed_topics=(frozenset() if commit is None else commit.changed_topics),
             commit_count=0 if commit is None else 1,
         )
