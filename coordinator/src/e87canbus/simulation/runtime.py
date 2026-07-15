@@ -14,13 +14,11 @@ from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_conf
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
-    EMPTY_EFFECT_DIAGNOSTICS,
     CanEffectFailure,
     EffectExecutor,
     EffectFailure,
     SafeCanTransmitter,
     SteeringActuatorFailure,
-    add_effect_diagnostics,
 )
 from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.runtime import (
@@ -184,7 +182,6 @@ class SimulatedControllerRuntime:
         self._session_id = 0
         self._started = False
         self._execution_commits: list[Commit] = []
-        self._effect_history = EMPTY_EFFECT_DIAGNOSTICS
         self._previous_projection: ControllerAdapterSnapshot | None = None
         self._previous_diagnostics: DiagnosticSnapshot | None = None
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
@@ -281,11 +278,6 @@ class SimulatedControllerRuntime:
         """The in-process simulation runtime has no external endpoints to close."""
 
     def _build_session(self) -> None:
-        if hasattr(self, "executor"):
-            self._effect_history = add_effect_diagnostics(
-                self._effect_history,
-                self.executor.diagnostics,
-            )
         self._session_id += 1
         self.topology = InMemoryCanTopology(
             trace_capacity=self.config.simulation.trace_capacity,
@@ -555,10 +547,6 @@ class SimulatedControllerRuntime:
                     else self.steering_controller.last_command_reason.value
                 ),
                 watchdog_timed_out=self.steering_controller.watchdog_timed_out,
-            ),
-            effects=add_effect_diagnostics(
-                self._effect_history,
-                self.executor.diagnostics,
             ),
         )
 

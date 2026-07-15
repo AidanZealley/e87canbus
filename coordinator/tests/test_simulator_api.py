@@ -150,8 +150,7 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert health["inbox"]["capacity"] == 64
     assert health["persistence"] == {"available": True, "fault": None}
     assert health["publisher"]["running"] is True
-    assert health["publisher"]["active_sockets"] == 1
-    assert health["publisher"]["trace_ring_capacity"] == 2000
+    assert health["publisher"]["failures"] == 0
     assert client.get("/health/ready").status_code == 200
 
 
@@ -522,8 +521,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
         assert snapshot.diagnostics.health.inbox_overflow_fault is not None
         assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
         assert projected_health.fatal is True
-        assert projected_health.last_fatal_fault is not None
-        assert projected_health.last_fatal_fault.kind == "inbox_overflow"
+        assert projected_health.inbox.overflow_latched is True
         assert (
             client.post(
                 "/api/dev/simulation/devices/button-pad/buttons/0/press"

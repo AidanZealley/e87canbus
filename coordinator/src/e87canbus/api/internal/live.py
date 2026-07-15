@@ -7,7 +7,6 @@ import logging
 import threading
 from collections import deque
 from contextlib import suppress
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -48,25 +47,6 @@ TOPIC_EVENTS = {
     StateTopic.HEALTH: "controller.health",
 }
 
-
-@dataclass(frozen=True)
-class PublicationDiagnostics:
-    published_by_event: tuple[tuple[str, int], ...]
-    coalesced_by_event: tuple[tuple[str, int], ...]
-    dropped_by_event: tuple[tuple[str, int], ...]
-    failures: int
-    max_pending_topics: int
-    max_trace_ring_length: int
-    trace_batch_size: int
-    transport_queue_saturations: int
-    active_sockets: int
-    trace_subscribers: int
-    trace_ring_length: int
-    trace_ring_capacity: int
-    running: bool
-    fault: str | None
-
-
 class LiveStatePublisher:
     """Retain bounded latest values while keeping the controller owner nonblocking."""
 
@@ -97,14 +77,10 @@ class LiveStatePublisher:
         self._task: asyncio.Task[None] | None = None
         self._stopping = False
         self._trace_subscribers: set[str] = set()
-        self._connected_sockets: set[str] = set()
-        self._published: dict[str, int] = {}
-        self._coalesced: dict[str, int] = {}
-        self._dropped: dict[str, int] = {}
+        self._trace_rows_dropped = 0
+        self._resource_changes_dropped = 0
         self._failures = 0
         self._last_fault: str | None = None
-        self._max_pending_topics = 0
-        self._max_trace_ring_length = 0
 
     async def start(self) -> None:
         if self._task is not None:
@@ -157,7 +133,6 @@ class LiveStatePublisher:
             self._loop = None
             self._wake = None
             self._trace_subscribers.clear()
-            self._connected_sockets.clear()
             with self._lock:
                 self._pending_topics.clear()
                 self._trace.clear()
@@ -174,34 +149,19 @@ class LiveStatePublisher:
                 self._trace.clear()
                 self._trace_session_id = session_id
             for topic in execution.changed_topics:
-                if topic in self._pending_topics:
-                    event_name = TOPIC_EVENTS[topic]
-                    self._coalesced[event_name] = self._coalesced.get(event_name, 0) + 1
                 self._pending_topics[topic] = snapshot
             for trace_event in execution.events:
                 if trace_event.get("type") == "frame":
                     if len(self._trace) == self._trace.maxlen:
-                        self._dropped["trace.batch"] = (
-                            self._dropped.get("trace.batch", 0) + 1
-                        )
+                        self._trace_rows_dropped += 1
                     self._trace.append(trace_event)
-            self._max_pending_topics = max(
-                self._max_pending_topics,
-                len(self._pending_topics),
-            )
-            self._max_trace_ring_length = max(
-                self._max_trace_ring_length,
-                len(self._trace),
-            )
         self._signal()
         self._sync_service_health()
 
     def offer_resource(self, event: ResourceChangedEvent) -> None:
         with self._lock:
             if len(self._resources) == self._resources.maxlen:
-                self._dropped["resources.changed"] = (
-                    self._dropped.get("resources.changed", 0) + 1
-                )
+                self._resource_changes_dropped += 1
             self._resources.append(event)
         self._signal()
         self._sync_service_health()
@@ -218,63 +178,37 @@ class LiveStatePublisher:
         await self._sio.enter_room(sid, TRACE_ROOM)
         with self._lock:
             self._trace_subscribers.add(sid)
-        self._sync_service_health()
 
     async def unsubscribe_trace(self, sid: str) -> None:
         if sid in self._trace_subscribers:
             await self._sio.leave_room(sid, TRACE_ROOM)
             with self._lock:
                 self._trace_subscribers.discard(sid)
-            self._sync_service_health()
-
-    def connected(self, sid: str) -> None:
-        with self._lock:
-            self._connected_sockets.add(sid)
-        self._sync_service_health()
 
     def disconnect(self, sid: str) -> None:
         with self._lock:
             self._trace_subscribers.discard(sid)
-            self._connected_sockets.discard(sid)
         self._sync_service_health()
 
     @property
-    def diagnostics(self) -> PublicationDiagnostics:
+    def diagnostics(self) -> PublisherDiagnostics:
         with self._lock:
-            return PublicationDiagnostics(
-                published_by_event=tuple(sorted(self._published.items())),
-                coalesced_by_event=tuple(sorted(self._coalesced.items())),
-                dropped_by_event=tuple(sorted(self._dropped.items())),
+            return PublisherDiagnostics(
+                running=self.running,
                 failures=self._failures,
-                max_pending_topics=self._max_pending_topics,
-                max_trace_ring_length=self._max_trace_ring_length,
-                trace_batch_size=self._trace_batch_size,
+                trace_rows_dropped=self._trace_rows_dropped,
+                resource_changes_dropped=self._resource_changes_dropped,
                 transport_queue_saturations=getattr(
                     getattr(self._sio, "eio", None),
                     "outbound_queue_saturations",
                     0,
                 ),
-                active_sockets=len(self._connected_sockets),
-                trace_subscribers=len(self._trace_subscribers),
-                trace_ring_length=len(self._trace),
-                trace_ring_capacity=self._trace_capacity,
-                running=self.running,
                 fault=self._last_fault,
             )
 
     @property
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
-
-    @property
-    def pending_topic_count(self) -> int:
-        with self._lock:
-            return len(self._pending_topics)
-
-    @property
-    def trace_ring_length(self) -> int:
-        with self._lock:
-            return len(self._trace)
 
     def _signal(self) -> None:
         with self._lock:
@@ -385,27 +319,8 @@ class LiveStatePublisher:
                 self._last_fault = f"Socket.IO publication failed: {event}"
             self._sync_service_health(enqueue=event != "controller.health")
             return
-        with self._lock:
-            self._published[event] = self._published.get(event, 0) + 1
-
     def _sync_service_health(self, *, enqueue: bool = True) -> None:
-        diagnostics = self.diagnostics
-        execution = self._service.update_publisher_health(
-            PublisherDiagnostics(
-                running=diagnostics.running,
-                healthy=diagnostics.running and diagnostics.failures == 0,
-                failures=diagnostics.failures,
-                published_by_event=diagnostics.published_by_event,
-                coalesced_by_event=diagnostics.coalesced_by_event,
-                dropped_by_event=diagnostics.dropped_by_event,
-                active_sockets=diagnostics.active_sockets,
-                trace_subscribers=diagnostics.trace_subscribers,
-                trace_ring_length=diagnostics.trace_ring_length,
-                trace_ring_capacity=diagnostics.trace_ring_capacity,
-                transport_queue_saturations=diagnostics.transport_queue_saturations,
-                fault=diagnostics.fault,
-            )
-        )
+        execution = self._service.update_publisher_health(self.diagnostics)
         if enqueue and execution is not None:
             self._enqueue_health(execution)
 
@@ -414,14 +329,7 @@ class LiveStatePublisher:
 
         snapshot = self._service.snapshot()
         with self._lock:
-            if StateTopic.HEALTH in self._pending_topics:
-                event = TOPIC_EVENTS[StateTopic.HEALTH]
-                self._coalesced[event] = self._coalesced.get(event, 0) + 1
             self._pending_topics[StateTopic.HEALTH] = snapshot
-            self._max_pending_topics = max(
-                self._max_pending_topics,
-                len(self._pending_topics),
-            )
         self._signal()
 
     @staticmethod
@@ -444,7 +352,6 @@ def install_socket_handlers(
     @sio.event  # type: ignore[untyped-decorator]
     async def connect(sid: str, environ: dict[str, Any], auth: object) -> None:
         del environ, auth
-        publisher.connected(sid)
         await publisher.send_snapshot(sid)
 
     @sio.event  # type: ignore[untyped-decorator]

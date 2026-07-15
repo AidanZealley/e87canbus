@@ -16,7 +16,6 @@ from typing import Protocol
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.device import DeviceProjection
-from e87canbus.output import EMPTY_EFFECT_DIAGNOSTICS, EffectExecutionDiagnostics
 from e87canbus.runtime import (
     DiagnosticSnapshot,
     InboxOverflowed,
@@ -87,18 +86,14 @@ class ControllerAdapterSnapshot:
     devices: tuple[DeviceProjection, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
     steering: ObservedSteeringSnapshot | None
-    effects: EffectExecutionDiagnostics = EMPTY_EFFECT_DIAGNOSTICS
 
 
 @dataclass(frozen=True)
 class InboxDiagnostics:
     depth: int
     capacity: int
-    maximum_depth: int
     current_latency_s: float
-    maximum_latency_s: float
     latency_warning: bool
-    latency_warning_count: int
     overflow_latched: bool
 
 
@@ -111,15 +106,9 @@ class PersistenceDiagnostics:
 @dataclass(frozen=True)
 class PublisherDiagnostics:
     running: bool
-    healthy: bool
     failures: int
-    published_by_event: tuple[tuple[str, int], ...]
-    coalesced_by_event: tuple[tuple[str, int], ...]
-    dropped_by_event: tuple[tuple[str, int], ...]
-    active_sockets: int
-    trace_subscribers: int
-    trace_ring_length: int
-    trace_ring_capacity: int
+    trace_rows_dropped: int
+    resource_changes_dropped: int
     transport_queue_saturations: int
     fault: str | None
 
@@ -210,24 +199,15 @@ class ControllerService:
         self._topic_revisions = {topic: 0 for topic in StateTopic}
         self._failure: BaseException | None = None
         self._ready = False
-        self._maximum_inbox_depth = 0
         self._current_queue_latency_s = 0.0
-        self._maximum_queue_latency_s = 0.0
         self._queue_latency_warning = False
-        self._queue_latency_warning_count = 0
         self._overflow_latched: InboxOverflowed | None = None
         self._persistence = PersistenceDiagnostics(False, "not initialized")
         self._publisher = PublisherDiagnostics(
             running=False,
-            healthy=False,
             failures=0,
-            published_by_event=(),
-            coalesced_by_event=(),
-            dropped_by_event=(),
-            active_sockets=0,
-            trace_subscribers=0,
-            trace_ring_length=0,
-            trace_ring_capacity=runtime.config.simulation.trace_capacity,
+            trace_rows_dropped=0,
+            resource_changes_dropped=0,
             transport_queue_saturations=0,
             fault="not started",
         )
@@ -332,7 +312,6 @@ class ControllerService:
             except queue.Full as exc:
                 self._latch_overflow_locked(work)
                 raise ControllerInboxFull("controller runtime inbox is full") from exc
-            self._maximum_inbox_depth = max(self._maximum_inbox_depth, self._inbox.qsize())
         return future
 
     def submit_input(self, work: object) -> bool:
@@ -346,7 +325,6 @@ class ControllerService:
             except queue.Full:
                 self._latch_overflow_locked(work)
                 return False
-            self._maximum_inbox_depth = max(self._maximum_inbox_depth, self._inbox.qsize())
         return True
 
     def stop(self, close_adapter: bool = True) -> None:
@@ -531,25 +509,19 @@ class ControllerService:
         latency = max(self._clock() - observed_at, 0.0)
         warning = latency > self.config.runtime_queue_latency_warning_s
         with self._lock:
+            newly_warning = warning and not self._queue_latency_warning
             self._current_queue_latency_s = latency
-            self._maximum_queue_latency_s = max(self._maximum_queue_latency_s, latency)
             self._queue_latency_warning = warning
-            if warning:
-                self._queue_latency_warning_count += 1
-                warning_count = self._queue_latency_warning_count
-            else:
-                warning_count = 0
-        if warning and warning_count & (warning_count - 1) == 0:
+        if newly_warning:
             network = (
                 queued.value.network.value
                 if isinstance(queued.value, ReceivedCanFrame)
                 else "service"
             )
             LOGGER.warning(
-                "controller inbox latency warning: network=%s latency_s=%.3f count=%d",
+                "controller inbox latency warning: network=%s latency_s=%.3f",
                 network,
                 latency,
-                warning_count,
             )
 
     def _latch_overflow_locked(self, work: object) -> None:
@@ -569,11 +541,8 @@ class ControllerService:
             inbox=InboxDiagnostics(
                 depth=self._inbox.qsize(),
                 capacity=self._inbox.maxsize,
-                maximum_depth=self._maximum_inbox_depth,
                 current_latency_s=self._current_queue_latency_s,
-                maximum_latency_s=self._maximum_queue_latency_s,
                 latency_warning=self._queue_latency_warning,
-                latency_warning_count=self._queue_latency_warning_count,
                 overflow_latched=self._overflow_latched is not None,
             ),
             persistence=self._persistence,

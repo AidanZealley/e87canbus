@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -133,43 +133,24 @@ class RuntimeFaultState(LiveModel):
 
 class NetworkHealthState(LiveModel):
     network: Literal["kcan", "ptcan", "fcan"]
-    connected: bool
     fault: RuntimeFaultState | None
-    received_frames: int = Field(ge=0)
-    decoded_frames: int = Field(ge=0)
-    ignored_frames: int = Field(ge=0)
-    malformed_frames: int = Field(ge=0)
-    effects_sent: int = Field(ge=0)
-    effects_dropped: int = Field(ge=0)
-    effects_rate_limited: int = Field(ge=0)
-    effects_failed: int = Field(ge=0)
 
 
 class InboxHealthState(LiveModel):
     depth: int = Field(ge=0)
     capacity: int = Field(gt=0)
-    maximum_depth: int = Field(ge=0)
     current_latency_s: float = Field(ge=0)
-    maximum_latency_s: float = Field(ge=0)
     latency_warning: bool
-    latency_warning_count: int = Field(ge=0)
     overflow_latched: bool
 
 
 class DeviceHealthState(LiveModel):
     id: Literal["button_pad"]
-    source_mode: Literal["physical", "emulated", "observer"]
-    connected: bool | None
     fault: RuntimeFaultState | None
-    output_fault: str | None
 
 
 class SteeringCapabilityHealthState(LiveModel):
-    present: bool
     fault: RuntimeFaultState | None
-    effects_sent: int = Field(ge=0)
-    effects_dropped: int = Field(ge=0)
-    effects_failed: int = Field(ge=0)
 
 
 class PersistenceHealthState(LiveModel):
@@ -179,27 +160,14 @@ class PersistenceHealthState(LiveModel):
 
 class PublisherHealthState(LiveModel):
     running: bool
-    healthy: bool
     failures: int = Field(ge=0)
-    published_by_event: dict[str, int]
-    coalesced_by_event: dict[str, int]
-    dropped_by_event: dict[str, int]
-    active_sockets: int = Field(ge=0)
-    trace_subscribers: int = Field(ge=0)
-    trace_ring_length: int = Field(ge=0)
-    trace_ring_capacity: int = Field(gt=0)
+    trace_rows_dropped: int = Field(ge=0)
+    resource_changes_dropped: int = Field(ge=0)
     transport_queue_saturations: int = Field(ge=0)
     fault: str | None
 
 
-class FaultSummaryState(LiveModel):
-    kind: str
-    monotonic_s: float | None
-    message: str
-
-
 class ControllerHealthState(LiveModel):
-    lifecycle: Literal["created", "running", "stopped"]
     ready: bool
     fatal: bool
     networks: tuple[NetworkHealthState, ...]
@@ -208,8 +176,6 @@ class ControllerHealthState(LiveModel):
     steering: SteeringCapabilityHealthState
     persistence: PersistenceHealthState
     publisher: PublisherHealthState
-    last_fatal_fault: FaultSummaryState | None
-    last_non_fatal_fault: FaultSummaryState | None
 
 
 class ControllerSnapshotData(LiveModel):
@@ -343,60 +309,14 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
 
 def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
     health = snapshot.diagnostics.health
-    effects = snapshot.adapter.effects
-    effect_sent = dict(effects.sent)
-    effect_dropped = dict(effects.dropped)
-    effect_rate_limited = dict(effects.rate_limited)
-    effect_failed = dict(effects.failed)
-    connected = {item.network: item.connected for item in snapshot.adapter.networks}
     device_faults = {item.role: item.fault for item in health.devices}
-    fatal_faults = [
-        fault
-        for fault in (
-            health.inbox_overflow_fault,
-            health.steering_actuator_fault,
-            *(item.fault for item in health.networks),
-        )
-        if fault is not None
-        and fault.kind.value
-        in {"inbox_overflow", "steering_actuator", "can_reader", "can_effect_execution"}
-    ]
-    non_fatal_faults = [
-        fault
-        for fault in (
-            *(item.fault for item in health.networks),
-            *(item.fault for item in health.devices),
-        )
-        if fault is not None
-        and fault.kind.value
-        not in {"inbox_overflow", "steering_actuator", "can_reader", "can_effect_execution"}
-    ]
-    external_non_fatal = (
-        ("persistence", snapshot.service.persistence.fault)
-        if snapshot.service.persistence.fault is not None
-        else (
-            ("publisher", snapshot.service.publisher.fault)
-            if snapshot.service.publisher.fault is not None
-            else None
-        )
-    )
     return ControllerHealthState(
-        lifecycle=snapshot.diagnostics.lifecycle.value,
         ready=snapshot.service.ready,
         fatal=health.fatal,
         networks=tuple(
             NetworkHealthState(
                 network=network.network.value,
-                connected=connected.get(network.network, False),
                 fault=_fault_state(network.fault),
-                received_frames=network.received_frames,
-                decoded_frames=network.decoded_frames,
-                ignored_frames=network.ignored_frames,
-                malformed_frames=network.malformed_frames,
-                effects_sent=effect_sent.get(network.network, 0),
-                effects_dropped=effect_dropped.get(network.network, 0),
-                effects_rate_limited=effect_rate_limited.get(network.network, 0),
-                effects_failed=effect_failed.get(network.network, 0),
             )
             for network in health.networks
         ),
@@ -404,22 +324,12 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
         devices=tuple(
             DeviceHealthState(
                 id=device.id.value,
-                source_mode=cast(
-                    Literal["physical", "emulated", "observer"],
-                    device.source_mode.value,
-                ),
-                connected=device.connected,
                 fault=_fault_state(device_faults.get(device.id)),
-                output_fault=device.last_output_fault,
             )
             for device in snapshot.adapter.devices
         ),
         steering=SteeringCapabilityHealthState(
-            present=snapshot.adapter.steering is not None,
             fault=_fault_state(health.steering_actuator_fault),
-            effects_sent=effects.steering_sent,
-            effects_dropped=effects.steering_dropped,
-            effects_failed=effects.steering_failed,
         ),
         persistence=PersistenceHealthState.model_validate(
             snapshot.service.persistence,
@@ -427,48 +337,16 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
         ),
         publisher=PublisherHealthState(
             running=snapshot.service.publisher.running,
-            healthy=snapshot.service.publisher.healthy,
             failures=snapshot.service.publisher.failures,
-            published_by_event=dict(snapshot.service.publisher.published_by_event),
-            coalesced_by_event=dict(snapshot.service.publisher.coalesced_by_event),
-            dropped_by_event=dict(snapshot.service.publisher.dropped_by_event),
-            active_sockets=snapshot.service.publisher.active_sockets,
-            trace_subscribers=snapshot.service.publisher.trace_subscribers,
-            trace_ring_length=snapshot.service.publisher.trace_ring_length,
-            trace_ring_capacity=snapshot.service.publisher.trace_ring_capacity,
+            trace_rows_dropped=snapshot.service.publisher.trace_rows_dropped,
+            resource_changes_dropped=(
+                snapshot.service.publisher.resource_changes_dropped
+            ),
             transport_queue_saturations=(
                 snapshot.service.publisher.transport_queue_saturations
             ),
             fault=snapshot.service.publisher.fault,
         ),
-        last_fatal_fault=_fault_summary(max(fatal_faults, key=lambda item: item.occurred_at))
-        if fatal_faults
-        else None,
-        last_non_fatal_fault=(
-            _fault_summary(max(non_fatal_faults, key=lambda item: item.occurred_at))
-            if non_fatal_faults
-            else (
-                None
-                if external_non_fatal is None
-                else FaultSummaryState(
-                    kind=external_non_fatal[0],
-                    monotonic_s=None,
-                    message=external_non_fatal[1],
-                )
-            )
-        ),
-    )
-
-
-def _fault_summary(fault: object) -> FaultSummaryState:
-    from e87canbus.runtime import RuntimeFault
-
-    if not isinstance(fault, RuntimeFault):
-        raise TypeError(f"unexpected runtime fault: {fault!r}")
-    return FaultSummaryState(
-        kind=fault.kind.value,
-        monotonic_s=fault.occurred_at,
-        message=fault.message,
     )
 
 

@@ -345,7 +345,6 @@ class LiveControllerRuntime:
                     for item in enabled
                 ),
                 steering=None,
-                effects=self._executor.diagnostics,
             ),
         )
 

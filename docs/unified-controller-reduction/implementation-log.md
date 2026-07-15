@@ -11,22 +11,21 @@ or reformatted code as simplification.
 | 1 — Baseline and deletion map | Verified | 2026-07-15 | 0 | Baseline, seven flow maps and candidate ledger recorded |
 | 2 — Contract/model consolidation | Verified | 2026-07-15 | 90 | Typed values cross framework boundaries directly; target variance accepted |
 | 3 — Runtime/service reduction | Verified | 2026-07-15 | 302 | One shared adapter update and projection path |
-| 4 — Publication/diagnostics reduction | Not started | — | — | Preserve bounds with fewer mechanisms |
+| 4 — Publication/diagnostics reduction | Verified | 2026-07-15 | 327 | Decision-useful health and one publisher diagnostic owner |
 | 5 — Composition/frontend seams | Not started | — | — | Remove construction and consumption layers |
 | 6 — Test-suite reduction | Not started | — | — | Remove implementation archaeology and redundant tests |
 | 7 — Cutover/acceptance | Not started | — | — | Prove overall reduction and behavior |
 
 ## Current handoff
 
-Start Phase 4 from the controlling Phase 3 commit once recorded. The recorded roadmap base remains
-`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; reproduce cumulative accounting with the commands in
-`phase-1-baseline.md`. The simulated runtime now implements the selected adapter contract directly,
-and `RuntimeExecution` is only the common changed-topic/event update; the service owns matched
-completion revisions and fatal rejection. Preserve the single bounded service inbox, reader ingress
-timestamps, process-lifetime simulation counters, deterministic shutdown and direct canonical
-adapter projection. Phase 4 may consolidate publisher/service/public diagnostics, but must retain
-latest-topic, resource, trace and Engine.IO bounds plus non-recursive health publication. No
-compatibility path exists or is authorized.
+Start Phase 5 from the controlling Phase 4 commit once recorded. The roadmap base remains
+`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +306/-1,025, net -719. Preserve
+the publisher's latest-topic map, eight-entry resource deque, 2,000-row opt-in trace ring, finite
+per-peer Engine.IO queue, one publisher task and non-recursive service health handoff. Public health
+now owns only readiness/fatal/fault/current-bound decisions; network availability and selected
+capability state remain canonical in `devices.state`. Phase 5 should reduce composition and frontend
+ownership seams without recreating removed diagnostic counters, adapter effect-history projection,
+connected-socket tracking or compatibility paths. No compatibility path exists or is authorized.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 `Implemented` requires a measurable simplification and focused checks. `Verified` requires all
@@ -60,6 +59,109 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Phase 4: publication diagnostics reduced to operator decisions
+
+- **Status:** Verified
+- **Scope:** Reduced Socket.IO publisher/service/public/frontend diagnostic copies while leaving
+  fixed events, envelopes, complete reconnect snapshots, topic-local revisions, resource
+  invalidation, frontend transport ownership, publisher scheduling and every retention boundary
+  unchanged.
+- **Deletion hypothesis:** `PublicationDiagnostics` copied the publisher's own state into
+  `PublisherDiagnostics`; event/connection/subscriber/maxima counters and repeated availability,
+  effect-count and fault-summary trees had no UI, policy or current operator-decision consumer.
+  `ControllerAdapterSnapshot.effects` and simulated process effect history existed only to feed
+  those public counters. Current device/network availability already belonged to `devices.state`.
+- **Production accounting:** Phase base
+  `22205575c573e5163275c01e69337c40f188fb5a`. Backend production is +24/-273, net -249 across five
+  touched files: `api/internal/live.py` +10/-103, `api/models/live.py` +7/-129, `live.py` +0/-1,
+  `service.py` +7/-38 and `simulation/runtime.py` +0/-12. Frontend production is +6/-74, net -68
+  across three files: `api/live-events.ts` +2/-38, `live/live-store.ts` +2/-18 and
+  `live/test-fixtures.ts` +2/-18. The latter is functionally a test fixture but is counted as
+  production to match Phase 1's `frontend/src` predicate. Total production is +30/-357, net -327;
+  0 files were added/deleted and 8 were touched. Tests are +24/-40, net -16 across two backend
+  files; generated schema is +12/-244, net -232; documentation is +128/-23, net +105 across this
+  log and `docs/reliability.md`; temporary compatibility +0/-0. Cumulatively from roadmap base
+  `a31d2f8`, production is +306/-1,025, net -719: backend +296/-929, net -633, and frontend
+  +10/-96, net -86. Current production is 8,017 backend lines/61 files and 9,084 frontend lines/134
+  files. The largest
+  surviving additions are +10 in `api/internal/live.py` for the two explicit drop counters and
+  direct canonical `PublisherDiagnostics` construction, +7 in `api/models/live.py` for their strict
+  public validation and +7 in `service.py` for the reduced canonical records/current-warning
+  policy. They directly replace larger generic maps and copied trees; no later deletion is needed
+  to justify them.
+- **Cognitive accounting:** Operational/publication/lifecycle owners remain 1/1, 1/1 and 1/1;
+  bounded queues/stores remain one service inbox, one latest-topic map, one resource deque, one
+  trace deque and one Engine.IO queue per peer. Removed named concepts: `PublicationDiagnostics`,
+  `FaultSummaryState`, the adapter effect-diagnostic projection, simulated `_effect_history`, the
+  publisher connected-socket set, three generic per-event counter maps, two publisher historical
+  maxima, three inbox historical public fields and the duplicated health availability/effect-count/
+  latest-fault groups. Added concepts: 0; two named monotonic drop facts replace a generic event
+  counter map. Publisher health representations change from publisher -> service -> public to
+  direct service -> public (end-to-end contract copies 4 -> 3 including TypeScript), and publisher
+  health propagation loses one conversion hop (4 -> 3). State owners, scheduling mechanisms,
+  schemas, topics and queues added/removed: 0/0.
+- **Changed:** The publisher now constructs the service-owned immutable diagnostic record directly.
+  Public health retains ready/fatal truth; explicit network/device/steering faults; inbox depth,
+  capacity, current latency, warning and overflow; persistence availability/fault; and publisher
+  running, failure, trace/resource drop, slow-peer-isolation and fault facts. Availability and
+  selected capability state are read from canonical `devices.state`, not copied into health.
+  Disconnect synchronizes Engine.IO saturation evidence but ordinary connection/subscription
+  changes no longer advance health revisions. Queue-latency logging triggers on warning entry
+  instead of retaining projected maxima/counters.
+- **Protected behavior:** Complete connect/resync snapshots and new-boot replacement remain; topic
+  payloads and revisions remain complete and latest-value coalesced; controller notification never
+  awaits socket delivery; resource and trace retention remain fixed at 8 and 2,000; trace remains
+  opt-in, batched and reset on session identity; each peer queue remains finite and aborts the slow
+  peer; publisher failure health remains non-recursive; readiness, fatal and overflow truth remain
+  honest; frontend listeners remain singleton-owned and unchanged.
+- **Tests:** Retained public snapshot/boot/topic/resource and generated-schema contracts; readiness,
+  fatal, overflow and no-TX safety; stalled-emitter, peer-capacity, trace opt-in/session, shutdown
+  deadline and non-recursion bounds; simulator/API integration; and frontend boot/revision,
+  singleton-listener, resubscription and bounded-trace regressions. Removed assertions for active
+  socket count, trace capacity and duplicate latest-fatal summaries with those fields. Expanded
+  boundary tests prove the 2,000-row trace ring and eight-change resource deque drop oldest values.
+- **Test accounting:** Tracked tests remain 56 files and change from 11,045 to 11,029 physical
+  lines; backend tests change from 7,537 to 7,521 lines. Collected cases remain 500 backend plus 30
+  Node and 58 component cases. The final full backend run passed in 9.89 seconds; frontend unit tests
+  passed in 0.19 seconds and components in 3.44 seconds. No test file or case was removed; -14 net
+  lines remove retired diagnostic assertions while preserving public behavior, safety,
+  concurrency/bounds, real regression and integration classifications.
+- **Verification:** Focused publication/socket/reliability/contract/simulator/controller/live tests
+  passed 81 cases after correcting two new bound-test expectations. Full `uv run pytest -q` passed
+  500 tests with the existing Starlette/httpx warning. `uv run ruff check .`, `uv run mypy
+  coordinator/src/e87canbus` (61 files), both generated checks, `bash -n scripts/*.sh`, frontend
+  `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm build` (2,968 modules) and `git diff --check`
+  passed. An initial root-level `pnpm` invocation failed because the manifest is under `frontend`;
+  the required commands were rerun there and passed. Installed Engine.IO 4.13.3 was inspected:
+  its default queue is unbounded and `AsyncSocket.send` awaits `put`, so the bounded override and
+  timeout remain required. Dead-field searches find removed production symbols only in factual
+  historical roadmap/log material.
+- **Browser/soak/physical checks:** The browser-control runtime reported no available browser, so no
+  new DOM, document, heap-after-GC, badge or visual route-cycle evidence is claimed. The unchanged
+  singleton transport/route ownership retains the prior verified development/production browser
+  baseline. An isolated WebSocket/HTTP exercise processed 300 simulated speed commands at 736.9/s,
+  cycled trace subscription five times, emitted six bounded trace batches (maximum 80 rows),
+  restarted the backend and received a different boot snapshot; a post-restart command returned
+  200. Readiness was true, fatal/latency-warning/overflow false, inbox depth 0/1,024, publisher
+  failures/drops/saturations zero, and backend RSS was 62,400 KiB before restart and 61,120 KiB
+  after. Real CAN TX and physical steering were unavailable and not enabled or claimed.
+- **Dependencies/migrations:** None. No dependency, lockfile, SQLite schema, CAN protocol, firmware
+  or tracked database artifact changed. The live JSON schema was regenerated from the reduced
+  Pydantic owner.
+- **Compatibility/removal:** None. There is no facade, alias, parallel payload or deprecated path;
+  therefore there is no compatibility consumer, removal condition or expected later phase.
+- **Target variance:** The phase exceeds its 300-line minimum with 327 net production lines removed.
+  Tests, documentation, generated schema and the fixture's narrative role do not inflate the claim;
+  `live/test-fixtures.ts` remains included only because the baseline predicate classifies it as
+  frontend production. Cumulative production reduction is 719 lines from the roadmap base.
+- **Remaining:** None for Phase 4. Browser/DOM/heap evidence could not be rerun because no browser
+  binding was available, but the changed wire shape, bounds, restart and singleton listener risks
+  are covered by generated, integration, load and frontend regression evidence without weakening a
+  completion criterion.
+- **Next handoff:** Phase 5 may reduce composition and frontend seams but must keep this single
+  publisher task/diagnostic owner, exact bounded stores, direct service health handoff and canonical
+  `devices.state` availability ownership.
 
 ### 2026-07-15 — Phase 3: runtime results and simulation adapter collapsed
 

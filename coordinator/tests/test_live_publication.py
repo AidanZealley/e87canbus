@@ -182,7 +182,7 @@ async def test_persistence_only_change_advances_and_publishes_health_revision() 
     await asyncio.to_thread(service.start, publisher.offer)
     service.mark_ready()
     try:
-        await wait_until(lambda: publisher.pending_topic_count == 0)
+        await wait_until(lambda: len(socket_server.emissions) >= 6)
         await publisher.send_snapshot("synchronized-client")
         synchronized_revision = socket_server.emissions[-1][1]["revision"]
         socket_server.emissions.clear()
@@ -207,7 +207,7 @@ async def test_persistence_only_change_advances_and_publishes_health_revision() 
 
 
 @pytest.mark.asyncio
-async def test_socket_and_publisher_only_changes_publish_once_without_recursion() -> None:
+async def test_publisher_failure_publishes_once_without_recursion() -> None:
     service = controller_service(health_hz=100.0)
     service.mark_persistence_available()
     socket_server = RecordingSocketServer()
@@ -216,23 +216,7 @@ async def test_socket_and_publisher_only_changes_publish_once_without_recursion(
     await asyncio.to_thread(service.start, publisher.offer)
     service.mark_ready()
     try:
-        await wait_until(lambda: publisher.pending_topic_count == 0)
-        socket_server.emissions.clear()
-        before_socket_revision = service.snapshot().revision
-
-        publisher.connected("new-client")
-
-        await wait_until(
-            lambda: any(event == "controller.health" for event, *_ in socket_server.emissions)
-        )
-        socket_payload = socket_server.emissions[-1][1]
-        assert socket_payload["revision"] > before_socket_revision
-        assert socket_payload["data"]["publisher"]["active_sockets"] == 1
-        await asyncio.sleep(0.04)
-        assert [
-            event for event, *_ in socket_server.emissions if event == "controller.health"
-        ] == ["controller.health"]
-
+        await wait_until(lambda: len(socket_server.emissions) >= 6)
         socket_server.emissions.clear()
         socket_server.error = OSError("socket failed")
         before_failure_revision = service.snapshot().revision
@@ -246,7 +230,6 @@ async def test_socket_and_publisher_only_changes_publish_once_without_recursion(
         assert failure_payload["revision"] > before_failure_revision
         assert failure_payload["data"]["publisher"]["failures"] == 1
         await asyncio.sleep(0.04)
-        assert publisher.pending_topic_count == 0
         assert [
             event for event, *_ in socket_server.emissions if event == "controller.health"
         ] == ["controller.health"]
@@ -279,8 +262,7 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
             publisher.offer(execution)
         assert type(controller_result) is int
         assert service.snapshot().application.vehicle_speed_kph == 42.0
-        assert publisher.pending_topic_count <= 2
-        assert publisher.diagnostics.max_pending_topics <= len(StateTopic)
+        assert len(publisher._pending_topics) <= 2
         assert service.snapshot().diagnostics.health.fatal is False
     finally:
         socket_server.release.set()
@@ -311,7 +293,7 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
     publisher = publisher_for(service, socket_server)
     await publisher.start()
     execution = RuntimeExecution(
-        events=tuple(frame(index) for index in range(1, 7)),
+        events=tuple(frame(index) for index in range(1, 2_002)),
     )
     try:
         publisher.offer(execution)
@@ -335,9 +317,9 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
         service.stop()
         await publisher.stop()
 
-    assert [row["sequence"] for row in trace_payload["data"]["rows"]] == [4, 5, 6]
+    assert [row["sequence"] for row in trace_payload["data"]["rows"]] == [1999, 2000, 2001]
     assert sum(event == "trace.batch" for event, *_ in socket_server.emissions) == prior_batches
-    assert publisher.trace_ring_length == 0
+    assert publisher.diagnostics.trace_rows_dropped == 3
 
 
 @pytest.mark.asyncio
@@ -362,19 +344,21 @@ async def test_multiple_clients_receive_independent_current_snapshots() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resource_change_is_exact() -> None:
+async def test_resource_change_is_exact_and_retention_is_bounded() -> None:
     service = controller_service()
     service.start()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
     await publisher.start()
-    change = ResourceChangedEvent(
-        resource="steering_profile",
-        id="profile-1",
-        revision=7,
-    )
     try:
-        publisher.offer_resource(change)
+        for revision in range(1, 10):
+            publisher.offer_resource(
+                ResourceChangedEvent(
+                    resource="steering_profile",
+                    id="profile-1",
+                    revision=revision,
+                )
+            )
         await wait_until(
             lambda: any(event == "resources.changed" for event, *_ in socket_server.emissions)
         )
@@ -382,17 +366,19 @@ async def test_resource_change_is_exact() -> None:
         service.stop()
         await publisher.stop()
 
-    payload = next(
+    payloads = [
         payload
         for event, payload, _, _ in socket_server.emissions
         if event == "resources.changed"
-    )
-    assert payload == {
+    ]
+    assert len(payloads) == 8
+    assert payloads[-1] == {
         "type": "resources.changed",
         "resource": "steering_profile",
         "id": "profile-1",
-        "revision": 7,
+        "revision": 9,
     }
+    assert publisher.diagnostics.resource_changes_dropped == 1
 
 
 @pytest.mark.asyncio
