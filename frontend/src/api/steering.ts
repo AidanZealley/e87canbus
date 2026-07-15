@@ -2,30 +2,12 @@ import { queryOptions } from "@tanstack/react-query"
 
 import type { CommandAcknowledgement } from "./commands.ts"
 import { ApiError, requestApi } from "./client.ts"
+import type { SteeringState } from "./live-events.ts"
 import { DURABLE_STALE_TIME_MS } from "./query-policy.ts"
 
-export type SteeringCurvePoint = {
-  speed_deci_kph: number
-  assistance_per_mille: number
-}
-
-export type SteeringCurveDefinition = {
-  schema_version: 1
-  interpolation: SteeringCurveInterpolation
-  points: SteeringCurvePoint[]
-}
-
-export type SteeringCurveInterpolation = "linear-v1" | "monotone-cubic-v1"
-
-export type ActiveSteeringCurve = {
-  definition: SteeringCurveDefinition
-  fingerprint: string
-  activation_revision: number
-  status: "active" | "activating" | "activation_failed"
-  saved_profile_id: string | null
-  saved_profile_revision: number | null
-  supported_interpolations: SteeringCurveInterpolation[]
-}
+export type ActiveSteeringCurve = SteeringState["active_curve"]
+export type SteeringCurveDefinition = ActiveSteeringCurve["definition"]
+export type SteeringCurveInterpolation = SteeringCurveDefinition["interpolation"]
 
 export type StoredSteeringProfile = {
   profile_id: string

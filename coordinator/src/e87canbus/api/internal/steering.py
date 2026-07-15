@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from fastapi import FastAPI
 
@@ -49,41 +49,18 @@ def definition_from_request(
     except ValueError as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
 
-def definition_to_dict(definition: SteeringCurveDefinition) -> dict[str, Any]:
-    return {
-        "schema_version": definition.schema_version,
-        "interpolation": definition.interpolation.value,
-        "points": [
-            {
-                "speed_deci_kph": point.speed_deci_kph,
-                "assistance_per_mille": point.assistance_per_mille,
-            }
-            for point in definition.points
-        ],
-    }
-
-
-def profile_to_dict(profile: StoredSteeringProfile) -> dict[str, Any]:
-    return {
-        "profile_id": profile.profile_id,
-        "name": profile.name,
-        "revision": profile.revision,
-        "definition": definition_to_dict(profile.definition),
-        "created_at": profile.created_at,
-        "updated_at": profile.updated_at,
-    }
-
-
-async def list_profiles(repository: SteeringProfileRepository) -> dict[str, Any]:
+async def list_profiles(
+    repository: SteeringProfileRepository,
+) -> dict[str, tuple[StoredSteeringProfile, ...]]:
     profiles = await repository_operation(repository.list_profiles)
-    return {"profiles": [profile_to_dict(profile) for profile in profiles]}
+    return {"profiles": profiles}
 
 
 async def create_profile(
     app: FastAPI,
     repository: SteeringProfileRepository,
     request: CreateProfileRequest,
-) -> dict[str, Any]:
+) -> StoredSteeringProfile:
     definition = definition_from_request(request.definition)
     profile = await repository_operation(
         lambda: repository.create_profile(request.name, definition)
@@ -94,18 +71,18 @@ async def create_profile(
         resource_id=profile.profile_id,
         revision=profile.revision,
     )
-    return profile_to_dict(profile)
+    return profile
 
 
 async def get_profile(
     repository: SteeringProfileRepository,
     profile_id: str,
-) -> dict[str, Any]:
+) -> StoredSteeringProfile:
     validate_profile_id(profile_id)
     profile = await repository_operation(lambda: repository.get_profile(profile_id))
     if profile is None:
         raise ApiProblem(404, "profile_not_found", f"steering profile not found: {profile_id}")
-    return profile_to_dict(profile)
+    return profile
 
 
 async def update_profile(
@@ -113,7 +90,7 @@ async def update_profile(
     repository: SteeringProfileRepository,
     profile_id: str,
     request: UpdateProfileRequest,
-) -> dict[str, Any]:
+) -> StoredSteeringProfile:
     validate_profile_id(profile_id)
     definition = definition_from_request(request.definition)
     profile = await repository_operation(
@@ -130,7 +107,7 @@ async def update_profile(
         resource_id=profile.profile_id,
         revision=profile.revision,
     )
-    return profile_to_dict(profile)
+    return profile
 
 
 async def delete_profile(

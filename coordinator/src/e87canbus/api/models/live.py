@@ -281,18 +281,7 @@ def vehicle_state(snapshot: ControllerServiceSnapshot) -> VehicleState:
 
 
 def engine_state(snapshot: ControllerServiceSnapshot) -> EngineState:
-    engine = snapshot.application.engine
-    return EngineState(
-        rpm=EngineTelemetryValue(value=engine.rpm.value, status=engine.rpm.status.value),
-        oil_temperature_c=EngineTelemetryValue(
-            value=engine.oil_temperature_c.value,
-            status=engine.oil_temperature_c.status.value,
-        ),
-        coolant_temperature_c=EngineTelemetryValue(
-            value=engine.coolant_temperature_c.value,
-            status=engine.coolant_temperature_c.status.value,
-        ),
-    )
+    return EngineState.model_validate(snapshot.application.engine, from_attributes=True)
 
 
 def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
@@ -303,16 +292,9 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
         manual_assistance_level=application.manual_assistance_level,
         maximum_assistance_active=application.maximum_assistance_active,
         active_curve=ActiveSteeringCurveState(
-            definition=SteeringCurveDefinition(
-                schema_version=cast(Literal[1], active.definition.schema_version),
-                interpolation=active.definition.interpolation.value,
-                points=tuple(
-                    SteeringCurvePoint(
-                        speed_deci_kph=point.speed_deci_kph,
-                        assistance_per_mille=point.assistance_per_mille,
-                    )
-                    for point in active.definition.points
-                ),
+            definition=SteeringCurveDefinition.model_validate(
+                active.definition,
+                from_attributes=True,
             ),
             fingerprint=active.fingerprint,
             activation_revision=active.activation_revision,
@@ -337,18 +319,7 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
     steering = snapshot.adapter.steering
     return DevicesState(
         devices=tuple(
-            DeviceState.model_validate(
-                {
-                    "id": device.id.value,
-                    "label": device.label,
-                    "source_mode": device.source_mode.value,
-                    "connected": device.connected,
-                    "last_seen_monotonic_s": device.last_seen_monotonic_s,
-                    "desired_led_colours": device.desired_led_colours,
-                    "observed_led_colours": device.observed_led_colours,
-                    "last_output_fault": device.last_output_fault,
-                }
-            )
+            DeviceState.model_validate(device, from_attributes=True)
             for device in snapshot.adapter.devices
         ),
         networks=tuple(
@@ -365,13 +336,7 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
         steering_controller=(
             None
             if steering is None
-            else SteeringActuatorState.model_validate(
-                {
-                    "effective_assistance": steering.effective_assistance,
-                    "last_command_reason": steering.last_command_reason,
-                    "watchdog_timed_out": steering.watchdog_timed_out,
-                }
-            )
+            else SteeringActuatorState.model_validate(steering, from_attributes=True)
         ),
     )
 
