@@ -18,12 +18,6 @@ class DeviceSource(StrEnum):
 
 
 @dataclass(frozen=True)
-class DeviceAdapterSelection:
-    role: DeviceRole
-    source: DeviceSource
-
-
-@dataclass(frozen=True)
 class DeviceProjection:
     """Desired controller output and evidence-backed device observation."""
 

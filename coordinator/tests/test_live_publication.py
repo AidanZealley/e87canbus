@@ -9,10 +9,10 @@ import pytest
 import socketio  # type: ignore[import-untyped]
 from e87canbus.api.internal.live import LiveStatePublisher
 from e87canbus.api.models.resources import ResourceChangedEvent
-from e87canbus.composition import build_controller_service
+from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.runtime import SetMaximumAssistance, StateTopic
-from e87canbus.service import ControllerMode, ControllerService, RuntimeExecution
+from e87canbus.service import ControllerService, RuntimeExecution
 from e87canbus.simulation.runtime import ResetSimulation, SetVehicleSpeed
 
 
@@ -73,7 +73,7 @@ def controller_service(
             shutdown_timeout_s=shutdown_timeout_s,
         ),
     )
-    return build_controller_service(ControllerMode.SIMULATED, config=config)
+    return build_simulated_controller_service(config=config)
 
 
 def publisher_for(

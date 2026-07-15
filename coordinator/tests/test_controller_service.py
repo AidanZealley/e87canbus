@@ -7,9 +7,12 @@ from pathlib import Path
 import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.composition import build_controller_service, simulated_selection
+from e87canbus.composition import (
+    build_live_controller_service,
+    build_simulated_controller_service,
+)
 from e87canbus.config import CanNetwork, default_config, simulator_config
-from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
+from e87canbus.device import DeviceSource
 from e87canbus.runtime import (
     CoordinatorKernel,
     DiagnosticSnapshot,
@@ -216,47 +219,27 @@ def test_fastapi_rejects_an_injected_service_for_a_different_mode() -> None:
     assert service.lifecycle is ControllerServiceLifecycle.CREATED
 
 
-def test_duplicate_device_ingress_authority_is_rejected_before_startup() -> None:
-    selection = simulated_selection()
-
-    with pytest.raises(ValueError, match="duplicate ingress authority"):
-        replace(
-            selection,
-            device_adapters=(
-                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.PHYSICAL),
-                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.EMULATED),
-            ),
-        )
-
-
-def test_each_device_role_requires_exactly_one_source_selection() -> None:
-    selection = simulated_selection()
-
-    with pytest.raises(ValueError, match="exactly one selected source"):
-        replace(selection, device_adapters=())
-    with pytest.raises(ValueError, match="exactly one selected source"):
-        replace(
-            selection,
-            device_adapters=(
-                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
-                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
-            ),
-        )
-
-
-def test_emulated_button_pad_requires_authorized_kcan_output() -> None:
-    selection = simulated_selection()
-
-    with pytest.raises(ValueError, match="authorized simulated K-CAN output"):
-        replace(
-            selection,
-            tx_grants=selection.tx_grants - {CanNetwork.KCAN},
-        )
-
-
 def test_live_transmitter_requires_separate_explicit_network_grant() -> None:
     with pytest.raises(ValueError, match="explicit network grant"):
-        build_controller_service(ControllerMode.LIVE, config=simulator_config())
+        build_live_controller_service(config=simulator_config())
+
+
+def test_explicit_constructors_reject_invalid_device_authority_and_output() -> None:
+    with pytest.raises(ValueError, match="emulated ingress authority"):
+        build_live_controller_service(button_pad_source=DeviceSource.EMULATED)
+
+    config = simulator_config()
+    config = replace(
+        config,
+        can_networks=tuple(
+            replace(item, tx_enabled=False)
+            if item.network is CanNetwork.KCAN
+            else item
+            for item in config.can_networks
+        ),
+    )
+    with pytest.raises(ValueError, match="authorized simulated K-CAN output"):
+        build_simulated_controller_service(config=config)
 
 
 def test_repeated_app_construction_does_not_leak_controller_owner_threads(

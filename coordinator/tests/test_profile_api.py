@@ -9,10 +9,9 @@ from typing import Any
 import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.composition import build_controller_service
+from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
-from e87canbus.service import ControllerMode
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
 
@@ -68,8 +67,7 @@ def make_app(
     config = config or replace(
         simulator_config(), tick_interval_s=60.0
     )
-    service = build_controller_service(
-        ControllerMode.SIMULATED,
+    service = build_simulated_controller_service(
         config=config,
         steering_controller_factory=steering_controller_factory,
         supported_steering_curve_interpolations=supported_steering_curve_interpolations,

@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 
-import { createLiveTransport, createLiveTransportOwner } from "./transport"
+import { createLiveTransport } from "./transport"
 import { useLiveStore } from "./live-store"
 import { snapshot } from "./test-fixtures"
 
@@ -9,7 +9,6 @@ class FakeSocket {
   handlers = new Map<string, Set<(...args: never[]) => void>>()
   emitted: string[] = []
   connects = 0
-  disconnects = 0
   connected = false
   on(event: string, listener: (...args: never[]) => void) {
     const handlers = this.handlers.get(event) ?? new Set()
@@ -25,14 +24,6 @@ class FakeSocket {
     this.connects += 1
     return this
   }
-  disconnect() {
-    this.disconnects += 1
-    return this
-  }
-  removeAllListeners() {
-    this.handlers.clear()
-    return this
-  }
   fire(event: string, payload?: unknown) {
     if (event === "connect") this.connected = true
     if (event === "disconnect") this.connected = false
@@ -42,7 +33,7 @@ class FakeSocket {
 }
 
 describe("Socket.IO transport owner", () => {
-  it("owns one connection/listener set, synchronizes on snapshot, and tears down fully", async () => {
+  it("owns one connection/listener set and synchronizes on snapshot", async () => {
     useLiveStore.getState().reset()
     const socket = new FakeSocket()
     const queryClient = new QueryClient()
@@ -51,8 +42,6 @@ describe("Socket.IO transport owner", () => {
       queryClient,
       createSocket: () => socket as never,
     })
-    transport.start()
-    transport.start()
     expect(socket.connects).toBe(1)
     for (const event of [
       "controller.snapshot",
@@ -96,18 +85,14 @@ describe("Socket.IO transport owner", () => {
       "trace.subscribe",
       "trace.unsubscribe",
     ])
-    transport.stop()
-    expect(socket.disconnects).toBe(1)
-    expect(socket.handlers.size).toBe(0)
   })
 
   it("requests resync instead of accepting a topic from another boot", () => {
     const socket = new FakeSocket()
-    const transport = createLiveTransport({
+    createLiveTransport({
       queryClient: new QueryClient(),
       createSocket: () => socket as never,
     })
-    transport.start()
     socket.fire("controller.snapshot", snapshot("boot-a", 1))
     socket.fire("vehicle.state", {
       ...snapshot("boot-a", 1),
@@ -120,7 +105,6 @@ describe("Socket.IO transport owner", () => {
     })
     expect(socket.emitted).toContain("controller.resync")
     expect(useLiveStore.getState().bootId).toBe("boot-a")
-    transport.stop()
   })
 
   it("stays synchronized when the server snapshot arrives before the local connect event", async () => {
@@ -128,11 +112,10 @@ describe("Socket.IO transport owner", () => {
     const socket = new FakeSocket()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    const transport = createLiveTransport({
+    createLiveTransport({
       queryClient,
       createSocket: () => socket as never,
     })
-    transport.start()
     socket.fire("controller.snapshot", snapshot("early-snapshot", 1))
     expect(useLiveStore.getState().connection.status).toBe("connected")
     expect(invalidate).not.toHaveBeenCalled()
@@ -145,27 +128,5 @@ describe("Socket.IO transport owner", () => {
     socket.fire("controller.snapshot", snapshot("early-snapshot", 1))
     await Promise.resolve()
     expect(invalidate).toHaveBeenCalledTimes(2)
-    transport.stop()
-  })
-
-  it("retains one client and listener set across the Strict Mode cleanup and setup cycle", async () => {
-    const socket = new FakeSocket()
-    const factory = vi.fn((queryClient: QueryClient) =>
-      createLiveTransport({ queryClient, createSocket: () => socket as never })
-    )
-    const owner = createLiveTransportOwner(factory)
-    const queryClient = new QueryClient()
-    const releaseFirstMount = owner.acquire(queryClient)
-    releaseFirstMount()
-    const releaseStrictRemount = owner.acquire(queryClient)
-    await Promise.resolve()
-    expect(factory).toHaveBeenCalledOnce()
-    expect(socket.connects).toBe(1)
-    expect(socket.handlers.get("controller.snapshot")?.size).toBe(1)
-    expect(socket.disconnects).toBe(0)
-    releaseStrictRemount()
-    await Promise.resolve()
-    expect(socket.disconnects).toBe(1)
-    expect(socket.handlers.size).toBe(0)
   })
 })

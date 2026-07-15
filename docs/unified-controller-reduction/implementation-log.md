@@ -12,20 +12,21 @@ or reformatted code as simplification.
 | 2 — Contract/model consolidation | Verified | 2026-07-15 | 90 | Typed values cross framework boundaries directly; target variance accepted |
 | 3 — Runtime/service reduction | Verified | 2026-07-15 | 302 | One shared adapter update and projection path |
 | 4 — Publication/diagnostics reduction | Verified | 2026-07-15 | 327 | Decision-useful health and one publisher diagnostic owner |
-| 5 — Composition/frontend seams | Not started | — | — | Remove construction and consumption layers |
+| 5 — Composition/frontend seams | Verified | 2026-07-15 | 202 | Explicit constructors and one application-lifetime transport owner |
 | 6 — Test-suite reduction | Not started | — | — | Remove implementation archaeology and redundant tests |
 | 7 — Cutover/acceptance | Not started | — | — | Prove overall reduction and behavior |
 
 ## Current handoff
 
-Start Phase 5 from the controlling Phase 4 commit once recorded. The roadmap base remains
-`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +306/-1,025, net -719. Preserve
-the publisher's latest-topic map, eight-entry resource deque, 2,000-row opt-in trace ring, finite
-per-peer Engine.IO queue, one publisher task and non-recursive service health handoff. Public health
-now owns only readiness/fatal/fault/current-bound decisions; network availability and selected
-capability state remain canonical in `devices.state`. Phase 5 should reduce composition and frontend
-ownership seams without recreating removed diagnostic counters, adapter effect-history projection,
-connected-socket tracking or compatibility paths. No compatibility path exists or is authorized.
+Start Phase 6 from the controlling Phase 5 commit once recorded. The roadmap base remains
+`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +454/-1,375, net -921. Preserve
+the explicit `build_live_controller_service` and `build_simulated_controller_service` boundaries,
+direct `DeviceSource` validation, default no-live-TX policy and application-lifetime frontend
+transport construction. The transport remains one Socket.IO instance/listener set; current live and
+trace state remain in bounded Zustand stores and durable resources remain Query-owned. Phase 6 may
+remove implementation-archaeology tests, but must not recreate selection mirrors, a React transport
+owner, compatibility aliases or test-only production lifecycle seams. No compatibility path exists
+or is authorized.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 `Implemented` requires a measurable simplification and focused checks. `Verified` requires all
@@ -59,6 +60,111 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Phase 5: explicit composition and application-owned transport
+
+- **Status:** Verified
+- **Scope:** Replaced generic live/simulated selection mirrors with two explicit constructors and
+  moved the singleton browser transport to application lifetime. Controller, runtime, publication,
+  live/durable state, trace, resource, route and visual behavior were intentionally unchanged.
+- **Deletion hypothesis:** CAN adapter kinds, steering capability selection, device-selection tuples
+  and a mode-switched builder copied variability already fixed by the live and simulated runtime
+  owners. `LiveDataProvider` and `createLiveTransportOwner` added a second reference-counted React
+  lifecycle around an application-wide transport. Once startup occurs before the React tree, the
+  transport's separate start/stop seam is test-only.
+- **Production accounting:** Phase base
+  `412e4140d6294245cdbe91d95aa9e0f0709aac37`. Backend production is +111/-222, net -111 across four
+  touched files: `api/main.py` +21/-8, `cli/main.py` +22/-21, `composition.py` +68/-187 and
+  `device.py` +0/-6. Directory totals are API +21/-8 and backend root +90/-214. Frontend production
+  is +37/-128, net -91 across five files: `live/transport.ts` +31/-111, `main.tsx` +6/-6 and the
+  deleted `components/live-data-provider/LiveDataProvider.tsx` +0/-10 plus `index.ts` +0/-1;
+  `api/simulator.ts` is unchanged after review retained its useful typed request helper. Total
+  production is +148/-350, net -202; 2 files deleted, 0 added and 9 touched. Current production is
+  7,906 backend lines/61 files and 8,993 frontend lines/132 files. Tests are +56/-135, net -79
+  across seven files: `test_cli_main.py` +6/-0, `test_controller_service.py` +22/-39,
+  `test_live.py` +13/-32, `test_live_publication.py` +3/-3, `test_profile_api.py` +2/-4,
+  `test_simulator_api.py` +6/-14 and frontend `live/transport.test.ts` +4/-43. Backend tests total
+  +52/-92, net -40; frontend tests total +4/-43, net -39. Documentation is this log +115/-9,
+  net +106; generated artifacts +0/-0; temporary compatibility +0/-0. Cumulatively from roadmap
+  base `a31d2f8`, production is +454/-1,375, net
+  -921: backend +407/-1,151, net -744, and frontend +47/-224, net -177. The largest additions are
+  +68 in `composition.py` for direct live/sim constructors and safety validation, +31 in
+  `transport.ts` where existing listener setup now executes at construction, and +22 in the CLI for
+  direct source selection/reporting. They replace larger selection and lifecycle layers in this
+  phase; no later deletion is required to justify them.
+- **Cognitive accounting:** Operational, lifecycle, publication and frontend socket owners remain
+  1/1. Removed production concepts: `CanAdapterKind`, `SteeringCapability`, `CanAdapterSelection`,
+  `CompositionSelection`, `DeviceAdapterSelection`, `live_selection`, `simulated_selection`, the
+  generic `build_controller_service`, `LiveDataProvider`, `createLiveTransportOwner`, its owner/
+  trace-owner counters and teardown generation, and transport start/stop lifecycle state. Added
+  concepts are only the named mode boundaries `build_live_controller_service` and
+  `build_simulated_controller_service`. CLI composition changes from CLI -> preset selection ->
+  dataclass validation -> generic builder -> runtime to CLI -> explicit constructor -> runtime.
+  Browser startup changes from main -> React provider -> reference-counted owner -> transport to
+  main -> transport. Runtime queues, publication stores, public schemas, contract copies, state
+  owners and route count added/removed: 0/0.
+- **Changed:** `AppConfig` now directly determines enabled physical or virtual networks. One
+  `DeviceSource` argument selects the only button-pad authority, making duplicate/missing role
+  selections unrepresentable. Constructors reject physical/emulated mode conflicts, unavailable
+  K-CAN authority and output grants before service startup; the canonical live runtime continues to
+  reject configured TX without a grant. The CLI constructs that explicit service once so dry-run
+  validates the same selection without changing environment or the global ASGI app; normal startup
+  passes the already-built service into the API. The frontend
+  creates its singleton transport once beside the Query client before React renders; listener setup,
+  reconnect reconciliation, trace reference counting and stores remain in `transport.ts`.
+- **Protected behavior:** Default live composition has zero TX grants and no steering actuator;
+  explicit test TX remains rate-limited; simulation still uses production codecs/transitions/
+  effects; live/simulated and observer/disabled roles remain supported; invalid authority/output
+  selections fail before startup; dry-run remains side-effect-free; one controller service and
+  lifecycle remain. Socket snapshot,
+  reconnect, `boot_id`, topic-revision, resource invalidation and trace subscribe/unsubscribe/reset/
+  2,000-row bounds remain. Current live state remains Zustand-only, durable resources Query-only,
+  selectors narrow, mutation pending/error/conflict state local, and 800x480 light/dark route code
+  unchanged. No UI control was added.
+- **Tests:** Retained CLI/API route and mode behavior; default-no-TX, explicit-grant, invalid-role and
+  missing simulated-output safety; lifecycle/thread cleanup; simulation production-path domain
+  coverage; socket singleton/listener, reconnect, snapshot-before-connect, resource invalidation,
+  trace cleanup/bounds; store merge/revision; route/layout/theme and localized mutation states.
+  CLI coverage now proves dry-run preserves the global app and both relevant environment variables
+  while the invalid physical-in-simulation dry-run still fails.
+  Removed three tests that manufactured duplicate/missing selection tuples, because one typed
+  `DeviceSource` makes those private states unrepresentable. Removed the private reference-counted
+  owner/Strict-Mode test after transport startup moved outside React; the surviving boundary test
+  proves exactly one socket/listener set, while route tests protect application behavior.
+- **Test accounting:** Tracked tests remain 56 files and change from 11,029 to 10,950 physical
+  lines: backend 7,521 -> 7,481 and frontend 3,508 -> 3,469. Collected cases change from 500 to 498
+  backend and 88 to 87 frontend (30 Node and 57 component). The focused composition/lifecycle/CLI/
+  publication/profile run passed 97 tests; full backend and frontend suites passed. Removed
+  assertions covered private selection and lifecycle call structure, not public behavior, safety,
+  concurrency/bounds, real regressions or useful domain examples.
+- **Verification:** Full `uv run pytest -q` passed 498 tests with the existing Starlette/httpx
+  warning. Frontend `pnpm test` passed 30 Node and 57 component tests; `pnpm lint`, `pnpm typecheck`
+  and `pnpm build` passed with 2,966 transformed modules. `uv run ruff check .`, `uv run mypy
+  coordinator/src/e87canbus` (61 files), both generated checks, `bash -n scripts/*.sh` and
+  `git diff --check` passed. Dead-symbol searches find no active selection mirror, generic builder,
+  React provider, reference-counted transport owner or test-only teardown symbol; roadmap/log
+  references remain factual. After controlling review, focused CLI/composition/live coverage passed
+  28 tests and the full Ruff/mypy/generated/shell/diff set passed again.
+- **Browser/physical checks:** Browser setup and discovery returned no available browser, so no new
+  interactive `/dev` and `/car` light/dark 800x480 or same-document cycle evidence is claimed.
+  Existing route/component acceptance and singleton transport tests passed, and changed layout/
+  visual code is limited to removing the non-rendering provider. Real CAN TX and physical steering
+  were unavailable and were not enabled or claimed.
+- **Dependencies/migrations:** None. No dependency, lockfile, SQLite schema, CAN protocol, firmware,
+  generated contract or tracked database artifact changed; the test-modified SQLite artifact was
+  restored.
+- **Compatibility/removal:** None. All in-repository callers moved in this phase. There is no alias,
+  facade, forwarding constructor, deprecated import or parallel transport; therefore there is no
+  consumer, removal condition or expected later phase.
+- **Target variance:** The phase exceeds its 200-line minimum with 202 net production lines removed.
+  Tests and documentation do not inflate the claim; listener setup retained in `transport.ts` is not
+  counted as reduction merely because it moved within the file. Cumulative production reduction is
+  921 lines from the roadmap base.
+- **Remaining:** None for Phase 5. Fresh browser matrix evidence remains unavailable rather than
+  inferred; no behavior or safety boundary was weakened to compensate.
+- **Next handoff:** Phase 6 may reduce tests tied to deleted internals, while retaining explicit
+  constructor safety, controller/lifecycle ownership, singleton transport/reconnect behavior,
+  bounded trace/publication and meaningful route/domain/integration evidence.
 
 ### 2026-07-15 — Phase 4: publication diagnostics reduced to operator decisions
 

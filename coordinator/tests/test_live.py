@@ -7,9 +7,9 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
-from e87canbus.composition import build_controller_service, live_selection
+from e87canbus.composition import build_live_controller_service
 from e87canbus.config import CanNetwork, default_config, simulator_config
-from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
+from e87canbus.device import DeviceSource
 from e87canbus.live import read_frames_into_queue
 from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
 from e87canbus.runtime import (
@@ -18,7 +18,6 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
 )
 from e87canbus.service import (
-    ControllerMode,
     ControllerServiceError,
     ControllerServiceLifecycle,
 )
@@ -200,7 +199,7 @@ def test_canonical_live_service_reports_queue_latency_without_rewriting_ingress_
         tick_interval_s=10.0,
         runtime_queue_latency_warning_s=1.0,
     )
-    service = build_controller_service(ControllerMode.LIVE, config=config, clock=clock)
+    service = build_live_controller_service(config=config, clock=clock)
 
     with caplog.at_level(logging.WARNING):
         service.start()
@@ -214,8 +213,7 @@ def test_canonical_live_service_reports_queue_latency_without_rewriting_ingress_
 
 def test_default_live_composition_emits_no_startup_frames() -> None:
     FakeSocketCanBus.instances = []
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         socketcan_factory=FakeSocketCanBus,
     )
 
@@ -227,8 +225,7 @@ def test_default_live_composition_emits_no_startup_frames() -> None:
 
 def test_physical_button_pad_observation_is_unknown_without_acknowledgement() -> None:
     FakeSocketCanBus.instances = []
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         socketcan_factory=FakeSocketCanBus,
     )
 
@@ -253,16 +250,9 @@ def test_physical_button_pad_observation_is_unknown_without_acknowledgement() ->
 def test_observer_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
     FakeSocketCanBus.instances = []
     config = default_config()
-    selection = replace(
-        live_selection(config),
-        device_adapters=(
-            DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
-        ),
-    )
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         config=config,
-        selection=selection,
+        button_pad_source=DeviceSource.OBSERVER,
         socketcan_factory=FakeSocketCanBus,
     )
     frame = encode_button_event(ArduinoButtonEventPayload(0, True), config.custom_can_ids)
@@ -283,14 +273,9 @@ def test_observer_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
 def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames() -> None:
     FakeSocketCanBus.instances = []
     config = simulator_config()
-    selection = replace(
-        live_selection(config),
-        tx_grants=frozenset({CanNetwork.KCAN}),
-    )
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         config=config,
-        selection=selection,
+        tx_grants=frozenset({CanNetwork.KCAN}),
         socketcan_factory=FakeSocketCanBus,
     )
 
@@ -306,8 +291,7 @@ def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(
 ) -> None:
     FakeSocketCanBus.instances = []
     config = replace(default_config(), runtime_inbox_capacity=1, tick_interval_s=0.01)
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         config=config,
         socketcan_factory=OverflowingSocketCanBus,
     )
@@ -335,8 +319,7 @@ def test_partial_open_cleanup_keeps_original_failure_when_shutdown_also_fails(
     CleanupFailingSocketCanBus.shutdown_interfaces = []
     CleanupFailingSocketCanBus.fail_open_interface = "can1"
     CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
 
@@ -354,8 +337,7 @@ def test_final_cleanup_isolates_each_interface_and_reports_close_failure(
     CleanupFailingSocketCanBus.shutdown_interfaces = []
     CleanupFailingSocketCanBus.fail_open_interface = None
     CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
 
@@ -372,8 +354,7 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
 ) -> None:
     StubbornSocketCanBus.instances = []
     monkeypatch.setattr(live, "READER_JOIN_TIMEOUT_S", 0.01)
-    service = build_controller_service(
-        ControllerMode.LIVE,
+    service = build_live_controller_service(
         socketcan_factory=StubbornSocketCanBus,
     )
     service.start()

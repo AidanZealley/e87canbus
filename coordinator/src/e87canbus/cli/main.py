@@ -9,7 +9,7 @@ import os
 import threading
 from collections.abc import Sequence
 from contextlib import suppress
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 
 import uvicorn
@@ -21,9 +21,12 @@ from e87canbus.api.main import (
     PROFILE_DATABASE_ENVIRONMENT_VARIABLE,
     create_app,
 )
-from e87canbus.composition import live_selection, simulated_selection
+from e87canbus.composition import (
+    build_live_controller_service,
+    build_simulated_controller_service,
+)
 from e87canbus.config import default_config, simulator_config
-from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.service import ControllerMode
 
 
@@ -87,21 +90,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             "non-loopback exposure requires a separate security decision"
         )
     config = simulator_config() if mode is ControllerMode.SIMULATED else default_config()
-    selection = (
-        simulated_selection(config)
+    default_button_pad_source = (
+        DeviceSource.EMULATED
         if mode is ControllerMode.SIMULATED
-        else live_selection(config)
+        else DeviceSource.PHYSICAL
     )
-    if args.button_pad_source is not None:
-        selection = replace(
-            selection,
-            device_adapters=(
-                DeviceAdapterSelection(
-                    DeviceRole.BUTTON_PAD,
-                    DeviceSource(args.button_pad_source),
-                ),
-            ),
-        )
+    button_pad_source = DeviceSource(args.button_pad_source or default_button_pad_source)
+    build_service = (
+        build_simulated_controller_service
+        if mode is ControllerMode.SIMULATED
+        else build_live_controller_service
+    )
+    service = build_service(
+        config=config,
+        button_pad_source=button_pad_source,
+    )
     if args.dry_run:
         print(
             json.dumps(
@@ -110,10 +113,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "config": asdict(config),
                     "device_adapters": [
                         {
-                            "role": item.role.value,
-                            "source": item.source.value,
+                            "role": DeviceRole.BUTTON_PAD.value,
+                            "source": button_pad_source.value,
                         }
-                        for item in selection.device_adapters
                     ],
                 },
                 indent=2,
@@ -125,9 +127,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ[PROFILE_DATABASE_ENVIRONMENT_VARIABLE] = str(args.profile_database)
     os.environ[CONTROLLER_MODE_ENVIRONMENT_VARIABLE] = mode.value
     api_main.app = create_app(
+        controller_service=service,
         mode=mode,
-        config=config,
-        selection=selection,
         profile_database_path=args.profile_database,
         cors_origins=args.cors_origins,
         frontend_directory=args.frontend_directory,

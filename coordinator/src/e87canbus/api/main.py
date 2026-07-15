@@ -23,8 +23,12 @@ from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import commands, health, settings, simulation, steering
-from e87canbus.composition import CompositionSelection, build_controller_service
+from e87canbus.composition import (
+    build_live_controller_service,
+    build_simulated_controller_service,
+)
 from e87canbus.config import AppConfig
+from e87canbus.device import DeviceSource
 from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.settings_repository import ApplicationSettingsRepository
 from e87canbus.service import ControllerMode, ControllerService
@@ -85,7 +89,7 @@ def create_app(
     controller_service: ControllerService | None = None,
     mode: ControllerMode = ControllerMode.SIMULATED,
     config: AppConfig | None = None,
-    selection: CompositionSelection | None = None,
+    button_pad_source: DeviceSource | None = None,
     clock: Callable[[], float] = time.monotonic,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
@@ -93,13 +97,22 @@ def create_app(
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
 ) -> FastAPI:
-    if controller_service is not None and (config is not None or selection is not None):
+    if controller_service is not None and (
+        config is not None or button_pad_source is not None
+    ):
         raise ValueError("inject either controller_service or composition configuration, not both")
-    service = controller_service or build_controller_service(
-        mode,
-        config=config,
-        selection=selection,
-        clock=clock,
+    service = controller_service or (
+        build_simulated_controller_service(
+            config=config,
+            button_pad_source=button_pad_source,
+            clock=clock,
+        )
+        if mode is ControllerMode.SIMULATED
+        else build_live_controller_service(
+            config=config,
+            button_pad_source=button_pad_source,
+            clock=clock,
+        )
     )
     if service.mode is not mode:
         raise ValueError(

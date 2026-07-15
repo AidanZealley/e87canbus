@@ -38,6 +38,9 @@ def test_dry_run_reports_selected_mode_without_starting_server(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    original_app = api_main.app
+    monkeypatch.delenv(cli.PROFILE_DATABASE_ENVIRONMENT_VARIABLE, raising=False)
+    monkeypatch.delenv(cli.CONTROLLER_MODE_ENVIRONMENT_VARIABLE, raising=False)
     monkeypatch.setattr(
         cli.uvicorn,
         "run",
@@ -51,6 +54,9 @@ def test_dry_run_reports_selected_mode_without_starting_server(
     assert output["device_adapters"] == [
         {"role": "button_pad", "source": "emulated"}
     ]
+    assert api_main.app is original_app
+    assert cli.PROFILE_DATABASE_ENVIRONMENT_VARIABLE not in cli.os.environ
+    assert cli.CONTROLLER_MODE_ENVIRONMENT_VARIABLE not in cli.os.environ
 
 
 def test_cli_reports_explicit_observer_role_in_dry_run(

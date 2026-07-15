@@ -11,10 +11,9 @@ import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.composition import build_controller_service, simulated_selection
+from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
-from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
-from e87canbus.service import ControllerMode
+from e87canbus.device import DeviceSource
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
 
@@ -34,13 +33,12 @@ def make_app_for_config(
     config,
     *,
     steering_controller_factory=SimulatedSteeringController,
-    selection=None,
+    button_pad_source=None,
 ):
     profile_directory = TemporaryDirectory()
-    service = build_controller_service(
-        ControllerMode.SIMULATED,
+    service = build_simulated_controller_service(
         config=config,
-        selection=selection,
+        button_pad_source=button_pad_source,
         steering_controller_factory=steering_controller_factory,
     )
     app = create_app(
@@ -234,13 +232,7 @@ def test_button_commands_return_acknowledgements(
 
 def test_observer_composition_rejects_emulator_controls() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    selection = replace(
-        simulated_selection(config),
-        device_adapters=(
-            DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
-        ),
-    )
-    app = make_app_for_config(config, selection=selection)
+    app = make_app_for_config(config, button_pad_source=DeviceSource.OBSERVER)
 
     with TestClient(app) as client:
         response = client.post(
