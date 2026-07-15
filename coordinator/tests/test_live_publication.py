@@ -169,7 +169,7 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
         await publisher.stop()
 
     assert result.revision == before_reset_revision
-    assert set(events) == {"steering.state", "buttons.state"}
+    assert set(events) == {"steering.state", "buttons.state", "devices.state"}
     assert after_reset_revision > before_reset_revision
 
 

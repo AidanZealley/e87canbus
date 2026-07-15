@@ -13,8 +13,10 @@ import pytest
 from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.composition import ControllerMode, build_controller_service
+from e87canbus.composition import build_controller_service, simulated_selection
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
+from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
+from e87canbus.service import ControllerMode
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.runtime import SimulatedControllerRuntime, SimulatorSnapshot
 from fastapi import WebSocket
@@ -36,11 +38,13 @@ def make_app_for_config(
     config,
     *,
     steering_controller_factory=SimulatedSteeringController,
+    selection=None,
 ):
     profile_directory = TemporaryDirectory()
     service = build_controller_service(
         ControllerMode.SIMULATED,
         config=config,
+        selection=selection,
         steering_controller_factory=steering_controller_factory,
     )
     app = create_app(
@@ -236,20 +240,16 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
         "last_command_reason": "speed_never_observed",
         "watchdog_timed_out": False,
     }
-    assert body["devices"] == [
-        {
-            "id": "button_pad",
-            "label": "Button pad",
-            "status": "online",
-            "reason": None,
-        },
-        {
-            "id": "steering_controller",
-            "label": "Steering controller",
-            "status": "online",
-            "reason": None,
-        },
-    ]
+    assert len(body["devices"]) == 1
+    button_pad = body["devices"][0]
+    assert button_pad["id"] == "button_pad"
+    assert button_pad["label"] == "Button pad"
+    assert button_pad["source_mode"] == "emulated"
+    assert button_pad["connected"] is True
+    assert button_pad["last_seen_monotonic_s"] is not None
+    assert button_pad["desired_led_colours"] == [3] + [0] * 15
+    assert button_pad["observed_led_colours"] == [3] + [0] * 15
+    assert button_pad["last_output_fault"] is None
     assert body["led_colours"] == [3] + [0] * 15
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
@@ -277,7 +277,6 @@ def test_failed_first_command_is_published_without_fabricated_reason() -> None:
     (
         ("/api/dev/simulation/devices/button-pad/buttons/0/press", "manual"),
         ("/api/dev/simulation/devices/button-pad/buttons/0/release", "auto"),
-        ("/api/dev/simulation/step", "manual"),
     ),
 )
 def test_button_commands_return_slim_snapshots(
@@ -285,20 +284,38 @@ def test_button_commands_return_slim_snapshots(
     path: str,
     expected_mode: str,
 ) -> None:
-    kwargs = {"json": {"button_index": 0}} if path.endswith("/step") else {}
-    response = client.post(path, **kwargs)
+    response = client.post(path)
 
     assert response.status_code == 200
     assert response.json()["application"]["steering_mode"] == expected_mode
     assert "trace" not in response.json()
 
 
+def test_observer_composition_rejects_emulator_controls() -> None:
+    config = replace(simulator_config(), tick_interval_s=60.0)
+    selection = replace(
+        simulated_selection(config),
+        device_adapters=(
+            DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
+        ),
+    )
+    app = make_app_for_config(config, selection=selection)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/dev/simulation/devices/button-pad/buttons/0/press"
+        )
+        snapshot = client.get("/api/snapshot").json()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "controller_failed"
+    assert snapshot["application"]["steering_mode"] == "auto"
+    assert snapshot["devices"][0]["source_mode"] == "observer"
+    assert snapshot["devices"][0]["observed_led_colours"] is None
+
+
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     client.post("/api/dev/simulation/devices/button-pad/buttons/0/press")
-    client.put(
-        "/api/dev/simulation/devices/button_pad/status",
-        json={"status": "offline"},
-    )
 
     response = client.post("/api/dev/simulation/reset")
 
@@ -306,67 +323,8 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
-    assert all(device["status"] == "online" for device in response.json()["devices"])
-
-
-@pytest.mark.parametrize("device_id", ["button_pad", "steering_controller"])
-@pytest.mark.parametrize(
-    ("status", "reason"),
-    [
-        ("online", None),
-        ("degraded", "simulated_degraded"),
-        ("offline", "simulated_offline"),
-    ],
-)
-def test_device_status_endpoint_updates_exact_device_and_returns_complete_snapshot(
-    client: TestClient,
-    device_id: str,
-    status: str,
-    reason: str | None,
-) -> None:
-    response = client.put(
-        f"/api/dev/simulation/devices/{device_id}/status",
-        json={"status": status},
-    )
-
-    assert response.status_code == 200
-    assert "trace" not in response.json()
-    assert [device["id"] for device in response.json()["devices"]] == [
-        "button_pad",
-        "steering_controller",
-    ]
-    selected = next(
-        device for device in response.json()["devices"] if device["id"] == device_id
-    )
-    assert (selected["status"], selected["reason"]) == (status, reason)
-
-
-@pytest.mark.parametrize(
-    ("device_id", "body", "expected_status"),
-    [
-        ("unknown", {"status": "offline"}, 404),
-        ("button_pad", {"status": "unknown"}, 422),
-        ("button_pad", {"status": "offline", "unexpected": True}, 422),
-        ("button_pad", {"status": True}, 422),
-        ("button_pad", {"status": 1}, 422),
-        ("button_pad", {}, 422),
-    ],
-)
-def test_invalid_device_status_request_does_not_change_devices(
-    client: TestClient,
-    device_id: str,
-    body: dict[str, bool | str],
-    expected_status: int,
-) -> None:
-    before = client.get("/api/snapshot").json()["devices"]
-
-    response = client.put(
-        f"/api/dev/simulation/devices/{device_id}/status",
-        json=body,
-    )
-
-    assert response.status_code == expected_status
-    assert client.get("/api/snapshot").json()["devices"] == before
+    assert response.json()["devices"][0]["source_mode"] == "emulated"
+    assert response.json()["devices"][0]["observed_led_colours"] == [3] + [0] * 15
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
@@ -417,23 +375,13 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
     assert "simulated speed" in response.json()["error"]["message"]
 
 
-@pytest.mark.parametrize(
-    ("path", "body"),
-    [
-        ("/api/dev/simulation/step", {"button_index": 0, "unexpected": True}),
-        (
-            "/api/dev/simulation/vehicle/speed",
-            {"speed_kph": 42.5, "unexpected": True},
-        ),
-    ],
-)
 def test_development_simulation_requests_reject_unknown_fields(
     client: TestClient,
-    path: str,
-    body: dict[str, bool | float | int],
 ) -> None:
-    method = client.put if "/vehicle/" in path else client.post
-    response = method(path, json=body)
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed",
+        json={"speed_kph": 42.5, "unexpected": True},
+    )
 
     assert response.status_code == 422
 
@@ -562,10 +510,7 @@ def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestC
         "value": None,
         "status": "never_observed",
     }
-    assert [device["id"] for device in initial["snapshot"]["devices"]] == [
-        "button_pad",
-        "steering_controller",
-    ]
+    assert [device["id"] for device in initial["snapshot"]["devices"]] == ["button_pad"]
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
     assert "trace" not in snapshot["snapshot"]
@@ -607,9 +552,8 @@ def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient
 def test_reconnecting_websocket_receives_complete_current_device_shape(
     client: TestClient,
 ) -> None:
-    selected = client.put(
-        "/api/dev/simulation/devices/steering_controller/status",
-        json={"status": "degraded"},
+    selected = client.post(
+        "/api/dev/simulation/devices/button-pad/buttons/0/press",
     )
     assert selected.status_code == 200
 
@@ -712,9 +656,9 @@ def test_controller_inbox_overflow_returns_503_and_service_recovers() -> None:
             pass
 
         overloaded = pool.submit(
-            client.post,
-            "/api/dev/simulation/step",
-            json={"button_index": 0},
+            client.put,
+            "/api/dev/simulation/vehicle/speed",
+            json={"speed_kph": 42.5},
         )
         try:
             overloaded_response = overloaded.result(timeout=1.0)

@@ -182,19 +182,21 @@ application retains observations internally but projects `null` with `never_obse
 when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
 and every active signal is re-emitted before each ordered control-timer evaluation.
 
-Simulator snapshots also contain a complete, stable-order `devices` projection for the button pad
-and steering controller. Both start online; the single-owner simulation queue can explicitly set
-either to online, degraded or offline, and reset restores both online. Degraded and offline use the
-stable `simulated_degraded` and `simulated_offline` reasons. These manually selected values are UI
-test inputs only: they do not change CAN traffic, steering behavior, watchdog state, or establish
-real device heartbeat and diagnostic criteria.
+Composition selects the repository-owned button pad as `physical`, `emulated`, `observer`, or
+`disabled`, with exactly one source per role. Physical input is accepted only by live SocketCAN;
+emulated input is accepted only from the virtual K-CAN device; observer cannot originate input;
+disabled omits the capability. The projection separates controller-desired LEDs from
+device-observed LEDs. The emulator may report connection and observation because it decodes the
+actual output frame. A physical pad has no acknowledgement, so its connection and observed LEDs
+remain unknown. No heartbeat or manually selected presentation-health state exists.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
-The coordinator derives exactly 16 logical LED colours, emits one `SetButtonLeds` effect, and packs
+The coordinator derives exactly 16 desired LED colours, emits one `SetButtonLeds` effect, and packs
 one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
-stored colours; there is one complete LED publication shape and no compatibility decoder.
+observed colours; invalid frames preserve the previous observation. There is one wire codec and no
+simulator callback or compatibility decoder.
 
 ## Running the unified controller
 
@@ -214,6 +216,9 @@ in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_i
 Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
 routes and the raw `/ws` stream are registered only in simulated mode; live mode returns `404` for
 those development-only paths. Use `--log-level` to change logging verbosity.
+Use `--button-pad-source emulated|observer|disabled` for simulated composition and
+`--button-pad-source physical|observer|disabled` for live composition. The selection is fixed for
+the process lifetime and invalid mode/source combinations fail before adapters start.
 `uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
 
 Phase 8 has proved the controller and failure paths against simulation-only speed and actuator

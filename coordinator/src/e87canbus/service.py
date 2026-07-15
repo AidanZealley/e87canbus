@@ -14,6 +14,7 @@ from typing import Protocol
 
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.device import DeviceProjection
 from e87canbus.runtime import DiagnosticSnapshot, StateTopic
 
 
@@ -68,14 +69,6 @@ class ControllerCommandResult:
 
 
 @dataclass(frozen=True)
-class ObservedDeviceSnapshot:
-    id: str
-    label: str
-    status: str
-    reason: str | None
-
-
-@dataclass(frozen=True)
 class ObservedNetworkSnapshot:
     network: CanNetwork
     label: str
@@ -98,8 +91,7 @@ class ControllerAdapterSnapshot:
 
     simulation_session_id: int | None
     led_colours: tuple[int, ...]
-    next_pressed: bool | None
-    devices: tuple[ObservedDeviceSnapshot, ...]
+    devices: tuple[DeviceProjection, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
     steering: ObservedSteeringSnapshot | None
 

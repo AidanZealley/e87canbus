@@ -20,7 +20,6 @@ const api = vi.hoisted(() => ({
   silenceOilTemperature: vi.fn(),
   setCoolantTemperature: vi.fn(),
   silenceCoolantTemperature: vi.fn(),
-  setDeviceStatus: vi.fn(),
 }))
 
 vi.mock("@/api/simulator", () => api)
@@ -35,21 +34,6 @@ const engine = {
   oil_temperature_c: { value: 112.5, status: "valid" as const },
   coolant_temperature_c: { value: null, status: "stale" as const },
 }
-const devices = [
-  {
-    id: "button_pad" as const,
-    label: "Button pad",
-    status: "online" as const,
-    reason: null,
-  },
-  {
-    id: "steering_controller" as const,
-    label: "Steering controller",
-    status: "degraded" as const,
-    reason: "simulated_degraded",
-  },
-]
-
 const renderControls = (
   props: Partial<Parameters<typeof SimulatedVehicleControls>[0]> = {}
 ) =>
@@ -67,7 +51,6 @@ const renderControls = (
       <SimulatedVehicleControls
         speedKph={10}
         engine={engine}
-        devices={devices}
         {...props}
       />
     </QueryClientProvider>
@@ -166,21 +149,4 @@ it("limits pending presentation to the initiating control", async () => {
       .disabled
   ).toBe(false)
   resolve()
-})
-
-it("sends the exact device status and renders missing devices unavailable", async () => {
-  renderControls({
-    devices: devices.filter((device) => device.id === "button_pad"),
-  })
-  fireEvent.click(screen.getByRole("combobox", { name: "Button pad" }))
-  const offline = screen.getByRole("option", { name: "Offline" })
-  fireEvent.pointerDown(offline, { pointerType: "mouse" })
-  fireEvent.click(offline)
-  await waitFor(() =>
-    expect(api.setDeviceStatus).toHaveBeenCalledWith("button_pad", "offline")
-  )
-  expect(
-    screen.getByRole("combobox", { name: "Steering controller" }).textContent
-  ).toContain("Offline")
-  expect(screen.getByText("unavailable")).toBeTruthy()
 })

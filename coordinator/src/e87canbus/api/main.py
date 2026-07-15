@@ -20,7 +20,7 @@ from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handl
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.routes import commands, health, settings, simulation, steering, websocket
-from e87canbus.composition import build_controller_service
+from e87canbus.composition import CompositionSelection, build_controller_service
 from e87canbus.config import AppConfig
 from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.settings_repository import ApplicationSettingsRepository
@@ -60,15 +60,21 @@ def create_app(
     controller_service: ControllerService | None = None,
     mode: ControllerMode = ControllerMode.SIMULATED,
     config: AppConfig | None = None,
+    selection: CompositionSelection | None = None,
     clock: Callable[[], float] = time.monotonic,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
     settings_repository: ApplicationSettingsRepository | None = None,
     cors_origins: Sequence[str] = DEFAULT_CORS_ORIGINS,
 ) -> FastAPI:
-    if controller_service is not None and config is not None:
-        raise ValueError("inject either controller_service or config, not both")
-    service = controller_service or build_controller_service(mode, config=config, clock=clock)
+    if controller_service is not None and (config is not None or selection is not None):
+        raise ValueError("inject either controller_service or composition configuration, not both")
+    service = controller_service or build_controller_service(
+        mode,
+        config=config,
+        selection=selection,
+        clock=clock,
+    )
     if service.mode is not mode:
         raise ValueError(
             f"controller service mode {service.mode.value} does not match API mode {mode.value}"

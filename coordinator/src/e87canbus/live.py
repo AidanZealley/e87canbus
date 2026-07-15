@@ -7,12 +7,14 @@ import queue
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Protocol, assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -32,6 +34,7 @@ from e87canbus.runtime import (
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
+    RuntimeFaultKind,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -216,6 +219,7 @@ class LiveControllerRuntime:
         self,
         config: AppConfig,
         *,
+        button_pad_source: DeviceSource = DeviceSource.PHYSICAL,
         tx_grants: frozenset[CanNetwork] = frozenset(),
         bus_factory: Callable[[str], SocketCanBus] = SocketCanBus,
         clock: Callable[[], float] = time.monotonic,
@@ -227,10 +231,16 @@ class LiveControllerRuntime:
             missing = ", ".join(sorted(network.value for network in configured_tx - tx_grants))
             raise ValueError(f"live CAN TX requires an explicit network grant: {missing}")
         self.config = config
+        if button_pad_source is DeviceSource.EMULATED:
+            raise ValueError("emulated button pad cannot use the live SocketCAN runtime")
+        self._button_pad_source = button_pad_source
         self._tx_grants = tx_grants
         self._bus_factory = bus_factory
         self._clock = clock
-        self._router = ProtocolRouter(config.custom_can_ids)
+        self._router = ProtocolRouter(
+            config.custom_can_ids,
+            button_input_enabled=button_pad_source is DeviceSource.PHYSICAL,
+        )
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
@@ -242,6 +252,7 @@ class LiveControllerRuntime:
         self._reader_stop = threading.Event()
         self._overflow = InboxOverflow()
         self._started = False
+        self._button_last_seen_monotonic_s: float | None = None
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
         if self._started:
@@ -263,6 +274,10 @@ class LiveControllerRuntime:
             )
             for item in enabled
             if item.tx_enabled and item.network in self._tx_grants
+            and (
+                item.network is not CanNetwork.KCAN
+                or self._button_pad_source is DeviceSource.PHYSICAL
+            )
         }
         self._executor = EffectExecutor(transmitters, self._router)
         execution = self._dispatch(KernelStarted(self._clock()))
@@ -308,7 +323,21 @@ class LiveControllerRuntime:
                     queue_latency_s,
                 )
         execution = self._dispatch(work)
+        button_observed = (
+            isinstance(work, ReceivedCanFrame)
+            and self._button_pad_source is DeviceSource.PHYSICAL
+            and work.network is CanNetwork.KCAN
+            and work.frame.arbitration_id == self.config.custom_can_ids.button_event
+        )
+        if button_observed:
+            assert isinstance(work, ReceivedCanFrame)
+            self._button_last_seen_monotonic_s = work.received_at
         completed = execution or self._current_execution(None)
+        if button_observed:
+            completed = replace(
+                completed,
+                changed_topics=completed.changed_topics | {StateTopic.DEVICES},
+            )
         if isinstance(work, (ActivateSteeringCurve, SetMaximumAssistance, SetSteeringMode)):
             return RuntimeExecution(
                 ControllerCommandResult(
@@ -347,18 +376,33 @@ class LiveControllerRuntime:
     ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         diagnostics = self._kernel.diagnostics()
         application = self._kernel.snapshot()
+        desired_led_colours = tuple(
+            LED_COLOUR_CODES[colour]
+            for colour in button_led_state(self._kernel.state).colours
+        )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
         return (
             application,
             diagnostics,
             ControllerAdapterSnapshot(
                 simulation_session_id=None,
-                led_colours=tuple(
-                    LED_COLOUR_CODES[colour]
-                    for colour in button_led_state(self._kernel.state).colours
+                led_colours=desired_led_colours,
+                devices=(
+                    ()
+                    if self._button_pad_source is DeviceSource.DISABLED
+                    else (
+                        DeviceProjection(
+                            id=DeviceRole.BUTTON_PAD,
+                            label="Button pad",
+                            source_mode=self._button_pad_source,
+                            connected=None,
+                            last_seen_monotonic_s=self._button_last_seen_monotonic_s,
+                            desired_led_colours=desired_led_colours,
+                            observed_led_colours=None,
+                            last_output_fault=self._button_output_fault(diagnostics),
+                        ),
+                    )
                 ),
-                next_pressed=None,
-                devices=(),
                 networks=tuple(
                     ObservedNetworkSnapshot(
                         network=item.network,
@@ -401,3 +445,17 @@ class LiveControllerRuntime:
             except OSError as exc:
                 LOGGER.error("failed to close SocketCAN network %s: %s", network.value, exc)
         self._raw_buses.clear()
+
+    @staticmethod
+    def _button_output_fault(diagnostics: DiagnosticSnapshot) -> str | None:
+        network = next(
+            item
+            for item in diagnostics.health.networks
+            if item.network is CanNetwork.KCAN
+        )
+        if (
+            network.fault is None
+            or network.fault.kind is not RuntimeFaultKind.CAN_EFFECT_EXECUTION
+        ):
+            return None
+        return network.fault.message

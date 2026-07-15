@@ -80,7 +80,7 @@ const emptySlices = (): LiveSlices => ({
     coolant_temperature_c: { value: null, status: "never_observed" },
   },
   steering: null,
-  buttons: { led_colours: Array<number>(16).fill(0), next_pressed: null },
+  buttons: { led_colours: Array<number>(16).fill(0) },
   devices: { devices: [], networks: [], steering_controller: null },
   health: {
     lifecycle: "created",

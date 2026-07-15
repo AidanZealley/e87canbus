@@ -6,20 +6,21 @@ from dataclasses import replace
 
 import e87canbus.live as live
 import pytest
-from e87canbus.composition import (
-    ControllerMode,
-    build_controller_service,
-    live_selection,
-)
+from e87canbus.composition import build_controller_service, live_selection
 from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.live import InboxOverflow, read_frames_into_queue
-from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
 from e87canbus.runtime import (
     CanReaderFailed,
     ControllerInput,
     ReceivedCanFrame,
 )
-from e87canbus.service import ControllerServiceError, ControllerServiceLifecycle
+from e87canbus.service import (
+    ControllerMode,
+    ControllerServiceError,
+    ControllerServiceLifecycle,
+)
 
 
 class BlockingFakeBus:
@@ -214,6 +215,61 @@ def test_default_live_composition_emits_no_startup_frames() -> None:
     service.start()
     service.stop()
 
+    assert all(not bus.sent for bus in FakeSocketCanBus.instances)
+
+
+def test_physical_button_pad_observation_is_unknown_without_acknowledgement() -> None:
+    FakeSocketCanBus.instances = []
+    service = build_controller_service(
+        ControllerMode.LIVE,
+        socketcan_factory=FakeSocketCanBus,
+    )
+
+    frame = encode_button_event(
+        ArduinoButtonEventPayload(0, True),
+        default_config().custom_can_ids,
+    )
+    service.start()
+    try:
+        service.submit(ReceivedCanFrame(CanNetwork.KCAN, frame, 2.0)).result(timeout=0.2)
+        button_pad = service.snapshot().adapter.devices[0]
+    finally:
+        service.stop()
+
+    assert button_pad.source_mode is DeviceSource.PHYSICAL
+    assert button_pad.connected is None
+    assert button_pad.last_seen_monotonic_s == 2.0
+    assert button_pad.observed_led_colours is None
+    assert button_pad.last_output_fault is None
+
+
+def test_observer_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
+    FakeSocketCanBus.instances = []
+    config = default_config()
+    selection = replace(
+        live_selection(config),
+        device_adapters=(
+            DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
+        ),
+    )
+    service = build_controller_service(
+        ControllerMode.LIVE,
+        config=config,
+        selection=selection,
+        socketcan_factory=FakeSocketCanBus,
+    )
+    frame = encode_button_event(ArduinoButtonEventPayload(0, True), config.custom_can_ids)
+
+    service.start()
+    try:
+        service.submit(ReceivedCanFrame(CanNetwork.KCAN, frame, 1.0)).result(timeout=0.2)
+        snapshot = service.snapshot()
+    finally:
+        service.stop()
+
+    assert snapshot.application.steering_mode.value == "auto"
+    assert snapshot.adapter.devices[0].source_mode is DeviceSource.OBSERVER
+    assert snapshot.adapter.devices[0].last_seen_monotonic_s is None
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 
 

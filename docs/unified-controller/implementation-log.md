@@ -28,20 +28,20 @@ simulation.
 | 3 — Commands and resources | Verified | 2026-07-15 | Typed commands, development actions and precise durable resources complete |
 | 4 — Socket.IO publication | Verified | 2026-07-15 | Fixed topics, reconnect snapshot and bounded delivery complete |
 | 5 — Frontend data ownership | Verified | 2026-07-15 | One bounded Socket.IO/Zustand path and Query ownership pass browser acceptance |
-| 6 — Simulation/device convergence | Not started | — | Physical, emulated and observer pathways |
+| 6 — Simulation/device convergence | Verified | 2026-07-15 | Physical, emulated, observer and disabled pathways converge honestly |
 | 7 — Reliability/deployment | Not started | — | Failure policy, health, shutdown and service operation |
 | 8 — Cutover/acceptance | Not started | — | Legacy removal, integrated checks and soak evidence |
 
 ## Current handoff
 
-Start Phase 6 from the verified Socket.IO/Zustand/TanStack ownership boundary. Preserve the single
-live transport, six current live projections, separately bounded trace store, exact durable Query
-invalidation and honest disconnected-state masking. Phase 6 must converge physical, emulated,
-observer and disabled custom-device roles through the shared generated wire contract, enforce one
-ingress authority, separate semantic controller commands from emulator exercise and keep synthetic
-vehicle signals on the routed ingestion path. Backend raw `/ws` and `GET /api/snapshot` remain
-Phase 8 compatibility only; no frontend consumer remains. Real CAN TX and steering output remain
-unauthorized, and Phase 7 still owns failure-only health commits.
+Start Phase 7 from the verified role-based device composition and honest desired/observed
+projection. Preserve exactly one selected button-pad source, the shared generated `0x700`/`0x701`
+wire path, semantic-command/emulator-control separation, restart-only source selection and reset
+resource release. The physical pad still supplies no acknowledgement, so connection and observed
+LEDs remain unknown; do not turn successful sends into evidence. Backend raw `/ws` and
+`GET /api/snapshot` remain Phase 8 compatibility only. Real CAN TX and steering output remain
+unauthorized. Phase 7 must make failure-only diagnostics publishable without recursive failure
+feedback and complete health, shutdown and deployment behavior.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -70,6 +70,96 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 6: device roles and simulation converge on shared wire paths
+
+- **Status:** Verified
+- **Scope:** Completed physical, emulated, observer and disabled button-pad composition; removed
+  presentation-only simulated device health; separated semantic controller commands from explicit
+  emulator exercise; and verified narrow routed vehicle simulation and reset lifecycle behavior.
+- **Changed:** Added canonical device role/source/desired-observed projection contracts and required
+  exactly one selected source per role. Live composition accepts physical, observer or disabled
+  button pads; simulation accepts emulated, observer or disabled, with source fixed at startup and
+  exposed through the CLI. Physical and emulated inputs use the generated K-CAN `0x700` codec and
+  controller routing, and authorized LED effects use the generated atomic `0x701` codec. Observer
+  and disabled roles cannot originate input or receive device output. Emulator controls now fail
+  when no emulator is selected, while the separately labeled maximum-assistance control issues the
+  semantic HTTP command. Device publication exposes source, evidence-backed connection/last-seen,
+  desired LEDs, observed LEDs or unknown, and CAN-output faults only. Removed the fake
+  online/degraded/offline device model, steering-controller pseudo-device, status mutation API,
+  frontend status controls and compatibility imports. Reset reconstructs topology, buses and
+  emulators and releases the old session objects. Vehicle speed, RPM, oil and coolant set/silence
+  behavior remains on the simulation-only routed CAN boundary. The generic simulator Step action,
+  route, command and its residual `next_pressed` transport state were removed; explicit generated
+  press/release is the only button-pad emulator input. Emulator indices are fixed to generated
+  `LED_COUNT`, including direct node calls.
+- **Decisions:** Disabled capabilities are absent from device publication; observer capabilities are
+  present but expose unknown connection/observation and no ingress/output authority. An in-memory
+  emulator is connected because its endpoint exists and reports observed LEDs only after its
+  decoder receives a valid complete output frame. Live physical `last_seen` advances only for a
+  valid routed button event; physical connection and LED observation remain unknown because the
+  protocol has no acknowledgement. `buttons.state.led_colours` remains controller-desired state,
+  while `devices.state` makes desired versus observed explicit. The live envelope remains protocol
+  version 1 because this planned Phase 6 projection completed that pre-cutover contract and the
+  repository producer, generated schema and sole frontend consumer changed atomically; no old-shape
+  facade was retained. Synthetic vehicle identifiers and decoding remain simulation-only. An
+  emulated role requires both virtual K-CAN and an explicit simulated K-CAN output grant so it can
+  receive controller `0x701` effects; physical output remains separately authorized and default
+  deny.
+- **Verification:** Full `uv run pytest -q`: 493 passed with one existing Starlette/httpx
+  deprecation warning. Focused Phase 6 backend suites: 107 passed. `uv run ruff check .`,
+  `uv run mypy coordinator/src/e87canbus`, both generated protocol checks,
+  `bash -n scripts/*.sh` and `git diff --check` passed. `pnpm test`: 30 unit and 57 component tests
+  passed. `pnpm lint`, `pnpm typecheck` and production `pnpm build` passed; Vite transformed 2,968
+  modules. PlatformIO firmware build passed at 21.5% RAM and 25.6% flash, and focused generated
+  protocol parity tests passed. Tests cover duplicate/missing authority, source/mode validation,
+  observer/disabled non-authority, full emulator encode/bus/router/kernel/effect/decode traversal,
+  semantic commands without fabricated input, honest projections, every narrow vehicle signal,
+  live-router synthetic-ID rejection, deterministic stale/silence/reset and collection of old
+  reset topology/device/endpoints. Frontend coverage explicitly proves observer labeling, unknown
+  observation, disabled wire controls and still-available synchronized semantic control.
+- **Browser/soak/physical checks:** Final post-review acceptance used direct collaborative-preview
+  DOM, live-store and trace instrumentation against a fresh development frontend on port 5190 and
+  isolated backend/database on port 8020. Emulated `/dev` synchronized as `Connected`; the header
+  exposed Reset with no generic Step control or text, source was `emulated`, the semantic section
+  explicitly said it fabricates no input frame, emulator observation was labeled decoded and all
+  16 explicit grid controls were enabled. Actual pointerdown/pointerup on Button 0 produced exactly
+  `0x700 0001` from `button-pad-emulator`, `0x701 0400000000000000` from `pi` and `0x700 0000` on
+  release; mode became manual and desired/observed LEDs both became `[4, 0, ...]`. Clicking semantic
+  Enable maximum appended only `0x701 0450000000000000`, with no new `0x700`; maximum became active
+  and desired/observed LEDs converged with colour 5 at index 3. After restart in observer
+  composition, `/dev` again synchronized as `Connected`, source was `observer`, connection and
+  observation were null, unknown observation and emulated-only availability were explicit, no Step
+  control existed, all 16 grid controls were disabled and the synchronized semantic control was
+  enabled. Semantic maximum returned HTTP 200, changed desired LEDs, left observation null and kept
+  trace exactly empty; the backend logged only the expected unavailable-K-CAN-effect warning and no
+  failed request. The preview remained automation-capable but reported `visible:false`, so its
+  recording and snapshot APIs explicitly failed; no final recording or screenshot is claimed. The
+  earlier broader recording at
+  `/Users/aidanzealley/.t3/userdata/browser-artifacts/browser-recording-mrm2esrz.mp4` predates Step
+  removal and is retained only as pre-review evidence for unchanged pointer/reset/vehicle flows:
+  speed, RPM, coolant and oil set/silence projections, reset session 1 to 2, trace clearing and
+  documented initial state. The user's separate real application tabs also remained stable
+  significantly beyond the former 5–10 minute crash window. Physical read-only and optional `vcan`
+  checks were not run because hardware was unavailable and `vcan` is not mandatory. Real CAN TX and
+  steering output were not enabled; no physical behavior is claimed.
+- **Documentation:** Updated root, coordinator, frontend, simulation and protocol guidance for
+  fixed source roles, CLI selection, shared wire paths, desired/observed evidence, semantic versus
+  emulator controls and reset behavior. Rewrote the active car-frontend roadmap, device-role,
+  foundation, screen, acceptance and agent guidance to remove the retired presentation-health
+  contract and route rather than retaining a bannered stale specification. Regenerated the live
+  event schema without Step-era state.
+- **Dependencies/migrations:** None. No SQLite, lockfile, CAN-wire or firmware protocol migration.
+- **Compatibility/removal:** Removed the fake simulator device-status API, models, commands,
+  selectors and UI completely. Removed the generic Step API/command/UI and `next_pressed` projection
+  completely. No alias, shim or old live-device-shape facade remains. Backend raw `/ws` and
+  `GET /api/snapshot` are unchanged pre-existing Phase 8 compatibility surfaces and have no
+  frontend consumer.
+- **Remaining:** None for Phase 6. Physical read-only and optional `vcan` evidence may be added when
+  available but do not block software verification.
+- **Next handoff:** Begin Phase 7 without weakening role authority or observation semantics. Make
+  failure-only health changes publishable, including device output faults, while avoiding recursive
+  effect-failure feedback; retain bounded shutdown and do not authorize physical output.
 
 ### 2026-07-15 — Phase 5: browser ownership and reconnect acceptance verified
 

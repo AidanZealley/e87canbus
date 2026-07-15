@@ -55,15 +55,18 @@ export type SteeringState = {
 
 export type ButtonsState = {
   led_colours: number[]
-  next_pressed: boolean | null
 }
 
 export type DevicesState = {
   devices: Array<{
-    id: "button_pad" | "steering_controller"
+    id: "button_pad"
     label: string
-    status: "online" | "degraded" | "offline"
-    reason: "simulated_degraded" | "simulated_offline" | null
+    source_mode: "physical" | "emulated" | "observer"
+    connected: boolean | null
+    last_seen_monotonic_s: number | null
+    desired_led_colours: number[]
+    observed_led_colours: number[] | null
+    last_output_fault: string | null
   }>
   networks: Array<{
     id: "kcan" | "ptcan" | "fcan"

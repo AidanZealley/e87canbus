@@ -37,8 +37,14 @@ LED_COLOUR_CODES = {
 class ProtocolRouter:
     """Decode verified inputs and encode effects without application bus choices."""
 
-    def __init__(self, ids: CustomCanIds | None = None) -> None:
+    def __init__(
+        self,
+        ids: CustomCanIds | None = None,
+        *,
+        button_input_enabled: bool = True,
+    ) -> None:
         self.ids = ids or CustomCanIds()
+        self.button_input_enabled = button_input_enabled
 
     def decode(
         self,
@@ -46,7 +52,8 @@ class ProtocolRouter:
         _observed_at: float,
     ) -> ApplicationEvent | None:
         if (
-            routed.network is not CanNetwork.KCAN
+            not self.button_input_enabled
+            or routed.network is not CanNetwork.KCAN
             or routed.frame.arbitration_id != self.ids.button_event
         ):
             return None

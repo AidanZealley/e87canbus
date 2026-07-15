@@ -6,8 +6,8 @@ import {
   pressButton,
   releaseButton,
   resetSimulator,
-  stepSimulator,
 } from "@/api/simulator"
+import { setMaximumAssistance } from "@/api/commands"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NetworkTopology } from "./components/network-topology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
@@ -23,8 +23,6 @@ const unavailableEngine = {
   oil_temperature_c: { value: null, status: "stale" as const },
   coolant_temperature_c: { value: null, status: "stale" as const },
 }
-const unavailableDevices: never[] = []
-
 export const SimulatorWorkbench = () => {
   const [autoScroll, setAutoScroll] = useState(true)
   const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
@@ -33,17 +31,16 @@ export const SimulatorWorkbench = () => {
   const vehicle = useLiveStore((state) => state.vehicle)
   const engine = useLiveStore((state) => state.engine)
   const steering = useLiveStore((state) => state.steering)
-  const devices = useLiveStore((state) => state.devices.devices)
   const steeringController = useLiveStore(
     (state) => state.devices.steering_controller
   )
   const reset = useMutation({ mutationFn: resetSimulator })
-  const step = useMutation({ mutationFn: () => stepSimulator(0) })
   const button = useMutation({
     mutationFn: ({ index, pressed }: { index: number; pressed: boolean }) =>
       pressed ? pressButton(index) : releaseButton(index),
   })
-  const error = reset.error ?? step.error ?? button.error
+  const maximumAssistance = useMutation({ mutationFn: setMaximumAssistance })
+  const error = reset.error ?? button.error ?? maximumAssistance.error
 
   const handlePress = (index: number) => {
     setPressedButtons((current) => new Set(current).add(index))
@@ -69,9 +66,7 @@ export const SimulatorWorkbench = () => {
           setPressedButtons(new Set())
           reset.mutate()
         }}
-        onStep={() => step.mutate()}
         resetPending={reset.isPending}
-        stepPending={step.isPending}
       />
 
       <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
@@ -91,6 +86,15 @@ export const SimulatorWorkbench = () => {
             <section className="min-w-0">
               <SimulatorNeoTrellis
                 pressedButtons={pressedButtons}
+                maximumAssistanceActive={
+                  synchronized && steering !== null
+                    ? steering.maximum_assistance_active
+                    : false
+                }
+                semanticCommandPending={maximumAssistance.isPending}
+                onMaximumAssistanceChange={(enabled) =>
+                  maximumAssistance.mutate(enabled)
+                }
                 onPress={handlePress}
                 onRelease={handleRelease}
               />
@@ -102,7 +106,6 @@ export const SimulatorWorkbench = () => {
                   synchronized && vehicle.speed_valid ? vehicle.speed_kph : null
                 }
                 engine={synchronized ? engine : unavailableEngine}
-                devices={synchronized ? devices : unavailableDevices}
               />
             </section>
           </div>

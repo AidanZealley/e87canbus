@@ -54,7 +54,6 @@ export const snapshot = (
     steering,
     buttons: {
       led_colours: Array<number>(16).fill(revision),
-      next_pressed: false,
     },
     devices: { devices: [], networks: [], steering_controller: null },
     health: {

@@ -40,7 +40,8 @@ Preserve these project boundaries:
 - SQLite transactions do not span runtime commands or WebSocket broadcasts.
 - Missing/stale telemetry remains explicit and must never be presented as a convincing zero.
 - Draft, saved and active steering curve state remain distinct.
-- Simulator device-health states do not prove real heartbeat or diagnostic criteria.
+- Device connection/observation is projected only from adapter evidence; controller desire and a
+  successful send do not prove physical acknowledgement.
 - No phase grants physical steering output authority, real CAN decoding or kiosk deployment.
 
 The key engineering goal is simple, maintainable, well-organized code that a human can follow.
@@ -96,7 +97,7 @@ the mismatch behind another abstraction.
 | 1 | Routing and layouts | `01-routing-and-layouts.md` |
 | 2 | Application settings | `02-application-settings.md` |
 | 3 | Engine telemetry simulation | `03-engine-telemetry-simulation.md` |
-| 4 | Device health | `04-device-health.md` |
+| 4 | Device roles | `04-device-health.md` |
 | 5 | Car UI foundation | `05-car-ui-foundation.md` |
 | 6 | Car screens | `06-car-screens.md` |
 | 7 | Verification and acceptance | `07-verification-and-acceptance.md` |
@@ -113,4 +114,3 @@ Add only information that changes implementation choices, for example:
 - Whether earlier phases are present on the current branch or must be treated as prerequisites.
 
 Do not paste the whole roadmap into the prompt. The agent is required to read the source documents.
-

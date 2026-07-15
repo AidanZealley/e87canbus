@@ -1,9 +1,10 @@
 # Car frontend roadmap
 
 This directory specifies the phased implementation of the routed development workbench and
-in-car control centre. It is the source of truth for the intended behavior, ownership boundaries,
-interfaces, sequencing and verification. It does not grant authority for live BMW decoding,
-physical steering output or kiosk deployment.
+in-car control centre. The implemented architecture has since converged under
+`docs/unified-controller`; when these staging documents differ, the unified-controller contracts
+are authoritative. This roadmap does not grant authority for live BMW decoding, physical steering
+output or kiosk deployment.
 
 ## Product outcome
 
@@ -11,12 +12,12 @@ The React frontend will have three stable entry points:
 
 - `/` is a development-only chooser between the two application modes.
 - `/dev` preserves the current simulator workbench and adds deterministic controls for the new
-  simulated telemetry and device-health states.
+  simulated telemetry and explicit button-pad emulator exercise.
 - `/car` is an 800x480-landscape-first in-car display with overview, drive, steering and settings
   views behind a dedicated icon navigation layout.
 
-The coordinator will support the UI with simulation-only RPM and temperature messages, explicit
-device-health projections and revisioned application settings stored in the existing SQLite file.
+The coordinator supports the UI with simulation-only RPM and temperature messages, evidence-backed
+device-role projections and revisioned application settings stored in the existing SQLite file.
 Missing or stale data is always represented honestly; it must never become a convincing numeric
 zero in the car UI.
 
@@ -39,7 +40,7 @@ zero in the car UI.
 - Engine telemetry becomes stale after one coordinator-evaluated second.
 - Steering editing and settings remain available at any speed.
 - Car steering edits require confirmation to activate and never overwrite a saved profile.
-- Simulated degraded/offline states are UI test inputs, not real diagnostic criteria.
+- Device connection and observation remain unknown unless the selected adapter supplies evidence.
 
 ## Phases
 
@@ -48,7 +49,7 @@ zero in the car UI.
 | 1 | [Routing and layouts](01-routing-and-layouts.md) | Routed mode chooser, `/dev`, `/car` shell and shared theme control | Existing frontend |
 | 2 | [Application settings](02-application-settings.md) | Revisioned SQLite settings, API and frontend settings data flow | Phase 1 for final UI placement |
 | 3 | [Engine telemetry simulation](03-engine-telemetry-simulation.md) | RPM/oil/coolant through the normal simulation pipeline | Existing coordinator architecture |
-| 4 | [Device health](04-device-health.md) | Explicit device status contract and simulator controls | Existing simulator snapshots |
+| 4 | [Device roles](04-device-health.md) | Source, desired/observed and emulator-control contract | Unified controller composition |
 | 5 | [Car UI foundation](05-car-ui-foundation.md) | Shared car data provider, conversions, warnings and instruments | Phases 1-4 |
 | 6 | [Car screens](06-car-screens.md) | Overview, drive, steering and settings experiences | Phase 5 |
 | 7 | [Verification and acceptance](07-verification-and-acceptance.md) | Repository checks and 800x480 visual acceptance | Phases 1-6 |
@@ -62,13 +63,12 @@ data shapes; consume the committed contracts from the earlier phases.
 
 ```text
 Development controls
-  -> FastAPI simulator command
+  -> semantic HTTP command or explicit emulator press/release
   -> single-owner simulation engine
-  -> simulation-only CAN frame / explicit device state
+  -> generated custom-device or simulation-only vehicle CAN frame
   -> normal application transition and snapshot projection
-  -> HTTP snapshot + WebSocket publication
-  -> TanStack Query cache
-  -> long-lived /car layout provider
+  -> versioned Socket.IO publication
+  -> Zustand current-state store
   -> overview / drive / steering / settings views
 ```
 
@@ -116,7 +116,8 @@ PUT  /api/dev/simulation/vehicle/oil-temperature
 POST /api/dev/simulation/vehicle/oil-temperature/silence
 PUT  /api/dev/simulation/vehicle/coolant-temperature
 POST /api/dev/simulation/vehicle/coolant-temperature/silence
-PUT  /api/dev/simulation/devices/{device_id}/status
+POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/press
+POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/release
 ```
 
 Snapshot additions:
@@ -124,7 +125,7 @@ Snapshot additions:
 - `application.engine.rpm`
 - `application.engine.oil_temperature_c`
 - `application.engine.coolant_temperature_c`
-- top-level `devices`
+- `devices.state` button-pad role, desired/observed and fault projection
 
 WebSocket event addition:
 
@@ -148,7 +149,7 @@ the final integrated visual acceptance.
 
 - Verified BMW RPM, oil-temperature or coolant-temperature CAN identifiers.
 - Production CAN decoding for those signals.
-- Real device heartbeat intervals or degraded/offline thresholds.
+- Real device heartbeat intervals, connection inference or acknowledgement behavior.
 - Raspberry Pi kiosk startup, browser flags, display brightness integration or systemd services.
 - Authentication or non-loopback deployment policy.
 - Physical Servotronic command values, controller transport or live transmit authority.

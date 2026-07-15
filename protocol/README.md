@@ -26,3 +26,8 @@ BMW message definitions remain unverified until backed by a named capture in
 `--check` in verification. The explicit TypeScript event map in
 `frontend/src/api/live-events.ts` is checked against the schema's fixed event names; it contains
 transport types only and does not duplicate controller behavior or CAN constants.
+
+The `devices.state` button-pad projection identifies its selected physical, emulated, or observer
+source and keeps controller-desired LEDs separate from device-observed LEDs. Emulator observation
+means its decoder received a valid complete `0x701` frame. Physical connection and observation stay
+unknown until the wire protocol supplies evidence; a successful send is not an acknowledgement.

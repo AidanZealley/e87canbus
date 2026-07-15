@@ -13,6 +13,7 @@ from e87canbus.protocol.generated import (
     BUTTON_RELEASED,
     LED_COLOUR_GREEN,
     LED_COLOUR_OFF,
+    LED_COUNT,
 )
 from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 from e87canbus.simulation.devices import (
@@ -36,23 +37,34 @@ class MutableClock:
         return self.now
 
 
-def test_neotrellis_alternates_press_and_release_events() -> None:
+def test_neotrellis_sends_explicit_press_and_release_events() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     observer_bus = network.create_bus("observer")
     node = SimulatedNeoTrellisNode(
         bus=network.create_bus("neotrellis"),
         ids=ids,
-        button_index=3,
     )
 
-    first = node.send_next_button_event()
-    second = node.send_next_button_event()
+    first = node.send_button_event(3, pressed=True)
+    second = node.send_button_event(3, pressed=False)
 
     assert first == CanFrame(ids.button_event, bytes([3, BUTTON_PRESSED]))
     assert second == CanFrame(ids.button_event, bytes([3, BUTTON_RELEASED]))
     assert observer_bus.receive(timeout_s=0) == first
     assert observer_bus.receive(timeout_s=0) == second
+
+
+def test_neotrellis_rejects_buttons_outside_generated_device_positions() -> None:
+    ids = CustomCanIds()
+    network = InMemoryCanNetwork()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+    )
+
+    with pytest.raises(ValueError, match=f"between 0 and {LED_COUNT - 1}"):
+        node.send_button_event(LED_COUNT, pressed=True)
 
 
 def test_neotrellis_led_snapshot_replaces_all_colours() -> None:

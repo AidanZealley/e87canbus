@@ -98,7 +98,7 @@ last output fault
 - Controller-generated LED projection is desired state.
 - An emulator may expose observed state because its decoder actually received the output frame.
 - A physical pad without an acknowledgement remains `observed: unknown`.
-- Do not infer physical online/degraded/offline status from a simulator control or an output send.
+- Do not infer physical categorical health from a simulator control or an output send.
 - Existing simulator-only presentation health must remain explicitly labeled as simulation if
   retained.
 
@@ -192,4 +192,3 @@ No real CAN TX or steering output is authorized for acceptance.
   missing.
 - Reset and mode composition are deterministic and bounded.
 - Protocol generation, focused tests, repository checks and required browser scenarios pass.
-

@@ -1,3 +1,5 @@
+import gc
+import weakref
 from collections.abc import Callable
 from dataclasses import replace
 
@@ -10,6 +12,7 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config, simulator_config
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.generated import (
@@ -17,7 +20,10 @@ from e87canbus.protocol.generated import (
     LED_COLOUR_BLUE,
     LED_COLOUR_OFF,
     LED_COLOUR_WHITE,
+    LED_COUNT,
 )
+from e87canbus.runtime import SetMaximumAssistance
+from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
@@ -30,18 +36,13 @@ from e87canbus.simulation.runtime import (
     ResetSimulation,
     RunControlTimer,
     SetCoolantTemperature,
-    SetDeviceStatus,
     SetEngineRpm,
     SetOilTemperature,
     SetVehicleSpeed,
     SilenceOilTemperature,
     SilenceVehicleSpeed,
     SimulatedControllerRuntime,
-    SimulatedDeviceId,
-    SimulatedDeviceReason,
-    SimulatedDeviceStatus,
     SimulationSessionFailed,
-    StepButton,
     snapshot_to_dict,
 )
 
@@ -51,15 +52,15 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
-OFF_LEDS = (LED_COLOUR_OFF,) * 16
-AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * 15
-MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * 15
+OFF_LEDS = (LED_COLOUR_OFF,) * LED_COUNT
+AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
+MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
 MAXIMUM_LEDS = (
     LED_COLOUR_AMBER,
     LED_COLOUR_OFF,
     LED_COLOUR_OFF,
     LED_COLOUR_WHITE,
-) + (LED_COLOUR_OFF,) * 12
+) + (LED_COLOUR_OFF,) * (LED_COUNT - 4)
 
 
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
@@ -127,7 +128,6 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
 
     snapshot = controller.snapshot()
 
-    assert snapshot.next_pressed is True
     assert snapshot.application.speed_valid is False
     assert snapshot.application.engine.rpm.status is EngineTelemetryStatus.NEVER_OBSERVED
     assert snapshot.application.engine.rpm.value is None
@@ -139,81 +139,71 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
         is SteeringCommandReason.SPEED_NEVER_OBSERVED
     )
     assert snapshot.steering_controller.watchdog_timed_out is False
-    assert [device.id for device in snapshot.devices] == [
-        SimulatedDeviceId.BUTTON_PAD,
-        SimulatedDeviceId.STEERING_CONTROLLER,
-    ]
-    assert [device.status for device in snapshot.devices] == [
-        SimulatedDeviceStatus.ONLINE,
-        SimulatedDeviceStatus.ONLINE,
-    ]
-    assert all(device.reason is None for device in snapshot.devices)
+    assert len(snapshot.devices) == 1
+    button_pad = snapshot.devices[0]
+    assert button_pad.id is DeviceRole.BUTTON_PAD
+    assert button_pad.source_mode is DeviceSource.EMULATED
+    assert button_pad.connected is True
+    assert button_pad.desired_led_colours == AUTO_LEDS
+    assert button_pad.observed_led_colours == AUTO_LEDS
+    assert button_pad.last_seen_monotonic_s is not None
+    assert button_pad.last_output_fault is None
     assert snapshot.trace == ()
 
 
-@pytest.mark.parametrize("device_id", tuple(SimulatedDeviceId))
-@pytest.mark.parametrize(
-    ("status", "reason"),
-    [
-        (SimulatedDeviceStatus.DEGRADED, SimulatedDeviceReason.DEGRADED),
-        (SimulatedDeviceStatus.OFFLINE, SimulatedDeviceReason.OFFLINE),
-        (SimulatedDeviceStatus.ONLINE, None),
-    ],
-)
-def test_device_status_is_independent_and_maps_simulation_reason(
-    device_id: SimulatedDeviceId,
-    status: SimulatedDeviceStatus,
-    reason: SimulatedDeviceReason | None,
-) -> None:
-    engine = build_test_engine()
-    other_device_id = next(item for item in SimulatedDeviceId if item is not device_id)
-    engine.execute(SetDeviceStatus(device_id, SimulatedDeviceStatus.OFFLINE))
+@pytest.mark.parametrize("source", [DeviceSource.OBSERVER, DeviceSource.DISABLED])
+def test_non_emulated_roles_cannot_emit_button_input(source: DeviceSource) -> None:
+    controller = build_test_engine(button_pad_source=source)
 
-    result = engine.execute(SetDeviceStatus(device_id, status))
+    with pytest.raises(ControllerWorkUnavailable, match="emulated source role"):
+        controller.execute(PressButton(0))
 
-    selected = next(device for device in result.snapshot.devices if device.id is device_id)
-    other = next(device for device in result.snapshot.devices if device.id is other_device_id)
-    assert (selected.status, selected.reason) == (status, reason)
-    assert (other.status, other.reason) == (SimulatedDeviceStatus.ONLINE, None)
-    assert [event["type"] for event in result.events] == ["snapshot"]
-    assert "trace" not in result.events[0]["snapshot"]
+    snapshot = controller.snapshot()
+    assert snapshot.application.steering_mode is SteeringMode.AUTO
+    assert "button-pad-emulator" not in snapshot.networks[0].nodes
 
 
-def test_device_status_is_presentation_only_and_idempotent() -> None:
-    engine = build_test_engine()
-    before = engine.snapshot()
+def test_observer_projects_controller_desire_without_fabricating_observation() -> None:
+    controller = build_test_engine(button_pad_source=DeviceSource.OBSERVER)
 
-    first = engine.execute(
-        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
-    )
-    repeated = engine.execute(
-        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
-    )
+    result = controller.execute_controller_command(SetMaximumAssistance(True))
 
-    assert first.snapshot.application == repeated.snapshot.application == before.application
-    assert (
-        first.snapshot.steering_controller
-        == repeated.snapshot.steering_controller
-        == before.steering_controller
-    )
-    assert first.snapshot.trace == repeated.snapshot.trace == before.trace
-    assert first.snapshot.revision == repeated.snapshot.revision == before.revision
-    assert len(first.events) == len(repeated.events) == 1
+    button_pad = result.snapshot.devices[0]
+    assert button_pad.source_mode is DeviceSource.OBSERVER
+    assert button_pad.connected is None
+    assert button_pad.last_seen_monotonic_s is None
+    assert button_pad.desired_led_colours == MAXIMUM_LEDS
+    assert button_pad.observed_led_colours is None
+    assert button_pad.last_output_fault is None
+    assert all(entry.source != "pi" for entry in result.snapshot.trace)
 
 
-def test_offline_device_projection_does_not_inject_a_steering_fault() -> None:
-    engine = build_test_engine()
-    engine.execute(
-        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
-    )
+def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() -> None:
+    controller = build_test_engine(button_pad_source=DeviceSource.DISABLED)
 
-    engine.execute(PressButton(3))
-    controlled = engine.execute(RunControlTimer(0.1)).snapshot
+    result = controller.execute_controller_command(SetMaximumAssistance(True))
 
-    assert controlled.steering_controller.effective_assistance == 1.0
-    assert controlled.steering_controller.last_command_reason is SteeringCommandReason.MAXIMUM
-    assert controlled.steering_controller.watchdog_timed_out is False
-    assert controlled.fatal is False
+    assert result.snapshot.application.maximum_assistance_active is True
+    assert result.snapshot.led_colours == MAXIMUM_LEDS
+    assert result.snapshot.devices == ()
+
+
+def test_reset_releases_old_session_topology_devices_and_endpoints() -> None:
+    controller = build_test_engine()
+    old_topology = weakref.ref(controller.topology)
+    old_vehicle = weakref.ref(controller.vehicle)
+    assert controller.neotrellis is not None
+    old_emulator = weakref.ref(controller.neotrellis)
+    old_pi_buses = tuple(weakref.ref(bus) for bus in controller.pi_buses.values())
+
+    reset = controller.execute(ResetSimulation()).snapshot
+    gc.collect()
+
+    assert reset.session_id == 2
+    assert old_topology() is None
+    assert old_vehicle() is None
+    assert old_emulator() is None
+    assert all(reference() is None for reference in old_pi_buses)
 
 
 def test_first_startup_command_failure_has_serializable_fatal_snapshot() -> None:
@@ -235,7 +225,7 @@ def test_pressing_button_creates_button_event_frame() -> None:
 
     snapshot = controller.execute(PressButton(0)).snapshot
 
-    assert snapshot.trace[0].source == "neotrellis"
+    assert snapshot.trace[0].source == "button-pad-emulator"
     assert snapshot.trace[0].frame.arbitration_id == 0x700
     assert snapshot.trace[0].frame.data == b"\x00\x01"
     assert snapshot.trace[0].network is CanNetwork.KCAN
@@ -272,10 +262,6 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     controller.execute(SetEngineRpm(3500))
     controller.execute(SetOilTemperature(112.5))
     controller.execute(SetCoolantTemperature(98.0))
-    controller.execute(
-        SetDeviceStatus(SimulatedDeviceId.BUTTON_PAD, SimulatedDeviceStatus.DEGRADED)
-    )
-
     snapshot = controller.execute(ResetSimulation()).snapshot
 
     assert snapshot.application.steering_mode is SteeringMode.AUTO
@@ -291,10 +277,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     )
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
     assert snapshot.led_colours == AUTO_LEDS
-    assert all(
-        device.status is SimulatedDeviceStatus.ONLINE and device.reason is None
-        for device in snapshot.devices
-    )
+    assert snapshot.devices[0].observed_led_colours == AUTO_LEDS
     assert snapshot.trace == ()
 
     next_snapshot = controller.execute(PressButton(0)).snapshot
@@ -372,7 +355,7 @@ def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
     assert statuses[CanNetwork.KCAN].nodes == (
         "pi",
         "simulated-vehicle",
-        "neotrellis",
+        "button-pad-emulator",
     )
     assert statuses[CanNetwork.PTCAN].nodes == ("pi", "simulated-vehicle")
     assert statuses[CanNetwork.FCAN].nodes == ("pi", "simulated-vehicle")
@@ -398,20 +381,10 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
 
 
 def test_invalid_button_index_raises() -> None:
-    controller = build_test_engine(button_count=16)
-
-    with pytest.raises(ValueError, match="button_index"):
-        controller.execute(PressButton(16))
-
-
-def test_step_auto_preserves_alternating_behavior() -> None:
     controller = build_test_engine()
 
-    first = controller.execute(StepButton(0)).snapshot
-    second = controller.execute(StepButton(0)).snapshot
-
-    assert first.trace[0].frame.data == b"\x00\x01"
-    assert second.trace[-1].frame.data == b"\x00\x00"
+    with pytest.raises(ValueError, match="button_index"):
+        controller.execute(PressButton(LED_COUNT))
 
 
 def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() -> None:
@@ -513,14 +486,17 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
 
     assert accepted.application.steering_mode is SteeringMode.MANUAL
     assert accepted.led_colours == MANUAL_LEDS
+    assert accepted.devices[0].observed_led_colours == MANUAL_LEDS
     assert dropped.application.steering_mode is SteeringMode.AUTO
-    assert dropped.led_colours == MANUAL_LEDS
+    assert dropped.led_colours == AUTO_LEDS
+    assert dropped.devices[0].observed_led_colours == MANUAL_LEDS
     assert [entry.source for entry in dropped.trace].count("pi") == 1
 
     clock.now = 1.0
     before_next_decision = controller.snapshot()
 
-    assert before_next_decision.led_colours == MANUAL_LEDS
+    assert before_next_decision.led_colours == AUTO_LEDS
+    assert before_next_decision.devices[0].observed_led_colours == MANUAL_LEDS
     assert [entry.source for entry in before_next_decision.trace].count("pi") == 1
 
     converged = controller.execute(PressButton(3)).snapshot
@@ -547,7 +523,8 @@ def test_startup_and_reset_session_synchronization_each_use_network_budget() -> 
 
     assert initial.led_colours == AUTO_LEDS
     assert after_initial_startup.application.steering_mode is SteeringMode.MANUAL
-    assert after_initial_startup.led_colours == AUTO_LEDS
+    assert after_initial_startup.led_colours == MANUAL_LEDS
+    assert after_initial_startup.devices[0].observed_led_colours == AUTO_LEDS
     assert all(entry.source != "pi" for entry in after_initial_startup.trace)
 
     reset = controller.execute(ResetSimulation()).snapshot
@@ -555,7 +532,8 @@ def test_startup_and_reset_session_synchronization_each_use_network_budget() -> 
 
     assert reset.led_colours == AUTO_LEDS
     assert after_reset_startup.application.steering_mode is SteeringMode.MANUAL
-    assert after_reset_startup.led_colours == AUTO_LEDS
+    assert after_reset_startup.led_colours == MANUAL_LEDS
+    assert after_reset_startup.devices[0].observed_led_colours == AUTO_LEDS
     assert all(entry.source != "pi" for entry in after_reset_startup.trace)
 
 

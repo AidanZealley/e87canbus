@@ -35,9 +35,11 @@ The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one c
 Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature
 and coolant temperature. Engine controls show valid, never-observed and stale states without
 substituting numeric zero; their PT-CAN identifiers are simulation-only and are not BMW
-definitions. The same card selects explicit online, degraded and offline presentation states for
-the button pad and steering controller. Socket.IO live topics remain authoritative, missing devices
-display as offline/unavailable, and these controls do not alter simulated CAN or steering behavior.
+definitions. The button-pad card separates semantic controller commands from explicitly labeled
+emulator exercise. Emulator controls are enabled only for the `emulated` source role, emit the
+generated wire protocol, and display LEDs actually decoded by that emulator. Physical and observer
+roles show controller-desired LEDs with observation marked unknown; no UI control fabricates device
+health.
 Network filtering is local UI state and remains selected when the simulator is reset.
 
 ## Routes
@@ -66,10 +68,9 @@ Canonical speed/temperature conversions, three-degree Celsius temperature hyster
 derivation are pure utilities. Threshold changes re-evaluate the current valid temperature without
 carrying impossible old severity forward. `telemetry-value`, `temperature-gauge`, `rpm-bar` and
 `device-status-footer` are API-independent presentation components: missing values use an em dash
-and text status, the RPM bar clamps only its visual position at redline, and device entries remain
-in stable order with missing devices shown offline/unavailable. They use theme tokens or named
-Tailwind colors, distinguish destructive real offline health from muted unavailable placeholders,
-and do not encode final screen composition or physical touch sizes.
+and text status, the RPM bar clamps only its visual position at redline, and absent devices remain
+unavailable. The footer displays the selected source role and reports connection unknown when the
+protocol supplies no evidence; it does not turn desired output into observed state.
 
 ## Application settings data
 

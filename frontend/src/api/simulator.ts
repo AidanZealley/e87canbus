@@ -1,5 +1,3 @@
-import type { DevicesState } from "./live-events.ts"
-
 import { requestApi } from "./client.ts"
 
 const requestSimulationCommand = async (
@@ -23,12 +21,6 @@ export const releaseButton = (index: number) =>
     `/api/dev/simulation/devices/button-pad/buttons/${index}/release`,
     { method: "POST" }
   )
-
-export const stepSimulator = (index: number) =>
-  requestSimulationCommand("/api/dev/simulation/step", {
-    method: "POST",
-    body: JSON.stringify({ button_index: index }),
-  })
 
 export const setVehicleSpeed = (speedKph: number) =>
   requestSimulationCommand("/api/dev/simulation/vehicle/speed", {
@@ -79,14 +71,3 @@ export const silenceCoolantTemperature = () =>
       method: "POST",
     }
   )
-
-type Device = DevicesState["devices"][number]
-
-export const setDeviceStatus = (
-  deviceId: Device["id"],
-  status: Device["status"]
-) =>
-  requestSimulationCommand(`/api/dev/simulation/devices/${deviceId}/status`, {
-    method: "PUT",
-    body: JSON.stringify({ status }),
-  })

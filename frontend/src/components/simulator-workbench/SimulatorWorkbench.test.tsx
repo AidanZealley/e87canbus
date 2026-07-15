@@ -11,15 +11,13 @@ vi.mock("./components/simulated-vehicle-controls", () => ({
   SimulatedVehicleControls: ({
     speedKph,
     engine,
-    devices,
   }: {
     speedKph: number | null
     engine: { rpm: { value: number | null; status: string } }
-    devices: unknown[]
   }) => (
     <div data-testid="vehicle-controls">
       speed={speedKph ?? "unavailable"};rpm={engine.rpm.value ?? "unavailable"};
-      status={engine.rpm.status};devices={devices.length}
+      status={engine.rpm.status}
     </div>
   ),
 }))
@@ -51,8 +49,12 @@ it("masks workbench vehicle controls and curve state while disconnected", () => 
     {
       id: "button_pad",
       label: "Button pad",
-      status: "online",
-      reason: null,
+      source_mode: "emulated",
+      connected: true,
+      last_seen_monotonic_s: 1,
+      desired_led_colours: Array(16).fill(0),
+      observed_led_colours: Array(16).fill(0),
+      last_output_fault: null,
     },
   ]
   value.data.devices.steering_controller = {
@@ -68,13 +70,13 @@ it("masks workbench vehicle controls and curve state while disconnected", () => 
   )
   expect(
     screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
-  ).toContain("speed=72;rpm=4100;status=valid;devices=1")
+  ).toContain("speed=72;rpm=4100;status=valid")
   expect(screen.getByText("Live steering curve")).toBeTruthy()
 
   act(() => useLiveStore.getState().transportDisconnected())
 
   expect(
     screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
-  ).toContain("speed=unavailable;rpm=unavailable;status=stale;devices=0")
+  ).toContain("speed=unavailable;rpm=unavailable;status=stale")
   expect(screen.queryByText("Live steering curve")).toBeNull()
 })

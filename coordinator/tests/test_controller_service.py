@@ -7,15 +7,9 @@ from pathlib import Path
 import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.composition import (
-    ControllerMode,
-    DeviceAdapterSelection,
-    DeviceRole,
-    DeviceSource,
-    build_controller_service,
-    simulated_selection,
-)
-from e87canbus.config import default_config, simulator_config
+from e87canbus.composition import build_controller_service, simulated_selection
+from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.runtime import (
     CoordinatorKernel,
     DiagnosticSnapshot,
@@ -24,6 +18,7 @@ from e87canbus.runtime import (
 )
 from e87canbus.service import (
     ControllerAdapterSnapshot,
+    ControllerMode,
     ControllerService,
     ControllerServiceLifecycle,
     RuntimeExecution,
@@ -83,7 +78,7 @@ class RecordingRuntime:
         return (
             self.kernel.snapshot(),
             diagnostics,
-            ControllerAdapterSnapshot(None, (3,) + (0,) * 15, None, (), (), None),
+            ControllerAdapterSnapshot(None, (3,) + (0,) * 15, (), (), None),
         )
 
     @property
@@ -189,6 +184,31 @@ def test_duplicate_device_ingress_authority_is_rejected_before_startup() -> None
                 DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.PHYSICAL),
                 DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.EMULATED),
             ),
+        )
+
+
+def test_each_device_role_requires_exactly_one_source_selection() -> None:
+    selection = simulated_selection()
+
+    with pytest.raises(ValueError, match="exactly one selected source"):
+        replace(selection, device_adapters=())
+    with pytest.raises(ValueError, match="exactly one selected source"):
+        replace(
+            selection,
+            device_adapters=(
+                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
+                DeviceAdapterSelection(DeviceRole.BUTTON_PAD, DeviceSource.OBSERVER),
+            ),
+        )
+
+
+def test_emulated_button_pad_requires_authorized_kcan_output() -> None:
+    selection = simulated_selection()
+
+    with pytest.raises(ValueError, match="authorized simulated K-CAN output"):
+        replace(
+            selection,
+            tx_grants=selection.tx_grants - {CanNetwork.KCAN},
         )
 
 

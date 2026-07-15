@@ -9,18 +9,41 @@ const unavailableLedColours = Array<number>(LED_COUNT).fill(0)
 
 type SimulatorNeoTrellisProps = {
   pressedButtons: Set<number>
+  maximumAssistanceActive: boolean
+  semanticCommandPending: boolean
+  onMaximumAssistanceChange: (enabled: boolean) => void
   onPress: (index: number) => void
   onRelease: (index: number) => void
 }
 
 export const SimulatorNeoTrellis = ({
   pressedButtons,
+  maximumAssistanceActive,
+  semanticCommandPending,
+  onMaximumAssistanceChange,
   onPress,
   onRelease,
 }: SimulatorNeoTrellisProps) => {
-  const ledColours = useLiveStore((state) => state.buttons.led_colours)
+  const desiredLedColours = useLiveStore((state) => state.buttons.led_colours)
+  const device = useLiveStore(
+    (state) =>
+      state.devices.devices.find(
+        (candidate) => candidate.id === "button_pad"
+      ) ?? null
+  )
   const synchronized = useLiveStore((state) => state.connection.synchronized)
-  const displayedColours = synchronized ? ledColours : unavailableLedColours
+  const sourceMode = synchronized
+    ? (device?.source_mode ?? "disabled")
+    : "unavailable"
+  const emulatorControlsAvailable = sourceMode === "emulated"
+  const observedLedColours = device?.observed_led_colours ?? null
+  const displayedColours = synchronized
+    ? (observedLedColours ?? desiredLedColours)
+    : unavailableLedColours
+  const observationLabel =
+    observedLedColours === null
+      ? "Observed LEDs unknown; showing controller desired LEDs."
+      : "Showing LEDs decoded by the emulator from the output frame."
   const buttons: NeoTrellisButton[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
@@ -33,6 +56,13 @@ export const SimulatorNeoTrellis = ({
   return (
     <NeoTrellisPanel
       buttons={buttons}
+      sourceMode={sourceMode}
+      observationLabel={observationLabel}
+      emulatorControlsAvailable={emulatorControlsAvailable}
+      controllerControlsAvailable={synchronized}
+      maximumAssistanceActive={maximumAssistanceActive}
+      semanticCommandPending={semanticCommandPending}
+      onMaximumAssistanceChange={onMaximumAssistanceChange}
       onPress={onPress}
       onRelease={onRelease}
     />

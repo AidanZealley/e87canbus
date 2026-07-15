@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import uvicorn
@@ -20,7 +20,9 @@ from e87canbus.api.main import (
     PROFILE_DATABASE_ENVIRONMENT_VARIABLE,
     create_app,
 )
+from e87canbus.composition import live_selection, simulated_selection
 from e87canbus.config import default_config, simulator_config
+from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.service import ControllerMode
 
 
@@ -51,6 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--reload", action="store_true")
     parser.add_argument(
+        "--button-pad-source",
+        choices=tuple(DeviceSource),
+        help=(
+            "Select physical, emulated, observer, or disabled button-pad composition; "
+            "physical/emulated availability is validated against mode."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the selected configuration without opening adapters.",
@@ -66,10 +76,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     mode = ControllerMode(args.mode)
     config = simulator_config() if mode is ControllerMode.SIMULATED else default_config()
+    selection = (
+        simulated_selection(config)
+        if mode is ControllerMode.SIMULATED
+        else live_selection(config)
+    )
+    if args.button_pad_source is not None:
+        selection = replace(
+            selection,
+            device_adapters=(
+                DeviceAdapterSelection(
+                    DeviceRole.BUTTON_PAD,
+                    DeviceSource(args.button_pad_source),
+                ),
+            ),
+        )
     if args.dry_run:
         print(
             json.dumps(
-                {"mode": mode.value, "config": asdict(config)},
+                {
+                    "mode": mode.value,
+                    "config": asdict(config),
+                    "device_adapters": [
+                        {
+                            "role": item.role.value,
+                            "source": item.source.value,
+                        }
+                        for item in selection.device_adapters
+                    ],
+                },
                 indent=2,
                 sort_keys=True,
             )
@@ -81,6 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     api_main.app = create_app(
         mode=mode,
         config=config,
+        selection=selection,
         profile_database_path=args.profile_database,
         cors_origins=args.cors_origins or DEFAULT_CORS_ORIGINS,
     )

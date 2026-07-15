@@ -30,7 +30,6 @@ vi.mock("@/components/simulator-workbench", async () => {
           autoScroll
           onAutoScrollChange={vi.fn()}
           onReset={vi.fn()}
-          onStep={vi.fn()}
         />
       </div>
     ),

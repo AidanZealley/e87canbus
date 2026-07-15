@@ -88,22 +88,10 @@
             "minItems": 16,
             "title": "Led Colours",
             "type": "array"
-          },
-          "next_pressed": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Pressed"
           }
         },
         "required": [
-          "led_colours",
-          "next_pressed"
+          "led_colours"
         ],
         "title": "ButtonsState",
         "type": "object"
@@ -203,11 +191,30 @@
       "DeviceState": {
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "enum": [
-              "button_pad",
-              "steering_controller"
+          "connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
             ],
+            "title": "Connected"
+          },
+          "desired_led_colours": {
+            "items": {
+              "maximum": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 16,
+            "title": "Desired Led Colours",
+            "type": "array"
+          },
+          "id": {
+            "const": "button_pad",
             "title": "Id",
             "type": "string"
           },
@@ -215,36 +222,65 @@
             "title": "Label",
             "type": "string"
           },
-          "reason": {
+          "last_output_fault": {
             "anyOf": [
               {
-                "enum": [
-                  "simulated_degraded",
-                  "simulated_offline"
-                ],
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Last Output Fault"
           },
-          "status": {
-            "enum": [
-              "online",
-              "degraded",
-              "offline"
+          "last_seen_monotonic_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Status",
+            "title": "Last Seen Monotonic S"
+          },
+          "observed_led_colours": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 5,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 16,
+                "minItems": 16,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Led Colours"
+          },
+          "source_mode": {
+            "enum": [
+              "physical",
+              "emulated",
+              "observer"
+            ],
+            "title": "Source Mode",
             "type": "string"
           }
         },
         "required": [
           "id",
           "label",
-          "status",
-          "reason"
+          "source_mode",
+          "connected",
+          "last_seen_monotonic_s",
+          "desired_led_colours",
+          "observed_led_colours",
+          "last_output_fault"
         ],
         "title": "DeviceState",
         "type": "object"

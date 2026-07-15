@@ -6,13 +6,13 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from enum import StrEnum
 from typing import Any, assert_never
 
-from e87canbus.application.controller import ApplicationSnapshot
+from e87canbus.application.controller import ApplicationSnapshot, button_led_state
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
+from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
     CanEffectFailure,
@@ -21,6 +21,7 @@ from e87canbus.output import (
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
+from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.runtime import (
     SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
     ActivateSteeringCurve,
@@ -30,6 +31,7 @@ from e87canbus.runtime import (
     CoordinatorKernel,
     KernelStarted,
     ReceivedCanFrame,
+    RuntimeFaultKind,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -62,40 +64,15 @@ class SimulatedSteeringSnapshot:
     watchdog_timed_out: bool
 
 
-class SimulatedDeviceId(StrEnum):
-    BUTTON_PAD = "button_pad"
-    STEERING_CONTROLLER = "steering_controller"
-
-
-class SimulatedDeviceStatus(StrEnum):
-    ONLINE = "online"
-    DEGRADED = "degraded"
-    OFFLINE = "offline"
-
-
-class SimulatedDeviceReason(StrEnum):
-    DEGRADED = "simulated_degraded"
-    OFFLINE = "simulated_offline"
-
-
-@dataclass(frozen=True)
-class SimulatedDeviceSnapshot:
-    id: SimulatedDeviceId
-    label: str
-    status: SimulatedDeviceStatus
-    reason: SimulatedDeviceReason | None
-
-
 @dataclass(frozen=True)
 class SimulatorSnapshot:
     session_id: int
     revision: int
     fatal: bool
     application: ApplicationSnapshot
-    next_pressed: bool
     led_colours: tuple[int, ...]
     steering_controller: SimulatedSteeringSnapshot
-    devices: tuple[SimulatedDeviceSnapshot, ...]
+    devices: tuple[DeviceProjection, ...]
     networks: tuple[SimulatedNetworkStatus, ...]
     trace: tuple[SimulatedCanTraceEntry, ...]
 
@@ -107,11 +84,6 @@ class PressButton:
 
 @dataclass(frozen=True)
 class ReleaseButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class StepButton:
     index: int
 
 
@@ -161,12 +133,6 @@ class SilenceCoolantTemperature:
 
 
 @dataclass(frozen=True)
-class SetDeviceStatus:
-    device_id: SimulatedDeviceId
-    status: SimulatedDeviceStatus
-
-
-@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
@@ -174,7 +140,6 @@ class ResetSimulation:
 SimulationCommand = (
     PressButton
     | ReleaseButton
-    | StepButton
     | RunControlTimer
     | SetVehicleSpeed
     | SilenceVehicleSpeed
@@ -184,7 +149,6 @@ SimulationCommand = (
     | SilenceOilTemperature
     | SetCoolantTemperature
     | SilenceCoolantTemperature
-    | SetDeviceStatus
     | ResetSimulation
 )
 
@@ -290,7 +254,6 @@ def snapshot_to_dict(
                 ],
             },
         },
-        "next_pressed": snapshot.next_pressed,
         "led_colours": snapshot.led_colours,
         "steering_controller": {
             "effective_assistance": snapshot.steering_controller.effective_assistance,
@@ -305,8 +268,12 @@ def snapshot_to_dict(
             {
                 "id": device.id.value,
                 "label": device.label,
-                "status": device.status.value,
-                "reason": None if device.reason is None else device.reason.value,
+                "source_mode": device.source_mode.value,
+                "connected": device.connected,
+                "last_seen_monotonic_s": device.last_seen_monotonic_s,
+                "desired_led_colours": device.desired_led_colours,
+                "observed_led_colours": device.observed_led_colours,
+                "last_output_fault": device.last_output_fault,
             }
             for device in snapshot.devices
         ],
@@ -334,27 +301,26 @@ class SimulatedControllerRuntime:
     def __init__(
         self,
         ids: CustomCanIds | None = None,
-        button_count: int = 16,
         *,
         config: AppConfig | None = None,
+        button_pad_source: DeviceSource = DeviceSource.EMULATED,
         clock: Callable[[], float] = time.monotonic,
         steering_controller_factory: SteeringControllerFactory = SimulatedSteeringController,
         supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
             SUPPORTED_STEERING_CURVE_INTERPOLATIONS
         ),
     ) -> None:
-        if button_count < 1 or button_count > 256:
-            raise ValueError("button_count must be between 1 and 256")
         self.config = config or simulator_config()
         if ids is not None:
             self.config = replace(self.config, custom_can_ids=ids)
-        self.button_count = button_count
+        if button_pad_source is DeviceSource.PHYSICAL:
+            raise ValueError("physical button pad cannot use the in-memory simulation runtime")
+        self.button_pad_source = button_pad_source
         self._clock = clock
         self._steering_controller_factory = steering_controller_factory
         self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
         self._started = False
-        self._devices: tuple[SimulatedDeviceSnapshot, ...]
         self._execution_commits: list[Commit] = []
 
     def start(self) -> SimulationResult:
@@ -374,10 +340,9 @@ class SimulatedControllerRuntime:
             revision=diagnostics.revision,
             fatal=diagnostics.health.fatal,
             application=self.kernel.snapshot(),
-            next_pressed=self.neotrellis.next_pressed,
-            led_colours=self.neotrellis.led_colours,
+            led_colours=self._desired_led_colours(),
             steering_controller=self._steering_snapshot(),
-            devices=self._devices,
+            devices=self._device_projections(),
             networks=tuple(
                 SimulatedNetworkStatus(
                     config=network_config,
@@ -408,10 +373,6 @@ class SimulatedControllerRuntime:
                 self._send_button(index, pressed=True)
             case ReleaseButton(index):
                 self._send_button(index, pressed=False)
-            case StepButton(index):
-                self._validate_button_index(index)
-                self.neotrellis.button_index = index
-                self.neotrellis.send_next_button_event()
             case RunControlTimer(now):
                 self.vehicle.emit_speed()
                 self.vehicle.emit_engine_rpm()
@@ -436,13 +397,6 @@ class SimulatedControllerRuntime:
                 self.vehicle.set_coolant_temperature(temperature_c)
             case SilenceCoolantTemperature():
                 self.vehicle.silence_coolant_temperature()
-            case SetDeviceStatus(device_id, status):
-                self._devices = tuple(
-                    _device_snapshot(device.id, status)
-                    if device.id is device_id
-                    else device
-                    for device in self._devices
-                )
             case ResetSimulation():
                 replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
@@ -498,7 +452,6 @@ class SimulatedControllerRuntime:
 
     def _build_session(self) -> None:
         self._session_id += 1
-        self._devices = tuple(_device_snapshot(device_id) for device_id in SimulatedDeviceId)
         self.topology = InMemoryCanTopology(
             trace_capacity=self.config.simulation.trace_capacity,
             clock=self._clock,
@@ -510,7 +463,13 @@ class SimulatedControllerRuntime:
         for item in enabled:
             bus = self.topology.create_bus(item.network, "pi")
             self.pi_buses[item.network] = bus
-            if item.tx_enabled:
+            if (
+                item.tx_enabled
+                and (
+                    item.network is not CanNetwork.KCAN
+                    or self.button_pad_source is DeviceSource.EMULATED
+                )
+            ):
                 transmitters[item.network] = SafeCanTransmitter(
                     bus,
                     self.config.tx_policy,
@@ -522,16 +481,24 @@ class SimulatedControllerRuntime:
         }
         self.vehicle = SimulatedVehicleNode(vehicle_buses)
 
-        self.neotrellis = SimulatedNeoTrellisNode(
-            bus=self.topology.create_bus(CanNetwork.KCAN, "neotrellis"),
-            ids=self.config.custom_can_ids,
+        self.neotrellis = (
+            SimulatedNeoTrellisNode(
+                bus=self.topology.create_bus(CanNetwork.KCAN, "button-pad-emulator"),
+                ids=self.config.custom_can_ids,
+                clock=self._clock,
+            )
+            if self.button_pad_source is DeviceSource.EMULATED
+            else None
         )
         self.steering_controller = self._steering_controller_factory(
             self.config.simulation.steering_watchdog_timeout_s,
             self._clock,
         )
 
-        router = SimulationProtocolRouter(self.config.custom_can_ids)
+        router = SimulationProtocolRouter(
+            self.config.custom_can_ids,
+            button_input_enabled=self.button_pad_source is DeviceSource.EMULATED,
+        )
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
             engine_telemetry_config=self.config.engine_telemetry,
@@ -547,14 +514,14 @@ class SimulatedControllerRuntime:
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
             raise RuntimeError("simulation kernel did not start")
-        self.neotrellis.process_pending_led_snapshots()
+        if self.neotrellis is not None:
+            self.neotrellis.process_pending_led_snapshots()
         self.vehicle.drain_pending()
         self.topology.clear_trace()
 
     def _send_button(self, button_index: int, pressed: bool) -> None:
-        self._validate_button_index(button_index)
-        self.neotrellis.send_button_event(button_index, pressed)
-        self.neotrellis.next_pressed = not pressed
+        neotrellis = self._require_emulated_button_pad()
+        neotrellis.send_button_event(button_index, pressed)
 
     def _process_pending(
         self,
@@ -563,7 +530,8 @@ class SimulatedControllerRuntime:
         snapshot_trace: bool | None,
     ) -> SimulationResult:
         self._drain_kernel_inputs()
-        self.neotrellis.process_pending_led_snapshots()
+        if self.neotrellis is not None:
+            self.neotrellis.process_pending_led_snapshots()
         self.vehicle.drain_pending()
 
         snapshot = self.snapshot()
@@ -623,9 +591,52 @@ class SimulatedControllerRuntime:
             watchdog_timed_out=self.steering_controller.watchdog_timed_out,
         )
 
-    def _validate_button_index(self, button_index: int) -> None:
-        if not 0 <= button_index < self.button_count:
-            raise ValueError(f"button_index must be between 0 and {self.button_count - 1}")
+    def _desired_led_colours(self) -> tuple[int, ...]:
+        return tuple(
+            LED_COLOUR_CODES[colour]
+            for colour in button_led_state(self.kernel.state).colours
+        )
+
+    def _device_projections(self) -> tuple[DeviceProjection, ...]:
+        if self.button_pad_source is DeviceSource.DISABLED:
+            return ()
+        emulator = self.neotrellis
+        return (
+            DeviceProjection(
+                id=DeviceRole.BUTTON_PAD,
+                label="Button pad",
+                source_mode=self.button_pad_source,
+                connected=True if emulator is not None else None,
+                last_seen_monotonic_s=(
+                    None if emulator is None else emulator.last_seen_monotonic_s
+                ),
+                desired_led_colours=self._desired_led_colours(),
+                observed_led_colours=(
+                    None if emulator is None else emulator.led_colours
+                ),
+                last_output_fault=self._button_output_fault(),
+            ),
+        )
+
+    def _button_output_fault(self) -> str | None:
+        network = next(
+            item
+            for item in self.kernel.health.networks
+            if item.network is CanNetwork.KCAN
+        )
+        if (
+            network.fault is None
+            or network.fault.kind is not RuntimeFaultKind.CAN_EFFECT_EXECUTION
+        ):
+            return None
+        return network.fault.message
+
+    def _require_emulated_button_pad(self) -> SimulatedNeoTrellisNode:
+        if self.neotrellis is None:
+            raise ControllerWorkUnavailable(
+                "button-pad emulator controls require the emulated source role"
+            )
+        return self.neotrellis
 
     def _require_started(self) -> None:
         if not self._started:
@@ -643,19 +654,3 @@ def _effect_failure_input(
             return SteeringActuatorFailed(failed_at, message)
         case _:
             assert_never(failure)
-
-
-def _device_snapshot(
-    device_id: SimulatedDeviceId,
-    status: SimulatedDeviceStatus = SimulatedDeviceStatus.ONLINE,
-) -> SimulatedDeviceSnapshot:
-    labels = {
-        SimulatedDeviceId.BUTTON_PAD: "Button pad",
-        SimulatedDeviceId.STEERING_CONTROLLER: "Steering controller",
-    }
-    reasons = {
-        SimulatedDeviceStatus.ONLINE: None,
-        SimulatedDeviceStatus.DEGRADED: SimulatedDeviceReason.DEGRADED,
-        SimulatedDeviceStatus.OFFLINE: SimulatedDeviceReason.OFFLINE,
-    }
-    return SimulatedDeviceSnapshot(device_id, labels[device_id], status, reasons[status])

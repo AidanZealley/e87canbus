@@ -150,8 +150,10 @@ Use CSS/Tailwind and semantic markup unless an SVG materially improves scale ren
 
 ### Device footer
 
-Render button pad and steering controller in stable order with label, status and optional reason.
-Missing devices are unavailable/offline. Keep the visible footprint minimal and expose detail
+Render the button-pad role with its label, selected source and evidence-backed connection state.
+Show output faults distinctly. A null connection is explicitly unknown; an absent role is an
+unavailable capability. Do not infer device state from controller desire, network-node strings or
+the separate simulated steering actuator. Keep the visible footprint minimal and expose detail
 accessibly.
 
 ## Responsive and styling rules
@@ -198,4 +200,3 @@ Components:
 - Reusable instruments represent unavailable data honestly.
 - Connection/settings failures have compact shared presentation.
 - Foundation components fit the 800x480 shell without deciding final physical control sizes.
-

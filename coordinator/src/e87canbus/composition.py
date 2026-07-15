@@ -10,6 +10,7 @@ from enum import StrEnum
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_config
+from e87canbus.device import DeviceAdapterSelection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.live import LiveControllerRuntime
 from e87canbus.runtime import (
@@ -26,7 +27,6 @@ from e87canbus.service import (
     ControllerMode,
     ControllerRuntimeAdapter,
     ControllerService,
-    ObservedDeviceSnapshot,
     ObservedNetworkSnapshot,
     ObservedSteeringSnapshot,
     RuntimeExecution,
@@ -39,7 +39,6 @@ from e87canbus.simulation.runtime import (
     ResetSimulation,
     RunControlTimer,
     SetCoolantTemperature,
-    SetDeviceStatus,
     SetEngineRpm,
     SetOilTemperature,
     SetVehicleSpeed,
@@ -51,24 +50,12 @@ from e87canbus.simulation.runtime import (
     SimulationCommand,
     SimulationSessionFailed,
     SimulatorSnapshot,
-    StepButton,
 )
 
 
 class CanAdapterKind(StrEnum):
     SOCKETCAN = "socketcan"
     VIRTUAL = "virtual"
-    DISABLED = "disabled"
-
-
-class DeviceRole(StrEnum):
-    BUTTON_PAD = "button_pad"
-
-
-class DeviceSource(StrEnum):
-    PHYSICAL = "physical"
-    EMULATED = "emulated"
-    OBSERVER = "observer"
     DISABLED = "disabled"
 
 
@@ -85,12 +72,6 @@ class CanAdapterSelection:
 
 
 @dataclass(frozen=True)
-class DeviceAdapterSelection:
-    role: DeviceRole
-    source: DeviceSource
-
-
-@dataclass(frozen=True)
 class CompositionSelection:
     mode: ControllerMode
     can_adapters: tuple[CanAdapterSelection, ...]
@@ -104,14 +85,12 @@ class CompositionSelection:
             raise ValueError("each CAN network must have exactly one selected adapter")
 
         for role in DeviceRole:
-            authorities = [
-                item
-                for item in self.device_adapters
-                if item.role is role
-                and item.source in (DeviceSource.PHYSICAL, DeviceSource.EMULATED)
-            ]
-            if len(authorities) > 1:
-                raise ValueError(f"duplicate ingress authority for device role {role.value}")
+            selected = [item for item in self.device_adapters if item.role is role]
+            if len(selected) != 1:
+                raise ValueError(
+                    f"device role {role.value} must have exactly one selected source; "
+                    "duplicate ingress authority is not allowed"
+                )
 
         if self.steering is SteeringCapability.PHYSICAL_EVIDENCE_GATED:
             raise ValueError("physical steering has no evidence-backed implementation or grant")
@@ -129,6 +108,29 @@ class CompositionSelection:
                 raise ValueError("simulated composition cannot select SocketCAN")
             if self.steering is not SteeringCapability.SIMULATED:
                 raise ValueError("simulated composition requires the simulated steering adapter")
+
+        by_network = {item.network: item.kind for item in self.can_adapters}
+        button_source = self.device_source(DeviceRole.BUTTON_PAD)
+        if button_source is DeviceSource.PHYSICAL and (
+            self.mode is not ControllerMode.LIVE
+            or by_network.get(CanNetwork.KCAN) is not CanAdapterKind.SOCKETCAN
+        ):
+            raise ValueError("physical button pad requires live SocketCAN K-CAN")
+        if button_source is DeviceSource.EMULATED and (
+            self.mode is not ControllerMode.SIMULATED
+            or by_network.get(CanNetwork.KCAN) is not CanAdapterKind.VIRTUAL
+        ):
+            raise ValueError("emulated button pad requires simulated virtual K-CAN")
+        if (
+            button_source is DeviceSource.EMULATED
+            and CanNetwork.KCAN not in self.tx_grants
+        ):
+            raise ValueError(
+                "emulated button pad requires authorized simulated K-CAN output"
+            )
+
+    def device_source(self, role: DeviceRole) -> DeviceSource:
+        return next(item.source for item in self.device_adapters if item.role is role)
 
 
 def live_selection(config: AppConfig | None = None) -> CompositionSelection:
@@ -214,9 +216,11 @@ def build_controller_service(
     _validate_network_selection(selected_config, selected)
 
     if mode is ControllerMode.SIMULATED:
+        button_source = selected.device_source(DeviceRole.BUTTON_PAD)
         runtime: ControllerRuntimeAdapter = _SimulatedRuntimeAdapter(
             SimulatedControllerRuntime(
                 config=selected_config,
+                button_pad_source=button_source,
                 clock=clock,
                 steering_controller_factory=steering_controller_factory,
                 supported_steering_curve_interpolations=(
@@ -227,6 +231,7 @@ def build_controller_service(
     else:
         runtime = LiveControllerRuntime(
             selected_config,
+            button_pad_source=selected.device_source(DeviceRole.BUTTON_PAD),
             tx_grants=selected.tx_grants,
             bus_factory=socketcan_factory,
             clock=clock,
@@ -267,7 +272,6 @@ def _validate_network_selection(
 _SIMULATION_COMMAND_TYPES = (
     PressButton,
     ReleaseButton,
-    StepButton,
     RunControlTimer,
     SetVehicleSpeed,
     SilenceVehicleSpeed,
@@ -277,7 +281,6 @@ _SIMULATION_COMMAND_TYPES = (
     SilenceOilTemperature,
     SetCoolantTemperature,
     SilenceCoolantTemperature,
-    SetDeviceStatus,
     ResetSimulation,
 )
 
@@ -340,16 +343,7 @@ class _SimulatedRuntimeAdapter:
             ControllerAdapterSnapshot(
                 simulation_session_id=snapshot.session_id,
                 led_colours=snapshot.led_colours,
-                next_pressed=snapshot.next_pressed,
-                devices=tuple(
-                    ObservedDeviceSnapshot(
-                        id=device.id.value,
-                        label=device.label,
-                        status=device.status.value,
-                        reason=None if device.reason is None else device.reason.value,
-                    )
-                    for device in snapshot.devices
-                ),
+                devices=snapshot.devices,
                 networks=tuple(
                     ObservedNetworkSnapshot(
                         network=network.config.network,
@@ -396,10 +390,7 @@ class _SimulatedRuntimeAdapter:
                 or previous.steering_controller != result.snapshot.steering_controller
             ):
                 changed_topics.add(StateTopic.DEVICES)
-            if (
-                previous.led_colours != result.snapshot.led_colours
-                or previous.next_pressed != result.snapshot.next_pressed
-            ):
+            if previous.led_colours != result.snapshot.led_colours:
                 changed_topics.add(StateTopic.BUTTONS)
         self._previous_snapshot = result.snapshot
         commit_count = len(result.commits)

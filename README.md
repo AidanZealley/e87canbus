@@ -37,6 +37,12 @@ The simulator operates external nodes and follows that same path rather than inj
 events or state. A button-pad LED decision is one complete 16-colour state, one effect, and one
 provisional `0x701` DLC-8 frame; accepted frames replace the simulated device state atomically.
 
+Each repository-owned button-pad composition selects exactly one `physical`, `emulated`,
+`observer`, or `disabled` source. The workbench's emulator controls emit the generated `0x700` wire
+message and are unavailable outside the emulated role. Dashboard operational controls use semantic
+HTTP commands instead. Desired LEDs and observed emulator LEDs remain distinct; physical
+observation is unknown because the protocol has no acknowledgement or heartbeat.
+
 ## Local Setup
 
 ```bash

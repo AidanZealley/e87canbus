@@ -27,8 +27,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { deviceOrUnavailable, type PresentedDevice } from "../../utils"
-import { DeviceStatusControl } from "./DeviceStatusControl"
 import { TelemetrySignalControl } from "./TelemetrySignalControl"
 
 const MIN_SPEED_KPH = 0
@@ -37,13 +35,11 @@ const MAX_SPEED_KPH = 300
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
   engine: EngineState
-  devices: PresentedDevice[]
 }
 
 export const SimulatedVehicleControls = ({
   speedKph,
   engine,
-  devices,
 }: SimulatedVehicleControlsProps) => {
   const [draftSpeed, setDraftSpeed] = useState<number | "">(speedKph ?? 0)
   const speedMutation = useMutation({
@@ -199,26 +195,13 @@ export const SimulatedVehicleControls = ({
             onSilence={() => coolantMutation.mutate(null)}
           />
 
-          <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
-            <DeviceStatusControl
-              device={deviceOrUnavailable(devices, "button_pad", "Button pad")}
-            />
-            <DeviceStatusControl
-              device={deviceOrUnavailable(
-                devices,
-                "steering_controller",
-                "Steering controller"
-              )}
-            />
-          </div>
         </div>
       </CardContent>
 
       <CardFooter>
         <p className="text-xs text-muted-foreground">
           Speed uses simulated F-CAN. Engine signals use simulation-only PT-CAN
-          frames; none are BMW definitions. Device status is presentation-only
-          and does not change simulated behavior.
+          frames; none are BMW definitions.
         </p>
       </CardFooter>
     </Card>

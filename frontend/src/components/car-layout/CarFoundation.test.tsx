@@ -52,53 +52,39 @@ it("renders severity and RPM stage as text in addition to color", () => {
   )
 })
 
-it("keeps device order stable and fails missing entries closed", () => {
+it("fails an absent custom device closed", () => {
   const { container } = render(
-    <DeviceStatusFooter
-      devices={[
-        {
-          id: "steering_controller",
-          label: "Steering controller",
-          status: "degraded",
-          reason: "simulated warning",
-        },
-      ]}
-    />
+    <DeviceStatusFooter devices={[]} />
   )
 
   const footer = screen.getByRole("contentinfo", { name: "Device status" })
-  const text = footer.textContent ?? ""
-  expect(text.indexOf("Button pad")).toBeLessThan(
-    text.indexOf("Steering controller")
-  )
-  expect(within(footer).getByText("offline")).toBeTruthy()
-  expect(within(footer).getByText(/unavailable/)).toBeTruthy()
-  expect(within(footer).getByText("degraded")).toBeTruthy()
-  expect(within(footer).getByText(/simulated warning/)).toBeTruthy()
+  expect(within(footer).getByText("Button pad")).toBeTruthy()
+  expect(within(footer).getByText("Unavailable")).toBeTruthy()
   expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
 })
 
-it("distinguishes destructive offline health from muted unavailable fallback", () => {
+it("does not present physical desired state as an observation", () => {
   const { container } = render(
     <DeviceStatusFooter
       devices={[
         {
-          id: "steering_controller",
-          label: "Steering controller",
-          status: "offline",
-          reason: "simulated_offline",
+          id: "button_pad",
+          label: "Button pad",
+          source_mode: "physical",
+          connected: null,
+          last_seen_monotonic_s: null,
+          desired_led_colours: Array(16).fill(0),
+          observed_led_colours: null,
+          last_output_fault: null,
         },
       ]}
     />
   )
 
-  const unavailableRow = screen.getByText("Button pad").parentElement
-  const offlineRow = screen.getByText("Steering controller").parentElement
-  expect(unavailableRow?.querySelector(".bg-muted-foreground")).toBeTruthy()
-  expect(unavailableRow?.querySelector(".bg-destructive")).toBeNull()
-  expect(offlineRow?.querySelector(".bg-destructive")).toBeTruthy()
-  expect(offlineRow?.querySelector(".text-destructive")).toBeTruthy()
-  expect(container.textContent).toContain("simulated_offline")
+  expect(screen.getByText("physical")).toBeTruthy()
+  expect(screen.getByText(/connection unknown/)).toBeTruthy()
+  expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
+  expect(container.querySelector(".bg-emerald-500")).toBeNull()
 })
 
 describe.each(["light", "dark"])("%s theme", (theme) => {
@@ -119,14 +105,12 @@ describe.each(["light", "dark"])("%s theme", (theme) => {
             {
               id: "button_pad",
               label: "Button pad",
-              status: "online",
-              reason: null,
-            },
-            {
-              id: "steering_controller",
-              label: "Steering controller",
-              status: "offline",
-              reason: "simulated offline",
+              source_mode: "emulated",
+              connected: true,
+              last_seen_monotonic_s: 1,
+              desired_led_colours: Array(16).fill(0),
+              observed_led_colours: Array(16).fill(0),
+              last_output_fault: null,
             },
           ]}
         />

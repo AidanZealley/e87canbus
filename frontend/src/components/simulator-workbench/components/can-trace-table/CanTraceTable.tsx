@@ -251,8 +251,7 @@ export const CanTraceTable = ({
               </EmptyMedia>
               <EmptyTitle>No frames captured</EmptyTitle>
               <EmptyDescription>
-                Press a NeoTrellis key or run a simulator step to populate the
-                trace.
+                Press a button-pad emulator key to populate the trace.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

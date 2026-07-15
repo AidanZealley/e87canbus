@@ -11,6 +11,7 @@ from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
 LedCode = Annotated[int, Field(ge=0, le=5)]
+LedSnapshot = Annotated[tuple[LedCode, ...], Field(min_length=16, max_length=16)]
 
 
 class LiveModel(BaseModel):
@@ -71,15 +72,18 @@ class SteeringState(LiveModel):
 
 
 class ButtonsState(LiveModel):
-    led_colours: tuple[LedCode, ...] = Field(min_length=16, max_length=16)
-    next_pressed: bool | None
+    led_colours: LedSnapshot
 
 
 class DeviceState(LiveModel):
-    id: Literal["button_pad", "steering_controller"]
+    id: Literal["button_pad"]
     label: str
-    status: Literal["online", "degraded", "offline"]
-    reason: Literal["simulated_degraded", "simulated_offline"] | None
+    source_mode: Literal["physical", "emulated", "observer"]
+    connected: bool | None
+    last_seen_monotonic_s: float | None
+    desired_led_colours: LedSnapshot
+    observed_led_colours: LedSnapshot | None
+    last_output_fault: str | None
 
 
 class NetworkState(LiveModel):
@@ -256,7 +260,6 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
 def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     return ButtonsState(
         led_colours=snapshot.adapter.led_colours,
-        next_pressed=snapshot.adapter.next_pressed,
     )
 
 
@@ -266,10 +269,14 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
         devices=tuple(
             DeviceState.model_validate(
                 {
-                    "id": device.id,
+                    "id": device.id.value,
                     "label": device.label,
-                    "status": device.status,
-                    "reason": device.reason,
+                    "source_mode": device.source_mode.value,
+                    "connected": device.connected,
+                    "last_seen_monotonic_s": device.last_seen_monotonic_s,
+                    "desired_led_colours": device.desired_led_colours,
+                    "observed_led_colours": device.observed_led_colours,
+                    "last_output_fault": device.last_output_fault,
                 }
             )
             for device in snapshot.adapter.devices

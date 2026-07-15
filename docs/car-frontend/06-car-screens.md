@@ -25,12 +25,13 @@ The card is read-only. Do not add mode or assistance controls.
 Resolve the profile name from the existing profile catalog query. An unavailable catalog must not
 hide the active curve's functional state; show a neutral unknown/modified label instead.
 
-### Temperatures and devices
+### Temperatures and device role
 
 - Show oil and coolant gauges using effective settings and Phase 5 severity.
 - Invalid readings use an em dash and explicit state.
 - Do not add speed or RPM to this page.
-- Place the minimal two-device status footer at the bottom.
+- Place the minimal button-pad source/connection footer at the bottom. Unknown evidence must remain
+  visibly unknown.
 
 ## Drive: `/car/drive`
 
@@ -138,7 +139,8 @@ Overview:
 - One-based manual level and effective percent.
 - Saved, modified and unavailable profile labels.
 - Valid/warning/critical/stale temperatures.
-- All device states and missing-device fallback.
+- Physical, emulated and observer source presentation, unknown connection evidence, output fault
+  and missing-role fallback.
 
 Drive:
 
@@ -185,4 +187,3 @@ Routes:
 - Settings are atomic, revision-aware and canonical-unit safe.
 - Missing data and failures remain visible and honest.
 - No physical-output, BMW decoding or kiosk authority is added.
-
