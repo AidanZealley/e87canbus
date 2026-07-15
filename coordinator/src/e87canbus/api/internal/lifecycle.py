@@ -20,10 +20,14 @@ def create_lifespan(
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if database is not None:
-            await asyncio.to_thread(database.initialize)
+        try:
+            if database is not None:
+                await asyncio.to_thread(database.initialize)
+            service.mark_persistence_available()
+        except BaseException as exc:
+            service.mark_persistence_fault(str(exc))
+            raise
         publisher.set_legacy_manager(app.state.manager)
-        await publisher.start()
 
         def publish(execution: RuntimeExecution) -> None:
             app.state.latest_snapshot = execution.compatibility_snapshot
@@ -31,16 +35,30 @@ def create_lifespan(
 
         try:
             await asyncio.to_thread(service.start, publish)
+            await publisher.start()
+            service.mark_ready()
         except BaseException:
-            await publisher.stop()
+            service.mark_not_ready()
+            try:
+                await asyncio.to_thread(service.stop, False)
+            finally:
+                try:
+                    if publisher.running:
+                        await publisher.stop()
+                finally:
+                    await asyncio.to_thread(service.close_adapter)
             raise
         app.state.latest_snapshot = service.latest_compatibility_snapshot
         try:
             yield
         finally:
+            service.mark_not_ready()
             try:
-                await asyncio.to_thread(service.stop)
+                await asyncio.to_thread(service.stop, False)
             finally:
-                await publisher.stop()
+                try:
+                    await publisher.stop()
+                finally:
+                    await asyncio.to_thread(service.close_adapter)
 
     return lifespan

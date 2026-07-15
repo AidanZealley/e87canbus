@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 from e87canbus.adapters.socketcan import SocketCanBus
@@ -16,7 +16,9 @@ from e87canbus.live import LiveControllerRuntime
 from e87canbus.runtime import (
     SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
     ActivateSteeringCurve,
+    DeviceAdapterFailed,
     DiagnosticSnapshot,
+    InboxOverflowed,
     SetMaximumAssistance,
     SetSteeringMode,
     StateTopic,
@@ -295,6 +297,11 @@ class _SimulatedRuntimeAdapter:
     def __init__(self, runtime: SimulatedControllerRuntime) -> None:
         self._runtime = runtime
         self._previous_snapshot: SimulatorSnapshot | None = None
+        self._previous_diagnostics: DiagnosticSnapshot | None = None
+        self._frame_history = {
+            network: [0, 0, 0, 0]
+            for network in CanNetwork
+        }
 
     @property
     def config(self) -> AppConfig:
@@ -321,6 +328,8 @@ class _SimulatedRuntimeAdapter:
                 execution.changed_topics,
                 execution.commit_count,
             )
+        if isinstance(work, (InboxOverflowed, DeviceAdapterFailed)):
+            return self._execution(self._runtime.execute_controller_failure(work))
         raise TypeError(f"unsupported simulated controller work: {work!r}")
 
     def timer(self, now: float) -> RuntimeExecution | None:
@@ -333,13 +342,42 @@ class _SimulatedRuntimeAdapter:
         del now
         return self._execution(self._runtime.shutdown())
 
+    def close(self) -> None:
+        """The in-process simulation runtime has no external endpoints to close."""
+
     def projection(
         self,
     ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         snapshot = self._runtime.snapshot()
+        diagnostics = self._runtime.kernel.diagnostics()
+        health = diagnostics.health
+        diagnostics = replace(
+            diagnostics,
+            health=replace(
+                health,
+                networks=tuple(
+                    replace(
+                        network,
+                        received_frames=(
+                            network.received_frames + self._frame_history[network.network][0]
+                        ),
+                        decoded_frames=(
+                            network.decoded_frames + self._frame_history[network.network][1]
+                        ),
+                        ignored_frames=(
+                            network.ignored_frames + self._frame_history[network.network][2]
+                        ),
+                        malformed_frames=(
+                            network.malformed_frames + self._frame_history[network.network][3]
+                        ),
+                    )
+                    for network in health.networks
+                ),
+            ),
+        )
         return (
             snapshot.application,
-            self._runtime.kernel.diagnostics(),
+            diagnostics,
             ControllerAdapterSnapshot(
                 simulation_session_id=snapshot.session_id,
                 led_colours=snapshot.led_colours,
@@ -364,6 +402,7 @@ class _SimulatedRuntimeAdapter:
                     ),
                     watchdog_timed_out=snapshot.steering_controller.watchdog_timed_out,
                 ),
+                effects=self._runtime.effect_diagnostics,
             ),
         )
 
@@ -381,6 +420,19 @@ class _SimulatedRuntimeAdapter:
         for commit in result.commits:
             changed_topics.update(commit.changed_topics)
         previous = self._previous_snapshot
+        diagnostics = self._runtime.kernel.diagnostics()
+        previous_diagnostics = self._previous_diagnostics
+        if (
+            previous is not None
+            and previous.session_id != result.snapshot.session_id
+            and previous_diagnostics is not None
+        ):
+            for network in previous_diagnostics.health.networks:
+                history = self._frame_history[network.network]
+                history[0] += network.received_frames
+                history[1] += network.decoded_frames
+                history[2] += network.ignored_frames
+                history[3] += network.malformed_frames
         if previous is None:
             changed_topics.add(StateTopic.DEVICES)
         else:
@@ -393,6 +445,18 @@ class _SimulatedRuntimeAdapter:
             if previous.led_colours != result.snapshot.led_colours:
                 changed_topics.add(StateTopic.BUTTONS)
         self._previous_snapshot = result.snapshot
+        self._previous_diagnostics = diagnostics
+        if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
+            changed_topics.add(StateTopic.HEALTH)
+            if any(
+                current.fault != prior.fault
+                for current, prior in zip(
+                    diagnostics.health.devices,
+                    previous_diagnostics.health.devices,
+                    strict=True,
+                )
+            ):
+                changed_topics.add(StateTopic.DEVICES)
         commit_count = len(result.commits)
         if commit_count == 0 and changed_topics:
             commit_count = 1

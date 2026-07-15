@@ -98,18 +98,77 @@ export type RuntimeFaultState = {
     | "can_effect_execution"
     | "steering_actuator"
     | "inbox_overflow"
+    | "device_adapter"
   monotonic_s: number
   message: string
 }
 
 export type ControllerHealthState = {
   lifecycle: "created" | "running" | "stopped"
+  ready: boolean
   fatal: boolean
   networks: Array<{
     network: "kcan" | "ptcan" | "fcan"
+    connected: boolean
     fault: RuntimeFaultState | null
+    received_frames: number
+    decoded_frames: number
+    ignored_frames: number
+    malformed_frames: number
+    effects_sent: number
+    effects_dropped: number
+    effects_rate_limited: number
+    effects_failed: number
   }>
-  steering_actuator_fault: RuntimeFaultState | null
+  inbox: {
+    depth: number
+    capacity: number
+    maximum_depth: number
+    current_latency_s: number
+    maximum_latency_s: number
+    latency_warning: boolean
+    latency_warning_count: number
+    overflow_latched: boolean
+  }
+  devices: Array<{
+    id: "button_pad"
+    source_mode: "physical" | "emulated" | "observer"
+    connected: boolean | null
+    fault: RuntimeFaultState | null
+    output_fault: string | null
+  }>
+  steering: {
+    present: boolean
+    fault: RuntimeFaultState | null
+    effects_sent: number
+    effects_dropped: number
+    effects_failed: number
+  }
+  persistence: { available: boolean; fault: string | null }
+  publisher: {
+    running: boolean
+    healthy: boolean
+    failures: number
+    published_by_event: Record<string, number>
+    coalesced_by_event: Record<string, number>
+    dropped_by_event: Record<string, number>
+    active_sockets: number
+    trace_subscribers: number
+    trace_ring_length: number
+    trace_ring_capacity: number
+    transport_queue_saturations: number
+    fault: string | null
+  }
+  last_fatal_fault: {
+    kind: string
+    monotonic_s: number | null
+    message: string
+  } | null
+  last_non_fatal_fault: {
+    kind: string
+    monotonic_s: number | null
+    message: string
+  } | null
 }
 
 export type ControllerSnapshotData = {

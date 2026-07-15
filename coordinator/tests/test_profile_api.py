@@ -470,7 +470,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         finally:
             controller.release.set()
         assert first.result().status_code == 200
-        assert second.result().status_code == 200
+        assert second.result().status_code == 503
 
     assert overloaded_response.status_code == 503
     assert overloaded_response.json()["error"]["code"] == "runtime_queue_full"

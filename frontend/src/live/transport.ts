@@ -87,6 +87,7 @@ export const createLiveTransport = ({
     socket.on("connect", () => {
       connectionEpoch += 1
       connectEventSeen = true
+      if (traceSubscribers > 0) socket?.emit("trace.subscribe")
       if (snapshotBeforeConnect) {
         snapshotBeforeConnect = false
         reconcileCurrentConnection()
@@ -125,7 +126,9 @@ export const createLiveTransport = ({
 
   const subscribeTrace = () => {
     traceSubscribers += 1
-    if (traceSubscribers === 1) socket?.emit("trace.subscribe")
+    if (traceSubscribers === 1 && socket?.connected) {
+      socket.emit("trace.subscribe")
+    }
     return () => {
       traceSubscribers = Math.max(0, traceSubscribers - 1)
       if (traceSubscribers === 0) {

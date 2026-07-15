@@ -29,7 +29,9 @@ The frontend defaults to `http://127.0.0.1:5173` and expects the API at
 `http://127.0.0.1:8000`. Override the backend origin with `VITE_API_BASE`.
 Socket.IO owns reconnection and the UI remains unsynchronized until the backend's complete
 protocol-v1 snapshot arrives. Unknown protocol versions fail visibly. Strict Mode and route changes
-reuse the same client and listener set.
+reuse the same client and listener set. If the trace view remains logically open across a transport
+reconnect, its owner re-subscribes on the new connection epoch; leaving the trace route removes the
+subscription and retains only the fixed local trace capacity.
 
 The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
 Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature

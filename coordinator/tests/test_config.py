@@ -44,6 +44,7 @@ def test_default_live_publication_bounds() -> None:
     publication = default_config().live_publication
 
     assert publication.telemetry_hz == 25.0
+    assert publication.health_hz == 1.0
     assert publication.trace_hz == 10.0
     assert publication.trace_batch_size == 100
     assert publication.resource_capacity == 256
@@ -55,6 +56,7 @@ def test_default_live_publication_bounds() -> None:
     "changes",
     [
         {"telemetry_hz": 0.0},
+        {"health_hz": 0.0},
         {"trace_hz": float("inf")},
         {"trace_batch_size": 0},
         {"resource_capacity": 0},

@@ -12,6 +12,7 @@ from typing import Any, cast
 import pytest
 from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.main import create_app, socket_origin_policy
+from e87canbus.api.models.live import health_state
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.composition import build_controller_service, simulated_selection
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
@@ -153,7 +154,9 @@ class BlockingShutdownController(SimulatedSteeringController):
 
 
 def test_health_and_browser_cors(client: TestClient) -> None:
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/health/live").json() == {"status": "live"}
+    assert client.get("/health/ready").json()["status"] == "ready"
+    assert client.get("/api/health").status_code == 404
 
     response = client.options(
         "/api/dev/simulation/devices/button-pad/buttons/0/press",
@@ -187,9 +190,17 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert connected.status_code == 200
     assert event == "controller.snapshot"
     assert payload["protocol_version"] == 1
-    assert payload["revision"] == 1
-    assert set(payload["data"]["topic_revisions"].values()) == {1}
-    assert client.get("/api/health").status_code == 200
+    topic_revisions = payload["data"]["topic_revisions"]
+    assert topic_revisions["health"] == payload["revision"]
+    assert {revision for topic, revision in topic_revisions.items() if topic != "health"} == {1}
+    health = payload["data"]["health"]
+    assert health["ready"] is True
+    assert health["inbox"]["capacity"] == 64
+    assert health["persistence"] == {"available": True, "fault": None}
+    assert health["publisher"]["running"] is True
+    assert health["publisher"]["active_sockets"] == 1
+    assert health["publisher"]["trace_ring_capacity"] == 2000
+    assert client.get("/health/ready").status_code == 200
 
 
 def test_browser_cors_accepts_an_explicit_development_origin() -> None:
@@ -616,7 +627,7 @@ def test_reset_cannot_interleave_with_another_operation() -> None:
         assert all(event["session_id"] == session_id for event in events)
 
 
-def test_controller_inbox_overflow_returns_503_and_service_recovers() -> None:
+def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() -> None:
     config = replace(
         simulator_config(),
         simulation=SimulationConfig(),
@@ -667,12 +678,27 @@ def test_controller_inbox_overflow_returns_503_and_service_recovers() -> None:
 
         assert overloaded_response.status_code == 503
         assert first.result().status_code == 200
-        assert second.result().status_code == 200
+        assert second.result().status_code == 503
+        deadline = time.monotonic() + 1.0
+        while app.state.controller_service.ready and time.monotonic() < deadline:
+            pass
+        service = app.state.controller_service
+        assert service.stopped_event.wait(timeout=1.0)
+        snapshot = service.snapshot()
+        projected_health = health_state(snapshot)
+        assert service.ready is False
+        assert snapshot.service.inbox.overflow_latched is True
+        assert snapshot.diagnostics.health.fatal is True
+        assert snapshot.diagnostics.health.inbox_overflow_fault is not None
+        assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
+        assert projected_health.fatal is True
+        assert projected_health.last_fatal_fault is not None
+        assert projected_health.last_fatal_fault.kind == "inbox_overflow"
         assert (
             client.post(
                 "/api/dev/simulation/devices/button-pad/buttons/0/press"
             ).status_code
-            == 200
+            == 503
         )
 
 

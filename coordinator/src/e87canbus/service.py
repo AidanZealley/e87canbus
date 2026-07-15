@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
@@ -15,7 +16,15 @@ from typing import Protocol
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.device import DeviceProjection
-from e87canbus.runtime import DiagnosticSnapshot, StateTopic
+from e87canbus.output import EMPTY_EFFECT_DIAGNOSTICS, EffectExecutionDiagnostics
+from e87canbus.runtime import (
+    DiagnosticSnapshot,
+    InboxOverflowed,
+    ReceivedCanFrame,
+    StateTopic,
+)
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ControllerServiceError(RuntimeError):
@@ -94,6 +103,49 @@ class ControllerAdapterSnapshot:
     devices: tuple[DeviceProjection, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
     steering: ObservedSteeringSnapshot | None
+    effects: EffectExecutionDiagnostics = EMPTY_EFFECT_DIAGNOSTICS
+
+
+@dataclass(frozen=True)
+class InboxDiagnostics:
+    depth: int
+    capacity: int
+    maximum_depth: int
+    current_latency_s: float
+    maximum_latency_s: float
+    latency_warning: bool
+    latency_warning_count: int
+    overflow_latched: bool
+
+
+@dataclass(frozen=True)
+class PersistenceDiagnostics:
+    available: bool
+    fault: str | None
+
+
+@dataclass(frozen=True)
+class PublisherDiagnostics:
+    running: bool
+    healthy: bool
+    failures: int
+    published_by_event: tuple[tuple[str, int], ...]
+    coalesced_by_event: tuple[tuple[str, int], ...]
+    dropped_by_event: tuple[tuple[str, int], ...]
+    active_sockets: int
+    trace_subscribers: int
+    trace_ring_length: int
+    trace_ring_capacity: int
+    transport_queue_saturations: int
+    fault: str | None
+
+
+@dataclass(frozen=True)
+class ServiceDiagnostics:
+    ready: bool
+    inbox: InboxDiagnostics
+    persistence: PersistenceDiagnostics
+    publisher: PublisherDiagnostics
 
 
 @dataclass(frozen=True)
@@ -106,6 +158,7 @@ class ControllerServiceSnapshot:
     application: ApplicationSnapshot
     diagnostics: DiagnosticSnapshot
     adapter: ControllerAdapterSnapshot
+    service: ServiceDiagnostics
 
 
 RuntimeNotification = Callable[[RuntimeExecution], None]
@@ -126,6 +179,8 @@ class ControllerRuntimeAdapter(Protocol):
 
     def shutdown(self, now: float) -> RuntimeExecution | None: ...
 
+    def close(self) -> None: ...
+
     def projection(
         self,
     ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]: ...
@@ -138,6 +193,7 @@ class ControllerRuntimeAdapter(Protocol):
 class _QueuedWork:
     value: object
     future: Future[object] | None
+    enqueued_at: float
 
 
 class ControllerService:
@@ -172,6 +228,31 @@ class ControllerService:
         self._revision = 0
         self._topic_revisions = {topic: 0 for topic in StateTopic}
         self._failure: BaseException | None = None
+        self._ready = False
+        self._maximum_inbox_depth = 0
+        self._current_queue_latency_s = 0.0
+        self._maximum_queue_latency_s = 0.0
+        self._queue_latency_warning = False
+        self._queue_latency_warning_count = 0
+        self._overflow_latched: InboxOverflowed | None = None
+        self._persistence = PersistenceDiagnostics(False, "not initialized")
+        self._publisher = PublisherDiagnostics(
+            running=False,
+            healthy=False,
+            failures=0,
+            published_by_event=(),
+            coalesced_by_event=(),
+            dropped_by_event=(),
+            active_sockets=0,
+            trace_subscribers=0,
+            trace_ring_length=0,
+            trace_ring_capacity=runtime.config.simulation.trace_capacity,
+            transport_queue_saturations=0,
+            fault="not started",
+        )
+        self._stopped = threading.Event()
+        self._fatal_exit = threading.Event()
+        self._adapter_closed = False
 
     @property
     def config(self) -> AppConfig:
@@ -202,6 +283,19 @@ class ControllerService:
         return self._inbox.maxsize
 
     @property
+    def ready(self) -> bool:
+        with self._lock:
+            return self._is_ready_locked()
+
+    @property
+    def stopped_event(self) -> threading.Event:
+        return self._stopped
+
+    @property
+    def fatal_exit_required(self) -> bool:
+        return self._fatal_exit.is_set()
+
+    @property
     def latest_compatibility_snapshot(self) -> object:
         with self._lock:
             if self._latest_execution is None:
@@ -212,7 +306,31 @@ class ControllerService:
         with self._lock:
             if self._latest_snapshot is None:
                 raise ControllerServiceNotRunning("controller service has not started")
-            return self._latest_snapshot
+            return replace(self._latest_snapshot, service=self._service_diagnostics_locked())
+
+    def mark_persistence_available(self) -> None:
+        self._update_external_health(persistence=PersistenceDiagnostics(True, None))
+
+    def mark_persistence_fault(self, message: str) -> None:
+        self._update_external_health(persistence=PersistenceDiagnostics(False, message))
+
+    def mark_ready(self) -> None:
+        with self._lock:
+            if self._lifecycle is not ControllerServiceLifecycle.RUNNING:
+                raise ControllerServiceNotRunning("controller service is not running")
+            self._ready = True
+        self._refresh_external_health()
+
+    def mark_not_ready(self) -> None:
+        with self._lock:
+            self._ready = False
+        self._refresh_external_health()
+
+    def update_publisher_health(
+        self,
+        diagnostics: PublisherDiagnostics,
+    ) -> RuntimeExecution | None:
+        return self._update_external_health(publisher=diagnostics, notify=False)
 
     def start(self, notification: RuntimeNotification | None = None) -> None:
         with self._lock:
@@ -236,9 +354,11 @@ class ControllerService:
             if not self._accepting:
                 raise ControllerServiceNotRunning("controller service is not accepting work")
             try:
-                self._inbox.put_nowait(_QueuedWork(work, future))
+                self._inbox.put_nowait(_QueuedWork(work, future, self._clock()))
             except queue.Full as exc:
+                self._latch_overflow_locked(work)
                 raise ControllerInboxFull("controller runtime inbox is full") from exc
+            self._maximum_inbox_depth = max(self._maximum_inbox_depth, self._inbox.qsize())
         return future
 
     def submit_input(self, work: object) -> bool:
@@ -248,12 +368,14 @@ class ControllerService:
             if self._stop.is_set() or self._lifecycle is ControllerServiceLifecycle.STOPPED:
                 return False
             try:
-                self._inbox.put_nowait(_QueuedWork(work, None))
+                self._inbox.put_nowait(_QueuedWork(work, None, self._clock()))
             except queue.Full:
+                self._latch_overflow_locked(work)
                 return False
+            self._maximum_inbox_depth = max(self._maximum_inbox_depth, self._inbox.qsize())
         return True
 
-    def stop(self) -> None:
+    def stop(self, close_adapter: bool = True) -> None:
         with self._lock:
             if self._lifecycle is ControllerServiceLifecycle.CREATED:
                 self._lifecycle = ControllerServiceLifecycle.STOPPED
@@ -263,6 +385,7 @@ class ControllerService:
                 thread = None
             else:
                 self._accepting = False
+                self._ready = False
                 self._stop.set()
                 thread = self._thread
                 failure = None
@@ -272,10 +395,21 @@ class ControllerService:
                 raise ControllerServiceError("controller owner did not stop cleanly")
             with self._lock:
                 failure = self._failure
+        if close_adapter:
+            self.close_adapter()
         if failure is not None:
             raise ControllerServiceError(
                 f"controller service stopped with failure: {failure}"
             ) from failure
+
+    def close_adapter(self) -> None:
+        """Close runtime endpoints after the owner and publisher have stopped."""
+
+        with self._lock:
+            if self._adapter_closed:
+                return
+            self._adapter_closed = True
+        self._runtime.close()
 
     def _run(self, startup: Future[None]) -> None:
         try:
@@ -288,6 +422,14 @@ class ControllerService:
             next_tick = self._clock() + self.config.tick_interval_s
 
             while not self._stop.is_set() and not self._runtime.terminal:
+                with self._lock:
+                    overflow = self._overflow_latched
+                if overflow is not None:
+                    execution = self._runtime.execute(overflow)
+                    self._record(execution)
+                    self._fatal_exit.set()
+                    self._stop.set()
+                    break
                 timeout = min(
                     max(next_tick - self._clock(), 0.0),
                     self._POLL_INTERVAL_S,
@@ -299,7 +441,12 @@ class ControllerService:
 
                 if queued is not None:
                     try:
+                        self._record_queue_latency(queued)
                         execution = self._runtime.execute(queued.value)
+                        execution = replace(
+                            execution,
+                            changed_topics=execution.changed_topics | {StateTopic.HEALTH},
+                        )
                         execution = self._record(execution)
                     except Exception as exc:
                         if queued.future is not None:
@@ -324,6 +471,9 @@ class ControllerService:
         finally:
             with self._lock:
                 self._accepting = False
+                self._ready = False
+            if self._runtime.terminal:
+                self._fatal_exit.set()
             try:
                 shutdown_execution = self._runtime.shutdown(self._clock())
                 if shutdown_execution is not None:
@@ -334,11 +484,14 @@ class ControllerService:
                 self._fail_pending()
                 with self._lock:
                     self._lifecycle = ControllerServiceLifecycle.STOPPED
+                self._stopped.set()
 
     def _record_failure(self, failure: BaseException) -> None:
         with self._lock:
             if self._failure is None:
                 self._failure = failure
+            self._ready = False
+        self._fatal_exit.set()
 
     def _record(
         self,
@@ -370,6 +523,7 @@ class ControllerService:
                 application=application,
                 diagnostics=diagnostics,
                 adapter=adapter,
+                service=self._service_diagnostics_locked(),
             )
             notification = self._notification
         if notify and notification is not None:
@@ -387,3 +541,118 @@ class ControllerService:
                     ControllerServiceNotRunning("controller service stopped before processing work")
                 )
             self._inbox.task_done()
+
+    def _record_queue_latency(self, queued: _QueuedWork) -> None:
+        observed_at = (
+            queued.value.received_at
+            if isinstance(queued.value, ReceivedCanFrame)
+            else queued.enqueued_at
+        )
+        latency = max(self._clock() - observed_at, 0.0)
+        warning = latency > self.config.runtime_queue_latency_warning_s
+        with self._lock:
+            self._current_queue_latency_s = latency
+            self._maximum_queue_latency_s = max(self._maximum_queue_latency_s, latency)
+            self._queue_latency_warning = warning
+            if warning:
+                self._queue_latency_warning_count += 1
+                warning_count = self._queue_latency_warning_count
+            else:
+                warning_count = 0
+        if warning and warning_count & (warning_count - 1) == 0:
+            network = (
+                queued.value.network.value
+                if isinstance(queued.value, ReceivedCanFrame)
+                else "service"
+            )
+            LOGGER.warning(
+                "controller inbox latency warning: network=%s latency_s=%.3f count=%d",
+                network,
+                latency,
+                warning_count,
+            )
+
+    def _latch_overflow_locked(self, work: object) -> None:
+        if self._overflow_latched is not None:
+            return
+        network = work.network if isinstance(work, ReceivedCanFrame) else None
+        self._overflow_latched = InboxOverflowed(
+            network,
+            self._clock(),
+            f"controller inbox capacity {self._inbox.maxsize} exceeded",
+        )
+        self._accepting = False
+
+    def _service_diagnostics_locked(self) -> ServiceDiagnostics:
+        return ServiceDiagnostics(
+            ready=self._is_ready_locked(),
+            inbox=InboxDiagnostics(
+                depth=self._inbox.qsize(),
+                capacity=self._inbox.maxsize,
+                maximum_depth=self._maximum_inbox_depth,
+                current_latency_s=self._current_queue_latency_s,
+                maximum_latency_s=self._maximum_queue_latency_s,
+                latency_warning=self._queue_latency_warning,
+                latency_warning_count=self._queue_latency_warning_count,
+                overflow_latched=self._overflow_latched is not None,
+            ),
+            persistence=self._persistence,
+            publisher=self._publisher,
+        )
+
+    def _is_ready_locked(self) -> bool:
+        return (
+            self._ready
+            and self._lifecycle is ControllerServiceLifecycle.RUNNING
+            and self._persistence.available
+            and (
+                self._latest_snapshot is None
+                or not self._latest_snapshot.diagnostics.health.fatal
+            )
+        )
+
+    def _update_external_health(
+        self,
+        *,
+        persistence: PersistenceDiagnostics | None = None,
+        publisher: PublisherDiagnostics | None = None,
+        notify: bool = True,
+    ) -> RuntimeExecution | None:
+        with self._lock:
+            if persistence is not None:
+                self._persistence = persistence
+            if publisher is not None:
+                self._publisher = publisher
+        return self._refresh_external_health(notify=notify)
+
+    def _refresh_external_health(
+        self,
+        *,
+        notify: bool = True,
+    ) -> RuntimeExecution | None:
+        """Commit one service-health revision and optionally notify its publisher."""
+
+        with self._lock:
+            if self._latest_snapshot is None:
+                return None
+            service = self._service_diagnostics_locked()
+            if self._latest_snapshot.service == service:
+                return None
+            self._revision += 1
+            self._topic_revisions[StateTopic.HEALTH] = self._revision
+            self._latest_snapshot = replace(
+                self._latest_snapshot,
+                revision=self._revision,
+                topic_revisions=tuple(self._topic_revisions.items()),
+                service=service,
+            )
+            assert self._latest_execution is not None
+            execution = RuntimeExecution(
+                result=None,
+                compatibility_snapshot=self._latest_execution.compatibility_snapshot,
+                changed_topics=frozenset({StateTopic.HEALTH}),
+            )
+            notification = self._notification
+        if notify and notification is not None:
+            notification(execution)
+        return execution

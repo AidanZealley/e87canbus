@@ -44,6 +44,30 @@ describe("live ownership", () => {
     expect(useLiveStore.getState().connection.status).toBe("incompatible")
   })
 
+  it("applies a newer service-only health revision after synchronization", () => {
+    useLiveStore.getState().reset()
+    const initial = snapshot("boot", 3)
+    expect(useLiveStore.getState().applySnapshot(initial)).toBe(true)
+
+    const health = {
+      ...initial,
+      revision: 4,
+      data: {
+        ...initial.data.health,
+        ready: false,
+        persistence: { available: false, fault: "database unavailable" },
+      },
+    }
+
+    expect(useLiveStore.getState().applyHealth(health)).toBe("applied")
+    expect(useLiveStore.getState().topicRevisions.health).toBe(4)
+    expect(useLiveStore.getState().health.persistence).toEqual({
+      available: false,
+      fault: "database unavailable",
+    })
+    expect(useLiveStore.getState().applyHealth(health)).toBe("ignored")
+  })
+
   it("bounds and clears diagnostic trace across sessions", () => {
     useTraceStore.getState().clear()
     const rows: TraceRow[] = Array.from(

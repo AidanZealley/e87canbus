@@ -123,6 +123,26 @@ The generated contract is documented in
 The simulated raw `/ws` endpoint remains only as a bounded compatibility path for external
 consumers and is removed in Phase 8.
 
+Health publication is framework-independent and process-local. It reports controller lifecycle and
+readiness, configured network connection/fault/counters, bounded inbox depth/capacity and latency,
+selected device evidence, steering capability/fault, persistence availability, publisher status,
+socket/trace counts and last fatal/non-fatal summaries. Frame and effect counters are process-lifetime
+integers; only the fixed trace ring retains per-frame detail. Controller health is coalesced to one
+publication per second, while urgent state topics keep their existing delivery behavior. A failed
+publisher records transport health without notifying itself recursively. Persistence,
+readiness and publisher/socket-only changes advance the service and health-topic revisions even
+when controller input is idle, so synchronized clients do not discard them as stale.
+
+The failure policy is explicit: a fatal reader, inbox overflow, CAN output or steering-actuator fault
+enters the ordered safe shutdown path once; unknown output outcomes are never retried. Queue overflow
+latches, rejects new commands and stops normal ingestion. Queue timestamps are retained and warnings
+are logarithmically rate-limited. Storage failure rejects only the affected resource operation and
+does not rewrite already-loaded controller state. Emulator failure becomes typed adapter health and
+does not claim physical device behavior. Shutdown marks not-ready, stops ingress, commits the safe
+request, drains only bounded work, stops publication, then closes adapters and short-lived database
+resources. The complete owner/behavior table and recorded soak metrics are in
+[`docs/reliability.md`](../docs/reliability.md).
+
 The simulator server defaults to loopback and permits the two local Vite development origins. It is
 unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
 `--host` to expose it beyond loopback until authentication, origin policy, and editing-while-moving
@@ -221,6 +241,13 @@ Use `--button-pad-source emulated|observer|disabled` for simulated composition a
 the process lifetime and invalid mode/source combinations fail before adapters start.
 `uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
 
-Phase 8 has proved the controller and failure paths against simulation-only speed and actuator
-boundaries. Real steering failsafe work remains blocked until speed frames and the actuator boundary
+Live mode defaults to loopback, serves an optional built `frontend/dist` with
+`--frontend-directory`, registers no development mutation routes and enables no development CORS
+origins. A non-loopback live bind is rejected because this API is unauthenticated. `/health/live`
+proves the event loop responds and `/health/ready` proves the database and non-fatal controller are
+ready. The canonical CLI observes a fatal owner stop and returns non-zero for supervised restart.
+Install and operate it with the checked-in [systemd template](../deploy/README.md).
+
+Software tests have proved the controller failure paths only against simulation and injected
+adapters. Real steering failsafe work remains blocked until speed frames and the actuator boundary
 are backed by named captures and hardware evidence. Placeholder candidate IDs remain non-executable.

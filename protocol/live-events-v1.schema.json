@@ -99,9 +99,39 @@
       "ControllerHealthState": {
         "additionalProperties": false,
         "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/$defs/DeviceHealthState"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
           "fatal": {
             "title": "Fatal",
             "type": "boolean"
+          },
+          "inbox": {
+            "$ref": "#/$defs/InboxHealthState"
+          },
+          "last_fatal_fault": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FaultSummaryState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_non_fatal_fault": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FaultSummaryState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "lifecycle": {
             "enum": [
@@ -119,22 +149,32 @@
             "title": "Networks",
             "type": "array"
           },
-          "steering_actuator_fault": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "persistence": {
+            "$ref": "#/$defs/PersistenceHealthState"
+          },
+          "publisher": {
+            "$ref": "#/$defs/PublisherHealthState"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "steering": {
+            "$ref": "#/$defs/SteeringCapabilityHealthState"
           }
         },
         "required": [
           "lifecycle",
+          "ready",
           "fatal",
           "networks",
-          "steering_actuator_fault"
+          "inbox",
+          "devices",
+          "steering",
+          "persistence",
+          "publisher",
+          "last_fatal_fault",
+          "last_non_fatal_fault"
         ],
         "title": "ControllerHealthState",
         "type": "object"
@@ -186,6 +226,66 @@
           "health"
         ],
         "title": "ControllerSnapshotData",
+        "type": "object"
+      },
+      "DeviceHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected"
+          },
+          "fault": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RuntimeFaultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "const": "button_pad",
+            "title": "Id",
+            "type": "string"
+          },
+          "output_fault": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Fault"
+          },
+          "source_mode": {
+            "enum": [
+              "physical",
+              "emulated",
+              "observer"
+            ],
+            "title": "Source Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_mode",
+          "connected",
+          "fault",
+          "output_fault"
+        ],
+        "title": "DeviceHealthState",
         "type": "object"
       },
       "DeviceState": {
@@ -376,9 +476,124 @@
         "title": "EngineTelemetryValue",
         "type": "object"
       },
+      "FaultSummaryState": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "monotonic_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monotonic S"
+          }
+        },
+        "required": [
+          "kind",
+          "monotonic_s",
+          "message"
+        ],
+        "title": "FaultSummaryState",
+        "type": "object"
+      },
+      "InboxHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "exclusiveMinimum": 0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "current_latency_s": {
+            "minimum": 0,
+            "title": "Current Latency S",
+            "type": "number"
+          },
+          "depth": {
+            "minimum": 0,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "latency_warning": {
+            "title": "Latency Warning",
+            "type": "boolean"
+          },
+          "latency_warning_count": {
+            "minimum": 0,
+            "title": "Latency Warning Count",
+            "type": "integer"
+          },
+          "maximum_depth": {
+            "minimum": 0,
+            "title": "Maximum Depth",
+            "type": "integer"
+          },
+          "maximum_latency_s": {
+            "minimum": 0,
+            "title": "Maximum Latency S",
+            "type": "number"
+          },
+          "overflow_latched": {
+            "title": "Overflow Latched",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "depth",
+          "capacity",
+          "maximum_depth",
+          "current_latency_s",
+          "maximum_latency_s",
+          "latency_warning",
+          "latency_warning_count",
+          "overflow_latched"
+        ],
+        "title": "InboxHealthState",
+        "type": "object"
+      },
       "NetworkHealthState": {
         "additionalProperties": false,
         "properties": {
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "decoded_frames": {
+            "minimum": 0,
+            "title": "Decoded Frames",
+            "type": "integer"
+          },
+          "effects_dropped": {
+            "minimum": 0,
+            "title": "Effects Dropped",
+            "type": "integer"
+          },
+          "effects_failed": {
+            "minimum": 0,
+            "title": "Effects Failed",
+            "type": "integer"
+          },
+          "effects_rate_limited": {
+            "minimum": 0,
+            "title": "Effects Rate Limited",
+            "type": "integer"
+          },
+          "effects_sent": {
+            "minimum": 0,
+            "title": "Effects Sent",
+            "type": "integer"
+          },
           "fault": {
             "anyOf": [
               {
@@ -389,6 +604,16 @@
               }
             ]
           },
+          "ignored_frames": {
+            "minimum": 0,
+            "title": "Ignored Frames",
+            "type": "integer"
+          },
+          "malformed_frames": {
+            "minimum": 0,
+            "title": "Malformed Frames",
+            "type": "integer"
+          },
           "network": {
             "enum": [
               "kcan",
@@ -397,11 +622,25 @@
             ],
             "title": "Network",
             "type": "string"
+          },
+          "received_frames": {
+            "minimum": 0,
+            "title": "Received Frames",
+            "type": "integer"
           }
         },
         "required": [
           "network",
-          "fault"
+          "connected",
+          "fault",
+          "received_frames",
+          "decoded_frames",
+          "ignored_frames",
+          "malformed_frames",
+          "effects_sent",
+          "effects_dropped",
+          "effects_rate_limited",
+          "effects_failed"
         ],
         "title": "NetworkHealthState",
         "type": "object"
@@ -454,6 +693,123 @@
         "title": "NetworkState",
         "type": "object"
       },
+      "PersistenceHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "fault": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault"
+          }
+        },
+        "required": [
+          "available",
+          "fault"
+        ],
+        "title": "PersistenceHealthState",
+        "type": "object"
+      },
+      "PublisherHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "active_sockets": {
+            "minimum": 0,
+            "title": "Active Sockets",
+            "type": "integer"
+          },
+          "coalesced_by_event": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Coalesced By Event",
+            "type": "object"
+          },
+          "dropped_by_event": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dropped By Event",
+            "type": "object"
+          },
+          "failures": {
+            "minimum": 0,
+            "title": "Failures",
+            "type": "integer"
+          },
+          "fault": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault"
+          },
+          "healthy": {
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "published_by_event": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Published By Event",
+            "type": "object"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "trace_ring_capacity": {
+            "exclusiveMinimum": 0,
+            "title": "Trace Ring Capacity",
+            "type": "integer"
+          },
+          "trace_ring_length": {
+            "minimum": 0,
+            "title": "Trace Ring Length",
+            "type": "integer"
+          },
+          "trace_subscribers": {
+            "minimum": 0,
+            "title": "Trace Subscribers",
+            "type": "integer"
+          },
+          "transport_queue_saturations": {
+            "minimum": 0,
+            "title": "Transport Queue Saturations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "running",
+          "healthy",
+          "failures",
+          "published_by_event",
+          "coalesced_by_event",
+          "dropped_by_event",
+          "active_sockets",
+          "trace_subscribers",
+          "trace_ring_length",
+          "trace_ring_capacity",
+          "transport_queue_saturations",
+          "fault"
+        ],
+        "title": "PublisherHealthState",
+        "type": "object"
+      },
       "RuntimeFaultState": {
         "additionalProperties": false,
         "properties": {
@@ -462,7 +818,8 @@
               "can_reader",
               "can_effect_execution",
               "steering_actuator",
-              "inbox_overflow"
+              "inbox_overflow",
+              "device_adapter"
             ],
             "title": "Kind",
             "type": "string"
@@ -523,6 +880,49 @@
           "watchdog_timed_out"
         ],
         "title": "SteeringActuatorState",
+        "type": "object"
+      },
+      "SteeringCapabilityHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "effects_dropped": {
+            "minimum": 0,
+            "title": "Effects Dropped",
+            "type": "integer"
+          },
+          "effects_failed": {
+            "minimum": 0,
+            "title": "Effects Failed",
+            "type": "integer"
+          },
+          "effects_sent": {
+            "minimum": 0,
+            "title": "Effects Sent",
+            "type": "integer"
+          },
+          "fault": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RuntimeFaultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "present": {
+            "title": "Present",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "present",
+          "fault",
+          "effects_sent",
+          "effects_dropped",
+          "effects_failed"
+        ],
+        "title": "SteeringCapabilityHealthState",
         "type": "object"
       },
       "SteeringCurveDefinition": {

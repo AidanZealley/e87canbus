@@ -178,6 +178,26 @@ def test_observer_projects_controller_desire_without_fabricating_observation() -
     assert all(entry.source != "pi" for entry in result.snapshot.trace)
 
 
+def test_emulator_failure_is_reported_without_claiming_physical_health() -> None:
+    controller = build_test_engine()
+    emulator = controller.neotrellis
+    assert emulator is not None
+
+    def fail() -> list[object]:
+        raise OSError("emulator decoder failed")
+
+    emulator.process_pending_led_snapshots = fail  # type: ignore[method-assign]
+    result = controller.execute_controller_command(SetMaximumAssistance(True))
+
+    fault = controller.kernel.health.devices[0].fault
+    assert fault is not None
+    assert fault.message == "emulator decoder failed"
+    assert result.snapshot.fatal is False
+    assert result.snapshot.devices[0].source_mode is DeviceSource.EMULATED
+    assert result.snapshot.devices[0].connected is None
+    assert result.snapshot.devices[0].observed_led_colours is None
+
+
 def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() -> None:
     controller = build_test_engine(button_pad_source=DeviceSource.DISABLED)
 

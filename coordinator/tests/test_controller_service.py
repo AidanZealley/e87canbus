@@ -20,6 +20,7 @@ from e87canbus.service import (
     ControllerAdapterSnapshot,
     ControllerMode,
     ControllerService,
+    ControllerServiceError,
     ControllerServiceLifecycle,
     RuntimeExecution,
     RuntimeInputSink,
@@ -39,10 +40,13 @@ class RecordingRuntime:
         self.kernel = CoordinatorKernel()
         self.starts = 0
         self.stops = 0
+        self.closes = 0
+        self.lifecycle_events: list[str] = []
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
         del submit_input
         self.starts += 1
+        self.lifecycle_events.append("start")
         commit = self.kernel.dispatch(KernelStarted(1.0))
         assert commit is not None
         return RuntimeExecution(
@@ -61,6 +65,7 @@ class RecordingRuntime:
 
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self.stops += 1
+        self.lifecycle_events.append("shutdown")
         commit = self.kernel.dispatch(ShutdownRequested(now))
         if commit is None:
             return None
@@ -70,6 +75,10 @@ class RecordingRuntime:
             changed_topics=commit.changed_topics,
             commit_count=1,
         )
+
+    def close(self) -> None:
+        self.closes += 1
+        self.lifecycle_events.append("close")
 
     def projection(
         self,
@@ -86,8 +95,19 @@ class RecordingRuntime:
         return False
 
 
+class FailingTimerRuntime(RecordingRuntime):
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = replace(self.config, tick_interval_s=0.01)
+
+    def timer(self, now: float) -> RuntimeExecution | None:
+        del now
+        raise RuntimeError("timer failed")
+
+
 def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = RecordingRuntime()
     service = ControllerService(runtime, mode=ControllerMode.LIVE)
@@ -96,13 +116,23 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
         mode=ControllerMode.LIVE,
         profile_database_path=tmp_path / "app.sqlite3",
     )
+    publisher = app.state.live_publisher
+    original_publisher_stop = publisher.stop
+
+    async def record_publisher_stop() -> None:
+        runtime.lifecycle_events.append("publisher")
+        await original_publisher_stop()
+
+    monkeypatch.setattr(publisher, "stop", record_publisher_stop)
 
     with TestClient(app) as client:
-        assert client.get("/api/health").status_code == 200
+        assert client.get("/health/live").json() == {"status": "live"}
+        assert client.get("/health/ready").json()["status"] == "ready"
         assert service.lifecycle is ControllerServiceLifecycle.RUNNING
         assert app.state.live_publisher.running is True
 
-    assert (runtime.starts, runtime.stops) == (1, 1)
+    assert (runtime.starts, runtime.stops, runtime.closes) == (1, 1, 1)
+    assert runtime.lifecycle_events == ["start", "shutdown", "publisher", "close"]
     assert service.lifecycle is ControllerServiceLifecycle.STOPPED
     assert app.state.live_publisher.running is False
 
@@ -123,6 +153,20 @@ def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
         second.stop()
 
 
+def test_unexpected_post_start_owner_failure_requires_fatal_process_exit() -> None:
+    runtime = FailingTimerRuntime()
+    service = ControllerService(runtime, mode=ControllerMode.LIVE)
+
+    service.start()
+
+    assert service.stopped_event.wait(timeout=1.0)
+    assert service.fatal_exit_required is True
+    assert service.ready is False
+    with pytest.raises(ControllerServiceError, match="timer failed"):
+        service.stop()
+    assert runtime.closes == 1
+
+
 def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes(
     tmp_path: Path,
 ) -> None:
@@ -137,13 +181,13 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
     )
 
     with TestClient(app) as client:
-        assert client.get("/api/health").status_code == 200
+        assert client.get("/health/ready").status_code == 200
         assert client.get("/api/snapshot").status_code == 404
         assert (
             client.post(
                 "/api/dev/simulation/devices/button-pad/buttons/0/press"
             ).status_code
-            == 503
+            == 404
         )
         assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
 
@@ -232,7 +276,7 @@ def test_repeated_app_construction_does_not_leak_controller_owner_threads(
             profile_database_path=tmp_path / f"app-{index}.sqlite3",
         )
         with TestClient(app) as client:
-            assert client.get("/api/health").status_code == 200
+            assert client.get("/health/ready").status_code == 200
 
     remaining = {
         thread.ident for thread in threading.enumerate() if thread.name == "controller-owner"

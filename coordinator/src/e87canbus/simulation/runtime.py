@@ -15,11 +15,14 @@ from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanI
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
+    EMPTY_EFFECT_DIAGNOSTICS,
     CanEffectFailure,
+    EffectExecutionDiagnostics,
     EffectExecutor,
     EffectFailure,
     SafeCanTransmitter,
     SteeringActuatorFailure,
+    add_effect_diagnostics,
 )
 from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.runtime import (
@@ -29,6 +32,8 @@ from e87canbus.runtime import (
     Commit,
     ControllerInput,
     CoordinatorKernel,
+    DeviceAdapterFailed,
+    InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
     RuntimeFaultKind,
@@ -155,6 +160,8 @@ SimulationCommand = (
 SemanticControllerCommand = (
     ActivateSteeringCurve | SetMaximumAssistance | SetSteeringMode
 )
+
+ControllerFailure = InboxOverflowed | DeviceAdapterFailed
 
 
 @dataclass(frozen=True)
@@ -322,6 +329,14 @@ class SimulatedControllerRuntime:
         self._session_id = 0
         self._started = False
         self._execution_commits: list[Commit] = []
+        self._effect_history = EMPTY_EFFECT_DIAGNOSTICS
+        self.topology: InMemoryCanTopology
+        self.pi_buses: dict[CanNetwork, CanReceiver]
+        self.vehicle: SimulatedVehicleNode
+        self.neotrellis: SimulatedNeoTrellisNode | None
+        self.steering_controller: SimulatedSteeringController
+        self.kernel: CoordinatorKernel
+        self.executor: EffectExecutor
 
     def start(self) -> SimulationResult:
         if self._started:
@@ -443,6 +458,17 @@ class SimulatedControllerRuntime:
         self._dispatch(command)
         return self._process_pending(before_sequence, snapshot_trace=False)
 
+    def execute_controller_failure(self, failure: ControllerFailure) -> SimulationResult:
+        """Record a service/adapter failure through the ordered kernel boundary."""
+
+        self._require_started()
+        before_sequence = self.topology.latest_sequence
+        self._execution_commits = []
+        self._dispatch(failure)
+        if self.kernel.health.fatal:
+            self._dispatch(ShutdownRequested(self._clock()))
+        return self._process_pending(before_sequence, snapshot_trace=False)
+
     def shutdown(self) -> SimulationResult:
         self._require_started()
         self._execution_commits = []
@@ -451,6 +477,11 @@ class SimulatedControllerRuntime:
         return self._process_pending(before_sequence, snapshot_trace=False)
 
     def _build_session(self) -> None:
+        if hasattr(self, "executor"):
+            self._effect_history = add_effect_diagnostics(
+                self._effect_history,
+                self.executor.diagnostics,
+            )
         self._session_id += 1
         self.topology = InMemoryCanTopology(
             trace_capacity=self.config.simulation.trace_capacity,
@@ -458,7 +489,7 @@ class SimulatedControllerRuntime:
         )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
 
-        self.pi_buses: dict[CanNetwork, CanReceiver] = {}
+        self.pi_buses = {}
         transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
         for item in enabled:
             bus = self.topology.create_bus(item.network, "pi")
@@ -514,10 +545,13 @@ class SimulatedControllerRuntime:
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
             raise RuntimeError("simulation kernel did not start")
-        if self.neotrellis is not None:
-            self.neotrellis.process_pending_led_snapshots()
+        self._process_button_output()
         self.vehicle.drain_pending()
         self.topology.clear_trace()
+
+    @property
+    def effect_diagnostics(self) -> EffectExecutionDiagnostics:
+        return add_effect_diagnostics(self._effect_history, self.executor.diagnostics)
 
     def _send_button(self, button_index: int, pressed: bool) -> None:
         neotrellis = self._require_emulated_button_pad()
@@ -530,8 +564,7 @@ class SimulatedControllerRuntime:
         snapshot_trace: bool | None,
     ) -> SimulationResult:
         self._drain_kernel_inputs()
-        if self.neotrellis is not None:
-            self.neotrellis.process_pending_led_snapshots()
+        self._process_button_output()
         self.vehicle.drain_pending()
 
         snapshot = self.snapshot()
@@ -571,7 +604,6 @@ class SimulatedControllerRuntime:
 
         for failure in failures:
             self.kernel.dispatch(_effect_failure_input(failure, self._clock()))
-
         shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
         if shutdown is not None:
             self._execution_commits.append(shutdown)
@@ -630,6 +662,19 @@ class SimulatedControllerRuntime:
         ):
             return None
         return network.fault.message
+
+    def _process_button_output(self) -> None:
+        emulator = self.neotrellis
+        if emulator is None:
+            return
+        try:
+            emulator.process_pending_led_snapshots()
+        except (OSError, RuntimeError, ValueError) as exc:
+            LOGGER.error("button-pad emulator failed: %s", exc)
+            self.kernel.dispatch(
+                DeviceAdapterFailed(DeviceRole.BUTTON_PAD, self._clock(), str(exc))
+            )
+            self.neotrellis = None
 
     def _require_emulated_button_pad(self) -> SimulatedNeoTrellisNode:
         if self.neotrellis is None:

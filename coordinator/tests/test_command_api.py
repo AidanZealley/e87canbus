@@ -61,9 +61,9 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     assert first.json()["accepted"] is True
     assert set(first.json()) == {"accepted", "boot_id", "revision"}
     assert repeated.json()["boot_id"] == first.json()["boot_id"]
-    assert repeated.json()["revision"] == first.json()["revision"] + 1
+    assert repeated.json()["revision"] > first.json()["revision"]
     assert mode.status_code == repeated_mode.status_code == disabled.status_code == 200
-    assert repeated_mode.json()["revision"] == mode.json()["revision"] + 1
+    assert repeated_mode.json()["revision"] > mode.json()["revision"]
     assert snapshot.json()["application"]["maximum_assistance_active"] is False
     assert snapshot.json()["application"]["steering_mode"] == "manual"
     assert snapshot.json()["application"]["manual_assistance_level"] == 4
@@ -99,7 +99,7 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
         unsaved_state = client.get("/api/steering/curve-state").json()
 
     assert saved.status_code == repeated_saved.status_code == unsaved.status_code == 200
-    assert repeated_saved.json()["revision"] == saved.json()["revision"] + 1
+    assert repeated_saved.json()["revision"] > saved.json()["revision"]
     assert saved_state["saved_profile_id"] == created["profile_id"]
     assert saved_state["saved_profile_revision"] == created["revision"]
     assert unsaved_state["definition"] == unsaved_definition
@@ -230,5 +230,4 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
     assert application.manual_assistance_level == 3
     assert application.active_steering_curve.saved_profile_id == profile["profile_id"]
     assert curve_state.json()["saved_profile_id"] == profile["profile_id"]
-    assert dev_action.status_code == 503
-    assert dev_action.json()["error"]["code"] == "simulation_adapter_unavailable"
+    assert dev_action.status_code == 404

@@ -6,7 +6,9 @@ import argparse
 import json
 import logging
 import os
+import threading
 from collections.abc import Sequence
+from contextlib import suppress
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -15,7 +17,6 @@ import uvicorn
 from e87canbus.api import main as api_main
 from e87canbus.api.main import (
     CONTROLLER_MODE_ENVIRONMENT_VARIABLE,
-    DEFAULT_CORS_ORIGINS,
     DEFAULT_PROFILE_DATABASE,
     PROFILE_DATABASE_ENVIRONMENT_VARIABLE,
     create_app,
@@ -53,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--reload", action="store_true")
     parser.add_argument(
+        "--frontend-directory",
+        type=Path,
+        help="Built frontend directory served same-origin by the controller.",
+    )
+    parser.add_argument(
         "--button-pad-source",
         choices=tuple(DeviceSource),
         help=(
@@ -75,6 +81,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     mode = ControllerMode(args.mode)
+    if mode is ControllerMode.LIVE and args.host not in {"127.0.0.1", "::1", "localhost"}:
+        raise ValueError(
+            "live mode is unauthenticated and may bind only to loopback; "
+            "non-loopback exposure requires a separate security decision"
+        )
     config = simulator_config() if mode is ControllerMode.SIMULATED else default_config()
     selection = (
         simulated_selection(config)
@@ -118,17 +129,56 @@ def main(argv: Sequence[str] | None = None) -> int:
         config=config,
         selection=selection,
         profile_database_path=args.profile_database,
-        cors_origins=args.cors_origins or DEFAULT_CORS_ORIGINS,
+        cors_origins=args.cors_origins,
+        frontend_directory=args.frontend_directory,
     )
-    uvicorn.run(
-        "e87canbus.api.main:app",
-        host=args.host,
-        port=args.port,
-        log_level=args.log_level,
-        reload=args.reload,
-        reload_dirs=["coordinator/src"] if args.reload else None,
+    if args.reload:
+        uvicorn.run(
+            "e87canbus.api.main:app",
+            host=args.host,
+            port=args.port,
+            log_level=args.log_level,
+            reload=True,
+            reload_dirs=["coordinator/src"],
+        )
+        return 0
+
+    server = uvicorn.Server(
+        uvicorn.Config(
+            "e87canbus.api.main:app",
+            host=args.host,
+            port=args.port,
+            log_level=args.log_level,
+        )
     )
-    return 0
+    monitor_cancel = threading.Event()
+
+    def monitor_controller() -> None:
+        while (
+            not monitor_cancel.wait(0.05)
+            and not api_main.app.state.controller_service.stopped_event.is_set()
+        ):
+            pass
+        if api_main.app.state.controller_service.fatal_exit_required:
+            server.should_exit = True
+
+    monitor = threading.Thread(
+        target=monitor_controller,
+        name="controller-fatal-monitor",
+    )
+    monitor.start()
+    try:
+        with suppress(KeyboardInterrupt):
+            server.run()
+    finally:
+        monitor_cancel.set()
+        monitor.join(timeout=1.0)
+        if monitor.is_alive():
+            raise RuntimeError("controller fatal monitor did not stop cleanly")
+    return 1 if (
+        not server.started
+        or api_main.app.state.controller_service.fatal_exit_required
+    ) else 0
 
 
 if __name__ == "__main__":

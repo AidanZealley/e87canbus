@@ -69,6 +69,10 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
+Process liveness is exposed at `/health/live`; `/health/ready` becomes successful only after the
+database, controller and publisher have started and returns `503` on persistence or fatal controller
+failure. The old placeholder `/api/health` route no longer exists.
+
 In the workbench, the topology panel shows all three networks and the chronological trace can be
 filtered by network without another API request. Press NeoTrellis button `0` to toggle the
 authoritative steering mode. Buttons `1` and `2` enter Manual at the last runtime manual level,
@@ -151,3 +155,11 @@ command accepted”), and watchdog state; these are an ideal simulation projecti
 physical feedback. Socket.IO publication is bounded and latest-state coalesced; the frontend uses
 one Socket.IO-to-Zustand path. The backend raw WebSocket remains external-consumer compatibility
 until Phase 8 and has no repository-owned frontend consumer.
+
+Operational diagnostics retain counters rather than event history: bounded inbox depth/capacity and
+latency, per-network frame/effect outcomes, bounded publisher/coalescing/drop counts, active sockets,
+trace subscribers and the fixed 2,000-row trace capacity. Controller health distinguishes CAN,
+device, steering, persistence and UI transport faults. Publisher or client failure cannot block the
+controller owner. See the [failure policy and soak evidence](docs/reliability.md) and
+[Pi deployment and operation](deploy/README.md) for the loopback same-origin service, restart policy
+and journal commands.

@@ -28,6 +28,7 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
+from e87canbus.device import DeviceRole
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     CurveInterpolation,
@@ -107,7 +108,14 @@ class SteeringActuatorFailed:
 
 @dataclass(frozen=True)
 class InboxOverflowed:
-    network: CanNetwork
+    network: CanNetwork | None
+    failed_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class DeviceAdapterFailed:
+    role: DeviceRole
     failed_at: float
     message: str
 
@@ -156,6 +164,7 @@ ControllerInput = (
     | CanEffectExecutionFailed
     | SteeringActuatorFailed
     | InboxOverflowed
+    | DeviceAdapterFailed
     | ShutdownRequested
     | ActivateSteeringCurve
     | SetMaximumAssistance
@@ -195,6 +204,7 @@ class RuntimeFaultKind(StrEnum):
     CAN_EFFECT_EXECUTION = "can_effect_execution"
     STEERING_ACTUATOR = "steering_actuator"
     INBOX_OVERFLOW = "inbox_overflow"
+    DEVICE_ADAPTER = "device_adapter"
 
 
 @dataclass(frozen=True)
@@ -208,6 +218,16 @@ class RuntimeFault:
 class NetworkRuntimeHealth:
     network: CanNetwork
     fault: RuntimeFault | None = None
+    received_frames: int = 0
+    decoded_frames: int = 0
+    ignored_frames: int = 0
+    malformed_frames: int = 0
+
+
+@dataclass(frozen=True)
+class DeviceRuntimeHealth:
+    role: DeviceRole
+    fault: RuntimeFault | None = None
 
 
 def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
@@ -218,30 +238,77 @@ def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
 class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
     steering_actuator_fault: RuntimeFault | None = None
+    inbox_overflow_fault: RuntimeFault | None = None
+    devices: tuple[DeviceRuntimeHealth, ...] = (
+        DeviceRuntimeHealth(DeviceRole.BUTTON_PAD),
+    )
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
 
     @property
     def fatal(self) -> bool:
-        return self.steering_actuator_fault is not None or any(
-            item.fault is not None for item in self.networks
+        return (
+            self.steering_actuator_fault is not None
+            or self.inbox_overflow_fault is not None
+            or any(item.fault is not None for item in self.networks)
         )
 
     def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
         return self._replace(replace(self.for_network(network), fault=fault))
 
     def _replace(self, replacement: NetworkRuntimeHealth) -> RuntimeHealth:
-        return RuntimeHealth(
+        return replace(
+            self,
             networks=tuple(
                 replacement if item.network is replacement.network else item
                 for item in self.networks
             ),
-            steering_actuator_fault=self.steering_actuator_fault,
         )
 
     def with_steering_actuator_fault(self, fault: RuntimeFault) -> RuntimeHealth:
         return replace(self, steering_actuator_fault=fault)
+
+    def with_inbox_overflow(
+        self,
+        network: CanNetwork | None,
+        fault: RuntimeFault,
+    ) -> RuntimeHealth:
+        updated = replace(self, inbox_overflow_fault=fault)
+        return updated if network is None else updated.with_fault(network, fault)
+
+    def with_device_fault(self, role: DeviceRole, fault: RuntimeFault) -> RuntimeHealth:
+        return replace(
+            self,
+            devices=tuple(
+                replace(item, fault=fault) if item.role is role else item
+                for item in self.devices
+            ),
+        )
+
+    def with_frame_outcome(self, network: CanNetwork, outcome: str) -> RuntimeHealth:
+        current = self.for_network(network)
+        if outcome == "decoded":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                decoded_frames=current.decoded_frames + 1,
+            )
+        elif outcome == "ignored":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                ignored_frames=current.ignored_frames + 1,
+            )
+        elif outcome == "malformed":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                malformed_frames=current.malformed_frames + 1,
+            )
+        else:
+            raise ValueError(f"unsupported frame outcome: {outcome}")
+        return self._replace(updated)
 
 
 @dataclass(frozen=True)
@@ -376,7 +443,7 @@ class CoordinatorKernel:
                 )
             case InboxOverflowed(network, failed_at, message):
                 previous_health = self._health
-                self._health = self._health.with_fault(
+                self._health = self._health.with_inbox_overflow(
                     network,
                     RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, failed_at, message),
                 )
@@ -384,6 +451,12 @@ class CoordinatorKernel:
                     SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW),
                     previous_health=previous_health,
                 )
+            case DeviceAdapterFailed(role, failed_at, message):
+                self._health = self._health.with_device_fault(
+                    role,
+                    RuntimeFault(RuntimeFaultKind.DEVICE_ADAPTER, failed_at, message),
+                )
+                return None
             case CanEffectExecutionFailed(network, failed_at, message):
                 self._health = self._health.with_fault(
                     network,
@@ -438,8 +511,13 @@ class CoordinatorKernel:
                 routed.frame.data.hex(),
                 exc,
             )
+            self._health = self._health.with_frame_outcome(received.network, "malformed")
             return None
-        return None if event is None else self._transition(event)
+        if event is None:
+            self._health = self._health.with_frame_outcome(received.network, "ignored")
+            return None
+        self._health = self._health.with_frame_outcome(received.network, "decoded")
+        return self._transition(event)
 
     def _transition(
         self,

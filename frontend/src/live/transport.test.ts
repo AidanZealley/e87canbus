@@ -10,6 +10,7 @@ class FakeSocket {
   emitted: string[] = []
   connects = 0
   disconnects = 0
+  connected = false
   on(event: string, listener: (...args: never[]) => void) {
     const handlers = this.handlers.get(event) ?? new Set()
     handlers.add(listener)
@@ -33,6 +34,8 @@ class FakeSocket {
     return this
   }
   fire(event: string, payload?: unknown) {
+    if (event === "connect") this.connected = true
+    if (event === "disconnect") this.connected = false
     for (const handler of this.handlers.get(event) ?? [])
       handler(payload as never)
   }
@@ -72,9 +75,12 @@ describe("Socket.IO transport owner", () => {
     socket.fire("controller.snapshot", snapshot("transport-boot", 1))
     await Promise.resolve()
     expect(invalidate).toHaveBeenCalledTimes(2)
+    const releaseTrace = transport.subscribeTrace()
+    expect(socket.emitted).toEqual(["trace.subscribe"])
     socket.fire("disconnect")
     expect(useLiveStore.getState().connection.synchronized).toBe(false)
     socket.fire("connect")
+    expect(socket.emitted).toEqual(["trace.subscribe", "trace.subscribe"])
     socket.fire("controller.snapshot", snapshot("transport-boot", 1))
     await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4))
     socket.fire("resources.changed", {
@@ -84,9 +90,12 @@ describe("Socket.IO transport owner", () => {
       revision: 2,
     })
     await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(5))
-    const releaseTrace = transport.subscribeTrace()
     releaseTrace()
-    expect(socket.emitted).toEqual(["trace.subscribe", "trace.unsubscribe"])
+    expect(socket.emitted).toEqual([
+      "trace.subscribe",
+      "trace.subscribe",
+      "trace.unsubscribe",
+    ])
     transport.stop()
     expect(socket.disconnects).toBe(1)
     expect(socket.handlers.size).toBe(0)

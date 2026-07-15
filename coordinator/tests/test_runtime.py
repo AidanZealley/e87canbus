@@ -24,7 +24,9 @@ from e87canbus.runtime import (
     KernelLifecycle,
     KernelStarted,
     ReceivedCanFrame,
+    RuntimeFault,
     RuntimeFaultKind,
+    RuntimeHealth,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -40,6 +42,16 @@ MAXIMUM_LEDS = ButtonLedState(
     (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE)
     + (LedColour.OFF,) * 12
 )
+
+
+def test_non_network_inbox_overflow_is_fatal() -> None:
+    fault = RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, 1.0, "command inbox full")
+
+    health = RuntimeHealth().with_inbox_overflow(None, fault)
+
+    assert health.fatal is True
+    assert health.inbox_overflow_fault == fault
+    assert all(network.fault is None for network in health.networks)
 
 
 class SpeedRouter(ProtocolRouter):
@@ -170,6 +182,9 @@ def test_unknown_and_malformed_frames_create_no_commits(
     assert unknown is None
     assert malformed is None
     assert kernel.diagnostics().revision == 1
+    network = kernel.diagnostics().health.for_network(CanNetwork.KCAN)
+    assert network.received_frames == 2
+    assert (network.ignored_frames, network.malformed_frames) == (1, 1)
     assert "ignored malformed recognized frame" in caplog.text
 
 

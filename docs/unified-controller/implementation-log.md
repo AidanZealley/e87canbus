@@ -29,19 +29,18 @@ simulation.
 | 4 — Socket.IO publication | Verified | 2026-07-15 | Fixed topics, reconnect snapshot and bounded delivery complete |
 | 5 — Frontend data ownership | Verified | 2026-07-15 | One bounded Socket.IO/Zustand path and Query ownership pass browser acceptance |
 | 6 — Simulation/device convergence | Verified | 2026-07-15 | Physical, emulated, observer and disabled pathways converge honestly |
-| 7 — Reliability/deployment | Not started | — | Failure policy, health, shutdown and service operation |
+| 7 — Reliability/deployment | Verified | 2026-07-15 | Bounded health/failure policy, deterministic shutdown, soak and Pi service verified |
 | 8 — Cutover/acceptance | Not started | — | Legacy removal, integrated checks and soak evidence |
 
 ## Current handoff
 
-Start Phase 7 from the verified role-based device composition and honest desired/observed
-projection. Preserve exactly one selected button-pad source, the shared generated `0x700`/`0x701`
-wire path, semantic-command/emulator-control separation, restart-only source selection and reset
-resource release. The physical pad still supplies no acknowledgement, so connection and observed
-LEDs remain unknown; do not turn successful sends into evidence. Backend raw `/ws` and
-`GET /api/snapshot` remain Phase 8 compatibility only. Real CAN TX and steering output remain
-unauthorized. Phase 7 must make failure-only diagnostics publishable without recursive failure
-feedback and complete health, shutdown and deployment behavior.
+Start Phase 8 from the verified bounded controller, publication and frontend ownership. Preserve
+the explicit service-owned failure policy, exact `/health/live` and `/health/ready` semantics,
+process-local bounded diagnostics, loopback production trust boundary, deny-by-default TX and fixed
+shutdown order. Remove the remaining backend raw `/ws` and `GET /api/snapshot` compatibility
+surfaces and any superseded startup/docs paths rather than retaining facades. The T3 soak exposed
+and fixed trace re-subscription across a Socket.IO connection epoch; retain that regression. Real
+CAN TX and steering output remain unauthorized, and simulated safe requests make no physical claim.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -70,6 +69,82 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 7: bounded reliability and supervised deployment verified
+
+- **Status:** Verified
+- **Scope:** Implemented the service-owned failure policy, complete bounded health projection,
+  liveness/readiness, deterministic lifecycle, production exposure rules, supervised Pi service and
+  simulated soak/restart acceptance.
+- **Changed:** Added process-lifetime received/decoded/ignored/malformed counters per CAN network;
+  sent/dropped/rate-limited/failed effect counters; bounded controller inbox depth/capacity,
+  current/maximum latency, warning count and overflow latch; persistence, publisher, socket,
+  trace-ring and fatal/non-fatal diagnostics; and a generated matching frontend contract. Fatal
+  reader, any inbox overflow (including non-CAN commands), CAN-effect and steering faults enter the
+  ordered safe/terminal path once; emulator
+  failure is a typed non-physical adapter fault. Storage failures reject only affected resource
+  operations and mark readiness unavailable. Publisher health updates cannot recursively publish,
+  topic handoff remains bounded and `controller.health` is coalesced to 1 Hz. Persistence,
+  readiness and publisher/socket-only changes commit newer service/health revisions and enter a
+  direct one-slot health handoff without publisher recursion. Added exact
+  `/health/live` and `/health/ready`; removed the placeholder `/api/health`. Production live mode
+  registers no development mutation routes or development CORS, rejects unauthenticated
+  non-loopback bind, remains RX-only by default and may serve the built frontend same-origin. The
+  live CLI now observes fatal or unexpected owner failure, rejects incomplete Uvicorn startup as
+  non-zero for `systemd`, and serves direct SPA routes without masking missing assets or server
+  namespaces. Shutdown
+  rejects commands, stops readers, commits the safe request, stops publisher/socket tasks, closes
+  adapters and verifies joins/cancellation. Added a loopback systemd unit, explicit environment
+  template and operator guide. Fixed the frontend trace owner to re-subscribe on every Socket.IO
+  connection epoch.
+- **Decisions:** Health exposes typed state and bounded counters, never arbitrary log history.
+  Process liveness remains responsive when controller readiness fails. Browser/socket disconnect
+  does not make the controller unready; persistence failure does. Unknown CAN output outcomes are
+  not retried. Current/maximum values and process-lifetime integer counters are retained, while
+  trace rows, pending topics, resource changes and per-client Engine.IO packets retain fixed bounds.
+  Development routes are absent in live composition, not 503 compatibility facades. The supported
+  production boundary is unauthenticated loopback/same-origin; non-loopback deployment requires a
+  separate authentication/origin decision. No reverse proxy, monitoring stack, kiosk process or
+  automatic capability grant was added.
+- **Verification:** Full `uv run pytest -q`: 509 passed with one existing Starlette/httpx
+  deprecation warning. Focused post-review reliability/runtime/lifecycle/publication/CLI suites:
+  97 passed. `uv run
+  ruff check .`, `uv run mypy coordinator/src/e87canbus`, both generated protocol checks,
+  `bash -n scripts/*.sh` and `git diff --check` passed. `pnpm test`: 30 unit and 58 component tests
+  passed; `pnpm lint`, `pnpm typecheck` and production `pnpm build` passed with 2,968 transformed
+  modules. PlatformIO passed at 21.5% RAM and 25.6% flash. Tests cover exact fault/fallback paths,
+  persistence isolation, overload latch, fatal CLI exit, live route/CORS/TX exclusion, same-origin
+  direct SPA/static serving with honest asset/API 404s, five lifecycle repetitions with fresh boot
+  IDs and no owned thread/file-lock leak, bounded publisher/trace behavior, failure-only health
+  revision/delivery, nonrecursive publisher diagnostics and reconnect trace subscription.
+- **Browser/soak/physical checks:** The T3 browser remained attached to isolated simulated services
+  for more than 13 minutes across a deliberate backend restart. Two measured 42-second windows each
+  submitted 600 telemetry commands at 14.3/s and 30 settings/profile read pairs; the second added
+  100 semantic steering commands. Maximum inbox depth was 1/1,024 and latency 1.920 ms with no
+  warning/overflow. The sampled publisher had no failures, drops or transport saturation and had
+  coalesced 2,228 health intermediates; trace stayed within 1/2,000 and subscriber ownership moved
+  1 → 0 → 1 across route close/reopen. Final counters included 2,305 decoded F-CAN frames, zero
+  malformed/ignored frames, 41 sent and 59 rate-limited K-CAN effects, and 2,120 successful steering
+  effects. Backend RSS moved from 55.1 MB during warm-up to 39.6 MB and 42.3 MB; the prior process
+  was 39.7 MB after 4:35. Browser heap moved from 61.3 MB through 50.7 MB to 53.0 MB with 777 DOM
+  nodes and 25 virtual trace rows. The browser replaced state by new boot ID, durable settings
+  revision 2 survived, trace re-subscribed after reconnect, the header returned to `Connected`, and
+  final live/ready were 200 with non-fatal ready health. The user's independent tabs also remained
+  stable well beyond the former 5–10 minute crash window. Real CAN TX, physical steering and
+  hardware/vcan checks were unavailable and not enabled; no physical behavior is claimed.
+- **Documentation:** Added `docs/reliability.md` with the exact owner/policy table, bounds and soak
+  record; updated root, coordinator, frontend and protocol guidance; added `deploy/README.md`, the
+  systemd unit and environment template; regenerated `protocol/live-events-v1.schema.json`.
+- **Dependencies/migrations:** None. No package/lockfile, SQLite schema, CAN wire or firmware
+  protocol migration.
+- **Compatibility/removal:** Removed `/api/health` and live-mode development-route facades
+  completely. Backend raw `/ws` and `GET /api/snapshot` remain the only pre-existing Phase 8
+  compatibility surfaces; no repository frontend consumes them.
+- **Remaining:** None for Phase 7. Physical read-only and optional `vcan` evidence may be added when
+  available but do not block the software reliability criteria.
+- **Next handoff:** Phase 8 should remove the two remaining backend compatibility reads and complete
+  cutover/acceptance without weakening health bounds, reconnect resync, shutdown order, trust
+  boundary or deny-by-default output authority.
 
 ### 2026-07-15 — Phase 6: device roles and simulation converge on shared wire paths
 

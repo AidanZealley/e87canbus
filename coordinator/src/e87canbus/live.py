@@ -30,6 +30,7 @@ from e87canbus.runtime import (
     Commit,
     ControllerInput,
     CoordinatorKernel,
+    DeviceAdapterFailed,
     DiagnosticSnapshot,
     InboxOverflowed,
     KernelStarted,
@@ -66,6 +67,7 @@ CONTROLLER_INPUT_TYPES = (
     CanEffectExecutionFailed,
     SteeringActuatorFailed,
     InboxOverflowed,
+    DeviceAdapterFailed,
     ShutdownRequested,
     ActivateSteeringCurve,
     SetMaximumAssistance,
@@ -314,14 +316,6 @@ class LiveControllerRuntime:
     def execute(self, work: object) -> RuntimeExecution:
         if not isinstance(work, CONTROLLER_INPUT_TYPES):
             raise TypeError(f"unsupported live controller work: {work!r}")
-        if isinstance(work, ReceivedCanFrame):
-            queue_latency_s = self._clock() - work.received_at
-            if queue_latency_s > self.config.runtime_queue_latency_warning_s:
-                LOGGER.warning(
-                    "CAN frame waited in live inbox: network=%s latency_s=%.3f",
-                    work.network.value,
-                    queue_latency_s,
-                )
         execution = self._dispatch(work)
         button_observed = (
             isinstance(work, ReceivedCanFrame)
@@ -360,16 +354,18 @@ class LiveControllerRuntime:
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self._reader_stop.set()
         execution = self._dispatch(ShutdownRequested(now)) if self._started else None
-        # Keep output capabilities available for the ordered safe-shutdown transition, then close
-        # endpoints to unblock any receiver before requiring every reader to terminate.
-        self._close_buses()
+        # Keep endpoints open through the ordered safe-state transition. Normal receivers use a
+        # bounded timeout and stop before the publisher and adapters are closed by the lifecycle.
         for reader in self._readers:
             reader.join(timeout=READER_JOIN_TIMEOUT_S)
         alive = tuple(reader.name for reader in self._readers if reader.is_alive())
         if alive:
             names = ", ".join(alive)
-            raise RuntimeError(f"live CAN readers did not stop after adapter close: {names}")
+            raise RuntimeError(f"live CAN readers did not stop before adapter close: {names}")
         return execution
+
+    def close(self) -> None:
+        self._close_buses()
 
     def projection(
         self,
@@ -415,6 +411,7 @@ class LiveControllerRuntime:
                     for item in enabled
                 ),
                 steering=None,
+                effects=self._executor.diagnostics,
             ),
         )
 
@@ -423,11 +420,21 @@ class LiveControllerRuntime:
         return self._kernel.health.fatal
 
     def _dispatch(self, work: ControllerInput) -> RuntimeExecution | None:
+        before_health = self._kernel.health
         commit = self._kernel.dispatch(work)
         failures = _execute(commit, self._executor, self._clock)
         for failure in failures:
             self._kernel.dispatch(failure)
-        return None if commit is None else self._current_execution(commit)
+        health_changed = self._kernel.health != before_health
+        if commit is None and not health_changed:
+            return None
+        execution = self._current_execution(commit)
+        if health_changed:
+            topics = execution.changed_topics | {StateTopic.HEALTH}
+            if any(isinstance(failure, CanEffectExecutionFailed) for failure in failures):
+                topics |= {StateTopic.DEVICES}
+            execution = replace(execution, changed_topics=topics)
+        return execution
 
     def _current_execution(self, result: object) -> RuntimeExecution:
         commit = result if isinstance(result, Commit) else None

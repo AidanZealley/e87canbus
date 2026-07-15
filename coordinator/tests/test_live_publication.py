@@ -68,12 +68,14 @@ def controller_service(
     *,
     trace_batch_size: int = 4,
     shutdown_timeout_s: float = 2.0,
+    health_hz: float = 1.0,
 ) -> ControllerService:
     config = replace(
         simulator_config(),
         tick_interval_s=60.0,
         live_publication=LivePublicationConfig(
             telemetry_hz=25.0,
+            health_hz=health_hz,
             trace_hz=100.0,
             trace_batch_size=trace_batch_size,
             resource_capacity=8,
@@ -131,7 +133,7 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
     assert first_to == "first-client"
     assert first_payload["protocol_version"] == 1
     assert first_payload["boot_id"] != second_payload["boot_id"]
-    assert first_payload["revision"] == 1
+    assert first_payload["revision"] == 2
     assert set(first_payload["data"]) == {
         "topic_revisions",
         "simulation_session_id",
@@ -142,7 +144,12 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         "devices",
         "health",
     }
-    assert set(first_payload["data"]["topic_revisions"].values()) == {1}
+    assert first_payload["data"]["topic_revisions"]["health"] == 2
+    assert {
+        revision
+        for topic, revision in first_payload["data"]["topic_revisions"].items()
+        if topic != "health"
+    } == {1}
 
 
 @pytest.mark.asyncio
@@ -161,16 +168,102 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
             >= {"steering.state", "buttons.state"}
         )
         events = [event for event, *_ in socket_server.emissions]
-        before_reset_revision = service.snapshot().revision
+        before_reset = service.snapshot()
+        before_reset_revision = before_reset.revision
+        command_topic_revision = dict(before_reset.topic_revisions)[StateTopic.STEERING]
         await asyncio.wrap_future(service.submit(ResetSimulation()))
         after_reset_revision = service.snapshot().revision
     finally:
         await asyncio.to_thread(service.stop)
         await publisher.stop()
 
-    assert result.revision == before_reset_revision
+    assert result.revision == command_topic_revision
+    assert result.revision <= before_reset_revision
     assert set(events) == {"steering.state", "buttons.state", "devices.state"}
     assert after_reset_revision > before_reset_revision
+
+
+@pytest.mark.asyncio
+async def test_persistence_only_change_advances_and_publishes_health_revision() -> None:
+    service = controller_service(health_hz=100.0)
+    service.mark_persistence_available()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    await asyncio.to_thread(service.start, publisher.offer)
+    service.mark_ready()
+    try:
+        await wait_until(lambda: publisher.pending_topic_count == 0)
+        await publisher.send_snapshot("synchronized-client")
+        synchronized_revision = socket_server.emissions[-1][1]["revision"]
+        socket_server.emissions.clear()
+
+        service.mark_persistence_fault("database unavailable")
+
+        await wait_until(
+            lambda: any(event == "controller.health" for event, *_ in socket_server.emissions)
+        )
+        event, payload, _, _ = socket_server.emissions[-1]
+    finally:
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
+
+    assert event == "controller.health"
+    assert payload["revision"] > synchronized_revision
+    assert payload["data"]["persistence"] == {
+        "available": False,
+        "fault": "database unavailable",
+    }
+    assert payload["data"]["ready"] is False
+
+
+@pytest.mark.asyncio
+async def test_socket_and_publisher_only_changes_publish_once_without_recursion() -> None:
+    service = controller_service(health_hz=100.0)
+    service.mark_persistence_available()
+    socket_server = RecordingSocketServer()
+    publisher = publisher_for(service, socket_server)
+    await publisher.start()
+    await asyncio.to_thread(service.start, publisher.offer)
+    service.mark_ready()
+    try:
+        await wait_until(lambda: publisher.pending_topic_count == 0)
+        socket_server.emissions.clear()
+        before_socket_revision = service.snapshot().revision
+
+        publisher.connected("new-client")
+
+        await wait_until(
+            lambda: any(event == "controller.health" for event, *_ in socket_server.emissions)
+        )
+        socket_payload = socket_server.emissions[-1][1]
+        assert socket_payload["revision"] > before_socket_revision
+        assert socket_payload["data"]["publisher"]["active_sockets"] == 1
+        await asyncio.sleep(0.04)
+        assert [
+            event for event, *_ in socket_server.emissions if event == "controller.health"
+        ] == ["controller.health"]
+
+        socket_server.emissions.clear()
+        socket_server.error = OSError("socket failed")
+        before_failure_revision = service.snapshot().revision
+        await publisher.send_snapshot("broken-client")
+        socket_server.error = None
+
+        await wait_until(
+            lambda: any(event == "controller.health" for event, *_ in socket_server.emissions)
+        )
+        failure_payload = socket_server.emissions[-1][1]
+        assert failure_payload["revision"] > before_failure_revision
+        assert failure_payload["data"]["publisher"]["failures"] == 1
+        await asyncio.sleep(0.04)
+        assert publisher.pending_topic_count == 0
+        assert [
+            event for event, *_ in socket_server.emissions if event == "controller.health"
+        ] == ["controller.health"]
+    finally:
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
 
 
 @pytest.mark.asyncio
@@ -198,7 +291,7 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
         for _ in range(1_000):
             publisher.offer(execution)
         assert controller_result.snapshot.application.vehicle_speed_kph == 42.0
-        assert publisher.pending_topic_count <= 1
+        assert publisher.pending_topic_count <= 2
         assert publisher.diagnostics.max_pending_topics <= len(StateTopic)
         assert service.snapshot().diagnostics.health.fatal is False
     finally:
@@ -275,9 +368,10 @@ async def test_multiple_clients_receive_independent_current_snapshots() -> None:
         service.stop()
         await publisher.stop()
 
-    assert [item[2] for item in socket_server.emissions] == ["client-a", "client-b"]
-    first = {**socket_server.emissions[0][1], "emitted_at": None}
-    second = {**socket_server.emissions[1][1], "emitted_at": None}
+    snapshots = [item for item in socket_server.emissions if item[0] == "controller.snapshot"]
+    assert [item[2] for item in snapshots] == ["client-a", "client-b"]
+    first = {**snapshots[0][1], "emitted_at": None}
+    second = {**snapshots[1][1], "emitted_at": None}
     assert first == second
 
 
@@ -327,6 +421,7 @@ async def test_socket_failure_is_transport_diagnostic_only() -> None:
     await publisher.start()
     try:
         await publisher.send_snapshot("broken-client")
+        socket_server.error = None
     finally:
         service.stop()
         await publisher.stop()

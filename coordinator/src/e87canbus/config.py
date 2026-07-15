@@ -96,6 +96,7 @@ class SimulationConfig:
 @dataclass(frozen=True)
 class LivePublicationConfig:
     telemetry_hz: float = 25.0
+    health_hz: float = 1.0
     trace_hz: float = 10.0
     trace_batch_size: int = 100
     resource_capacity: int = 256
@@ -105,6 +106,8 @@ class LivePublicationConfig:
     def __post_init__(self) -> None:
         if not math.isfinite(self.telemetry_hz) or self.telemetry_hz <= 0:
             raise ValueError("live telemetry rate must be finite and positive")
+        if not math.isfinite(self.health_hz) or self.health_hz <= 0:
+            raise ValueError("live health rate must be finite and positive")
         if not math.isfinite(self.trace_hz) or self.trace_hz <= 0:
             raise ValueError("live trace rate must be finite and positive")
         if self.trace_batch_size < 1:

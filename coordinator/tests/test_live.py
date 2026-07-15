@@ -374,7 +374,7 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
     try:
         with pytest.raises(
             ControllerServiceError,
-            match="live CAN readers did not stop after adapter close",
+            match="live CAN readers did not stop before adapter close",
         ):
             service.stop()
     finally:
