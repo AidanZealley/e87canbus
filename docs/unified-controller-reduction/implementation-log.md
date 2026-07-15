@@ -18,7 +18,8 @@ or reformatted code as simplification.
 
 ## Current handoff
 
-All seven phases are verified on the controlling branch through the pending Phase 7 commit. The
+All seven phases are verified on the controlling branch through Phase 7 commit
+`6bd285b949ea5f55067e09cd2ea4ab9fc33e1bed`. The
 roadmap base remains `a31d2f8016bb3d6766425ae5fb244a5058fecc63`; the direct cumulative production
 diff is +467/-1,488, net -1,021: backend +403/-1,225, net -822, and frontend +64/-263,
 net -199. The surviving suite has 31 backend files/485 cases/7,325 lines, 6 frontend unit
@@ -61,6 +62,24 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Final controlling review: no further scoped fix required
+
+- **Status:** Verified
+- **Scope:** Audited the roadmap-base-to-HEAD diff for dead symbols, residual legacy surfaces,
+  duplicated bounds/state ownership, obsolete compatibility, and deferred deletion conditions.
+  The audit found no concrete production, test, or compatibility fix; no further deletion or fix is
+  deferred.
+- **Accounting:** Production remains +467/-1,488, net -1,021 from roadmap base
+  `a31d2f8016bb3d6766425ae5fb244a5058fecc63`: backend +403/-1,225, net -822, and frontend
+  +64/-263, net -199. This final review changes production +0/-0, tests +0/-0, generated artifacts
+  +0/-0 and temporary compatibility +0/-0; it updates documentation only. All exact prior phase
+  accounting remains unchanged.
+- **Compatibility/removal:** No compatibility path remains and no removal or production-code
+  deletion is deferred. No consumer, objective removal condition, or later phase exists to record.
+- **Verification:** Reviewed the base-to-HEAD diff and repository status and ran dead-symbol,
+  legacy-surface, bounds-owner and documentation-diff audits. No test, lint, typecheck, build,
+  browser, soak, or physical suite was rerun for this documentation-only correction.
 
 ### 2026-07-15 — Phase 7: integrated cutover meets the honest reduction target
 
@@ -191,9 +210,11 @@ Add entries newest first:
   concurrency, explicit mode composition and frontend state owners remain because each protects a
   current ownership, safety, retention or public-contract guarantee. Fresh interactive browser and
   physical-vehicle acceptance remain evidence limitations, not deferred code removal.
-- **Next handoff:** Controlling review should verify this diff/log and commit Phase 7. Thereafter the
-  final roadmap review should reject any future second state owner, live transport, unbounded
-  retention path, compatibility facade or test-only production diagnostic seam.
+- **Next handoff:** Phase 7 was committed as
+  `6bd285b949ea5f55067e09cd2ea4ab9fc33e1bed`. Final controlling review found no concrete
+  production, test or compatibility fix and no further deletion or fix is deferred. Future changes
+  should reject any second state owner, live transport, unbounded retention path, compatibility
+  facade or test-only production diagnostic seam.
 
 ### 2026-07-15 — Phase 6: behavior-focused suite replaces implementation archaeology
 
