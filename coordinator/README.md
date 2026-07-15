@@ -56,20 +56,34 @@ An unsupported definition is rejected before state or revision changes, and the 
 
 `features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
 name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
-library SQLite driver. Composition supplies the database path and explicitly calls `initialize()`;
-module import has no filesystem side effect. Initialization applies numbered migrations under an
-exclusive transaction, enables WAL journaling with `FULL` synchronous durability, and seeds the
-stable profile ID `00000000-0000-4000-8000-000000000001` only when the catalog is empty. Operations
-use short-lived connections and each mutation is one transaction. Lists are ordered by
+library SQLite driver. `adapters/sqlite_database.py` owns the shared connection policy and ordered
+schema migrations; composition initializes it once during API lifespan startup. Migration 1 retains
+the steering catalog and stable profile seed exactly, while migration 2 adds the singleton
+application-settings document. Initialization uses an exclusive transaction, enables WAL journaling
+with `FULL` synchronous durability and fails closed on unsupported future versions. Operations use
+short-lived connections and each mutation is one transaction. Lists are ordered by
 case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
 closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
 live composition still has no profile-storage consumer and does not open the database.
 
-The simulator API now composes that repository during FastAPI lifespan startup. Its default path is
-`steering-profiles.sqlite3` in the process working directory; `e87canbus-sim-api
---profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a
-different file. Startup applies migrations and seeding before accepting requests. Tests and other
-compositions inject their own temporary path or repository boundary.
+The simulator API composes the profile and settings repositories over that shared database. Its
+default path is `steering-profiles.sqlite3` in the process working directory;
+`e87canbus-sim-api --profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string
+deployment) selects a different file and remains compatible despite the file's expanded role.
+Startup applies migrations and seeding before accepting requests. Tests and other compositions can
+inject the repositories independently.
+
+The API accepts browser requests from the loopback Vite server on port 5173 by default. When an
+isolated development frontend uses another port, pass its exact origin with repeatable
+`--cors-origin`, for example `--cors-origin http://127.0.0.1:15173`. This remains an explicit
+development allowlist; it does not broaden the deployment or authentication boundary.
+
+`features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
+Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
+document and replaces all editable fields with an expected-revision `PUT`. Successful commits
+increment once, receive one canonical UTC timestamp and publish
+`application_settings_changed`; stale writers receive a typed `409`, while corrupt or unavailable
+storage is a typed `503`. Theme remains browser-local and is absent from this contract.
 
 `/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
 accept one complete integer-unit definition; update and delete require `expected_revision`, with
@@ -134,6 +148,22 @@ fault is recorded on the stopped session and retained in logs while the reset re
 new healthy session. Initial and incremental WebSocket sends are bounded by the simulation send
 timeout, and a stalled peer is removed without detaching or reordering publication. Incremental
 trace frames use the session ID with their reset-local sequence number.
+
+The same simulated vehicle can independently select or silence RPM, oil temperature and coolant
+temperature. Each value uses its own unmistakably simulation-only extended PT-CAN frame adjacent
+to the synthetic speed identifier, then follows normal ingress, routing, transition and snapshot
+publication. These identifiers are not BMW candidates and remain absent from `ProtocolRouter`.
+RPM is canonical integer RPM; temperatures are canonical tenths of a degree Celsius. The
+application retains observations internally but projects `null` with `never_observed` or `stale`
+when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
+and every active signal is re-emitted before each ordered control-timer evaluation.
+
+Simulator snapshots also contain a complete, stable-order `devices` projection for the button pad
+and steering controller. Both start online; the single-owner simulation queue can explicitly set
+either to online, degraded or offline, and reset restores both online. Degraded and offline use the
+stable `simulated_degraded` and `simulated_offline` reasons. These manually selected values are UI
+test inputs only: they do not change CAN traffic, steering behavior, watchdog state, or establish
+real device heartbeat and diagnostic criteria.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject

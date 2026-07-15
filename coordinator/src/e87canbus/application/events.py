@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.application.state import SpeedSample
+from e87canbus.application.state import (
+    CoolantTemperatureSample,
+    EngineRpmSample,
+    OilTemperatureSample,
+    SpeedSample,
+)
 
 
 class LedColour(StrEnum):
@@ -30,6 +35,7 @@ class ButtonLedState:
         if any(not isinstance(colour, LedColour) for colour in self.colours):
             raise ValueError("button LED state must contain only known LED colours")
 
+
 OFF_BUTTON_LEDS = ButtonLedState((LedColour.OFF,) * BUTTON_LED_COUNT)
 
 
@@ -41,6 +47,21 @@ class ButtonPressed:
 @dataclass(frozen=True)
 class SpeedObserved:
     sample: SpeedSample
+
+
+@dataclass(frozen=True)
+class EngineRpmObserved:
+    sample: EngineRpmSample
+
+
+@dataclass(frozen=True)
+class OilTemperatureObserved:
+    sample: OilTemperatureSample
+
+
+@dataclass(frozen=True)
+class CoolantTemperatureObserved:
+    sample: CoolantTemperatureSample
 
 
 @dataclass(frozen=True)
@@ -71,7 +92,13 @@ class SteeringFallbackRequested:
 
 
 ApplicationEvent = (
-    ButtonPressed | SpeedObserved | ControlTimerElapsed | SteeringFallbackRequested
+    ButtonPressed
+    | SpeedObserved
+    | EngineRpmObserved
+    | OilTemperatureObserved
+    | CoolantTemperatureObserved
+    | ControlTimerElapsed
+    | SteeringFallbackRequested
 )
 
 

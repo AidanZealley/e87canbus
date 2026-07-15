@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
+from e87canbus.application.controller import EngineTelemetryStatus, EngineTelemetryValue
 from e87canbus.application.events import (
     ButtonPressed,
     SetSteeringAssistance,
@@ -23,12 +24,25 @@ from e87canbus.simulation.engine import (
     ReleaseButton,
     ResetSimulation,
     RunControlTimer,
+    SetCoolantTemperature,
+    SetDeviceStatus,
+    SetEngineRpm,
+    SetOilTemperature,
     SetVehicleSpeed,
+    SilenceOilTemperature,
     SilenceVehicleSpeed,
+    SimulatedDeviceId,
+    SimulatedDeviceReason,
+    SimulatedDeviceStatus,
     SimulationEngine,
     SimulationSessionFailed,
     StepButton,
     snapshot_to_dict,
+)
+from e87canbus.simulation.protocol import (
+    SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+    SIMULATION_ONLY_ENGINE_RPM_ID,
+    SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
 
 TEST_SIMULATOR_CONFIG = replace(
@@ -113,6 +127,8 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
 
     assert snapshot.next_pressed is True
     assert snapshot.application.speed_valid is False
+    assert snapshot.application.engine.rpm.status is EngineTelemetryStatus.NEVER_OBSERVED
+    assert snapshot.application.engine.rpm.value is None
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert snapshot.led_colours == AUTO_LEDS
     assert snapshot.steering_controller.effective_assistance == 0.0
@@ -121,7 +137,81 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
         is SteeringCommandReason.SPEED_NEVER_OBSERVED
     )
     assert snapshot.steering_controller.watchdog_timed_out is False
+    assert [device.id for device in snapshot.devices] == [
+        SimulatedDeviceId.BUTTON_PAD,
+        SimulatedDeviceId.STEERING_CONTROLLER,
+    ]
+    assert [device.status for device in snapshot.devices] == [
+        SimulatedDeviceStatus.ONLINE,
+        SimulatedDeviceStatus.ONLINE,
+    ]
+    assert all(device.reason is None for device in snapshot.devices)
     assert snapshot.trace == ()
+
+
+@pytest.mark.parametrize("device_id", tuple(SimulatedDeviceId))
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (SimulatedDeviceStatus.DEGRADED, SimulatedDeviceReason.DEGRADED),
+        (SimulatedDeviceStatus.OFFLINE, SimulatedDeviceReason.OFFLINE),
+        (SimulatedDeviceStatus.ONLINE, None),
+    ],
+)
+def test_device_status_is_independent_and_maps_simulation_reason(
+    device_id: SimulatedDeviceId,
+    status: SimulatedDeviceStatus,
+    reason: SimulatedDeviceReason | None,
+) -> None:
+    engine = build_test_engine()
+    other_device_id = next(item for item in SimulatedDeviceId if item is not device_id)
+    engine.execute(SetDeviceStatus(device_id, SimulatedDeviceStatus.OFFLINE))
+
+    result = engine.execute(SetDeviceStatus(device_id, status))
+
+    selected = next(device for device in result.snapshot.devices if device.id is device_id)
+    other = next(device for device in result.snapshot.devices if device.id is other_device_id)
+    assert (selected.status, selected.reason) == (status, reason)
+    assert (other.status, other.reason) == (SimulatedDeviceStatus.ONLINE, None)
+    assert [event["type"] for event in result.events] == ["snapshot"]
+    assert "trace" not in result.events[0]["snapshot"]
+
+
+def test_device_status_is_presentation_only_and_idempotent() -> None:
+    engine = build_test_engine()
+    before = engine.snapshot()
+
+    first = engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+    repeated = engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+
+    assert first.snapshot.application == repeated.snapshot.application == before.application
+    assert (
+        first.snapshot.steering_controller
+        == repeated.snapshot.steering_controller
+        == before.steering_controller
+    )
+    assert first.snapshot.trace == repeated.snapshot.trace == before.trace
+    assert first.snapshot.revision == repeated.snapshot.revision == before.revision
+    assert len(first.events) == len(repeated.events) == 1
+
+
+def test_offline_device_projection_does_not_inject_a_steering_fault() -> None:
+    engine = build_test_engine()
+    engine.execute(
+        SetDeviceStatus(SimulatedDeviceId.STEERING_CONTROLLER, SimulatedDeviceStatus.OFFLINE)
+    )
+
+    engine.execute(PressButton(3))
+    controlled = engine.execute(RunControlTimer(0.1)).snapshot
+
+    assert controlled.steering_controller.effective_assistance == 1.0
+    assert controlled.steering_controller.last_command_reason is SteeringCommandReason.MAXIMUM
+    assert controlled.steering_controller.watchdog_timed_out is False
+    assert controlled.fatal is False
 
 
 def test_first_startup_command_failure_has_serializable_fatal_snapshot() -> None:
@@ -177,13 +267,32 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     controller = build_test_engine()
     controller.execute(PressButton(0))
     controller.execute(SetVehicleSpeed(42.5))
+    controller.execute(SetEngineRpm(3500))
+    controller.execute(SetOilTemperature(112.5))
+    controller.execute(SetCoolantTemperature(98.0))
+    controller.execute(
+        SetDeviceStatus(SimulatedDeviceId.BUTTON_PAD, SimulatedDeviceStatus.DEGRADED)
+    )
 
     snapshot = controller.execute(ResetSimulation()).snapshot
 
     assert snapshot.application.steering_mode is SteeringMode.AUTO
     assert controller.vehicle.speed_kph is None
+    assert controller.vehicle.rpm is None
+    assert all(
+        value.status is EngineTelemetryStatus.NEVER_OBSERVED and value.value is None
+        for value in (
+            snapshot.application.engine.rpm,
+            snapshot.application.engine.oil_temperature_c,
+            snapshot.application.engine.coolant_temperature_c,
+        )
+    )
     assert (snapshot.session_id, snapshot.revision) == (2, 1)
     assert snapshot.led_colours == AUTO_LEDS
+    assert all(
+        device.status is SimulatedDeviceStatus.ONLINE and device.reason is None
+        for device in snapshot.devices
+    )
     assert snapshot.trace == ()
 
     next_snapshot = controller.execute(PressButton(0)).snapshot
@@ -217,9 +326,7 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
     assert failed.revision == engine.kernel.diagnostics().revision == 3
     assert [event["type"] for event in failure_result.events] == ["snapshot"]
     assert engine.kernel.health.steering_actuator_fault is not None
-    assert engine.kernel.health.steering_actuator_fault.message == (
-        "actuator failed on attempt 2"
-    )
+    assert engine.kernel.health.steering_actuator_fault.message == ("actuator failed on attempt 2")
     assert controllers[0].attempts == 3
     assert "terminal shutdown effect failed and was discarded" in caplog.text
     assert "attempt 3" in caplog.text
@@ -365,10 +472,7 @@ def test_timer_publishes_new_manual_actuator_projection() -> None:
 
     assert [event["type"] for event in command.events].count("snapshot") == 1
     assert [event["type"] for event in timer.events] == ["snapshot"]
-    assert (
-        timer.snapshot.steering_controller.last_command_reason
-        is SteeringCommandReason.MANUAL
-    )
+    assert timer.snapshot.steering_controller.last_command_reason is SteeringCommandReason.MANUAL
 
 
 @pytest.mark.parametrize("value", [ButtonPressed(0), ApplicationState()])
@@ -465,6 +569,62 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
         5 / 6, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
     )
     assert controlled.steering_controller.last_command_reason is SteeringCommandReason.AUTO
+
+
+def test_engine_signals_use_trace_decode_transition_and_canonical_snapshot_path() -> None:
+    clock = MutableClock(10.0)
+    controller = build_test_engine(clock=clock)
+
+    controller.execute(SetEngineRpm(3500))
+    controller.execute(SetOilTemperature(112.54))
+    snapshot = controller.execute(SetCoolantTemperature(98.0)).snapshot
+
+    engine_frames = [
+        entry
+        for entry in snapshot.trace
+        if entry.frame.arbitration_id
+        in {
+            SIMULATION_ONLY_ENGINE_RPM_ID,
+            SIMULATION_ONLY_OIL_TEMPERATURE_ID,
+            SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+        }
+    ]
+    assert [entry.network for entry in engine_frames] == [CanNetwork.PTCAN] * 3
+    assert all(entry.source == "simulated-vehicle" for entry in engine_frames)
+    assert snapshot.application.engine.rpm.value == 3500
+    assert snapshot.application.engine.oil_temperature_c.value == 112.5
+    assert snapshot.application.engine.coolant_temperature_c.value == 98.0
+    assert all(
+        value.status is EngineTelemetryStatus.VALID
+        for value in (
+            snapshot.application.engine.rpm,
+            snapshot.application.engine.oil_temperature_c,
+            snapshot.application.engine.coolant_temperature_c,
+        )
+    )
+
+
+def test_timer_reemits_active_engine_signals_and_silence_ages_only_one() -> None:
+    clock = MutableClock(1.0)
+    controller = build_test_engine(clock=clock)
+    controller.execute(SetEngineRpm(3500))
+    controller.execute(SetOilTemperature(112.5))
+    controller.execute(SetCoolantTemperature(98.0))
+    controller.execute(SilenceOilTemperature())
+
+    clock.now = 2.001
+    snapshot = controller.execute(RunControlTimer(clock())).snapshot
+
+    ids = [entry.frame.arbitration_id for entry in snapshot.trace]
+    assert ids.count(SIMULATION_ONLY_ENGINE_RPM_ID) == 2
+    assert ids.count(SIMULATION_ONLY_OIL_TEMPERATURE_ID) == 1
+    assert ids.count(SIMULATION_ONLY_COOLANT_TEMPERATURE_ID) == 2
+    assert snapshot.application.engine.rpm.status is EngineTelemetryStatus.VALID
+    assert snapshot.application.engine.oil_temperature_c == EngineTelemetryValue(
+        None,
+        EngineTelemetryStatus.STALE,
+    )
+    assert snapshot.application.engine.coolant_temperature_c.status is EngineTelemetryStatus.VALID
 
 
 def test_selected_speed_is_refreshed_before_each_control_timer() -> None:

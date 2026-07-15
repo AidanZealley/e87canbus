@@ -1,7 +1,10 @@
-import { RefreshCcwIcon, StepForwardIcon } from "lucide-react"
+import { HomeIcon, RefreshCcwIcon, StepForwardIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
 
-import { Button } from "@/components/ui/button"
+import { ModeToggle } from "@/components/mode-toggle"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
 import { ConnectionBadge } from "../connection-badge"
 import type { SimulatorConnectionState } from "../../connection"
 
@@ -23,6 +26,14 @@ export const SimulatorToolbar = ({
   <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
     <div className="mx-auto flex min-h-14 w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
       <div className="flex items-center gap-3">
+        <Link
+          to="/"
+          aria-label="Back to mode chooser"
+          title="Mode chooser"
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}
+        >
+          <HomeIcon />
+        </Link>
         <div className="flex flex-col">
           <h1 className="font-heading text-sm font-semibold tracking-wide">
             E87 CAN Simulator
@@ -51,6 +62,7 @@ export const SimulatorToolbar = ({
           <RefreshCcwIcon data-icon="inline-start" />
           Reset
         </Button>
+        <ModeToggle />
       </div>
     </div>
   </header>

@@ -35,7 +35,32 @@ class SpeedSample:
 
 
 @dataclass(frozen=True)
+class EngineRpmSample:
+    rpm: int
+    observed_at: float
+    source_network: CanNetwork
+
+
+@dataclass(frozen=True)
+class OilTemperatureSample:
+    temperature_c: float
+    observed_at: float
+    source_network: CanNetwork
+
+
+@dataclass(frozen=True)
+class CoolantTemperatureSample:
+    temperature_c: float
+    observed_at: float
+    source_network: CanNetwork
+
+
+@dataclass(frozen=True)
 class ApplicationState:
     steering: SteeringState = field(default_factory=NormalSteering)
     speed_sample: SpeedSample | None = None
     speed_evaluated_at: float = 0.0
+    engine_rpm_sample: EngineRpmSample | None = None
+    oil_temperature_sample: OilTemperatureSample | None = None
+    coolant_temperature_sample: CoolantTemperatureSample | None = None
+    engine_telemetry_evaluated_at: float = 0.0

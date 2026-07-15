@@ -141,6 +141,25 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_browser_cors_accepts_an_explicit_development_origin() -> None:
+    with TemporaryDirectory() as profile_directory:
+        app = create_app(
+            profile_database_path=Path(profile_directory) / "profiles.sqlite3",
+            cors_origins=("http://127.0.0.1:15173",),
+        )
+        with TestClient(app) as client:
+            response = client.options(
+                "/api/settings",
+                headers={
+                    "Origin": "http://127.0.0.1:15173",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:15173"
+
+
 def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> None:
     response = client.get("/api/snapshot")
 
@@ -150,11 +169,30 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
     assert body["fatal"] is False
     assert body["trace"] == []
     assert body["application"]["steering_mode"] == "auto"
+    assert body["application"]["engine"] == {
+        "rpm": {"value": None, "status": "never_observed"},
+        "oil_temperature_c": {"value": None, "status": "never_observed"},
+        "coolant_temperature_c": {"value": None, "status": "never_observed"},
+    }
     assert body["steering_controller"] == {
         "effective_assistance": 0.0,
         "last_command_reason": "speed_never_observed",
         "watchdog_timed_out": False,
     }
+    assert body["devices"] == [
+        {
+            "id": "button_pad",
+            "label": "Button pad",
+            "status": "online",
+            "reason": None,
+        },
+        {
+            "id": "steering_controller",
+            "label": "Steering controller",
+            "status": "online",
+            "reason": None,
+        },
+    ]
     assert body["led_colours"] == [3] + [0] * 15
     assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
 
@@ -202,6 +240,10 @@ def test_button_commands_return_slim_snapshots(
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     client.post("/api/buttons/0/press")
+    client.put(
+        "/api/simulation/devices/button_pad/status",
+        json={"status": "offline"},
+    )
 
     response = client.post("/api/reset")
 
@@ -209,6 +251,67 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
     assert response.json()["trace"] == []
     assert response.json()["application"]["steering_mode"] == "auto"
+    assert all(device["status"] == "online" for device in response.json()["devices"])
+
+
+@pytest.mark.parametrize("device_id", ["button_pad", "steering_controller"])
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        ("online", None),
+        ("degraded", "simulated_degraded"),
+        ("offline", "simulated_offline"),
+    ],
+)
+def test_device_status_endpoint_updates_exact_device_and_returns_complete_snapshot(
+    client: TestClient,
+    device_id: str,
+    status: str,
+    reason: str | None,
+) -> None:
+    response = client.put(
+        f"/api/simulation/devices/{device_id}/status",
+        json={"status": status},
+    )
+
+    assert response.status_code == 200
+    assert "trace" not in response.json()
+    assert [device["id"] for device in response.json()["devices"]] == [
+        "button_pad",
+        "steering_controller",
+    ]
+    selected = next(
+        device for device in response.json()["devices"] if device["id"] == device_id
+    )
+    assert (selected["status"], selected["reason"]) == (status, reason)
+
+
+@pytest.mark.parametrize(
+    ("device_id", "body", "expected_status"),
+    [
+        ("unknown", {"status": "offline"}, 404),
+        ("button_pad", {"status": "unknown"}, 422),
+        ("button_pad", {"status": "offline", "unexpected": True}, 422),
+        ("button_pad", {"status": True}, 422),
+        ("button_pad", {"status": 1}, 422),
+        ("button_pad", {}, 422),
+    ],
+)
+def test_invalid_device_status_request_does_not_change_devices(
+    client: TestClient,
+    device_id: str,
+    body: dict[str, bool | str],
+    expected_status: int,
+) -> None:
+    before = client.get("/api/snapshot").json()["devices"]
+
+    response = client.put(
+        f"/api/simulation/devices/{device_id}/status",
+        json=body,
+    )
+
+    assert response.status_code == expected_status
+    assert client.get("/api/snapshot").json()["devices"] == before
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
@@ -255,6 +358,23 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
     assert "simulated speed" in response.json()["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/step", {"button_index": 0, "unexpected": True}),
+        ("/api/vehicle/speed", {"speed_kph": 42.5, "unexpected": True}),
+    ],
+)
+def test_existing_simulation_requests_continue_to_ignore_unknown_fields(
+    client: TestClient,
+    path: str,
+    body: dict[str, bool | float | int],
+) -> None:
+    response = client.post(path, json=body)
+
+    assert response.status_code == 200
+
+
 def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
     client: TestClient,
 ) -> None:
@@ -268,6 +388,100 @@ def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
     assert "trace" not in response.json()
 
 
+@pytest.mark.parametrize(
+    ("path", "body", "field", "expected"),
+    [
+        ("/api/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
+        (
+            "/api/vehicle/oil-temperature",
+            {"temperature_c": 112.54},
+            "oil_temperature_c",
+            112.5,
+        ),
+        (
+            "/api/vehicle/coolant-temperature",
+            {"temperature_c": -12.3},
+            "coolant_temperature_c",
+            -12.3,
+        ),
+        (
+            "/api/vehicle/oil-temperature",
+            {"temperature_c": 110},
+            "oil_temperature_c",
+            110.0,
+        ),
+    ],
+)
+def test_engine_commands_return_complete_slim_snapshot(
+    client: TestClient,
+    path: str,
+    body: dict[str, float | int],
+    field: str,
+    expected: float | int,
+) -> None:
+    response = client.post(path, json=body)
+
+    assert response.status_code == 200
+    assert response.json()["application"]["engine"][field] == {
+        "value": expected,
+        "status": "valid",
+    }
+    assert set(response.json()["application"]["engine"]) == {
+        "rpm",
+        "oil_temperature_c",
+        "coolant_temperature_c",
+    }
+    assert "trace" not in response.json()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/vehicle/rpm/silence",
+        "/api/vehicle/oil-temperature/silence",
+        "/api/vehicle/coolant-temperature/silence",
+    ],
+)
+def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
+    first = client.post(path)
+    second = client.post(path)
+
+    assert first.status_code == second.status_code == 200
+    assert second.json()["application"]["engine"] == first.json()["application"]["engine"]
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/vehicle/rpm", {"rpm": -1}),
+        ("/api/vehicle/rpm", {"rpm": 12_001}),
+        ("/api/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": -40.1}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": 250.1}),
+        ("/api/vehicle/rpm", {"rpm": True}),
+        ("/api/vehicle/rpm", {"rpm": "3500"}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": True}),
+        ("/api/vehicle/oil-temperature", {"temperature_c": "110"}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": True}),
+        ("/api/vehicle/coolant-temperature", {"temperature_c": "98"}),
+    ],
+)
+def test_invalid_engine_request_returns_422_without_changing_state(
+    client: TestClient,
+    path: str,
+    body: dict[str, bool | float | int | str],
+) -> None:
+    before = client.get("/api/snapshot").json()
+
+    response = client.post(path, json=body)
+
+    assert response.status_code == 422
+    after = client.get("/api/snapshot").json()
+    assert after["revision"] == before["revision"]
+    assert after["application"]["engine"] == before["application"]["engine"]
+    assert after["trace"] == before["trace"]
+
+
 def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:
     with client.websocket_connect("/ws") as websocket:
         initial = websocket.receive_json()
@@ -277,6 +491,14 @@ def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestC
 
     assert initial["type"] == "snapshot"
     assert (initial["session_id"], initial["revision"]) == (1, 1)
+    assert initial["snapshot"]["application"]["engine"]["rpm"] == {
+        "value": None,
+        "status": "never_observed",
+    }
+    assert [device["id"] for device in initial["snapshot"]["devices"]] == [
+        "button_pad",
+        "steering_controller",
+    ]
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
     assert "trace" not in snapshot["snapshot"]
@@ -296,6 +518,36 @@ def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
     assert heartbeat == {"type": "heartbeat"}
     assert response.status_code == 200
     assert snapshot["type"] == "snapshot"
+
+
+def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient) -> None:
+    selected = client.post("/api/vehicle/rpm", json={"rpm": 4200})
+    assert selected.status_code == 200
+
+    with client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+
+    assert initial["type"] == "snapshot"
+    assert initial["snapshot"]["application"]["engine"] == {
+        "rpm": {"value": 4200, "status": "valid"},
+        "oil_temperature_c": {"value": None, "status": "never_observed"},
+        "coolant_temperature_c": {"value": None, "status": "never_observed"},
+    }
+
+
+def test_reconnecting_websocket_receives_complete_current_device_shape(
+    client: TestClient,
+) -> None:
+    selected = client.put(
+        "/api/simulation/devices/steering_controller/status",
+        json={"status": "degraded"},
+    )
+    assert selected.status_code == 200
+
+    with client.websocket_connect("/ws") as websocket:
+        initial = websocket.receive_json()
+
+    assert initial["snapshot"]["devices"] == selected.json()["devices"]
 
 
 def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> None:

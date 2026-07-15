@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import assert_never
 
 from e87canbus.application.events import (
@@ -12,7 +13,10 @@ from e87canbus.application.events import (
     ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
+    CoolantTemperatureObserved,
+    EngineRpmObserved,
     LedColour,
+    OilTemperatureObserved,
     SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
@@ -25,7 +29,7 @@ from e87canbus.application.state import (
     MaximumAssistance,
     SteeringMode,
 )
-from e87canbus.config import SteeringConfig
+from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     CurveInterpolation,
@@ -39,6 +43,25 @@ STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
 
 
+class EngineTelemetryStatus(StrEnum):
+    VALID = "valid"
+    NEVER_OBSERVED = "never_observed"
+    STALE = "stale"
+
+
+@dataclass(frozen=True)
+class EngineTelemetryValue:
+    value: int | float | None
+    status: EngineTelemetryStatus
+
+
+@dataclass(frozen=True)
+class EngineTelemetrySnapshot:
+    rpm: EngineTelemetryValue
+    oil_temperature_c: EngineTelemetryValue
+    coolant_temperature_c: EngineTelemetryValue
+
+
 @dataclass(frozen=True)
 class ApplicationSnapshot:
     vehicle_speed_kph: float
@@ -46,6 +69,7 @@ class ApplicationSnapshot:
     manual_assistance_level: int
     maximum_assistance_active: bool
     speed_valid: bool
+    engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
     supported_steering_curve_interpolations: tuple[CurveInterpolation, ...] = (
@@ -77,10 +101,20 @@ def transition(
                     speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
                 )
             )
+        case EngineRpmObserved(sample):
+            return Transition(replace(state, engine_rpm_sample=sample))
+        case OilTemperatureObserved(sample):
+            return Transition(replace(state, oil_temperature_sample=sample))
+        case CoolantTemperatureObserved(sample):
+            return Transition(replace(state, coolant_temperature_sample=sample))
         case ControlTimerElapsed(now):
             next_state = replace(
                 state,
                 speed_evaluated_at=max(state.speed_evaluated_at, now),
+                engine_telemetry_evaluated_at=max(
+                    state.engine_telemetry_evaluated_at,
+                    now,
+                ),
             )
             return Transition(
                 next_state,
@@ -111,6 +145,7 @@ def transition(
 def snapshot(
     state: ApplicationState,
     config: SteeringConfig,
+    engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
     supported_interpolations: tuple[CurveInterpolation, ...] = (
@@ -126,6 +161,34 @@ def snapshot(
         manual_assistance_level=manual_level,
         maximum_assistance_active=maximum_active,
         speed_valid=_speed_is_valid(state, config),
+        engine=EngineTelemetrySnapshot(
+            rpm=_engine_value(
+                None if state.engine_rpm_sample is None else state.engine_rpm_sample.rpm,
+                None if state.engine_rpm_sample is None else state.engine_rpm_sample.observed_at,
+                state.engine_telemetry_evaluated_at,
+                engine_config,
+            ),
+            oil_temperature_c=_engine_value(
+                None
+                if state.oil_temperature_sample is None
+                else state.oil_temperature_sample.temperature_c,
+                None
+                if state.oil_temperature_sample is None
+                else state.oil_temperature_sample.observed_at,
+                state.engine_telemetry_evaluated_at,
+                engine_config,
+            ),
+            coolant_temperature_c=_engine_value(
+                None
+                if state.coolant_temperature_sample is None
+                else state.coolant_temperature_sample.temperature_c,
+                None
+                if state.coolant_temperature_sample is None
+                else state.coolant_temperature_sample.observed_at,
+                state.engine_telemetry_evaluated_at,
+                engine_config,
+            ),
+        ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
         supported_steering_curve_interpolations=supported_interpolations,
@@ -315,6 +378,19 @@ def _speed_is_valid(state: ApplicationState, config: SteeringConfig) -> bool:
         sample is not None
         and state.speed_evaluated_at - sample.observed_at <= config.speed_timeout_s
     )
+
+
+def _engine_value(
+    value: int | float | None,
+    observed_at: float | None,
+    evaluated_at: float,
+    config: EngineTelemetryConfig,
+) -> EngineTelemetryValue:
+    if observed_at is None:
+        return EngineTelemetryValue(None, EngineTelemetryStatus.NEVER_OBSERVED)
+    if evaluated_at - observed_at > config.timeout_s:
+        return EngineTelemetryValue(None, EngineTelemetryStatus.STALE)
+    return EngineTelemetryValue(value, EngineTelemetryStatus.VALID)
 
 
 def _fallback_command_reason(

@@ -57,6 +57,7 @@ it("renders eight accessible points on honest linear series", async () => {
     <CurveChart
       active={definition}
       draft={definition}
+      activeSpeedKph={20}
       activeAssistance={0.78}
       onPointChange={vi.fn()}
     />
@@ -67,11 +68,8 @@ it("renders eight accessible points on honest linear series", async () => {
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
-  const markerLine = document.querySelector(".recharts-reference-line-line")
-  expect(markerLine?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
-  expect(markerLine?.hasAttribute("stroke-dasharray")).toBe(false)
-  expect(markerLine?.getAttribute("stroke-opacity")).toBe("0.65")
-  expect(document.querySelector(".recharts-reference-dot")).toBeNull()
+  const marker = document.querySelector(".recharts-reference-dot circle")
+  expect(marker?.getAttribute("stroke")).toBe("var(--color-primary)")
   expect(document.querySelector(".recharts-tooltip-wrapper")).not.toBeNull()
   const tooltip = document.querySelector<HTMLElement>(
     ".recharts-tooltip-wrapper"
@@ -93,23 +91,24 @@ it("renders eight accessible points on honest linear series", async () => {
   const activeCurvePath = document
     .querySelectorAll(".recharts-line-curve")[0]
     ?.getAttribute("d")
-  const markerYAtCurveAssistance = markerLine?.getAttribute("y1")
+  const markerYAtCurveAssistance = marker?.getAttribute("cy")
 
   rerender(
     <CurveChart
       active={definition}
       draft={definition}
+      activeSpeedKph={20}
       activeAssistance={1}
       onPointChange={vi.fn()}
     />
   )
   const maximumAssistanceMarker = document.querySelector(
-    ".recharts-reference-line-line"
+    ".recharts-reference-dot circle"
   )
   expect(maximumAssistanceMarker?.getAttribute("stroke")).toBe(
-    "var(--color-indigo-500)"
+    "var(--color-primary)"
   )
-  expect(maximumAssistanceMarker?.getAttribute("y1")).not.toBe(
+  expect(maximumAssistanceMarker?.getAttribute("cy")).not.toBe(
     markerYAtCurveAssistance
   )
   expect(
@@ -120,9 +119,10 @@ it("renders eight accessible points on honest linear series", async () => {
     <CurveChart
       active={definition}
       draft={definition}
+      activeSpeedKph={null}
       activeAssistance={null}
       onPointChange={vi.fn()}
     />
   )
-  expect(document.querySelector(".recharts-reference-line-line")).toBeNull()
+  expect(document.querySelector(".recharts-reference-dot circle")).toBeNull()
 })

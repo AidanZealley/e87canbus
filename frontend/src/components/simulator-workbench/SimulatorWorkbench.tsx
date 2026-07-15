@@ -5,7 +5,14 @@ import {
   pressButton,
   releaseButton,
   resetSimulator,
+  setCoolantTemperature,
+  setDeviceStatus,
+  setEngineRpm,
+  setOilTemperature,
   setVehicleSpeed,
+  silenceCoolantTemperature,
+  silenceEngineRpm,
+  silenceOilTemperature,
   silenceVehicleSpeed,
   stepSimulator,
 } from "@/api/simulator"
@@ -21,6 +28,7 @@ import {
   useSimulatorStatus,
   useActiveSteeringCurve,
   useApplicationSnapshot,
+  useDevices,
   useSteeringControllerSnapshot,
 } from "./query"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
@@ -33,6 +41,7 @@ export const SimulatorWorkbench = () => {
   const application = useApplicationSnapshot()
   const activeCurve = useActiveSteeringCurve()
   const steeringController = useSteeringControllerSnapshot()
+  const devices = useDevices()
   const command = useSimulatorCommand()
   const connectionState = useSimulatorSocket(
     status.isFetched && !status.isError
@@ -91,15 +100,32 @@ export const SimulatorWorkbench = () => {
             <section className="min-w-0">
               <SimulatedVehicleControls
                 speedKph={
-                  application.speed_valid
-                    ? application.vehicle_speed_kph
-                    : null
+                  application.speed_valid ? application.vehicle_speed_kph : null
                 }
+                engine={application.engine}
+                devices={devices}
                 disabled={command.isPending}
                 onSetSpeed={(speedKph) =>
                   command.mutate(() => setVehicleSpeed(speedKph))
                 }
                 onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
+                onSetRpm={(rpm) => command.mutate(() => setEngineRpm(rpm))}
+                onSilenceRpm={() => command.mutate(silenceEngineRpm)}
+                onSetOilTemperature={(temperatureC) =>
+                  command.mutate(() => setOilTemperature(temperatureC))
+                }
+                onSilenceOilTemperature={() =>
+                  command.mutate(silenceOilTemperature)
+                }
+                onSetCoolantTemperature={(temperatureC) =>
+                  command.mutate(() => setCoolantTemperature(temperatureC))
+                }
+                onSilenceCoolantTemperature={() =>
+                  command.mutate(silenceCoolantTemperature)
+                }
+                onSetDeviceStatus={(deviceId, deviceStatus) =>
+                  command.mutate(() => setDeviceStatus(deviceId, deviceStatus))
+                }
               />
             </section>
           </div>

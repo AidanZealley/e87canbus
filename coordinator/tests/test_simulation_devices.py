@@ -20,7 +20,12 @@ from e87canbus.simulation.devices import (
     SimulatedSteeringController,
     SimulatedVehicleNode,
 )
-from e87canbus.simulation.protocol import encode_simulated_speed
+from e87canbus.simulation.protocol import (
+    encode_simulated_coolant_temperature,
+    encode_simulated_engine_rpm,
+    encode_simulated_oil_temperature,
+    encode_simulated_speed,
+)
 
 
 class MutableClock:
@@ -57,9 +62,7 @@ def test_neotrellis_led_snapshot_replaces_all_colours() -> None:
     node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
 
     pi_bus.send(
-        encode_led_snapshot(
-            LedSnapshotPayload((LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8), ids
-        )
+        encode_led_snapshot(LedSnapshotPayload((LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8), ids)
     )
 
     snapshots = node.process_pending_led_snapshots()
@@ -107,10 +110,7 @@ def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() ->
     topology = InMemoryCanTopology()
     pi_bus = topology.create_bus(CanNetwork.FCAN, "pi")
     vehicle = SimulatedVehicleNode(
-        {
-            network: topology.create_bus(network, "simulated-vehicle")
-            for network in CanNetwork
-        }
+        {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork}
     )
 
     frame = vehicle.set_speed(42.5)
@@ -126,6 +126,35 @@ def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() ->
     assert vehicle.speed_kph is None
     assert vehicle.emit_speed() is None
     assert pi_bus.receive(timeout_s=0) is None
+
+
+def test_simulated_vehicle_engine_signals_emit_and_silence_independently_on_ptcan() -> None:
+    topology = InMemoryCanTopology()
+    pi_bus = topology.create_bus(CanNetwork.PTCAN, "pi")
+    vehicle = SimulatedVehicleNode(
+        {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork}
+    )
+
+    assert vehicle.set_engine_rpm(3500) == encode_simulated_engine_rpm(3500)
+    assert vehicle.set_oil_temperature(112.54) == encode_simulated_oil_temperature(112.54)
+    assert vehicle.set_coolant_temperature(98.0) == encode_simulated_coolant_temperature(98.0)
+    assert vehicle.oil_temperature_c == 112.5
+    assert [pi_bus.receive(timeout_s=0) for _ in range(3)] == [
+        encode_simulated_engine_rpm(3500),
+        encode_simulated_oil_temperature(112.5),
+        encode_simulated_coolant_temperature(98.0),
+    ]
+
+    vehicle.silence_oil_temperature()
+    vehicle.silence_oil_temperature()
+
+    assert vehicle.emit_engine_rpm() == encode_simulated_engine_rpm(3500)
+    assert vehicle.emit_oil_temperature() is None
+    assert vehicle.emit_coolant_temperature() == encode_simulated_coolant_temperature(98.0)
+    assert [pi_bus.receive(timeout_s=0) for _ in range(2)] == [
+        encode_simulated_engine_rpm(3500),
+        encode_simulated_coolant_temperature(98.0),
+    ]
 
 
 def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:

@@ -268,6 +268,7 @@ def run_live(config: AppConfig) -> int:
     }
     kernel = CoordinatorKernel(
         steering_config=config.steering,
+        engine_telemetry_config=config.engine_telemetry,
         router=router,
     )
     executor = EffectExecutor(transmitters, router)

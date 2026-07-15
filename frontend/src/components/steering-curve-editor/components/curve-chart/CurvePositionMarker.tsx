@@ -1,24 +1,28 @@
-import { ReferenceLine } from "recharts"
+import { ReferenceDot } from "recharts"
 
 import { assistanceToPercent } from "../../utils"
 
 type CurvePositionMarkerProps = {
+  speedKph: number | null
   activeAssistance: number | null
 }
 
 export const CurvePositionMarker = ({
+  speedKph,
   activeAssistance,
 }: CurvePositionMarkerProps) => {
-  if (activeAssistance === null) return null
+  if (speedKph === null || activeAssistance === null) return null
 
   const assistancePercent = assistanceToPercent(activeAssistance)
 
   return (
-    <ReferenceLine
+    <ReferenceDot
+      x={speedKph}
       y={assistancePercent}
-      stroke="var(--color-indigo-500)"
-      strokeWidth={2}
-      strokeOpacity={0.65}
+      r={7}
+      fill="var(--color-background)"
+      stroke="var(--color-primary)"
+      strokeWidth={3}
       className="pointer-events-none"
       ifOverflow="extendDomain"
     />

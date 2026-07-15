@@ -56,6 +56,15 @@ class SteeringConfig:
 
 
 @dataclass(frozen=True)
+class EngineTelemetryConfig:
+    timeout_s: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.timeout_s) or self.timeout_s <= 0:
+            raise ValueError("engine telemetry timeout must be finite and positive")
+
+
+@dataclass(frozen=True)
 class PlaceholderBmwIds:
     """Unverified candidate IDs from project context, not replay constants."""
 
@@ -105,6 +114,7 @@ class AppConfig:
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
+    engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
     tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1

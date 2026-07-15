@@ -66,6 +66,9 @@ def test_simulation_commands_do_not_construct_application_events() -> None:
     forbidden = {
         "ButtonPressed",
         "SpeedObserved",
+        "EngineRpmObserved",
+        "OilTemperatureObserved",
+        "CoolantTemperatureObserved",
         "ControlTimerElapsed",
         "SteeringFallbackRequested",
     }

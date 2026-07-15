@@ -2,22 +2,41 @@
 
 from __future__ import annotations
 
-from e87canbus.application.events import ApplicationEvent, SpeedObserved
-from e87canbus.application.state import SpeedSample
+import math
+
+from e87canbus.application.events import (
+    ApplicationEvent,
+    CoolantTemperatureObserved,
+    EngineRpmObserved,
+    OilTemperatureObserved,
+    SpeedObserved,
+)
+from e87canbus.application.state import (
+    CoolantTemperatureSample,
+    EngineRpmSample,
+    OilTemperatureSample,
+    SpeedSample,
+)
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
+SIMULATION_ONLY_ENGINE_RPM_ID = 0x1FFFFF01
+SIMULATION_ONLY_OIL_TEMPERATURE_ID = 0x1FFFFF02
+SIMULATION_ONLY_COOLANT_TEMPERATURE_ID = 0x1FFFFF03
 SIMULATION_ONLY_SPEED_LENGTH = 2
+SIMULATION_ONLY_ENGINE_RPM_LENGTH = 2
+SIMULATION_ONLY_TEMPERATURE_LENGTH = 2
 MAX_SIMULATED_SPEED_KPH = 300.0
+MAX_SIMULATED_ENGINE_RPM = 12_000
+MIN_SIMULATED_TEMPERATURE_C = -40.0
+MAX_SIMULATED_TEMPERATURE_C = 250.0
 
 
 def encode_simulated_speed(speed_kph: float) -> CanFrame:
     if not 0.0 <= speed_kph <= MAX_SIMULATED_SPEED_KPH:
-        raise ValueError(
-            f"simulated speed must be between 0 and {MAX_SIMULATED_SPEED_KPH:g} kph"
-        )
+        raise ValueError(f"simulated speed must be between 0 and {MAX_SIMULATED_SPEED_KPH:g} kph")
     speed_deci_kph = round(speed_kph * 10)
     return CanFrame(
         SIMULATION_ONLY_SPEED_ID,
@@ -26,8 +45,82 @@ def encode_simulated_speed(speed_kph: float) -> CanFrame:
     )
 
 
+def encode_simulated_engine_rpm(rpm: int) -> CanFrame:
+    if isinstance(rpm, bool) or not isinstance(rpm, int):
+        raise ValueError("simulated engine RPM must be an integer")
+    if not 0 <= rpm <= MAX_SIMULATED_ENGINE_RPM:
+        raise ValueError(f"simulated engine RPM must be between 0 and {MAX_SIMULATED_ENGINE_RPM}")
+    return CanFrame(
+        SIMULATION_ONLY_ENGINE_RPM_ID,
+        rpm.to_bytes(SIMULATION_ONLY_ENGINE_RPM_LENGTH, "little"),
+        is_extended_id=True,
+    )
+
+
+def decode_simulated_engine_rpm(frame: CanFrame) -> int:
+    if len(frame.data) != SIMULATION_ONLY_ENGINE_RPM_LENGTH:
+        raise ValueError(
+            "simulated engine RPM payload must be exactly "
+            f"{SIMULATION_ONLY_ENGINE_RPM_LENGTH} bytes"
+        )
+    rpm = int.from_bytes(frame.data, "little")
+    if rpm > MAX_SIMULATED_ENGINE_RPM:
+        raise ValueError("simulated engine RPM payload is out of range")
+    return rpm
+
+
+def encode_simulated_oil_temperature(temperature_c: float) -> CanFrame:
+    return _encode_simulated_temperature(
+        SIMULATION_ONLY_OIL_TEMPERATURE_ID,
+        temperature_c,
+    )
+
+
+def encode_simulated_coolant_temperature(temperature_c: float) -> CanFrame:
+    return _encode_simulated_temperature(
+        SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+        temperature_c,
+    )
+
+
+def decode_simulated_temperature(frame: CanFrame) -> float:
+    if len(frame.data) != SIMULATION_ONLY_TEMPERATURE_LENGTH:
+        raise ValueError(
+            "simulated temperature payload must be exactly "
+            f"{SIMULATION_ONLY_TEMPERATURE_LENGTH} bytes"
+        )
+    temperature_c = int.from_bytes(frame.data, "little", signed=True) / 10.0
+    if not MIN_SIMULATED_TEMPERATURE_C <= temperature_c <= MAX_SIMULATED_TEMPERATURE_C:
+        raise ValueError("simulated temperature payload is out of range")
+    return temperature_c
+
+
+def _encode_simulated_temperature(arbitration_id: int, temperature_c: float) -> CanFrame:
+    if (
+        isinstance(temperature_c, bool)
+        or not isinstance(temperature_c, (int, float))
+        or not math.isfinite(temperature_c)
+    ):
+        raise ValueError("simulated temperature must be a finite number")
+    if not MIN_SIMULATED_TEMPERATURE_C <= temperature_c <= MAX_SIMULATED_TEMPERATURE_C:
+        raise ValueError(
+            "simulated temperature must be between "
+            f"{MIN_SIMULATED_TEMPERATURE_C:g} and {MAX_SIMULATED_TEMPERATURE_C:g} C"
+        )
+    temperature_deci_c = round(temperature_c * 10)
+    return CanFrame(
+        arbitration_id,
+        temperature_deci_c.to_bytes(
+            SIMULATION_ONLY_TEMPERATURE_LENGTH,
+            "little",
+            signed=True,
+        ),
+        is_extended_id=True,
+    )
+
+
 class SimulationProtocolRouter(ProtocolRouter):
-    """Add an unmistakably synthetic speed message to the normal project router."""
+    """Add unmistakably synthetic messages to the normal project router."""
 
     def decode(
         self,
@@ -38,15 +131,39 @@ class SimulationProtocolRouter(ProtocolRouter):
         if event is not None:
             return event
         frame = routed.frame
-        if (
-            routed.network is not CanNetwork.FCAN
-            or frame.arbitration_id != SIMULATION_ONLY_SPEED_ID
-            or not frame.is_extended_id
-        ):
+        if not frame.is_extended_id:
             return None
-        if len(frame.data) != SIMULATION_ONLY_SPEED_LENGTH:
-            raise ValueError(
-                f"simulated speed payload must be exactly {SIMULATION_ONLY_SPEED_LENGTH} bytes"
+        if routed.network is CanNetwork.FCAN and frame.arbitration_id == SIMULATION_ONLY_SPEED_ID:
+            if len(frame.data) != SIMULATION_ONLY_SPEED_LENGTH:
+                raise ValueError(
+                    f"simulated speed payload must be exactly {SIMULATION_ONLY_SPEED_LENGTH} bytes"
+                )
+            speed_kph = int.from_bytes(frame.data, "little") / 10.0
+            return SpeedObserved(SpeedSample(speed_kph, observed_at, routed.network))
+        if routed.network is not CanNetwork.PTCAN:
+            return None
+        if frame.arbitration_id == SIMULATION_ONLY_ENGINE_RPM_ID:
+            return EngineRpmObserved(
+                EngineRpmSample(
+                    decode_simulated_engine_rpm(frame),
+                    observed_at,
+                    routed.network,
+                )
             )
-        speed_kph = int.from_bytes(frame.data, "little") / 10.0
-        return SpeedObserved(SpeedSample(speed_kph, observed_at, routed.network))
+        if frame.arbitration_id == SIMULATION_ONLY_OIL_TEMPERATURE_ID:
+            return OilTemperatureObserved(
+                OilTemperatureSample(
+                    decode_simulated_temperature(frame),
+                    observed_at,
+                    routed.network,
+                )
+            )
+        if frame.arbitration_id == SIMULATION_ONLY_COOLANT_TEMPERATURE_ID:
+            return CoolantTemperatureObserved(
+                CoolantTemperatureSample(
+                    decode_simulated_temperature(frame),
+                    observed_at,
+                    routed.network,
+                )
+            )
+        return None

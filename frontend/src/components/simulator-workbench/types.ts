@@ -24,13 +24,38 @@ export type NetworkStatus = {
   nodes: string[]
 }
 
+export type DeviceId = "button_pad" | "steering_controller"
+
+export type DeviceStatus = "online" | "degraded" | "offline"
+
+export type DeviceSnapshot = {
+  id: DeviceId
+  label: string
+  status: DeviceStatus
+  reason: string | null
+}
+
 export type ApplicationSnapshot = {
   vehicle_speed_kph: number
   speed_valid: boolean
+  engine: EngineTelemetrySnapshot
   steering_mode: "auto" | "manual"
   manual_assistance_level: number
   maximum_assistance_active: boolean
   active_steering_curve: ActiveSteeringCurve | null
+}
+
+export type EngineTelemetryStatus = "valid" | "never_observed" | "stale"
+
+export type EngineTelemetryValue = {
+  value: number | null
+  status: EngineTelemetryStatus
+}
+
+export type EngineTelemetrySnapshot = {
+  rpm: EngineTelemetryValue
+  oil_temperature_c: EngineTelemetryValue
+  coolant_temperature_c: EngineTelemetryValue
 }
 
 export type SteeringControllerSnapshot = {
@@ -56,6 +81,7 @@ export type SimulatorSnapshot = {
   steering_controller: SteeringControllerSnapshot
   next_pressed: boolean
   led_colours: number[]
+  devices: DeviceSnapshot[]
   networks: NetworkStatus[]
   trace?: CanTraceEntry[]
 }
@@ -73,5 +99,11 @@ export type SteeringProfileCatalogChangedEvent = {
   type: "steering_profile_catalog_changed"
 }
 
+export type ApplicationSettingsChangedEvent = {
+  type: "application_settings_changed"
+}
+
 export type SimulatorSocketEvent =
-  SimulatorEvent | SteeringProfileCatalogChangedEvent
+  | SimulatorEvent
+  | SteeringProfileCatalogChangedEvent
+  | ApplicationSettingsChangedEvent

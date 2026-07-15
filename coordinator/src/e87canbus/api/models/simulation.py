@@ -1,6 +1,8 @@
 """Request models for simulation controls."""
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
 
 
 class StepRequest(BaseModel):
@@ -9,3 +11,21 @@ class StepRequest(BaseModel):
 
 class SpeedRequest(BaseModel):
     speed_kph: float
+
+
+class EngineTelemetryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class EngineRpmRequest(EngineTelemetryRequest):
+    rpm: StrictInt
+
+
+class TemperatureRequest(EngineTelemetryRequest):
+    temperature_c: StrictFloat
+
+
+class DeviceStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["online", "degraded", "offline"]

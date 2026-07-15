@@ -27,11 +27,14 @@ import {
 } from "../../utils"
 import { DraggableCurvePoint } from "./DraggableCurvePoint"
 import { CurvePositionMarker } from "./CurvePositionMarker"
+import { cn } from "@/lib/utils"
 
 type CurveChartProps = {
   active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
+  activeSpeedKph?: number | null
   activeAssistance?: number | null
+  className?: string
   onPointChange: (index: number, value: number) => void
 }
 
@@ -63,7 +66,9 @@ const tooltipWrapperStyle = (isAdjustingPoint: boolean) =>
 export const CurveChart = ({
   active,
   draft,
+  activeSpeedKph = null,
   activeAssistance = null,
+  className,
   onPointChange,
 }: CurveChartProps) => {
   const [isAdjustingPoint, setIsAdjustingPoint] = useState(false)
@@ -82,7 +87,7 @@ export const CurveChart = ({
   return (
     <ChartContainer
       config={chartConfig}
-      className="aspect-auto h-75 min-h-75 w-full sm:h-90"
+      className={cn("aspect-auto h-75 min-h-75 w-full sm:h-90", className)}
       role="group"
       aria-label="Steering assistance curve. Solid line is active; dashed line is the editable draft."
     >
@@ -156,7 +161,10 @@ export const CurveChart = ({
           activeDot={NON_INTERACTIVE_ACTIVE_DOT}
           isAnimationActive={false}
         />
-        <CurvePositionMarker activeAssistance={activeAssistance} />
+        <CurvePositionMarker
+          speedKph={activeSpeedKph}
+          activeAssistance={activeAssistance}
+        />
         <CurvePoints
           definition={draft}
           onPointChange={onPointChange}

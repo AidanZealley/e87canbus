@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-query"
 
 import { connectSimulatorSocket, getSnapshot } from "@/api/simulator"
-import { steeringProfilesQueryKey } from "@/api/steering"
 import {
   applySimulatorEvent,
   replaceSimulatorSnapshot,
@@ -22,6 +21,7 @@ import {
   type SimulatorConnectionState,
   UNAVAILABLE_REFETCH_INTERVAL_MS,
 } from "./connection"
+import { handleResourceInvalidationEvent } from "./resource-invalidation"
 import type { SimulatorSnapshot } from "./types"
 import { emptySnapshot, mergeSnapshot, type WorkbenchSnapshot } from "./utils"
 
@@ -52,9 +52,16 @@ const selectActiveSteeringCurve = (snapshot: WorkbenchSnapshot) =>
 const selectSteeringController = (snapshot: WorkbenchSnapshot) =>
   snapshot.steering_controller
 const selectLedColours = (snapshot: WorkbenchSnapshot) => snapshot.led_colours
+const selectDevices = (snapshot: WorkbenchSnapshot) => snapshot.devices ?? []
 const selectNetworks = (snapshot: WorkbenchSnapshot) => snapshot.networks
 const selectTrace = (snapshot: WorkbenchSnapshot) => snapshot.trace
 const selectNothing = () => null
+
+export const useSimulatorSnapshot = () =>
+  useQuery({
+    ...simulatorQueryOptions,
+    placeholderData: emptySnapshot,
+  })
 
 export const useApplicationSnapshot = () =>
   useSimulatorSelector(selectApplication)
@@ -66,6 +73,8 @@ export const useSteeringControllerSnapshot = () =>
   useSimulatorSelector(selectSteeringController)
 
 export const useLedColours = () => useSimulatorSelector(selectLedColours)
+
+export const useDevices = () => useSimulatorSelector(selectDevices)
 
 export const useNetworks = () => useSimulatorSelector(selectNetworks)
 
@@ -130,12 +139,7 @@ export const useSimulatorSocket = (enabled: boolean) => {
         (event) => {
           if (cancelled || socket !== activeSocket) return
           lastMessageAt = Date.now()
-          if (event.type === "steering_profile_catalog_changed") {
-            void queryClient.invalidateQueries({
-              queryKey: steeringProfilesQueryKey,
-            })
-            return
-          }
+          if (handleResourceInvalidationEvent(queryClient, event)) return
           if (awaitingInitialSnapshot) {
             if (event.type !== "snapshot") return
             replaceSimulatorSnapshot(queryClient, event.snapshot)
