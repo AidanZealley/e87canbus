@@ -49,11 +49,16 @@ export const CarDrive = () => {
       className="grid min-h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-12"
       aria-labelledby="drive-title"
     >
+      <h1 id="drive-title" className="sr-only">
+        Drive
+      </h1>
       <div className="flex flex-col gap-12">
         <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
         <TelemetryValue
+          label="Speed"
           value={speed}
           unit={settings.speed_unit === "mph" ? "mph" : "km/h"}
+          status={speed === null ? "Unavailable" : "Live"}
         />
       </div>
       <div className="grid grid-cols-2 gap-12">

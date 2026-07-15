@@ -68,7 +68,7 @@ it("renders only a bounded virtual window for a full trace", async () => {
   expect(
     document.querySelector<HTMLTableSectionElement>("[data-slot='table-body']")
       ?.className
-  ).toContain("[&_td]:h-[33px]")
+  ).toContain("[&_td]:h-8")
   expect(
     document.querySelector<HTMLButtonElement>(
       "button[aria-label='Jump to latest CAN frame']"

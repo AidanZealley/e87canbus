@@ -25,6 +25,7 @@ from e87canbus.runtime import (
     CoordinatorKernel,
     KernelStarted,
     ReceivedCanFrame,
+    StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
     UnsupportedSteeringCurveInterpolation,
@@ -81,10 +82,11 @@ def test_activation_recalculates_fresh_auto_output_immediately() -> None:
     )
     kernel = started_kernel(state=state)
 
-    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500)))
+    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500), requested_at=1.0))
 
     assert commit is not None
     assert commit.revision == 2
+    assert commit.changed_topics == {StateTopic.STEERING}
     assert commit.snapshot.active_steering_curve.activation_revision == 2
     assert commit.effects == (SetSteeringAssistance(0.5, SteeringCommandReason.AUTO),)
     timer = kernel.dispatch(TimerElapsed(1.1))
@@ -131,7 +133,7 @@ def test_activation_preserves_manual_and_maximum_modes_without_output(steering) 
     )
     kernel = started_kernel(state=state)
 
-    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500)))
+    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500), requested_at=1.0))
 
     assert commit is not None
     assert kernel.state.steering == steering
@@ -142,7 +144,12 @@ def test_identical_activation_is_idempotent_but_can_publish_saved_provenance() -
     kernel = started_kernel()
 
     commit = kernel.dispatch(
-        ActivateSteeringCurve(BUILT_IN_STEERING_CURVE, SAVED_PROFILE_ID, 7)
+        ActivateSteeringCurve(
+            BUILT_IN_STEERING_CURVE,
+            SAVED_PROFILE_ID,
+            7,
+            requested_at=1.0,
+        )
     )
 
     assert commit is not None
@@ -152,7 +159,12 @@ def test_identical_activation_is_idempotent_but_can_publish_saved_provenance() -
     assert commit.snapshot.active_steering_curve.saved_profile_revision == 7
     assert commit.effects == ()
     repeated = kernel.dispatch(
-        ActivateSteeringCurve(BUILT_IN_STEERING_CURVE, SAVED_PROFILE_ID, 7)
+        ActivateSteeringCurve(
+            BUILT_IN_STEERING_CURVE,
+            SAVED_PROFILE_ID,
+            7,
+            requested_at=2.0,
+        )
     )
     assert repeated is not None
     assert repeated.revision == 3
@@ -167,7 +179,7 @@ def test_invalid_activation_leaves_active_state_and_revision_unchanged() -> None
     before = kernel.snapshot()
 
     with pytest.raises(ValueError, match="unsupported.*schema_version"):
-        kernel.dispatch(ActivateSteeringCurve(invalid))
+        kernel.dispatch(ActivateSteeringCurve(invalid, requested_at=1.0))
 
     assert kernel.snapshot() == before
     assert kernel.diagnostics().revision == 1
@@ -185,7 +197,7 @@ def test_consumer_capability_rejects_unsupported_interpolation_before_activation
     before = kernel.snapshot()
 
     with pytest.raises(UnsupportedSteeringCurveInterpolation) as caught:
-        kernel.dispatch(ActivateSteeringCurve(smooth))
+        kernel.dispatch(ActivateSteeringCurve(smooth, requested_at=1.0))
 
     assert caught.value.interpolation is CurveInterpolation.MONOTONE_CUBIC_V1
     assert caught.value.supported_interpolations == (CurveInterpolation.LINEAR_V1,)
@@ -199,7 +211,11 @@ def test_invalid_saved_provenance_leaves_active_state_unchanged() -> None:
 
     with pytest.raises(ValueError, match="supplied together"):
         kernel.dispatch(
-            ActivateSteeringCurve(constant_curve(500), saved_profile_id=SAVED_PROFILE_ID)
+            ActivateSteeringCurve(
+                constant_curve(500),
+                saved_profile_id=SAVED_PROFILE_ID,
+                requested_at=1.0,
+            )
         )
 
     assert kernel.snapshot() == before
@@ -212,7 +228,7 @@ def test_activation_order_is_deterministic_relative_to_timer() -> None:
     inputs = (
         KernelStarted(0.0),
         ReceivedCanFrame(CanNetwork.FCAN, encode_simulated_speed(50.0), 1.0),
-        ActivateSteeringCurve(constant_curve(500)),
+        ActivateSteeringCurve(constant_curve(500), requested_at=1.05),
         TimerElapsed(1.1),
     )
 
@@ -230,7 +246,7 @@ def test_activation_order_is_deterministic_relative_to_timer() -> None:
 def test_restart_discards_unsaved_activation_but_can_restore_selected_saved_curve() -> None:
     custom = constant_curve(500)
     running = started_kernel()
-    assert running.dispatch(ActivateSteeringCurve(custom)) is not None
+    assert running.dispatch(ActivateSteeringCurve(custom, requested_at=1.0)) is not None
 
     ordinary_restart = started_kernel()
     saved_restart = started_kernel(
@@ -253,7 +269,7 @@ def test_post_activation_output_failure_uses_existing_fatal_health_path() -> Non
         speed_evaluated_at=1.0,
     )
     kernel = started_kernel(state=state)
-    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500)))
+    commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500), requested_at=1.0))
     assert commit is not None and commit.effects
 
     assert kernel.dispatch(SteeringActuatorFailed(1.1, "activation output failed")) is None
@@ -267,7 +283,7 @@ def test_serialized_snapshot_contains_complete_authoritative_active_projection()
     engine = SimulationEngine()
     custom = constant_curve(500)
     commit = engine.kernel.dispatch(
-        ActivateSteeringCurve(custom, SAVED_PROFILE_ID, 4)
+        ActivateSteeringCurve(custom, SAVED_PROFILE_ID, 4, requested_at=1.0)
     )
     assert commit is not None
 

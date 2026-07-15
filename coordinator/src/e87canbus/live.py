@@ -24,9 +24,9 @@ from e87canbus.runtime import (
     CanEffectExecutionFailed,
     CanReaderFailed,
     Commit,
+    ControllerInput,
     CoordinatorKernel,
     InboxOverflowed,
-    KernelInput,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
@@ -73,7 +73,7 @@ class InboxOverflow:
 def read_frames_into_queue(
     network: CanNetwork,
     bus: CanReceiver,
-    inbox: queue.Queue[KernelInput],
+    inbox: queue.Queue[ControllerInput],
     stop: threading.Event,
     overflow: InboxOverflow,
     clock: Callable[[], float] = time.monotonic,
@@ -125,7 +125,7 @@ def read_frames_into_queue(
 
 def _enqueue_or_overflow(
     kernel_input: ReaderInput,
-    inbox: queue.Queue[KernelInput],
+    inbox: queue.Queue[ControllerInput],
     stop: threading.Event,
     overflow: InboxOverflow,
     failed_at: float,
@@ -146,7 +146,7 @@ def _enqueue_or_overflow(
 def run_coordinator_loop(
     kernel: CoordinatorKernel,
     executor: EffectExecutor,
-    inbox: queue.Queue[KernelInput],
+    inbox: queue.Queue[ControllerInput],
     stop: threading.Event,
     overflow: InboxOverflow,
     tick_interval_s: float,
@@ -272,7 +272,9 @@ def run_live(config: AppConfig) -> int:
         router=router,
     )
     executor = EffectExecutor(transmitters, router)
-    inbox: queue.Queue[KernelInput] = queue.Queue(maxsize=config.runtime_inbox_capacity)
+    inbox: queue.Queue[ControllerInput] = queue.Queue(
+        maxsize=config.runtime_inbox_capacity
+    )
     stop = threading.Event()
     overflow = InboxOverflow()
     readers = [

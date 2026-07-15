@@ -13,6 +13,7 @@ complete.
 | [0005](0005-atomic-button-led-snapshots.md) | Atomic button-pad LED snapshots | Accepted |
 | [0006](0006-evidence-gated-hardware-behavior.md) | Evidence-gated hardware behavior | Accepted |
 | [0007](0007-steering-controller-owns-assistance-mapping.md) | Steering-controller-owned assistance mapping | Proposed |
+| [0008](0008-unified-controller-architecture.md) | Unified modular controller and transport ownership | Accepted |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old

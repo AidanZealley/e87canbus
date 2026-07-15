@@ -16,6 +16,7 @@ from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
+    INITIAL_KERNEL_TOPICS,
     CanEffectExecutionFailed,
     CanReaderFailed,
     CoordinatorKernel,
@@ -25,6 +26,7 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     RuntimeFaultKind,
     ShutdownRequested,
+    StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
 )
@@ -76,17 +78,23 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert first_commits == second_commits
     assert [commit.revision for commit in first_commits if commit is not None] == [1, 2, 3]
     assert first_commits[0] is not None
+    assert first_commits[0].changed_topics == INITIAL_KERNEL_TOPICS
     assert first_commits[0].effects == (
         SetButtonLeds(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
     assert first_commits[1] is not None
+    assert first_commits[1].changed_topics == {
+        StateTopic.STEERING,
+        StateTopic.BUTTONS,
+    }
     assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
     assert first_commits[1].effects == (SetButtonLeds(MANUAL_LEDS),)
     assert first_commits[2] is not None
     assert first_commits[2].effects == (
         SetSteeringAssistance(0.0, SteeringCommandReason.MANUAL),
     )
+    assert first_commits[2].changed_topics == frozenset()
     assert first_commits[2].state_changed is False
 
 
@@ -113,6 +121,27 @@ def test_unknown_and_malformed_frames_create_no_commits(
     assert malformed is None
     assert kernel.diagnostics().revision == 1
     assert "ignored malformed recognized frame" in caplog.text
+
+
+def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+
+    commit = kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            CanFrame(CustomCanIds().button_event, b"\x00\x01"),
+            0.1,
+        )
+    )
+
+    assert commit is not None
+    led_effects = tuple(
+        effect for effect in commit.effects if isinstance(effect, SetButtonLeds)
+    )
+    assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
+    assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
+    assert len(led_effects[0].colours.colours) == 16
 
 
 @pytest.mark.parametrize(
@@ -154,6 +183,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
         assert commit is None
     else:
         assert commit is not None
+        assert commit.changed_topics == {StateTopic.HEALTH}
         assert commit.effects == (
             SetSteeringAssistance(0.0, fallback_reason),
         )
@@ -218,6 +248,7 @@ def test_old_simulated_speed_frame_cannot_clear_failsafe_when_processed_late() -
 
     assert commit is not None
     assert commit.snapshot.speed_valid is False
+    assert commit.changed_topics == {StateTopic.VEHICLE}
     assert commit.effects == ()
 
 

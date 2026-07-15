@@ -26,8 +26,8 @@ from e87canbus.runtime import (
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     Commit,
+    ControllerInput,
     CoordinatorKernel,
-    KernelInput,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
@@ -434,6 +434,7 @@ class SimulationEngine:
                         definition,
                         saved_profile_id,
                         saved_profile_revision,
+                        requested_at=self._clock(),
                     )
                 )
             case ResetSimulation():
@@ -562,7 +563,7 @@ class SimulationEngine:
             if not found_frame:
                 return processed
 
-    def _dispatch(self, kernel_input: KernelInput) -> Commit | None:
+    def _dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         commit = self.kernel.dispatch(kernel_input)
         if commit is None:
             return None

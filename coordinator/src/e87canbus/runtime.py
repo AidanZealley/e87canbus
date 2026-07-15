@@ -10,6 +10,7 @@ from typing import assert_never
 
 from e87canbus.application.controller import (
     ApplicationSnapshot,
+    button_led_state,
     initial_effects,
     normalize_state,
     snapshot,
@@ -119,9 +120,10 @@ class ActivateSteeringCurve:
     definition: SteeringCurveDefinition
     saved_profile_id: str | None = None
     saved_profile_revision: int | None = None
+    requested_at: float = field(kw_only=True)
 
 
-KernelInput = (
+ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
     | TimerElapsed
@@ -131,6 +133,32 @@ KernelInput = (
     | InboxOverflowed
     | ShutdownRequested
     | ActivateSteeringCurve
+)
+
+# Compatibility for the current live and simulation compositions. New composition code uses the
+# architecture vocabulary above; Phase 8 owns removal after all internal consumers have moved.
+KernelInput = ControllerInput
+
+
+class StateTopic(StrEnum):
+    """Closed service projection topics; not a runtime-extensible event bus."""
+
+    VEHICLE = "vehicle"
+    ENGINE = "engine"
+    STEERING = "steering"
+    BUTTONS = "buttons"
+    DEVICES = "devices"
+    HEALTH = "health"
+
+
+INITIAL_KERNEL_TOPICS = frozenset(
+    {
+        StateTopic.VEHICLE,
+        StateTopic.ENGINE,
+        StateTopic.STEERING,
+        StateTopic.BUTTONS,
+        StateTopic.HEALTH,
+    }
 )
 
 
@@ -196,9 +224,18 @@ class RuntimeHealth:
 
 @dataclass(frozen=True)
 class Commit:
+    """One accepted transition after state mutation, with ordered desired effects.
+
+    ``snapshot`` is the complete immutable application projection. Button output is derived from
+    that application state and emitted atomically; adapter-owned device observations and immutable
+    runtime diagnostics remain separate service projections rather than duplicate application
+    state.
+    """
+
     revision: int
     snapshot: ApplicationSnapshot
     effects: tuple[ApplicationEffect, ...]
+    changed_topics: frozenset[StateTopic]
     state_changed: bool
 
 
@@ -278,7 +315,7 @@ class CoordinatorKernel:
     def diagnostics(self) -> DiagnosticSnapshot:
         return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
 
-    def dispatch(self, kernel_input: KernelInput) -> Commit | None:
+    def dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         """Accept the kernel's only state-changing input path."""
 
         if (
@@ -306,22 +343,24 @@ class CoordinatorKernel:
                 self._lifecycle = KernelLifecycle.RUNNING
                 return self._commit_startup()
             case CanReaderFailed(network, failed_at, message):
+                previous_health = self._health
                 self._health = self._health.with_fault(
                     network,
                     RuntimeFault(RuntimeFaultKind.CAN_READER, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(
-                        SteeringFallbackReason.CAN_READER_FAILURE
-                    )
+                    SteeringFallbackRequested(SteeringFallbackReason.CAN_READER_FAILURE),
+                    previous_health=previous_health,
                 )
             case InboxOverflowed(network, failed_at, message):
+                previous_health = self._health
                 self._health = self._health.with_fault(
                     network,
                     RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW)
+                    SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW),
+                    previous_health=previous_health,
                 )
             case CanEffectExecutionFailed(network, failed_at, message):
                 self._health = self._health.with_fault(
@@ -372,8 +411,14 @@ class CoordinatorKernel:
             return None
         return None if event is None else self._transition(event)
 
-    def _transition(self, event: ApplicationEvent) -> Commit:
+    def _transition(
+        self,
+        event: ApplicationEvent,
+        *,
+        previous_health: RuntimeHealth | None = None,
+    ) -> Commit:
         previous_snapshot = self.snapshot()
+        previous_button_leds = button_led_state(self._state)
         result = transition(
             self._state,
             event,
@@ -383,10 +428,19 @@ class CoordinatorKernel:
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
+        changed_topics = _changed_controller_topics(
+            previous_snapshot,
+            committed_snapshot,
+            buttons_changed=button_led_state(self._state) != previous_button_leds,
+            health_changed=(
+                previous_health is not None and self._health != previous_health
+            ),
+        )
         return Commit(
             revision=self._revision,
             snapshot=committed_snapshot,
             effects=result.effects,
+            changed_topics=changed_topics,
             state_changed=committed_snapshot != previous_snapshot,
         )
 
@@ -400,6 +454,7 @@ class CoordinatorKernel:
                 self._steering_config,
                 self._active_steering_curve.definition,
             ),
+            changed_topics=INITIAL_KERNEL_TOPICS,
             state_changed=True,
         )
 
@@ -442,5 +497,50 @@ class CoordinatorKernel:
             revision=self._revision,
             snapshot=committed_snapshot,
             effects=effects,
+            changed_topics=_changed_controller_topics(
+                previous_snapshot,
+                committed_snapshot,
+                buttons_changed=False,
+                health_changed=False,
+            ),
             state_changed=committed_snapshot != previous_snapshot,
         )
+
+
+def _changed_controller_topics(
+    previous: ApplicationSnapshot,
+    current: ApplicationSnapshot,
+    *,
+    buttons_changed: bool,
+    health_changed: bool,
+) -> frozenset[StateTopic]:
+    """Compare fixed projections without introducing string dispatch or registration."""
+
+    changed: set[StateTopic] = set()
+    if (
+        current.vehicle_speed_kph != previous.vehicle_speed_kph
+        or current.speed_valid != previous.speed_valid
+    ):
+        changed.add(StateTopic.VEHICLE)
+    if current.engine != previous.engine:
+        changed.add(StateTopic.ENGINE)
+    if (
+        current.steering_mode != previous.steering_mode
+        or current.manual_assistance_level != previous.manual_assistance_level
+        or current.maximum_assistance_active != previous.maximum_assistance_active
+        or current.active_steering_curve != previous.active_steering_curve
+        or (
+            current.steering_curve_activation_status
+            != previous.steering_curve_activation_status
+        )
+        or (
+            current.supported_steering_curve_interpolations
+            != previous.supported_steering_curve_interpolations
+        )
+    ):
+        changed.add(StateTopic.STEERING)
+    if buttons_changed:
+        changed.add(StateTopic.BUTTONS)
+    if health_changed:
+        changed.add(StateTopic.HEALTH)
+    return frozenset(changed)
