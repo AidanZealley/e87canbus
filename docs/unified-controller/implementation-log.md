@@ -27,23 +27,21 @@ simulation.
 | 2 — Unified composition | Verified | 2026-07-15 | One bounded controller/API lifecycle with validated adapter selection |
 | 3 — Commands and resources | Verified | 2026-07-15 | Typed commands, development actions and precise durable resources complete |
 | 4 — Socket.IO publication | Verified | 2026-07-15 | Fixed topics, reconnect snapshot and bounded delivery complete |
-| 5 — Frontend data ownership | Implemented | 2026-07-15 | Code and repository checks pass; collaborative-browser evidence is authentication-blocked |
+| 5 — Frontend data ownership | Verified | 2026-07-15 | One bounded Socket.IO/Zustand path and Query ownership pass browser acceptance |
 | 6 — Simulation/device convergence | Not started | — | Physical, emulated and observer pathways |
 | 7 — Reliability/deployment | Not started | — | Failure policy, health, shutdown and service operation |
 | 8 — Cutover/acceptance | Not started | — | Legacy removal, integrated checks and soak evidence |
 
 ## Current handoff
 
-Complete Phase 5 verification before starting Phase 6. The Socket.IO/Zustand/TanStack ownership
-cutover, frontend legacy removal and repository checks pass, but the required collaborative-browser
-development/production regression and retained-memory measurements remain blocked: the subagent
-browser inventory was empty and the parent T3 preview requires authentication. Once browser access
-is available, exercise `/dev` and `/car` under sustained traffic, repeated navigation, trace
-open/close and background/foreground cycles; record socket/listener, trace/current-store, Query
-cache, DOM, performance-entry and post-GC heap evidence. Mark Phase 5 Verified only when those values
-are bounded. Backend raw `/ws` and `GET /api/snapshot` remain Phase 8 compatibility; no frontend
-consumer remains. Preserve HTTP-only commands, exact durable invalidation, separate simulation
-`session_id`, boot/topic revisions, deny-by-default live output and the Phase 7 health-commit handoff.
+Start Phase 6 from the verified Socket.IO/Zustand/TanStack ownership boundary. Preserve the single
+live transport, six current live projections, separately bounded trace store, exact durable Query
+invalidation and honest disconnected-state masking. Phase 6 must converge physical, emulated,
+observer and disabled custom-device roles through the shared generated wire contract, enforce one
+ingress authority, separate semantic controller commands from emulator exercise and keep synthetic
+vehicle signals on the routed ingestion path. Backend raw `/ws` and `GET /api/snapshot` remain
+Phase 8 compatibility only; no frontend consumer remains. Real CAN TX and steering output remain
+unauthorized, and Phase 7 still owns failure-only health commits.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -72,6 +70,59 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 5: browser ownership and reconnect acceptance verified
+
+- **Status:** Verified
+- **Scope:** Completed the pending collaborative-browser acceptance for the Phase 5 frontend
+  ownership cutover against isolated simulated services in React development and the production
+  preview; no implementation changes were required.
+- **Changed:** Status and handoff documentation only. The existing one-client Socket.IO transport,
+  six-object current live store, separate 2,000-row trace store and TanStack Query durable-resource
+  ownership are unchanged.
+- **Decisions:** Treated dispatched `blur`, `visibilitychange` and `focus` events as lifecycle-event
+  coverage, not proof of genuine operating-system tab backgrounding. Browser heap observations are
+  post-warm-up and natural-GC evidence because the preview exposed no forced-GC control. React
+  development performance measures were separated from application-owned retained structures.
+- **Verification:** The previously recorded repository-wide backend/frontend checks remain green.
+  A fresh production build passed with 2,968 modules. Browser instrumentation of the actual client,
+  after deterministic teardown/restart, found one connected Socket.IO client with the same client
+  ID and an open Manager throughout route and traffic checks; exactly one listener remained for
+  each of `connect`, `connect_error`, `disconnect` and the nine fixed server events. The live store
+  retained exactly six current topic objects. Query cache size settled at exactly two durable roots:
+  steering-profile collection and application settings.
+- **Browser/soak/physical checks:** The development `/dev` view synchronized as `Connected`,
+  directly covering the snapshot-before-local-connect badge race. Thirty `/dev` to `/car/drive`
+  SPA cycles, including dispatched lifecycle events and trace close/reopen, retained the same socket
+  and listener counts, two Query entries and 592 final `/dev` DOM nodes; trace cleared on close and
+  subscribed fresh on return. Two 500-command development windows retained 360 then 700 trace rows,
+  771 DOM nodes in both windows and 29,294 then 26,769 performance entries, of which 29,005 and
+  26,474 were React development component measures. Heap moved from 53.0 to 76.6 MB in the first
+  window and naturally fell to 69.0 MB in the second, with no acceleration or monotonic retained
+  growth. In production, 30 equivalent route cycles ended `Connected` with two Query entries, 612
+  DOM nodes, 36 performance entries and 51.3 MB heap. Successive 500-command windows retained 560
+  then 1,120 trace rows, held DOM at 792 and performance entries at 256 (the browser's 250-resource
+  buffer plus non-resource entries), while heap reached 57.7 MB then naturally fell from 57.8 to
+  55.1 MB. A further 1,000 commands capped trace at exactly 2,000, with DOM still 792, performance
+  entries still 256, heap 56.5 MB and connection still synchronized. `/dev` and `/car/drive` visual
+  snapshots rendered without console errors at the requested 800x480 freeform setting; the preview
+  reported 960x576 after scaling. Stopping the backend changed `/dev` to `Disconnected`, marked
+  engine values stale, devices offline/unavailable, removed the network topology and cleared trace;
+  restarting it returned the existing page to `Connected`, cleared stale labels and retained a
+  fresh zero-row trace. The user's separate real application tabs also remained stable significantly
+  beyond the former 5–10 minute crash window. No forced GC or genuine OS backgrounding was
+  available. Real CAN TX was unavailable and not enabled; no physical evidence is claimed.
+- **Documentation:** Updated this status table, current handoff and newest-first verification entry.
+- **Dependencies/migrations:** None. The isolated clean SQLite database returned settings normally;
+  an attached long-running development backend's settings 503 was traced to its tracked SQLite file
+  being overwritten/restored while open by automated tests, not to a Phase 5 frontend defect.
+- **Compatibility/removal:** No compatibility path was added. Backend raw `/ws` and
+  `GET /api/snapshot` remain Phase 8 external-consumer compatibility only; no frontend facade or
+  consumer remains.
+- **Remaining:** None for Phase 5.
+- **Next handoff:** Begin Phase 6 from the verified single-owner frontend boundary. Keep dashboard
+  observation non-authoritative, distinguish semantic commands from emulator actions and do not
+  infer physical acknowledgement or enable real CAN TX.
 
 ### 2026-07-15 — Phase 5: frontend ownership cut over; browser verification pending
 
