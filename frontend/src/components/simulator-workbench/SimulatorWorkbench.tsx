@@ -1,14 +1,8 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { AlertTriangleIcon } from "lucide-react"
 
-import {
-  pressButton,
-  releaseButton,
-  resetSimulator,
-} from "@/api/simulator"
+import { pressButton, releaseButton, resetSimulator } from "@/api/simulator"
 import { setMaximumAssistance } from "@/api/commands"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
@@ -17,6 +11,7 @@ import { SteeringStatus } from "./components/steering-status/SteeringStatus"
 import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorTrace } from "./SimulatorTrace"
+import { notifySimulatorError } from "./utils"
 
 const unavailableEngine = {
   rpm: { value: null, status: "stale" as const },
@@ -34,13 +29,19 @@ export const SimulatorWorkbench = () => {
   const steeringController = useLiveStore(
     (state) => state.devices.steering_controller
   )
-  const reset = useMutation({ mutationFn: resetSimulator })
+  const reset = useMutation({
+    mutationFn: resetSimulator,
+    onError: notifySimulatorError,
+  })
   const button = useMutation({
     mutationFn: ({ index, pressed }: { index: number; pressed: boolean }) =>
       pressed ? pressButton(index) : releaseButton(index),
+    onError: notifySimulatorError,
   })
-  const maximumAssistance = useMutation({ mutationFn: setMaximumAssistance })
-  const error = reset.error ?? button.error ?? maximumAssistance.error
+  const maximumAssistance = useMutation({
+    mutationFn: setMaximumAssistance,
+    onError: notifySimulatorError,
+  })
 
   const handlePress = (index: number) => {
     setPressedButtons((current) => new Set(current).add(index))
@@ -70,17 +71,6 @@ export const SimulatorWorkbench = () => {
       />
 
       <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTriangleIcon />
-            <AlertTitle>Simulator unavailable</AlertTitle>
-            <AlertDescription>
-              {errorMessage(error)} Check that the backend is running on port
-              8000.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
         <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
           <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
             <section className="min-w-0">
@@ -131,6 +121,3 @@ export const SimulatorWorkbench = () => {
     </div>
   )
 }
-
-const errorMessage = (error: Error) =>
-  error.message || "Simulator command failed."

@@ -20,3 +20,8 @@ htmlcov/
 .pio/
 
 node_modules/
+
+# Durable local/runtime state
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

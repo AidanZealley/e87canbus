@@ -1,6 +1,7 @@
+import { useEffect } from "react"
+import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useSteeringCurveEditorStore } from "../../store-context"
 
 export const CurveActionError = () => {
@@ -10,18 +11,17 @@ export const CurveActionError = () => {
       profilesError: state.profilesError,
     }))
   )
+
   const error = lastError ?? profilesError
-  if (!error) return null
 
-  return (
-    <Alert variant="destructive" aria-live="assertive">
-      <AlertTitle>Curve action failed</AlertTitle>
-      <AlertDescription>
-        {errorMessage(error)} The draft has been retained.
-      </AlertDescription>
-    </Alert>
-  )
+  useEffect(() => {
+    if (!error) return
+
+    toast.error("Curve action failed", {
+      id: "steering-curve-action-error",
+      description: `${error instanceof Error ? error.message : "Unknown steering API error."} The draft has been retained.`,
+    })
+  }, [error])
+
+  return null
 }
-
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Unknown steering API error."

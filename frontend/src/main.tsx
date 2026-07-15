@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router"
 
 import "./index.css"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { Toaster } from "@/components/ui/sonner"
 import { startLiveTransport } from "@/live/transport"
 import { router } from "@/router"
 
@@ -24,6 +25,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <RouterProvider router={router} />
+        <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>
