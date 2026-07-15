@@ -40,6 +40,8 @@ Before implementation, report:
 
 Implement the phase with the simplest code that satisfies its contracts. Avoid generic
 frameworks, duplicate state ownership, unbounded retention and speculative abstractions.
+Ensure new features or refactors are implemented cleanly with no trace of older features
+they may have replaced. Do not leave facades.
 
 At completion:
 
