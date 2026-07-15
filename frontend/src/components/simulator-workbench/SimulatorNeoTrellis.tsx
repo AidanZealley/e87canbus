@@ -2,28 +2,28 @@ import {
   NeoTrellisPanel,
   type NeoTrellisButton,
 } from "./components/neo-trellis-panel/NeoTrellisPanel"
+import { useMutation } from "@tanstack/react-query"
+import { tapButton } from "@/api/simulator"
 import { useLiveStore } from "@/live/live-store"
-import { LED_COUNT } from "./utils"
+import { LED_COUNT, notifySimulatorError } from "./utils"
 
 const unavailableLedColours = Array<number>(LED_COUNT).fill(0)
 
 type SimulatorNeoTrellisProps = {
-  pressedButtons: Set<number>
   maximumAssistanceActive: boolean
   semanticCommandPending: boolean
   onMaximumAssistanceChange: (enabled: boolean) => void
-  onPress: (index: number) => void
-  onRelease: (index: number) => void
 }
 
 export const SimulatorNeoTrellis = ({
-  pressedButtons,
   maximumAssistanceActive,
   semanticCommandPending,
   onMaximumAssistanceChange,
-  onPress,
-  onRelease,
 }: SimulatorNeoTrellisProps) => {
+  const tap = useMutation({
+    mutationFn: (index: number) => tapButton(index),
+    onError: notifySimulatorError,
+  })
   const desiredLedColours = useLiveStore((state) => state.buttons.led_colours)
   const device = useLiveStore(
     (state) =>
@@ -48,7 +48,6 @@ export const SimulatorNeoTrellis = ({
     { length: LED_COUNT },
     (_, index) => ({
       index,
-      pressed: pressedButtons.has(index),
       rgb: rgbForColourCode(displayedColours[index]),
     })
   )
@@ -63,8 +62,7 @@ export const SimulatorNeoTrellis = ({
       maximumAssistanceActive={maximumAssistanceActive}
       semanticCommandPending={semanticCommandPending}
       onMaximumAssistanceChange={onMaximumAssistanceChange}
-      onPress={onPress}
-      onRelease={onRelease}
+      onClick={(index) => tap.mutate(index)}
     />
   )
 }

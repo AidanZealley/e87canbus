@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 
-import { pressButton, releaseButton, resetSimulator } from "@/api/simulator"
+import { resetSimulator } from "@/api/simulator"
 import { setMaximumAssistance } from "@/api/commands"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
@@ -20,7 +20,6 @@ const unavailableEngine = {
 }
 export const SimulatorWorkbench = () => {
   const [autoScroll, setAutoScroll] = useState(true)
-  const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
   const connection = useLiveStore((state) => state.connection)
   const synchronized = connection.synchronized
   const vehicle = useLiveStore((state) => state.vehicle)
@@ -33,29 +32,10 @@ export const SimulatorWorkbench = () => {
     mutationFn: resetSimulator,
     onError: notifySimulatorError,
   })
-  const button = useMutation({
-    mutationFn: ({ index, pressed }: { index: number; pressed: boolean }) =>
-      pressed ? pressButton(index) : releaseButton(index),
-    onError: notifySimulatorError,
-  })
   const maximumAssistance = useMutation({
     mutationFn: setMaximumAssistance,
     onError: notifySimulatorError,
   })
-
-  const handlePress = (index: number) => {
-    setPressedButtons((current) => new Set(current).add(index))
-    button.mutate({ index, pressed: true })
-  }
-
-  const handleRelease = (index: number) => {
-    setPressedButtons((current) => {
-      const next = new Set(current)
-      next.delete(index)
-      return next
-    })
-    button.mutate({ index, pressed: false })
-  }
 
   return (
     <div className="min-h-svh bg-muted/30">
@@ -64,7 +44,6 @@ export const SimulatorWorkbench = () => {
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
         onReset={() => {
-          setPressedButtons(new Set())
           reset.mutate()
         }}
         resetPending={reset.isPending}
@@ -75,7 +54,6 @@ export const SimulatorWorkbench = () => {
           <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
             <section className="min-w-0">
               <SimulatorNeoTrellis
-                pressedButtons={pressedButtons}
                 maximumAssistanceActive={
                   synchronized && steering !== null
                     ? steering.maximum_assistance_active
@@ -85,8 +63,6 @@ export const SimulatorWorkbench = () => {
                 onMaximumAssistanceChange={(enabled) =>
                   maximumAssistance.mutate(enabled)
                 }
-                onPress={handlePress}
-                onRelease={handleRelease}
               />
             </section>
 

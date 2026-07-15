@@ -62,7 +62,7 @@ PUT  /api/dev/simulation/vehicle/speed
 PUT  /api/dev/simulation/vehicle/rpm
 PUT  /api/dev/simulation/vehicle/oil-temperature
 PUT  /api/dev/simulation/vehicle/coolant-temperature
-POST /api/dev/simulation/devices/button-pad/buttons/{index}/press
+POST /api/dev/simulation/devices/button-pad/buttons/{index}/tap
 POST /api/dev/simulation/reset
 ```
 
@@ -188,4 +188,3 @@ event handlers is not permitted.
 - Compatibility behavior and Phase 5/8 removal ownership are documented.
 - No live transmit or new physical steering behavior is introduced.
 - Focused and relevant repository-wide checks pass.
-

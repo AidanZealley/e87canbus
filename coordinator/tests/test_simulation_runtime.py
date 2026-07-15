@@ -42,6 +42,7 @@ from e87canbus.simulation.runtime import (
     SilenceOilTemperature,
     SilenceVehicleSpeed,
     SimulatedControllerRuntime,
+    TapButton,
 )
 
 TEST_SIMULATOR_CONFIG = replace(
@@ -262,6 +263,20 @@ def test_pressing_button_creates_button_event_frame() -> None:
     assert trace[0].frame.data == b"\x00\x01"
     assert trace[0].network is CanNetwork.KCAN
     assert trace[0].sequence == 1
+
+
+def test_tapping_button_emits_ordered_press_and_release_frames() -> None:
+    controller = build_test_engine()
+
+    controller.execute(TapButton(0))
+
+    button_frames = [
+        entry.frame.data
+        for entry in controller.topology.trace()
+        if entry.frame.arbitration_id == 0x700
+    ]
+    assert button_frames == [b"\x00\x01", b"\x00\x00"]
+    assert application(controller).steering_mode is SteeringMode.MANUAL
 
 
 def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> None:

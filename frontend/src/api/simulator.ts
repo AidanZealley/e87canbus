@@ -10,15 +10,9 @@ const requestSimulationCommand = async (
 export const resetSimulator = () =>
   requestSimulationCommand("/api/dev/simulation/reset", { method: "POST" })
 
-export const pressButton = (index: number) =>
+export const tapButton = (index: number) =>
   requestSimulationCommand(
-    `/api/dev/simulation/devices/button-pad/buttons/${index}/press`,
-    { method: "POST" }
-  )
-
-export const releaseButton = (index: number) =>
-  requestSimulationCommand(
-    `/api/dev/simulation/devices/button-pad/buttons/${index}/release`,
+    `/api/dev/simulation/devices/button-pad/buttons/${index}/tap`,
     { method: "POST" }
   )
 

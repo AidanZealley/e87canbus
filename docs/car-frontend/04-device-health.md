@@ -32,11 +32,11 @@ The `/dev` workbench separates two intents:
 
 - **Operate controller** sends semantic HTTP commands such as maximum assistance. It never
   fabricates a button input frame.
-- **Exercise emulator** exposes explicit per-button press/release controls only when the selected
+- **Exercise emulator** exposes an atomic per-button tap control only when the selected
   source is `emulated`. These controls encode the generated `0x700` wire message and use the normal
   virtual-bus/router/kernel path.
 
-There is no mutable presentation-health API. Explicit press/release is the only emulator input
+There is no mutable presentation-health API. An atomic button tap is the only emulator input
 control; device projection is derived from selected adapters, controller desire, decoded
 observation and runtime fault evidence.
 
@@ -56,7 +56,7 @@ observation and runtime fault evidence.
 
 - Composition rejects missing/duplicate role selections and emulated K-CAN without authorized
   virtual output.
-- Explicit emulator press/release traverses generated encode, virtual bus, ingress router and core.
+- An emulator button tap traverses generated encode, virtual bus, ingress router and core.
 - LED effects traverse executor, generated encoding, virtual bus and emulator decoding.
 - Observer and disabled roles cannot originate button input or receive button-pad output.
 - Physical connection and observation remain unknown without protocol evidence.

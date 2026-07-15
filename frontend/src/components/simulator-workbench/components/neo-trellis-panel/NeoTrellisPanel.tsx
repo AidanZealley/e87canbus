@@ -14,7 +14,6 @@ import {
 
 export type NeoTrellisButton = {
   index: number
-  pressed: boolean
   rgb: readonly [red: number, green: number, blue: number]
 }
 
@@ -27,8 +26,7 @@ type NeoTrellisPanelProps = {
   maximumAssistanceActive: boolean
   semanticCommandPending: boolean
   onMaximumAssistanceChange: (enabled: boolean) => void
-  onPress: (index: number) => void
-  onRelease: (index: number) => void
+  onClick: (index: number) => void
 }
 
 export const NeoTrellisPanel = ({
@@ -40,20 +38,24 @@ export const NeoTrellisPanel = ({
   maximumAssistanceActive,
   semanticCommandPending,
   onMaximumAssistanceChange,
-  onPress,
-  onRelease,
+  onClick,
 }: NeoTrellisPanelProps) => (
   <Card className="min-w-0">
     <CardHeader>
       <CardTitle>Button pad</CardTitle>
-      <CardDescription>Controller output and device wire-path exercise</CardDescription>
+      <CardDescription>
+        Controller output and device wire-path exercise
+      </CardDescription>
       <CardAction>
         <MousePointerClickIcon aria-hidden="true" />
       </CardAction>
     </CardHeader>
 
     <CardContent className="grid gap-4">
-      <section className="grid gap-2 rounded-md border p-3" aria-label="Controller operation">
+      <section
+        className="grid gap-2 rounded-md border p-3"
+        aria-label="Controller operation"
+      >
         <div className="flex items-center justify-between gap-2">
           <div>
             <div className="text-sm font-medium">Operate controller</div>
@@ -76,7 +78,9 @@ export const NeoTrellisPanel = ({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-sm font-medium">Exercise emulator</div>
-            <div className="text-xs text-muted-foreground">{observationLabel}</div>
+            <div className="text-xs text-muted-foreground">
+              {observationLabel}
+            </div>
           </div>
           <Badge variant={emulatorControlsAvailable ? "default" : "secondary"}>
             Source: {sourceMode}
@@ -88,25 +92,17 @@ export const NeoTrellisPanel = ({
           </p>
         ) : null}
         <div className="grid grid-cols-4 gap-2">
-          {buttons.map(({ index, pressed, rgb }) => (
+          {buttons.map(({ index, rgb }) => (
             <div key={index} className="flex min-w-0 flex-col gap-1">
               <Button
                 variant="outline"
-                className="aspect-square h-auto min-h-14 rounded-4xl p-1"
+                className="aspect-square h-auto min-h-14 rounded-4xl p-1 active:scale-[0.98] active:bg-input/40"
                 style={{
-                  boxShadow: buttonGlow(rgb, pressed),
+                  boxShadow: buttonGlow(rgb),
                 }}
-                aria-label={`Button ${index}, ${pressed ? "pressed" : "idle"}`}
-                aria-pressed={pressed}
+                aria-label={`Button ${index}`}
                 disabled={!emulatorControlsAvailable}
-                onPointerDown={() => onPress(index)}
-                onPointerUp={() => onRelease(index)}
-                onPointerCancel={() => {
-                  if (pressed) onRelease(index)
-                }}
-                onPointerLeave={() => {
-                  if (pressed) onRelease(index)
-                }}
+                onClick={() => onClick(index)}
               >
                 <span className="font-heading text-2xl">{index}</span>
               </Button>
@@ -125,11 +121,8 @@ export const NeoTrellisPanel = ({
   </Card>
 )
 
-const buttonGlow = (
-  rgb: NeoTrellisButton["rgb"],
-  pressed: boolean
-) => {
-  const colour = pressed ? "255 255 255" : rgb.join(" ")
+const buttonGlow = (rgb: NeoTrellisButton["rgb"]) => {
+  const colour = rgb.join(" ")
 
   return `inset 0 0 0 4px rgb(${colour}), 0 0 10px rgb(${colour} / 25%)`
 }

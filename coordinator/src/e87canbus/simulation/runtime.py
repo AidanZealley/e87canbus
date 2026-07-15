@@ -71,6 +71,11 @@ class ReleaseButton:
 
 
 @dataclass(frozen=True)
+class TapButton:
+    index: int
+
+
+@dataclass(frozen=True)
 class RunControlTimer:
     now: float
 
@@ -123,6 +128,7 @@ class ResetSimulation:
 SimulationCommand = (
     PressButton
     | ReleaseButton
+    | TapButton
     | RunControlTimer
     | SetVehicleSpeed
     | SilenceVehicleSpeed
@@ -215,6 +221,9 @@ class SimulatedControllerRuntime:
             case PressButton(index):
                 self._send_button(index, pressed=True)
             case ReleaseButton(index):
+                self._send_button(index, pressed=False)
+            case TapButton(index):
+                self._send_button(index, pressed=True)
                 self._send_button(index, pressed=False)
             case RunControlTimer(now):
                 self.vehicle.emit_speed()

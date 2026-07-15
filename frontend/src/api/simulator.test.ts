@@ -7,6 +7,7 @@ import {
   silenceCoolantTemperature,
   silenceEngineRpm,
   silenceOilTemperature,
+  tapButton,
 } from "./simulator"
 
 afterEach(() => vi.unstubAllGlobals())
@@ -35,7 +36,11 @@ it("sends the exact engine telemetry command paths and bodies", async () => {
       init?.body === undefined ? undefined : JSON.parse(String(init.body)),
     ])
   ).toEqual([
-    ["http://127.0.0.1:8000/api/dev/simulation/vehicle/rpm", "PUT", { rpm: 3500 }],
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/vehicle/rpm",
+      "PUT",
+      { rpm: 3500 },
+    ],
     [
       "http://127.0.0.1:8000/api/dev/simulation/vehicle/rpm/silence",
       "POST",
@@ -62,4 +67,16 @@ it("sends the exact engine telemetry command paths and bodies", async () => {
       undefined,
     ],
   ])
+})
+
+it("sends one atomic button-tap command", async () => {
+  const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }))
+  vi.stubGlobal("fetch", fetchMock)
+
+  await tapButton(3)
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "http://127.0.0.1:8000/api/dev/simulation/devices/button-pad/buttons/3/tap",
+    expect.objectContaining({ method: "POST" })
+  )
 })

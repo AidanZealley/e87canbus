@@ -184,7 +184,7 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
         assert client.get("/api/snapshot").status_code == 404
         assert (
             client.post(
-                "/api/dev/simulation/devices/button-pad/buttons/0/press"
+                "/api/dev/simulation/devices/button-pad/buttons/0/tap"
             ).status_code
             == 404
         )

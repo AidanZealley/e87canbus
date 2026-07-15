@@ -109,7 +109,7 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert client.get("/api/health").status_code == 404
 
     response = client.options(
-        "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        "/api/dev/simulation/devices/button-pad/buttons/0/tap",
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "POST",
@@ -207,10 +207,7 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
 
 @pytest.mark.parametrize(
     ("path", "expected_mode"),
-    (
-        ("/api/dev/simulation/devices/button-pad/buttons/0/press", "manual"),
-        ("/api/dev/simulation/devices/button-pad/buttons/0/release", "auto"),
-    ),
+    (("/api/dev/simulation/devices/button-pad/buttons/0/tap", "manual"),),
 )
 def test_button_commands_return_acknowledgements(
     client: TestClient,
@@ -236,7 +233,7 @@ def test_observer_composition_rejects_emulator_controls() -> None:
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/dev/simulation/devices/button-pad/buttons/0/press"
+            "/api/dev/simulation/devices/button-pad/buttons/0/tap"
         )
         snapshot = app.state.controller_service.snapshot()
 
@@ -248,7 +245,7 @@ def test_observer_composition_rejects_emulator_controls() -> None:
 
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
-    client.post("/api/dev/simulation/devices/button-pad/buttons/0/press")
+    client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap")
 
     response = client.post("/api/dev/simulation/reset")
 
@@ -285,7 +282,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
     response = client.post(
-        "/api/dev/simulation/devices/button-pad/buttons/16/press"
+        "/api/dev/simulation/devices/button-pad/buttons/16/tap"
     )
 
     assert response.status_code == 422
@@ -434,7 +431,7 @@ def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
         press = pool.submit(
             client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
         )
         reset = pool.submit(client.post, "/api/dev/simulation/reset")
         press_response = press.result()
@@ -481,7 +478,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
         assert controller.entered.wait(timeout=1.0)
         second = pool.submit(
             client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
         )
         deadline = time.monotonic() + 1.0
         while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
@@ -516,7 +513,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
         assert projected_health.inbox.overflow_latched is True
         assert (
             client.post(
-                "/api/dev/simulation/devices/button-pad/buttons/0/press"
+                "/api/dev/simulation/devices/button-pad/buttons/0/tap"
             ).status_code
             == 503
         )

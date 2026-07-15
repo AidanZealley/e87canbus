@@ -10,8 +10,6 @@ from e87canbus.api.models.simulation import (
     TemperatureRequest,
 )
 from e87canbus.simulation.runtime import (
-    PressButton,
-    ReleaseButton,
     ResetSimulation,
     SetCoolantTemperature,
     SetEngineRpm,
@@ -21,6 +19,7 @@ from e87canbus.simulation.runtime import (
     SilenceEngineRpm,
     SilenceOilTemperature,
     SilenceVehicleSpeed,
+    TapButton,
 )
 
 router = APIRouter(prefix="/api/dev/simulation", tags=["development simulation"])
@@ -31,20 +30,12 @@ async def reset(request: Request) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, ResetSimulation())
 
 
-@router.post("/devices/button-pad/buttons/{button_index}/press")
-async def press_button(
+@router.post("/devices/button-pad/buttons/{button_index}/tap")
+async def tap_button(
     request: Request,
     button_index: int,
 ) -> SimulationCommandAcknowledgement:
-    return await run_command(request.app, PressButton(button_index))
-
-
-@router.post("/devices/button-pad/buttons/{button_index}/release")
-async def release_button(
-    request: Request,
-    button_index: int,
-) -> SimulationCommandAcknowledgement:
-    return await run_command(request.app, ReleaseButton(button_index))
+    return await run_command(request.app, TapButton(button_index))
 
 
 @router.put("/vehicle/speed")

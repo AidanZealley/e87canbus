@@ -63,7 +63,7 @@ data shapes; consume the committed contracts from the earlier phases.
 
 ```text
 Development controls
-  -> semantic HTTP command or explicit emulator press/release
+  -> semantic HTTP command or an atomic emulator button tap
   -> single-owner simulation engine
   -> generated custom-device or simulation-only vehicle CAN frame
   -> normal application transition and service projection
@@ -116,8 +116,7 @@ PUT  /api/dev/simulation/vehicle/oil-temperature
 POST /api/dev/simulation/vehicle/oil-temperature/silence
 PUT  /api/dev/simulation/vehicle/coolant-temperature
 POST /api/dev/simulation/vehicle/coolant-temperature/silence
-POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/press
-POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/release
+POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/tap
 ```
 
 Live-state topics:

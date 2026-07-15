@@ -470,7 +470,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         assert controller.entered.wait(timeout=1.0)
         second = pool.submit(
             client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
         )
         deadline = time.monotonic() + 1.0
         while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:

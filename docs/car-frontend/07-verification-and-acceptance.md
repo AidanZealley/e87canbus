@@ -117,7 +117,7 @@ display.
 
 ### Device role and observation
 
-1. Run `/dev` with the emulated role and confirm explicit press/release controls are enabled, use
+1. Run `/dev` with the emulated role, confirm button tap controls are enabled, then use
    generated wire traffic and display decoded LED observation.
 2. Run with the observer role and confirm the source is labeled, connection/observation are unknown,
    wire controls are disabled and synchronized semantic controller commands remain available.
