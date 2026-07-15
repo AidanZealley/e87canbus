@@ -105,7 +105,9 @@ it("shows the observed virtual-car high-beam indicator", () => {
   expect(
     screen.getByRole("img", { name: "Virtual-car high beam off" })
   ).toBeTruthy()
-  expect(document.querySelector("svg.text-muted-foreground")).toBeTruthy()
+  expect(
+    document.querySelector("svg.text-muted-foreground.opacity-50")
+  ).toBeTruthy()
 
   rerender(
     <QueryClientProvider client={new QueryClient()}>
@@ -120,5 +122,5 @@ it("shows the observed virtual-car high-beam indicator", () => {
   expect(
     screen.getByRole("img", { name: "Virtual-car high beam on" })
   ).toBeTruthy()
-  expect(document.querySelector("svg.text-sky-400")).toBeTruthy()
+  expect(document.querySelector("svg.text-blue-500")).toBeTruthy()
 })
