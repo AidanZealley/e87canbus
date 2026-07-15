@@ -1,5 +1,18 @@
 import { useState, type FormEvent } from "react"
+import { useMutation } from "@tanstack/react-query"
 import { CarFrontIcon } from "lucide-react"
+import type { EngineState } from "@/api/live-events"
+
+import {
+  setCoolantTemperature,
+  setEngineRpm,
+  setOilTemperature,
+  setVehicleSpeed,
+  silenceCoolantTemperature,
+  silenceEngineRpm,
+  silenceOilTemperature,
+  silenceVehicleSpeed,
+} from "@/api/simulator"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,13 +27,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import type {
-  DeviceId,
-  DeviceSnapshot,
-  DeviceStatus,
-  EngineTelemetrySnapshot,
-} from "../../types"
-import { deviceOrUnavailable } from "../../utils"
+import { deviceOrUnavailable, type PresentedDevice } from "../../utils"
 import { DeviceStatusControl } from "./DeviceStatusControl"
 import { TelemetrySignalControl } from "./TelemetrySignalControl"
 
@@ -29,36 +36,34 @@ const MAX_SPEED_KPH = 300
 
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
-  engine: EngineTelemetrySnapshot
-  devices: DeviceSnapshot[]
-  disabled?: boolean
-  onSetSpeed: (speedKph: number) => void
-  onSilenceSpeed: () => void
-  onSetRpm: (rpm: number) => void
-  onSilenceRpm: () => void
-  onSetOilTemperature: (temperatureC: number) => void
-  onSilenceOilTemperature: () => void
-  onSetCoolantTemperature: (temperatureC: number) => void
-  onSilenceCoolantTemperature: () => void
-  onSetDeviceStatus: (deviceId: DeviceId, status: DeviceStatus) => void
+  engine: EngineState
+  devices: PresentedDevice[]
 }
 
 export const SimulatedVehicleControls = ({
   speedKph,
   engine,
   devices,
-  disabled = false,
-  onSetSpeed,
-  onSilenceSpeed,
-  onSetRpm,
-  onSilenceRpm,
-  onSetOilTemperature,
-  onSilenceOilTemperature,
-  onSetCoolantTemperature,
-  onSilenceCoolantTemperature,
-  onSetDeviceStatus,
 }: SimulatedVehicleControlsProps) => {
   const [draftSpeed, setDraftSpeed] = useState<number | "">(speedKph ?? 0)
+  const speedMutation = useMutation({
+    mutationFn: (value: number | null) =>
+      value === null ? silenceVehicleSpeed() : setVehicleSpeed(value),
+  })
+  const rpmMutation = useMutation({
+    mutationFn: (value: number | null) =>
+      value === null ? silenceEngineRpm() : setEngineRpm(value),
+  })
+  const oilMutation = useMutation({
+    mutationFn: (value: number | null) =>
+      value === null ? silenceOilTemperature() : setOilTemperature(value),
+  })
+  const coolantMutation = useMutation({
+    mutationFn: (value: number | null) =>
+      value === null
+        ? silenceCoolantTemperature()
+        : setCoolantTemperature(value),
+  })
 
   const setBoundedDraft = (value: number) => {
     if (Number.isFinite(value)) {
@@ -69,7 +74,7 @@ export const SimulatedVehicleControls = ({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (draftSpeed !== "") {
-      onSetSpeed(draftSpeed)
+      speedMutation.mutate(draftSpeed)
     }
   }
 
@@ -99,7 +104,7 @@ export const SimulatedVehicleControls = ({
                     max={MAX_SPEED_KPH}
                     step={0.1}
                     value={draftSpeed}
-                    disabled={disabled}
+                    disabled={speedMutation.isPending}
                     className="pr-14"
                     onChange={(event) => {
                       if (event.target.value === "") {
@@ -114,7 +119,10 @@ export const SimulatedVehicleControls = ({
                   </span>
                 </div>
               </div>
-              <Button type="submit" disabled={disabled || draftSpeed === ""}>
+              <Button
+                type="submit"
+                disabled={speedMutation.isPending || draftSpeed === ""}
+              >
                 Set speed
               </Button>
             </div>
@@ -124,7 +132,7 @@ export const SimulatedVehicleControls = ({
               max={MAX_SPEED_KPH}
               step={1}
               value={[draftSpeed === "" ? MIN_SPEED_KPH : draftSpeed]}
-              disabled={disabled}
+              disabled={speedMutation.isPending}
               aria-label="Simulated vehicle speed"
               onValueChange={(value) =>
                 setBoundedDraft(Array.isArray(value) ? value[0] : value)
@@ -143,8 +151,8 @@ export const SimulatedVehicleControls = ({
               <Button
                 type="button"
                 variant="outline"
-                disabled={disabled || speedKph === null}
-                onClick={onSilenceSpeed}
+                disabled={speedMutation.isPending || speedKph === null}
+                onClick={() => speedMutation.mutate(null)}
               >
                 Stop signal
               </Button>
@@ -160,9 +168,9 @@ export const SimulatedVehicleControls = ({
             step={100}
             initialDraft={3000}
             telemetry={engine.rpm}
-            disabled={disabled}
-            onSet={onSetRpm}
-            onSilence={onSilenceRpm}
+            disabled={rpmMutation.isPending}
+            onSet={(value) => rpmMutation.mutate(value)}
+            onSilence={() => rpmMutation.mutate(null)}
           />
           <TelemetrySignalControl
             id="simulated-oil-temperature"
@@ -173,9 +181,9 @@ export const SimulatedVehicleControls = ({
             step={1}
             initialDraft={90}
             telemetry={engine.oil_temperature_c}
-            disabled={disabled}
-            onSet={onSetOilTemperature}
-            onSilence={onSilenceOilTemperature}
+            disabled={oilMutation.isPending}
+            onSet={(value) => oilMutation.mutate(value)}
+            onSilence={() => oilMutation.mutate(null)}
           />
           <TelemetrySignalControl
             id="simulated-coolant-temperature"
@@ -186,16 +194,14 @@ export const SimulatedVehicleControls = ({
             step={1}
             initialDraft={90}
             telemetry={engine.coolant_temperature_c}
-            disabled={disabled}
-            onSet={onSetCoolantTemperature}
-            onSilence={onSilenceCoolantTemperature}
+            disabled={coolantMutation.isPending}
+            onSet={(value) => coolantMutation.mutate(value)}
+            onSilence={() => coolantMutation.mutate(null)}
           />
 
           <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
             <DeviceStatusControl
               device={deviceOrUnavailable(devices, "button_pad", "Button pad")}
-              disabled={disabled}
-              onStatusChange={onSetDeviceStatus}
             />
             <DeviceStatusControl
               device={deviceOrUnavailable(
@@ -203,8 +209,6 @@ export const SimulatedVehicleControls = ({
                 "steering_controller",
                 "Steering controller"
               )}
-              disabled={disabled}
-              onStatusChange={onSetDeviceStatus}
             />
           </div>
         </div>

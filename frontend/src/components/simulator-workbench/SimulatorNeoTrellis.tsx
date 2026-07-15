@@ -2,8 +2,10 @@ import {
   NeoTrellisPanel,
   type NeoTrellisButton,
 } from "./components/neo-trellis-panel"
-import { useLedColours } from "./query"
+import { useLiveStore } from "@/live/live-store"
 import { LED_COUNT } from "./utils"
+
+const unavailableLedColours = Array<number>(LED_COUNT).fill(0)
 
 type SimulatorNeoTrellisProps = {
   pressedButtons: Set<number>
@@ -16,13 +18,15 @@ export const SimulatorNeoTrellis = ({
   onPress,
   onRelease,
 }: SimulatorNeoTrellisProps) => {
-  const ledColours = useLedColours()
+  const ledColours = useLiveStore((state) => state.buttons.led_colours)
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  const displayedColours = synchronized ? ledColours : unavailableLedColours
   const buttons: NeoTrellisButton[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
       index,
       pressed: pressedButtons.has(index),
-      rgb: rgbForColourCode(ledColours[index]),
+      rgb: rgbForColourCode(displayedColours[index]),
     })
   )
 

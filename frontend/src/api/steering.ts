@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query"
 
 import type { CommandAcknowledgement } from "./commands.ts"
 import { ApiError, requestApi } from "./client.ts"
+import { DURABLE_STALE_TIME_MS } from "./query-policy.ts"
 
 export type SteeringCurvePoint = {
   speed_deci_kph: number
@@ -51,6 +52,9 @@ export const steeringProfilesQueryOptions = () =>
   queryOptions({
     queryKey: steeringProfilesQueryKey,
     queryFn: listSteeringProfiles,
+    staleTime: DURABLE_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
 export const createSteeringProfile = (

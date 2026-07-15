@@ -1,17 +1,40 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, expect, it, vi } from "vitest"
 
 import { SimulatedVehicleControls } from "./SimulatedVehicleControls"
 
-afterEach(cleanup)
+const api = vi.hoisted(() => ({
+  setVehicleSpeed: vi.fn(),
+  silenceVehicleSpeed: vi.fn(),
+  setEngineRpm: vi.fn(),
+  silenceEngineRpm: vi.fn(),
+  setOilTemperature: vi.fn(),
+  silenceOilTemperature: vi.fn(),
+  setCoolantTemperature: vi.fn(),
+  silenceCoolantTemperature: vi.fn(),
+  setDeviceStatus: vi.fn(),
+}))
+
+vi.mock("@/api/simulator", () => api)
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
 
 const engine = {
   rpm: { value: null, status: "never_observed" as const },
   oil_temperature_c: { value: 112.5, status: "valid" as const },
   coolant_temperature_c: { value: null, status: "stale" as const },
 }
-
 const devices = [
   {
     id: "button_pad" as const,
@@ -27,212 +50,135 @@ const devices = [
   },
 ]
 
-const callbacks = () => ({
-  onSetRpm: vi.fn(),
-  onSilenceRpm: vi.fn(),
-  onSetOilTemperature: vi.fn(),
-  onSilenceOilTemperature: vi.fn(),
-  onSetCoolantTemperature: vi.fn(),
-  onSilenceCoolantTemperature: vi.fn(),
-  onSetDeviceStatus: vi.fn(),
-})
-
-it("submits a bounded vehicle speed and can stop the speed signal", () => {
-  const onSetSpeed = vi.fn()
-  const onSilenceSpeed = vi.fn()
-
+const renderControls = (
+  props: Partial<Parameters<typeof SimulatedVehicleControls>[0]> = {}
+) =>
   render(
-    <SimulatedVehicleControls
-      speedKph={10}
-      engine={engine}
-      devices={devices}
-      onSetSpeed={onSetSpeed}
-      onSilenceSpeed={onSilenceSpeed}
-      {...callbacks()}
-    />
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <SimulatedVehicleControls
+        speedKph={10}
+        engine={engine}
+        devices={devices}
+        {...props}
+      />
+    </QueryClientProvider>
   )
 
-  const speedInput = screen.getByRole("spinbutton", { name: "Vehicle speed" })
-  fireEvent.change(speedInput, { target: { value: "42.5" } })
-  fireEvent.submit(speedInput.closest("form")!)
-  expect(onSetSpeed).toHaveBeenCalledWith(42.5)
-
+it("submits commands through mutations and preserves independent telemetry status", async () => {
+  renderControls()
+  const speed = screen.getByRole("spinbutton", { name: "Vehicle speed" })
+  fireEvent.change(speed, { target: { value: "42.5" } })
+  fireEvent.submit(speed.closest("form")!)
+  await waitFor(() => expect(api.setVehicleSpeed).toHaveBeenCalledWith(42.5))
   fireEvent.click(screen.getByRole("button", { name: "Stop signal" }))
-  expect(onSilenceSpeed).toHaveBeenCalledOnce()
-})
-
-it("allows the vehicle speed input to be cleared before entering a new value", () => {
-  const onSetSpeed = vi.fn()
-
-  render(
-    <SimulatedVehicleControls
-      speedKph={0}
-      engine={engine}
-      devices={devices}
-      onSetSpeed={onSetSpeed}
-      onSilenceSpeed={vi.fn()}
-      {...callbacks()}
-    />
-  )
-
-  const speedInput = screen.getByRole("spinbutton", { name: "Vehicle speed" })
-  const setSpeedButton = screen.getByRole("button", { name: "Set speed" })
-
-  fireEvent.change(speedInput, { target: { value: "" } })
-  expect((speedInput as HTMLInputElement).value).toBe("")
-  expect((setSpeedButton as HTMLButtonElement).disabled).toBe(true)
-
-  fireEvent.change(speedInput, { target: { value: "1" } })
-  expect((speedInput as HTMLInputElement).value).toBe("1")
-  fireEvent.click(setSpeedButton)
-  expect(onSetSpeed).toHaveBeenCalledWith(1)
-})
-
-it("disables signal controls while a simulator command is pending", () => {
-  render(
-    <SimulatedVehicleControls
-      speedKph={null}
-      engine={engine}
-      devices={devices}
-      disabled
-      onSetSpeed={vi.fn()}
-      onSilenceSpeed={vi.fn()}
-      {...callbacks()}
-    />
-  )
-
-  expect(
-    (screen.getByRole("button", { name: "Set speed" }) as HTMLButtonElement)
-      .disabled
-  ).toBe(true)
-  expect(
-    screen
-      .getByRole("group", { name: "Simulated vehicle speed" })
-      .hasAttribute("data-disabled")
-  ).toBe(true)
-  expect(screen.getByText("No fresh speed signal")).toBeTruthy()
-  expect(
-    (screen.getByRole("spinbutton", { name: "Engine RPM" }) as HTMLInputElement)
-      .disabled
-  ).toBe(true)
-  expect(
-    (
-      screen.getByRole("combobox", { name: "Button pad" }) as HTMLButtonElement
-    ).disabled
-  ).toBe(true)
-})
-
-it("sets and silences each engine signal while showing independent statuses", () => {
-  const actions = callbacks()
-  const { container } = render(
-    <SimulatedVehicleControls
-      speedKph={0}
-      engine={engine}
-      devices={devices}
-      onSetSpeed={vi.fn()}
-      onSilenceSpeed={vi.fn()}
-      {...actions}
-    />
-  )
+  await waitFor(() => expect(api.silenceVehicleSpeed).toHaveBeenCalledOnce())
 
   const rpm = screen.getByRole("spinbutton", { name: "Engine RPM" })
   fireEvent.change(rpm, { target: { value: "4200" } })
   fireEvent.submit(rpm.closest("form")!)
-  expect(actions.onSetRpm).toHaveBeenCalledWith(4200)
-
-  const oil = screen.getByRole("spinbutton", { name: "Oil temperature" })
-  fireEvent.change(oil, { target: { value: "110" } })
-  fireEvent.submit(oil.closest("form")!)
-  expect(actions.onSetOilTemperature).toHaveBeenCalledWith(110)
-  const oilSilence = oil
-    .closest("form")!
-    .querySelector<HTMLButtonElement>('button[type="button"]')
-  fireEvent.click(oilSilence!)
-  expect(actions.onSilenceOilTemperature).toHaveBeenCalledOnce()
-
-  const coolant = screen.getByRole("spinbutton", {
-    name: "Coolant temperature",
-  })
-  fireEvent.change(coolant, { target: { value: "95" } })
-  fireEvent.submit(coolant.closest("form")!)
-  expect(actions.onSetCoolantTemperature).toHaveBeenCalledWith(95)
-
+  await waitFor(() => expect(api.setEngineRpm).toHaveBeenCalledWith(4200))
   expect(screen.getByText("Never observed")).toBeTruthy()
   expect(screen.getByText("Valid · 112.5")).toBeTruthy()
   expect(screen.getByText("Stale")).toBeTruthy()
-  expect(container.textContent).toContain("none are BMW definitions")
 })
 
-it("calls the matching silence action for every valid engine signal", () => {
-  const actions = callbacks()
-  render(
-    <SimulatedVehicleControls
-      speedKph={0}
-      devices={devices}
-      engine={{
-        rpm: { value: 3500, status: "valid" },
-        oil_temperature_c: { value: 112.5, status: "valid" },
-        coolant_temperature_c: { value: 98, status: "valid" },
-      }}
-      onSetSpeed={vi.fn()}
-      onSilenceSpeed={vi.fn()}
-      {...actions}
-    />
-  )
+it("sends the exact set and silence action for every engine signal", async () => {
+  renderControls({
+    engine: {
+      rpm: { value: 3000, status: "valid" },
+      oil_temperature_c: { value: 90, status: "valid" },
+      coolant_temperature_c: { value: 80, status: "valid" },
+    },
+  })
 
-  for (const label of [
-    "Engine RPM",
-    "Oil temperature",
-    "Coolant temperature",
-  ]) {
-    const input = screen.getByRole("spinbutton", { name: label })
-    const silence = input
-      .closest("form")!
-      .querySelector<HTMLButtonElement>('button[type="button"]')
-    fireEvent.click(silence!)
+  const cases = [
+    {
+      label: "Engine RPM",
+      value: "4200",
+      set: api.setEngineRpm,
+      silence: api.silenceEngineRpm,
+    },
+    {
+      label: "Oil temperature",
+      value: "111",
+      set: api.setOilTemperature,
+      silence: api.silenceOilTemperature,
+    },
+    {
+      label: "Coolant temperature",
+      value: "96",
+      set: api.setCoolantTemperature,
+      silence: api.silenceCoolantTemperature,
+    },
+  ]
+
+  for (const signal of cases) {
+    const input = screen.getByRole("spinbutton", { name: signal.label })
+    const form = input.closest("form")!
+    fireEvent.change(input, { target: { value: signal.value } })
+    fireEvent.submit(form)
+    await waitFor(() =>
+      expect(signal.set).toHaveBeenCalledWith(Number(signal.value))
+    )
+    fireEvent.click(form.querySelectorAll("button")[1]!)
+    await waitFor(() => expect(signal.silence).toHaveBeenCalledOnce())
   }
-
-  expect(actions.onSilenceRpm).toHaveBeenCalledOnce()
-  expect(actions.onSilenceOilTemperature).toHaveBeenCalledOnce()
-  expect(actions.onSilenceCoolantTemperature).toHaveBeenCalledOnce()
 })
 
-it("sends the exact device ID and selected status", () => {
-  const actions = callbacks()
-  render(
-    <SimulatedVehicleControls
-      speedKph={0}
-      engine={engine}
-      devices={devices}
-      onSetSpeed={vi.fn()}
-      onSilenceSpeed={vi.fn()}
-      {...actions}
-    />
-  )
+it("does not submit a locally cleared speed draft", () => {
+  renderControls()
+  const speed = screen.getByRole("spinbutton", { name: "Vehicle speed" })
+  fireEvent.change(speed, { target: { value: "" } })
+  expect(
+    (screen.getByRole("button", { name: "Set speed" }) as HTMLButtonElement)
+      .disabled
+  ).toBe(true)
+  fireEvent.submit(speed.closest("form")!)
+  expect(api.setVehicleSpeed).not.toHaveBeenCalled()
+})
 
+it("limits pending presentation to the initiating control", async () => {
+  let resolve!: () => void
+  api.setVehicleSpeed.mockReturnValueOnce(
+    new Promise<void>((done) => {
+      resolve = done
+    })
+  )
+  renderControls()
+  fireEvent.click(screen.getByRole("button", { name: "Set speed" }))
+  await waitFor(() =>
+    expect(
+      (screen.getByRole("button", { name: "Set speed" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+  )
+  expect(
+    (screen.getByRole("spinbutton", { name: "Engine RPM" }) as HTMLInputElement)
+      .disabled
+  ).toBe(false)
+  resolve()
+})
+
+it("sends the exact device status and renders missing devices unavailable", async () => {
+  renderControls({
+    devices: devices.filter((device) => device.id === "button_pad"),
+  })
   fireEvent.click(screen.getByRole("combobox", { name: "Button pad" }))
   const offline = screen.getByRole("option", { name: "Offline" })
   fireEvent.pointerDown(offline, { pointerType: "mouse" })
   fireEvent.click(offline)
-
-  expect(actions.onSetDeviceStatus).toHaveBeenCalledWith(
-    "button_pad",
-    "offline"
+  await waitFor(() =>
+    expect(api.setDeviceStatus).toHaveBeenCalledWith("button_pad", "offline")
   )
-})
-
-it("renders a missing device as offline and unavailable", () => {
-  render(
-    <SimulatedVehicleControls
-      speedKph={0}
-      engine={engine}
-      devices={devices.filter((device) => device.id === "button_pad")}
-      onSetSpeed={vi.fn()}
-      onSilenceSpeed={vi.fn()}
-      {...callbacks()}
-    />
-  )
-
   expect(
     screen.getByRole("combobox", { name: "Steering controller" }).textContent
   ).toContain("Offline")

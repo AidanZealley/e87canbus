@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button"
-import type { CanNetwork, NetworkStatus } from "../../types"
+import type { DevicesState, TraceRow } from "@/api/live-events"
+
+type CanNetwork = TraceRow["network"]
+type NetworkStatus = DevicesState["networks"][number]
 
 type NetworkFiltersProps = {
   networks: NetworkStatus[]

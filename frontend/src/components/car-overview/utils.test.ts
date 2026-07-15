@@ -1,12 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import type { SteeringState } from "../../api/live-events.ts"
 import type {
-  ActiveSteeringCurve,
   SteeringCurveDefinition,
   StoredSteeringProfile,
 } from "../../api/steering.ts"
-import { emptySnapshot } from "../simulator-workbench/utils.ts"
 import { activeProfileLabel, steeringModeLabel } from "./utils.ts"
 
 const definition: SteeringCurveDefinition = {
@@ -19,17 +18,22 @@ const definition: SteeringCurveDefinition = {
     })
   ),
 }
-const active: ActiveSteeringCurve = {
-  definition,
-  fingerprint: "active",
-  activation_revision: 2,
-  status: "active",
-  saved_profile_id: "11111111-1111-4111-8111-111111111111",
-  saved_profile_revision: 3,
-  supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
+const steering: SteeringState = {
+  mode: "auto",
+  manual_assistance_level: 0,
+  maximum_assistance_active: false,
+  active_curve: {
+    definition,
+    fingerprint: "active",
+    activation_revision: 2,
+    status: "active",
+    saved_profile_id: "11111111-1111-4111-8111-111111111111",
+    saved_profile_revision: 3,
+    supported_interpolations: ["linear-v1", "monotone-cubic-v1"],
+  },
 }
 const profile: StoredSteeringProfile = {
-  profile_id: active.saved_profile_id!,
+  profile_id: steering.active_curve.saved_profile_id!,
   name: "Dry track",
   revision: 3,
   definition,
@@ -39,36 +43,23 @@ const profile: StoredSteeringProfile = {
 
 test("labels Auto, Manual and temporary Maximum modes", () => {
   assert.equal(
-    steeringModeLabel({
-      steering_mode: "auto",
-      maximum_assistance_active: false,
-    }),
+    steeringModeLabel({ mode: "auto", maximum_assistance_active: false }),
     "Auto"
   )
   assert.equal(
-    steeringModeLabel({
-      steering_mode: "manual",
-      maximum_assistance_active: false,
-    }),
+    steeringModeLabel({ mode: "manual", maximum_assistance_active: false }),
     "Manual"
   )
   assert.equal(
-    steeringModeLabel({
-      steering_mode: "manual",
-      maximum_assistance_active: true,
-    }),
+    steeringModeLabel({ mode: "manual", maximum_assistance_active: true }),
     "Maximum"
   )
 })
 
 test("distinguishes matching, modified, unsaved and unavailable profile provenance", () => {
-  const application = {
-    ...emptySnapshot.application,
-    active_steering_curve: active,
-  }
   assert.equal(
     activeProfileLabel({
-      application,
+      steering,
       profiles: [profile],
       catalogAvailable: true,
     }),
@@ -76,7 +67,7 @@ test("distinguishes matching, modified, unsaved and unavailable profile provenan
   )
   assert.equal(
     activeProfileLabel({
-      application,
+      steering,
       profiles: [{ ...profile, revision: 4 }],
       catalogAvailable: true,
     }),
@@ -84,10 +75,10 @@ test("distinguishes matching, modified, unsaved and unavailable profile provenan
   )
   assert.equal(
     activeProfileLabel({
-      application: {
-        ...application,
-        active_steering_curve: {
-          ...active,
+      steering: {
+        ...steering,
+        active_curve: {
+          ...steering.active_curve,
           saved_profile_id: null,
           saved_profile_revision: null,
         },
@@ -98,7 +89,7 @@ test("distinguishes matching, modified, unsaved and unavailable profile provenan
     "Unsaved curve"
   )
   assert.equal(
-    activeProfileLabel({ application, profiles: [], catalogAvailable: false }),
+    activeProfileLabel({ steering, profiles: [], catalogAvailable: false }),
     "Profile unavailable · active curve retained"
   )
 })

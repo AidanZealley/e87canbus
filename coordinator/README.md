@@ -119,8 +119,9 @@ counted as a transport saturation instead of blocking publication or losing arbi
 packets. No network client can block the controller owner or effect execution. Publisher and socket
 shutdown share one two-second deadline and cancel all remaining publication tasks if it expires.
 The generated contract is documented in
-`protocol/README.md`. The simulated raw `/ws` endpoint remains a bounded read compatibility path
-for the current frontend and is removed in Phase 8 after Phase 5 migrates its consumer.
+`protocol/README.md`. The repository frontend owns one Socket.IO connection outside the React tree.
+The simulated raw `/ws` endpoint remains only as a bounded compatibility path for external
+consumers and is removed in Phase 8.
 
 The simulator server defaults to loopback and permits the two local Vite development origins. It is
 unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use

@@ -1,7 +1,7 @@
 import { TriangleAlertIcon, type LucideIcon } from "lucide-react"
 
 import type { TemperatureSeverity } from "@/components/car-layout/car-ui"
-import type { EngineTelemetryStatus } from "@/components/simulator-workbench/types"
+import type { EngineTelemetryValue } from "@/api/live-events"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
@@ -13,7 +13,7 @@ export type DriveTemperatureGaugeProps = {
   valueC: number | null
   unit: "°C" | "°F"
   operatingTemperatureC: number
-  status: EngineTelemetryStatus
+  status: EngineTelemetryValue["status"]
   severity: TemperatureSeverity
 }
 

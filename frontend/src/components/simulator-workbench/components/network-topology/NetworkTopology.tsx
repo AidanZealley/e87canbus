@@ -9,10 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { useNetworks } from "../../query"
+import { useLiveStore } from "@/live/live-store"
 
 export const NetworkTopology = () => {
-  const networks = useNetworks()
+  const networks = useLiveStore((state) => state.devices.networks)
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  const displayedNetworks = synchronized ? networks : []
 
   return (
     <Card className="@container min-w-0">
@@ -26,7 +28,7 @@ export const NetworkTopology = () => {
         </CardAction>
       </CardHeader>
       <CardContent className="grid gap-3 @4xl:grid-cols-3">
-        {networks.map((network) => (
+        {displayedNetworks.map((network) => (
           <section key={network.id} className="rounded-md border p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="font-heading text-sm font-semibold">

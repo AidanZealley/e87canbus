@@ -10,16 +10,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  useApplicationSnapshot,
-  useSteeringControllerSnapshot,
-} from "../../query"
+import { useLiveStore } from "@/live/live-store"
 import { formatSteeringReason } from "../../utils"
 
 export const SteeringStatus = () => {
-  const application = useApplicationSnapshot()
-  const controller = useSteeringControllerSnapshot()
-  const isAuto = application.steering_mode === "auto"
+  const vehicle = useLiveStore((state) => state.vehicle)
+  const steering = useLiveStore((state) => state.steering)
+  const controller = useLiveStore((state) => state.devices.steering_controller)
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  if (!synchronized || steering === null || controller === null) return null
+  const isAuto = steering.mode === "auto"
 
   return (
     <Card className="min-w-0">
@@ -37,7 +37,7 @@ export const SteeringStatus = () => {
         <div className="flex items-center justify-between rounded-md bg-muted p-3">
           <span className="text-xs text-muted-foreground">Mode</span>
           <div className="flex items-center gap-2">
-            {application.maximum_assistance_active ? (
+            {steering.maximum_assistance_active ? (
               <Badge variant="destructive">Maximum</Badge>
             ) : null}
             <Badge variant={isAuto ? "default" : "secondary"}>
@@ -49,8 +49,8 @@ export const SteeringStatus = () => {
           <div className="rounded-md border p-3">
             <dt className="text-xs text-muted-foreground">Vehicle speed</dt>
             <dd className="font-heading text-base font-semibold">
-              {application.speed_valid ? (
-                `${application.vehicle_speed_kph.toFixed(1)} km/h`
+              {vehicle.speed_valid ? (
+                `${vehicle.speed_kph.toFixed(1)} km/h`
               ) : (
                 <Badge variant="outline">No speed data</Badge>
               )}
@@ -59,7 +59,7 @@ export const SteeringStatus = () => {
           <div className="rounded-md border p-3">
             <dt className="text-xs text-muted-foreground">Manual level</dt>
             <dd className="font-heading text-base font-semibold">
-              {application.manual_assistance_level}
+              {steering.manual_assistance_level}
             </dd>
           </div>
           <div className="rounded-md border p-3">
@@ -71,16 +71,22 @@ export const SteeringStatus = () => {
             </dd>
           </div>
           <div className="rounded-md border p-3">
-            <dt className="text-xs text-muted-foreground">Last command reason</dt>
+            <dt className="text-xs text-muted-foreground">
+              Last command reason
+            </dt>
             <dd className="font-heading text-base font-semibold capitalize">
               {formatSteeringReason(controller.last_command_reason)}
             </dd>
           </div>
           <div className="col-span-2 rounded-md border p-3">
-            <dt className="text-xs text-muted-foreground">Controller watchdog</dt>
+            <dt className="text-xs text-muted-foreground">
+              Controller watchdog
+            </dt>
             <dd className="font-heading text-base font-semibold">
               {controller.watchdog_timed_out ? (
-                <Badge variant="destructive">Timed out — effective assistance 0%</Badge>
+                <Badge variant="destructive">
+                  Timed out — effective assistance 0%
+                </Badge>
               ) : (
                 <Badge variant="outline">Command fresh</Badge>
               )}

@@ -38,17 +38,16 @@ pair of session ID and sequence. Initial loads and resets carry the complete tra
 snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
 publish a snapshot only when that operation changes the public application, controller, or fatal
 projection; refreshed external speed frames remain ordinary incremental trace events.
-The raw `/ws` stream is a temporary compatibility read for the current frontend. Its sends have a
+The raw `/ws` stream is a temporary compatibility endpoint for external consumers. The repository
+frontend uses one Socket.IO connection owned outside the React tree; no frontend code consumes
+`/ws`. Compatibility sends have a
 one-second default timeout and are fed from the same bounded publisher as Socket.IO. A stalled or
 failed peer can delay only publication; it cannot block the controller owner, CAN input processing,
-or effect execution. The browser retries initial HTTP startup twice before
-reporting the backend as unavailable, then probes it every ten seconds so the UI can recover. It
-reconnects a closed WebSocket with jittered exponential backoff capped at ten seconds. The first
-full snapshot on every connection is authoritative, so a restarted backend can safely reset its
-session and revision counters without stale browser state winning the merge. While connected,
-the browser sends a heartbeat every five seconds and closes and reconnects a connection that has
-received no server message for fifteen seconds. The workbench badge distinguishes initial
-connection, disconnection, and reconnection.
+or effect execution. Socket.IO owns reconnect and Engine.IO heartbeat behavior. The first full
+snapshot on every connection is authoritative, so a restarted backend can safely reset its session
+and revision counters without stale browser state winning the merge. Until that snapshot arrives,
+the frontend masks current live observations as unavailable. The workbench badge distinguishes
+initial connection, synchronization, disconnection, and reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
 commit. The simulated runtime then commits and attempts shutdown once, publishes a fatal snapshot, and rejects

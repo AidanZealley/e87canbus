@@ -1,19 +1,11 @@
 import { useState } from "react"
+import { useMutation } from "@tanstack/react-query"
 import { AlertTriangleIcon } from "lucide-react"
 
 import {
   pressButton,
   releaseButton,
   resetSimulator,
-  setCoolantTemperature,
-  setDeviceStatus,
-  setEngineRpm,
-  setOilTemperature,
-  setVehicleSpeed,
-  silenceCoolantTemperature,
-  silenceEngineRpm,
-  silenceOilTemperature,
-  silenceVehicleSpeed,
   stepSimulator,
 } from "@/api/simulator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -22,35 +14,40 @@ import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls"
 import { SteeringCurveCard } from "./components/steering-curve-card"
 import { SteeringStatus } from "./components/steering-status"
-import {
-  useSimulatorCommand,
-  useSimulatorSocket,
-  useSimulatorStatus,
-  useActiveSteeringCurve,
-  useApplicationSnapshot,
-  useDevices,
-  useSteeringControllerSnapshot,
-} from "./query"
+import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorTrace } from "./SimulatorTrace"
+
+const unavailableEngine = {
+  rpm: { value: null, status: "stale" as const },
+  oil_temperature_c: { value: null, status: "stale" as const },
+  coolant_temperature_c: { value: null, status: "stale" as const },
+}
+const unavailableDevices: never[] = []
 
 export const SimulatorWorkbench = () => {
   const [autoScroll, setAutoScroll] = useState(true)
   const [pressedButtons, setPressedButtons] = useState<Set<number>>(new Set())
-  const status = useSimulatorStatus()
-  const application = useApplicationSnapshot()
-  const activeCurve = useActiveSteeringCurve()
-  const steeringController = useSteeringControllerSnapshot()
-  const devices = useDevices()
-  const command = useSimulatorCommand()
-  const connectionState = useSimulatorSocket(
-    status.isFetched && !status.isError
+  const connection = useLiveStore((state) => state.connection)
+  const synchronized = connection.synchronized
+  const vehicle = useLiveStore((state) => state.vehicle)
+  const engine = useLiveStore((state) => state.engine)
+  const steering = useLiveStore((state) => state.steering)
+  const devices = useLiveStore((state) => state.devices.devices)
+  const steeringController = useLiveStore(
+    (state) => state.devices.steering_controller
   )
-  const error = command.error ?? status.error
+  const reset = useMutation({ mutationFn: resetSimulator })
+  const step = useMutation({ mutationFn: () => stepSimulator(0) })
+  const button = useMutation({
+    mutationFn: ({ index, pressed }: { index: number; pressed: boolean }) =>
+      pressed ? pressButton(index) : releaseButton(index),
+  })
+  const error = reset.error ?? step.error ?? button.error
 
   const handlePress = (index: number) => {
     setPressedButtons((current) => new Set(current).add(index))
-    command.mutate(() => pressButton(index))
+    button.mutate({ index, pressed: true })
   }
 
   const handleRelease = (index: number) => {
@@ -59,20 +56,22 @@ export const SimulatorWorkbench = () => {
       next.delete(index)
       return next
     })
-    command.mutate(() => releaseButton(index))
+    button.mutate({ index, pressed: false })
   }
 
   return (
     <div className="min-h-svh bg-muted/30">
       <SimulatorToolbar
-        connectionState={status.isError ? "disconnected" : connectionState}
+        connectionState={connection.status}
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
         onReset={() => {
           setPressedButtons(new Set())
-          command.mutate(resetSimulator)
+          reset.mutate()
         }}
-        onStep={() => command.mutate(() => stepSimulator(0))}
+        onStep={() => step.mutate()}
+        resetPending={reset.isPending}
+        stepPending={step.isPending}
       />
 
       <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
@@ -100,43 +99,19 @@ export const SimulatorWorkbench = () => {
             <section className="min-w-0">
               <SimulatedVehicleControls
                 speedKph={
-                  application.speed_valid ? application.vehicle_speed_kph : null
+                  synchronized && vehicle.speed_valid ? vehicle.speed_kph : null
                 }
-                engine={application.engine}
-                devices={devices}
-                disabled={command.isPending}
-                onSetSpeed={(speedKph) =>
-                  command.mutate(() => setVehicleSpeed(speedKph))
-                }
-                onSilenceSpeed={() => command.mutate(silenceVehicleSpeed)}
-                onSetRpm={(rpm) => command.mutate(() => setEngineRpm(rpm))}
-                onSilenceRpm={() => command.mutate(silenceEngineRpm)}
-                onSetOilTemperature={(temperatureC) =>
-                  command.mutate(() => setOilTemperature(temperatureC))
-                }
-                onSilenceOilTemperature={() =>
-                  command.mutate(silenceOilTemperature)
-                }
-                onSetCoolantTemperature={(temperatureC) =>
-                  command.mutate(() => setCoolantTemperature(temperatureC))
-                }
-                onSilenceCoolantTemperature={() =>
-                  command.mutate(silenceCoolantTemperature)
-                }
-                onSetDeviceStatus={(deviceId, deviceStatus) =>
-                  command.mutate(() => setDeviceStatus(deviceId, deviceStatus))
-                }
+                engine={synchronized ? engine : unavailableEngine}
+                devices={synchronized ? devices : unavailableDevices}
               />
             </section>
           </div>
 
-          {activeCurve ? (
+          {synchronized && steering !== null && steeringController !== null ? (
             <section className="min-w-0" aria-label="Steering curve settings">
               <SteeringCurveCard
-                activeCurve={activeCurve}
-                speedKph={
-                  application.speed_valid ? application.vehicle_speed_kph : null
-                }
+                activeCurve={steering.active_curve}
+                speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
                 activeAssistance={steeringController.effective_assistance}
               />
             </section>

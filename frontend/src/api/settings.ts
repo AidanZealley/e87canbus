@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query"
 
 import { ApiError, requestApi } from "./client.ts"
+import { DURABLE_STALE_TIME_MS } from "./query-policy.ts"
 
 export type SpeedUnit = "mph" | "kmh"
 export type TemperatureUnit = "c" | "f"
@@ -57,6 +58,9 @@ export const applicationSettingsQueryOptions = () =>
   queryOptions({
     queryKey: applicationSettingsQueryKey,
     queryFn: getApplicationSettings,
+    staleTime: DURABLE_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
 export { ApiError as SettingsApiError }

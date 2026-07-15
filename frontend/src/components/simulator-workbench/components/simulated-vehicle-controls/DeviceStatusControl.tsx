@@ -1,3 +1,7 @@
+import { useMutation } from "@tanstack/react-query"
+import type { DevicesState } from "@/api/live-events"
+
+import { setDeviceStatus } from "@/api/simulator"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -6,7 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { DeviceId, DeviceSnapshot, DeviceStatus } from "../../types"
+import type { PresentedDevice } from "../../utils"
+
+type DeviceStatus = DevicesState["devices"][number]["status"]
 
 const STATUS_ITEMS: { label: string; value: DeviceStatus }[] = [
   { label: "Online", value: "online" },
@@ -15,17 +21,14 @@ const STATUS_ITEMS: { label: string; value: DeviceStatus }[] = [
 ]
 
 type DeviceStatusControlProps = {
-  device: DeviceSnapshot
-  disabled: boolean
-  onStatusChange: (deviceId: DeviceId, status: DeviceStatus) => void
+  device: PresentedDevice
 }
 
-export const DeviceStatusControl = ({
-  device,
-  disabled,
-  onStatusChange,
-}: DeviceStatusControlProps) => {
+export const DeviceStatusControl = ({ device }: DeviceStatusControlProps) => {
   const controlId = `simulated-device-${device.id}`
+  const mutation = useMutation({
+    mutationFn: (status: DeviceStatus) => setDeviceStatus(device.id, status),
+  })
 
   return (
     <div className="grid min-w-0 gap-1.5">
@@ -33,10 +36,10 @@ export const DeviceStatusControl = ({
       <Select
         value={device.status}
         items={STATUS_ITEMS}
-        disabled={disabled}
+        disabled={mutation.isPending}
         onValueChange={(status) => {
           if (status !== null && status !== device.status) {
-            onStatusChange(device.id, status)
+            mutation.mutate(status)
           }
         }}
       >

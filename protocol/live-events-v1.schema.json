@@ -508,6 +508,7 @@
             "type": "array"
           },
           "schema_version": {
+            "const": 1,
             "title": "Schema Version",
             "type": "integer"
           }

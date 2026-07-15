@@ -27,22 +27,23 @@ simulation.
 | 2 — Unified composition | Verified | 2026-07-15 | One bounded controller/API lifecycle with validated adapter selection |
 | 3 — Commands and resources | Verified | 2026-07-15 | Typed commands, development actions and precise durable resources complete |
 | 4 — Socket.IO publication | Verified | 2026-07-15 | Fixed topics, reconnect snapshot and bounded delivery complete |
-| 5 — Frontend data ownership | Not started | — | Zustand live state and TanStack Query HTTP ownership |
+| 5 — Frontend data ownership | Implemented | 2026-07-15 | Code and repository checks pass; collaborative-browser evidence is authentication-blocked |
 | 6 — Simulation/device convergence | Not started | — | Physical, emulated and observer pathways |
 | 7 — Reliability/deployment | Not started | — | Failure policy, health, shutdown and service operation |
 | 8 — Cutover/acceptance | Not started | — | Legacy removal, integrated checks and soak evidence |
 
 ## Current handoff
 
-Start Phase 5 from the generated protocol-v1 live schema and explicit TypeScript event map. Create
-one `socket.io-client` connection outside React, replace complete snapshots on `boot_id` change,
-reject older/duplicate topic revisions in Zustand, subscribe to trace only while needed, and move
-HTTP resources/mutations exclusively to TanStack Query. Invalidate/refetch the small durable set
-once after reconnect because `resources.changed` is not replayed. Remove the frontend's raw `/ws`
-and `/api/snapshot` ownership in Phase 5, but leave the backend compatibility reads for Phase 8.
-Preserve HTTP-only business commands, separate simulation `session_id`, boot-scoped service and
-topic revisions, bounded trace, exact CORS, deny-by-default live output, and the Phase 7
-effect/actuator-failure health-commit handoff.
+Complete Phase 5 verification before starting Phase 6. The Socket.IO/Zustand/TanStack ownership
+cutover, frontend legacy removal and repository checks pass, but the required collaborative-browser
+development/production regression and retained-memory measurements remain blocked: the subagent
+browser inventory was empty and the parent T3 preview requires authentication. Once browser access
+is available, exercise `/dev` and `/car` under sustained traffic, repeated navigation, trace
+open/close and background/foreground cycles; record socket/listener, trace/current-store, Query
+cache, DOM, performance-entry and post-GC heap evidence. Mark Phase 5 Verified only when those values
+are bounded. Backend raw `/ws` and `GET /api/snapshot` remain Phase 8 compatibility; no frontend
+consumer remains. Preserve HTTP-only commands, exact durable invalidation, separate simulation
+`session_id`, boot/topic revisions, deny-by-default live output and the Phase 7 health-commit handoff.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -71,6 +72,68 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 5: frontend ownership cut over; browser verification pending
+
+- **Status:** Implemented
+- **Scope:** Replaced repository-owned frontend raw-WebSocket/snapshot-cache ownership with one
+  Socket.IO-to-Zustand live path, a separate bounded trace store and TanStack Query-only HTTP
+  ownership across `/dev` and `/car`. Browser acceptance remains incomplete.
+- **Changed:** Added one application-scoped Socket.IO transport outside React, an idempotent
+  lifecycle-only provider, complete-snapshot/boot replacement, explicit protocol incompatibility,
+  strict per-topic revision decisions and deterministic reconnect reconciliation. Added a Zustand
+  current-state store for connection, boot/topic revisions and the six fixed projections, plus a
+  separate 2,000-row trace store subscribed only while trace UI is mounted. Durable queries now have
+  stable exact keys, explicit stale time and disabled focus/reconnect refetch; precise resource
+  events invalidate only their matching keys and each accepted connection snapshot reconciles the
+  known durable roots exactly once per real connection epoch, including when the server snapshot is
+  observed before the local Socket.IO `connect` event. Simulation and steering actions use TanStack mutations with initiating
+  control pending state; settings/profile responses replace exact cache values. Car and workbench
+  components use narrow live selectors and no longer share a whole-snapshot context.
+- **Decisions:** A same-boot stale/duplicate topic is ignored without resync traffic; only a boot
+  mismatch requests `controller.resync`, and only a complete snapshot may replace boot identity or
+  declare synchronization. The singleton defers zero-owner teardown by one microtask so React Strict
+  Mode cleanup/setup reuses the same client and listeners; explicit teardown remains deterministic.
+  Disconnected screens retain durable Query resources and navigation but mask every current live
+  observation as unavailable. As a small Phase 4 contract correction discovered during this phase,
+  the generated live contract now constrains steering-curve `schema_version` to literal `1`, matching
+  the existing TypeScript and validated domain contract.
+- **Verification:** Full `uv run pytest -q`: 503 passed with one existing Starlette/httpx
+  deprecation warning. `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus`, both generated
+  protocol checks, `bash -n scripts/*.sh` and `git diff --check` passed. `pnpm test`: 30 unit and 57
+  component tests passed. `pnpm lint`, `pnpm typecheck` and production `pnpm build` passed; Vite
+  transformed 2,968 modules. Focused tests cover atomic boot replacement, stale/duplicate rejection,
+  boot resync, incompatibility, snapshot-before-connect ordering, exactly-once connection-epoch
+  reconciliation, one listener per event, Strict Mode remount, explicit teardown,
+  disconnect/synchronization masking across `/car` and `/dev`, 2,000-row trace capacity, exact
+  resource invalidation, steering draft/provenance safety, settings authority/retry/conflict
+  retention, exact simulation set/silence actions, action-local pending state and adjacent-selector
+  rerender isolation.
+- **Browser/soak/physical checks:** The required in-app browser could not be selected because its
+  inventory returned empty; the parent T3 collaborative preview separately returned `Auth required`.
+  Therefore `/dev`/`/car` visual regression, route-cycle DOM/performance counts and browser post-GC
+  heap behavior were not run and Phase 5 is not Verified. A real Socket.IO client against the
+  simulated Uvicorn service processed 100 alternating HTTP signal commands, retained exactly one
+  listener for each of the nine server events, received one snapshot, 50 bounded trace batches/198
+  rows, four engine and four vehicle publications, and finished with zero receive/send-buffer
+  entries; its post-GC Node heap was 9,436,576 bytes. This is transport evidence, not a substitute
+  for browser evidence. Real CAN TX was unavailable and not enabled; no physical evidence claimed.
+- **Documentation:** Updated frontend, root, simulation and coordinator guidance for
+  Socket.IO/Zustand/Query ownership, Engine.IO reconnect/heartbeat behavior and Phase 8 backend
+  compatibility; updated this status/handoff record.
+- **Dependencies/migrations:** Added frontend runtime dependency `socket.io-client` 4.8.3 and its
+  locked Engine.IO/parser dependencies. Regenerated `protocol/live-events-v1.schema.json` for the
+  literal-v1 curve-schema correction. No SQLite or CAN protocol migration.
+- **Compatibility/removal:** Removed all frontend raw `/ws`, `GET /api/snapshot`, snapshot Query
+  key/cache/reducer, component listener, CarData context/provider, old reconnect/heartbeat module and
+  broad simulator command owner. Backend raw `/ws` and snapshot reads remain only for Phase 8
+  external-consumer compatibility. No frontend facade or alias remains.
+- **Remaining:** Run and record the phase's collaborative-browser development and production
+  regression/memory evidence, then mark Phase 5 Verified if bounded. No code criterion is knowingly
+  outstanding.
+- **Next handoff:** Authenticate/attach the parent collaborative preview and run the exact Phase 5
+  browser matrix before assigning Phase 6. Use the existing store/transport inspection points; do
+  not reintroduce a raw socket or snapshot Query cache to gather evidence.
 
 ### 2026-07-15 — Phase 4: bounded Socket.IO live-state publication
 

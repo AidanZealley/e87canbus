@@ -1,30 +1,26 @@
 import type { StoredSteeringProfile } from "../../api/steering.ts"
-import type { ApplicationSnapshot } from "../simulator-workbench/types.ts"
+import type { SteeringState } from "../../api/live-events.ts"
 import { definitionsEqual } from "../steering-curve-editor/utils.ts"
 
 export const steeringModeLabel = (
-  application: Pick<
-    ApplicationSnapshot,
-    "maximum_assistance_active" | "steering_mode"
-  >
+  steering: Pick<SteeringState, "maximum_assistance_active" | "mode">
 ) =>
-  application.maximum_assistance_active
+  steering.maximum_assistance_active
     ? "Maximum"
-    : application.steering_mode === "manual"
+    : steering.mode === "manual"
       ? "Manual"
       : "Auto"
 
 export const activeProfileLabel = ({
-  application,
+  steering,
   profiles,
   catalogAvailable,
 }: {
-  application: ApplicationSnapshot
+  steering: SteeringState
   profiles: readonly StoredSteeringProfile[]
   catalogAvailable: boolean
 }) => {
-  const active = application.active_steering_curve
-  if (active === null) return "Active curve unavailable"
+  const active = steering.active_curve
   if (!catalogAvailable) {
     return active.saved_profile_id === null
       ? "Unsaved curve"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,7 +48,7 @@ class SteeringCurvePoint(LiveModel):
 
 
 class SteeringCurveDefinition(LiveModel):
-    schema_version: int
+    schema_version: Literal[1]
     interpolation: Literal["linear-v1", "monotone-cubic-v1"]
     points: tuple[SteeringCurvePoint, ...]
 
@@ -230,7 +230,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
         maximum_assistance_active=application.maximum_assistance_active,
         active_curve=ActiveSteeringCurveState(
             definition=SteeringCurveDefinition(
-                schema_version=active.definition.schema_version,
+                schema_version=cast(Literal[1], active.definition.schema_version),
                 interpolation=active.definition.interpolation.value,
                 points=tuple(
                     SteeringCurvePoint(

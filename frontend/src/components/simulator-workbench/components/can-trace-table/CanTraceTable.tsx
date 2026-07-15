@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, RadioTowerIcon } from "lucide-react"
+import type { DevicesState, TraceRow } from "@/api/live-events"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,22 +29,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { CanTraceEntry } from "../../types"
 import { NetworkFilters } from "../network-filters"
-import type { CanNetwork, NetworkStatus } from "../../types"
 import { decodeMeaning } from "./utils"
+
+type CanNetwork = TraceRow["network"]
+type NetworkStatus = DevicesState["networks"][number]
 
 const TRACE_ROW_HEIGHT_PX = 32
 const TRACE_ROW_OVERSCAN = 12
 
 type CanTraceTableProps = {
-  trace: CanTraceEntry[]
+  trace: TraceRow[]
   totalCount: number
   networks: NetworkStatus[]
   selectedNetworks: Set<CanNetwork>
-  selected: CanTraceEntry | null
+  selected: TraceRow | null
   autoScroll: boolean
-  onSelect: (entry: CanTraceEntry) => void
+  onSelect: (entry: TraceRow) => void
   onToggleNetwork: (network: CanNetwork) => void
 }
 

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { listSteeringProfiles, steeringProfilesQueryKey } from "@/api/steering"
-import { useCarData } from "@/components/car-layout"
+import { steeringProfilesQueryOptions } from "@/api/steering"
 import {
   celsiusToFahrenheit,
   roundDisplayValue,
@@ -9,21 +8,39 @@ import {
 import { DeviceStatusFooter } from "@/components/device-status-footer"
 import { TemperatureGauge } from "@/components/temperature-gauge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
+import { useLiveStore } from "@/live/live-store"
+import { useTemperatureSeverity } from "@/components/car-layout/use-temperature-severity"
 import { activeProfileLabel, steeringModeLabel } from "./utils"
 
 export const CarOverview = () => {
-  const {
-    application,
-    steeringController,
-    connectionFault,
-    devices,
-    settings,
-    oilSeverity,
-    coolantSeverity,
-  } = useCarData()
-  const profiles = useQuery({
-    queryKey: steeringProfilesQueryKey,
-    queryFn: listSteeringProfiles,
+  const steering = useLiveStore((state) => state.steering)
+  const steeringController = useLiveStore(
+    (state) => state.devices.steering_controller
+  )
+  const devices = useLiveStore((state) => state.devices.devices)
+  const oilTelemetry = useLiveStore((state) => state.engine.oil_temperature_c)
+  const coolantTelemetry = useLiveStore(
+    (state) => state.engine.coolant_temperature_c
+  )
+  const connected = useLiveStore((state) => state.connection.synchronized)
+  const settings = useEffectiveApplicationSettings().settings
+  const profiles = useQuery(steeringProfilesQueryOptions())
+  const oilSeverity = useTemperatureSeverity({
+    telemetry: oilTelemetry,
+    connected,
+    thresholds: {
+      warningC: settings.oil_warning_c,
+      criticalC: settings.oil_critical_c,
+    },
+  })
+  const coolantSeverity = useTemperatureSeverity({
+    telemetry: coolantTelemetry,
+    connected,
+    thresholds: {
+      warningC: settings.coolant_warning_c,
+      criticalC: settings.coolant_critical_c,
+    },
   })
   const temperatureUnit = settings.temperature_unit === "f" ? "°F" : "°C"
   const presentTemperature = (value: number | null) =>
@@ -47,54 +64,63 @@ export const CarOverview = () => {
             <CardTitle>Steering</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <StatusValue label="Mode" value={steeringModeLabel(application)} />
+            <StatusValue
+              label="Mode"
+              value={
+                !connected || steering === null
+                  ? "Unavailable"
+                  : steeringModeLabel(steering)
+              }
+            />
             <StatusValue
               label="Assistance"
               value={
-                connectionFault
+                !connected || steeringController === null
                   ? "— · Unavailable"
                   : `${Math.round(steeringController.effective_assistance * 100)}%`
               }
             />
-            {application.steering_mode === "manual" ? (
+            {steering?.mode === "manual" ? (
               <StatusValue
                 label="Manual setting"
-                value={`Level ${application.manual_assistance_level + 1} of 8`}
+                value={`Level ${steering.manual_assistance_level + 1} of 8`}
               />
             ) : null}
             <StatusValue
               label="Active profile"
-              value={activeProfileLabel({
-                application,
-                profiles: profiles.data ?? [],
-                catalogAvailable:
-                  !profiles.isError && profiles.data !== undefined,
-              })}
+              value={
+                !connected || steering === null
+                  ? "Active curve unavailable"
+                  : activeProfileLabel({
+                      steering,
+                      profiles: profiles.data ?? [],
+                      catalogAvailable:
+                        !profiles.isError && profiles.data !== undefined,
+                    })
+              }
             />
           </CardContent>
         </Card>
         <div className="grid min-w-0 grid-rows-2 gap-2">
           <TemperatureGauge
             label="Oil temperature"
-            value={presentTemperature(
-              application.engine.oil_temperature_c.value
-            )}
+            value={presentTemperature(connected ? oilTelemetry.value : null)}
             unit={temperatureUnit}
-            status={application.engine.oil_temperature_c.status}
+            status={connected ? oilTelemetry.status : "stale"}
             severity={oilSeverity}
           />
           <TemperatureGauge
             label="Coolant temperature"
             value={presentTemperature(
-              application.engine.coolant_temperature_c.value
+              connected ? coolantTelemetry.value : null
             )}
             unit={temperatureUnit}
-            status={application.engine.coolant_temperature_c.status}
+            status={connected ? coolantTelemetry.status : "stale"}
             severity={coolantSeverity}
           />
         </div>
       </div>
-      <DeviceStatusFooter devices={devices} />
+      <DeviceStatusFooter devices={connected ? devices : []} />
     </section>
   )
 }

@@ -1,12 +1,7 @@
 export const LIVE_PROTOCOL_VERSION = 1 as const
 
 export type TopicName =
-  | "vehicle"
-  | "engine"
-  | "steering"
-  | "buttons"
-  | "devices"
-  | "health"
+  "vehicle" | "engine" | "steering" | "buttons" | "devices" | "health"
 
 export type TopicRevisions = Record<TopicName, number>
 
@@ -45,7 +40,7 @@ export type SteeringState = {
   maximum_assistance_active: boolean
   active_curve: {
     definition: {
-      schema_version: number
+      schema_version: 1
       interpolation: "linear-v1" | "monotone-cubic-v1"
       points: SteeringCurvePoint[]
     }
@@ -163,16 +158,4 @@ export type ClientToServerEvents = {
   "controller.resync": () => void
   "trace.subscribe": () => void
   "trace.unsubscribe": () => void
-}
-
-export type LiveEnvelopeDecision = "apply" | "ignore" | "reset" | "incompatible"
-
-export const classifyLiveEnvelope = (
-  localBootId: string | null,
-  localRevision: number,
-  incoming: { protocol_version: number; boot_id: string; revision: number },
-): LiveEnvelopeDecision => {
-  if (incoming.protocol_version !== LIVE_PROTOCOL_VERSION) return "incompatible"
-  if (localBootId !== incoming.boot_id) return "reset"
-  return incoming.revision > localRevision ? "apply" : "ignore"
 }

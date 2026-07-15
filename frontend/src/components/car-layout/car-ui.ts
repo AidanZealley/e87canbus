@@ -1,8 +1,5 @@
 import type { ApplicationSettings } from "@/api/settings"
-import type {
-  ApplicationSnapshot,
-  EngineTelemetryStatus,
-} from "@/components/simulator-workbench/types"
+import type { EngineTelemetryValue } from "@/api/live-events"
 
 export type TemperatureSeverity =
   "normal" | "warning" | "critical" | "unavailable"
@@ -43,7 +40,7 @@ export const transitionTemperatureSeverity = ({
 }: {
   previous: TemperatureSeverity
   valueC: number | null
-  status: EngineTelemetryStatus
+  status: EngineTelemetryValue["status"]
   connected: boolean
   thresholds: TemperatureThresholds
   thresholdsChanged?: boolean
@@ -78,7 +75,7 @@ export const deriveRpmPresentation = ({
   settings,
 }: {
   value: number | null
-  status: EngineTelemetryStatus
+  status: EngineTelemetryValue["status"]
   connected: boolean
   settings: Pick<
     ApplicationSettings,
@@ -102,21 +99,5 @@ export const deriveRpmPresentation = ({
     rpm: value,
     stage,
     position: Math.min(1, Math.max(0, value / settings.redline_rpm)),
-  }
-}
-
-export const maskDisconnectedTelemetry = (
-  application: ApplicationSnapshot,
-  connected: boolean
-): ApplicationSnapshot => {
-  if (connected) return application
-  return {
-    ...application,
-    speed_valid: false,
-    engine: {
-      rpm: { value: null, status: "stale" },
-      oil_temperature_c: { value: null, status: "stale" },
-      coolant_temperature_c: { value: null, status: "stale" },
-    },
   }
 }

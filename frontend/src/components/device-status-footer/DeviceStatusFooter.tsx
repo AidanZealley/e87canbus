@@ -1,9 +1,11 @@
-import type {
-  DeviceId,
-  DeviceSnapshot,
-} from "@/components/simulator-workbench/types"
-import { deviceOrUnavailable } from "@/components/simulator-workbench/utils"
+import type { DevicesState } from "@/api/live-events"
+import {
+  deviceOrUnavailable,
+  type PresentedDevice,
+} from "@/components/simulator-workbench/utils"
 import { cn } from "@/lib/utils"
+
+type DeviceId = DevicesState["devices"][number]["id"]
 
 const devicesInDisplayOrder: readonly { id: DeviceId; label: string }[] = [
   { id: "button_pad", label: "Button pad" },
@@ -14,7 +16,7 @@ export const DeviceStatusFooter = ({
   devices,
   className,
 }: {
-  devices: readonly DeviceSnapshot[]
+  devices: readonly PresentedDevice[]
   className?: string
 }) => (
   <footer

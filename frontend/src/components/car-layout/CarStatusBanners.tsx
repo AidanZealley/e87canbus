@@ -1,10 +1,14 @@
 import { AlertTriangleIcon, WifiOffIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useCarData } from "./car-data-context"
+import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
+import { useLiveStore } from "@/live/live-store"
 
 export const CarStatusBanners = () => {
-  const { connectionFault, connectionState, settingsFault } = useCarData()
+  const connection = useLiveStore((state) => state.connection)
+  const settings = useEffectiveApplicationSettings()
+  const connectionFault = !connection.synchronized
+  const settingsFault = settings.persistenceFault
   if (!connectionFault && !settingsFault) return null
 
   return (
@@ -14,9 +18,9 @@ export const CarStatusBanners = () => {
           <WifiOffIcon />
           <AlertTitle>Live data unavailable</AlertTitle>
           <AlertDescription>
-            {connectionState === "connecting"
+            {connection.status === "connecting"
               ? "Connecting to vehicle data."
-              : "Reconnecting to vehicle data."}
+              : (connection.error ?? "Reconnecting to vehicle data.")}
           </AlertDescription>
         </Alert>
       ) : null}
