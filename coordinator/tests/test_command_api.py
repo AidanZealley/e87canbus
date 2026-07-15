@@ -137,9 +137,9 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
             json={"name": "Dry", "definition": definition_json()},
         ).json()
 
-        def record(work: object) -> Future[object]:
+        def record(work: object) -> Future[int]:
             submissions.append(work)
-            future: Future[object] = Future()
+            future: Future[int] = Future()
             future.set_result(10 + len(submissions))
             return future
 

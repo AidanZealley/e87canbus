@@ -123,21 +123,23 @@ The generated contract is documented in
 `protocol/README.md`. The repository frontend owns one Socket.IO connection outside the React tree.
 There is no raw WebSocket or HTTP live-snapshot compatibility path.
 
-Health publication is framework-independent and process-local. It reports controller lifecycle and
-readiness, configured network connection/fault/counters, bounded inbox depth/capacity and latency,
-selected device evidence, steering capability/fault, persistence availability, publisher status,
-socket/trace counts and last fatal/non-fatal summaries. Frame and effect counters are process-lifetime
-integers; only the fixed trace ring retains per-frame detail. Controller health is coalesced to one
-publication per second, while urgent state topics keep their existing delivery behavior. A failed
-publisher records transport health without notifying itself recursively. Persistence,
-readiness and publisher/socket-only changes advance the service and health-topic revisions even
-when controller input is idle, so synchronized clients do not discard them as stale.
+Health publication is framework-independent and process-local. It reports readiness and fatal truth;
+explicit network, device and steering faults; bounded inbox depth, capacity, current latency, warning
+and overflow truth; persistence availability; and publisher running/fault state, failures,
+trace/resource drops and slow-client queue saturations. Network availability and selected device
+evidence remain in `devices.state` rather than being copied into health. Only the fixed trace ring
+retains per-frame detail. Controller health is coalesced to one publication per second, while urgent
+state topics keep their existing delivery behavior. A failed publisher records transport health
+without notifying itself recursively. Persistence, readiness and decision-useful publisher changes
+advance the service and health-topic revisions even when controller input is idle, so synchronized
+clients do not discard them as stale.
 
 The failure policy is explicit: a fatal reader, inbox overflow, CAN output or steering-actuator fault
 enters the ordered safe shutdown path once; unknown output outcomes are never retried. Queue overflow
-latches, rejects new commands and stops normal ingestion. Queue timestamps are retained and warnings
-are logarithmically rate-limited. Storage failure rejects only the affected resource operation and
-does not rewrite already-loaded controller state. Emulator failure becomes typed adapter health and
+latches, rejects new commands and stops normal ingestion. Queue timestamps are retained and a
+warning is logged when latency crosses into the configured warning state. Storage failure rejects
+only the affected resource operation and does not rewrite already-loaded controller state. Emulator
+failure becomes typed adapter health and
 does not claim physical device behavior. Shutdown marks not-ready, stops ingress, commits the safe
 request, drains only bounded work, stops publication, then closes adapters and short-lived database
 resources. The complete owner/behavior table and recorded soak metrics are in

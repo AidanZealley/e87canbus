@@ -163,7 +163,7 @@ class ControllerRuntimeAdapter(Protocol):
 @dataclass(frozen=True)
 class _QueuedWork:
     value: object
-    future: Future[object] | None
+    future: Future[int] | None
     enqueued_at: float
 
 
@@ -302,8 +302,8 @@ class ControllerService:
 
         startup.result(timeout=self._START_TIMEOUT_S)
 
-    def submit(self, work: object) -> Future[object]:
-        future: Future[object] = Future()
+    def submit(self, work: object) -> Future[int]:
+        future: Future[int] = Future()
         with self._lock:
             if not self._accepting:
                 raise ControllerServiceNotRunning("controller service is not accepting work")

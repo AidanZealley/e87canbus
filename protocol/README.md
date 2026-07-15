@@ -33,8 +33,10 @@ means its decoder received a valid complete `0x701` frame. Physical connection a
 unknown until the wire protocol supplies evidence; a successful send is not an acknowledgement.
 
 `controller.health` is a bounded, process-local operational projection rather than durable event
-history or arbitrary logs. It contains controller/adaptor/persistence/publisher status, fixed
-queue/ring dimensions and process-lifetime counters. Publication is coalesced to 1 Hz; reconnecting
-clients receive the current complete health state in `controller.snapshot`. A service-only change
-advances both the global envelope revision and health topic revision, so an already-synchronized
-client applies persistence, readiness and publisher/socket changes without a controller input.
+history or arbitrary logs. It contains readiness and fatal truth, explicit capability faults,
+current inbox bounds/latency/overflow state, persistence status, and publisher failure,
+trace/resource-drop and slow-client-isolation counters. Network availability and selected device
+evidence remain in `devices.state`. Publication is coalesced to 1 Hz; reconnecting clients receive
+the current complete health state in `controller.snapshot`. A service-only change advances both the
+global envelope revision and health topic revision, so an already-synchronized client applies
+persistence, readiness and decision-useful publisher changes without a controller input.

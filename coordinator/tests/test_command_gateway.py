@@ -12,12 +12,12 @@ from e87canbus.service import ControllerInboxFull, ControllerServiceNotRunning
 
 
 class FakeService:
-    def __init__(self, outcome: Future[object] | Exception) -> None:
+    def __init__(self, outcome: Future[int] | Exception) -> None:
         self.config = replace(default_config(), runtime_command_timeout_s=0.01)
         self.outcome = outcome
         self.submissions: list[object] = []
 
-    def submit(self, work: object) -> Future[object]:
+    def submit(self, work: object) -> Future[int]:
         self.submissions.append(work)
         if isinstance(self.outcome, Exception):
             raise self.outcome
@@ -28,26 +28,25 @@ def app_with(service: FakeService) -> Any:
     return SimpleNamespace(state=SimpleNamespace(controller_service=service))
 
 
-def completed(value: object = object()) -> Future[object]:
-    future: Future[object] = Future()
+def completed(value: int = 1) -> Future[int]:
+    future: Future[int] = Future()
     future.set_result(value)
     return future
 
 
-def failed(error: Exception) -> Future[object]:
-    future: Future[object] = Future()
+def failed(error: Exception) -> Future[int]:
+    future: Future[int] = Future()
     future.set_exception(error)
     return future
 
 
 def test_gateway_submits_exactly_once_and_returns_the_runtime_result() -> None:
-    result = object()
-    service = FakeService(completed(result))
+    service = FakeService(completed(42))
     command = object()
 
     returned = asyncio.run(submit_runtime_work(app_with(service), command))
 
-    assert returned is result
+    assert returned == 42
     assert service.submissions == [command]
 
 
@@ -73,7 +72,7 @@ def test_gateway_maps_rejected_submission_to_stable_503(
 
 
 def test_gateway_timeout_is_finite_and_does_not_cancel_ambiguous_work() -> None:
-    future: Future[object] = Future()
+    future: Future[int] = Future()
     service = FakeService(future)
 
     with pytest.raises(ApiProblem) as caught:

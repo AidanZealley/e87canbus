@@ -156,10 +156,11 @@ physical feedback. Socket.IO publication is bounded and latest-state coalesced; 
 one Socket.IO-to-Zustand path. Development HTTP controls return acknowledgements; live state is
 never duplicated in HTTP response snapshots.
 
-Operational diagnostics retain counters rather than event history: bounded inbox depth/capacity and
-latency, per-network frame/effect outcomes, bounded publisher/coalescing/drop counts, active sockets,
-trace subscribers and the fixed 2,000-row trace capacity. Controller health distinguishes CAN,
-device, steering, persistence and UI transport faults. Publisher or client failure cannot block the
-controller owner. See the [failure policy and soak evidence](docs/reliability.md) and
+Operational diagnostics expose current bounded inbox depth, capacity, latency, warning and overflow
+truth; explicit network, device and steering faults; persistence availability; and decision-useful
+publisher failure, trace/resource-drop and slow-client-isolation counters. Network availability and
+selected device state remain in `devices.state`, while trace retention stays fixed at 2,000 rows.
+Publisher or client failure cannot block the controller owner. See the
+[failure policy and soak evidence](docs/reliability.md) and
 [Pi deployment and operation](deploy/README.md) for the loopback same-origin service, restart policy
 and journal commands.

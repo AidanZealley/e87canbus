@@ -17,12 +17,12 @@ from e87canbus.service import (
 )
 
 
-async def submit_runtime_work(app: FastAPI, work: object) -> object:
+async def submit_runtime_work(app: FastAPI, work: object) -> int:
     """Submit once and await finitely through the service ownership seam."""
 
     service = app.state.controller_service
     try:
-        future: Future[object] = service.submit(work)
+        future: Future[int] = service.submit(work)
     except ControllerInboxFull as exc:
         raise ApiProblem(503, "runtime_queue_full", "controller runtime inbox is full") from exc
     except ControllerServiceNotRunning as exc:
@@ -65,15 +65,9 @@ async def submit_runtime_work(app: FastAPI, work: object) -> object:
 async def submit_command(app: FastAPI, command: object) -> CommandAcknowledgement:
     """Submit semantic intent and acknowledge the resulting boot/revision."""
 
-    result = await submit_runtime_work(app, command)
-    if type(result) is not int:
-        raise ApiProblem(
-            503,
-            "controller_runtime_error",
-            "controller returned an invalid command result",
-        )
+    revision = await submit_runtime_work(app, command)
     service = app.state.controller_service
     return CommandAcknowledgement(
         boot_id=service.boot_id,
-        revision=result,
+        revision=revision,
     )
