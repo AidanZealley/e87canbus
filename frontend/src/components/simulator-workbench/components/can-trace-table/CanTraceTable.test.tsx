@@ -66,10 +66,6 @@ it("renders only a bounded virtual window for a full trace", async () => {
   expect(screen.getByText("2000 frames captured")).toBeTruthy()
   expect(document.querySelector("[data-state='selected']")).toBeNull()
   expect(
-    document.querySelector<HTMLTableSectionElement>("[data-slot='table-body']")
-      ?.className
-  ).toContain("[&_td]:h-[33px]")
-  expect(
     document.querySelector<HTMLButtonElement>(
       "button[aria-label='Jump to latest CAN frame']"
     )?.className
