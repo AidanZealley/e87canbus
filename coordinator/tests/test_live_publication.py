@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, cast
 
 import pytest
 import socketio  # type: ignore[import-untyped]
 from e87canbus.api.internal.live import LiveStatePublisher
-from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.composition import build_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
@@ -56,14 +55,6 @@ class RecordingSocketServer:
             await self.shutdown_release.wait()
 
 
-class RecordingLegacyManager:
-    def __init__(self) -> None:
-        self.broadcasts: list[Sequence[dict[str, object]]] = []
-
-    async def broadcast(self, events: Sequence[dict[str, object]]) -> None:
-        self.broadcasts.append(events)
-
-
 def controller_service(
     *,
     trace_batch_size: int = 4,
@@ -88,12 +79,10 @@ def controller_service(
 def publisher_for(
     service: ControllerService,
     socket_server: RecordingSocketServer,
-    legacy: RecordingLegacyManager | None = None,
 ) -> LiveStatePublisher:
     return LiveStatePublisher(
         cast(socketio.AsyncServer, socket_server),
         service,
-        cast(ConnectionManager, legacy or RecordingLegacyManager()),
         service.config,
     )
 
@@ -278,7 +267,6 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
     socket_server.block = True
     execution = RuntimeExecution(
         result=None,
-        compatibility_snapshot=service.latest_compatibility_snapshot,
         changed_topics=frozenset({StateTopic.VEHICLE}),
         commit_count=1,
     )
@@ -324,7 +312,6 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
     await publisher.start()
     execution = RuntimeExecution(
         result=None,
-        compatibility_snapshot=service.latest_compatibility_snapshot,
         events=tuple(frame(index) for index in range(1, 7)),
     )
     try:
@@ -376,12 +363,11 @@ async def test_multiple_clients_receive_independent_current_snapshots() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resource_change_is_exact_and_legacy_compatibility_uses_same_offer() -> None:
+async def test_resource_change_is_exact() -> None:
     service = controller_service()
     service.start()
     socket_server = RecordingSocketServer()
-    legacy = RecordingLegacyManager()
-    publisher = publisher_for(service, socket_server, legacy)
+    publisher = publisher_for(service, socket_server)
     await publisher.start()
     change = ResourceChangedEvent(
         resource="steering_profile",
@@ -408,7 +394,6 @@ async def test_resource_change_is_exact_and_legacy_compatibility_uses_same_offer
         "id": "profile-1",
         "revision": 7,
     }
-    assert legacy.broadcasts == [(payload,)]
 
 
 @pytest.mark.asyncio

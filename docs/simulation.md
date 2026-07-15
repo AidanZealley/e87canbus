@@ -35,30 +35,26 @@ decode, transition, commit, effect-execution, and TX-policy path as the live Pi 
 devices emit frames onto the in-memory networks, and the adapter timestamps those frames at receipt
 before submitting them through the kernel's sole `dispatch` entry point.
 
-Snapshots carry the kernel-owned revision, fatal-health status, and simulation session ID. Reset
+The service projection carries boot-scoped revisions, fatal health and simulation session ID. Reset
 starts a new session because trace sequence numbers restart at one; frame identity is therefore the
-pair of session ID and sequence. Initial loads and resets carry the complete trace. Command
-snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
-publish a snapshot only when that operation changes the public application, controller, or fatal
-projection; refreshed external speed frames remain ordinary incremental trace events.
-The raw `/ws` stream is a temporary compatibility endpoint for external consumers. The repository
-frontend uses one Socket.IO connection owned outside the React tree; no frontend code consumes
-`/ws`. Compatibility sends have a
-one-second default timeout and are fed from the same bounded publisher as Socket.IO. A stalled or
-failed peer can delay only publication; it cannot block the controller owner, CAN input processing,
-or effect execution. Socket.IO owns reconnect and Engine.IO heartbeat behavior. The first full
+pair of session ID and sequence. Development controls return only `accepted` and the stable process
+`boot_id`, never potentially stale revision/session metadata or a second live-state snapshot. The
+repository frontend uses one Socket.IO connection owned outside the React tree. Socket sends have a
+one-second default timeout and Engine.IO client queues are finite. A stalled or failed peer can
+delay only publication; it cannot block the controller owner, CAN input processing, or effect
+execution. Socket.IO owns reconnect and Engine.IO heartbeat behavior. The first full
 snapshot on every connection is authoritative, so a restarted backend can safely reset its session
 and revision counters without stale browser state winning the merge. Until that snapshot arrives,
 the frontend masks current live observations as unavailable. The workbench badge distinguishes
 initial connection, synchronization, disconnection, and reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
-commit. The simulated runtime then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
+commit. The simulated runtime then commits and attempts shutdown once, publishes fatal health, and rejects
 normal commands until reset. A failure during that final attempt is logged and discarded rather
 than fed back or retried. If the ordinary shutdown effect initiated by reset fails, the stopped
-session records and logs that fault; reset still replaces it and returns the new healthy session at
-revision one. The replaced session's fault remains in logs rather than being copied into the new
-session or a second diagnostic store.
+session records and logs that fault; reset still replaces it, and the canonical service/Socket.IO
+projection reports the new healthy session at revision one. The replaced session's fault remains
+in logs rather than being copied into the new session or a second diagnostic store.
 
 It models three independent CAN broadcast domains:
 
@@ -70,7 +66,7 @@ It models three independent CAN broadcast domains:
 
 There is no automatic gateway behavior. Every emitted frame is retained in one chronological
 2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
-and reset's full empty snapshot clears the frontend trace while retaining topology configuration
+and reset's changed session identity clears the frontend trace while retaining topology configuration
 and filter choices.
 
 The default simulated composition selects the button pad's `emulated` role. The workbench labels

@@ -121,13 +121,13 @@ Suggested HTTP mappings:
 | Runtime command queue full | 503 |
 | Activation consumer rejects/fails | 409 or 503, with typed detail |
 
-## WebSocket publication
+## Socket.IO publication
 
 Publish the full active curve projection in authoritative snapshots. Additionally publish a
 profile-catalog invalidation or revision event after saved CRUD so other open displays can refetch
 the list.
 
-Do not broadcast every drag movement. WebSocket reconnect must recover from a missed event using a
+Do not broadcast every drag movement. Socket.IO reconnect must recover from a missed event using a
 full snapshot plus a fresh profile list request.
 
 ## Security and deployment boundary
@@ -148,7 +148,7 @@ validation.
 - False saved provenance is rejected or removed.
 - Concurrent updates allow exactly one expected revision to win.
 - Activation queue overload is bounded and reported.
-- WebSocket snapshot/reconnect contains authoritative active state.
+- Socket.IO snapshot/reconnect contains authoritative active state.
 - Saved catalog changes cause a refetch signal without transmitting draft state.
 
 ## Completion criteria

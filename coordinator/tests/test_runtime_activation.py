@@ -35,7 +35,6 @@ from e87canbus.simulation.runtime import (
     RunControlTimer,
     SetVehicleSpeed,
     SimulatedControllerRuntime,
-    snapshot_to_dict,
 )
 
 SAVED_PROFILE_ID = "11111111-1111-4111-8111-111111111111"
@@ -108,15 +107,11 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
     result = engine.execute_controller_command(
         ActivateSteeringCurve(smooth, requested_at=1.0)
     )
-    serialized = snapshot_to_dict(result.snapshot, include_trace=False)
-
     assert result.snapshot.steering_controller.effective_assistance == pytest.approx(expected)
     assert result.snapshot.steering_controller.last_command_reason is SteeringCommandReason.AUTO
     assert result.snapshot.application.active_steering_curve.definition == smooth
-    assert serialized["steering_controller"]["effective_assistance"] == pytest.approx(expected)
-    assert (
-        serialized["application"]["active_steering_curve"]["definition"]["interpolation"]
-        == "monotone-cubic-v1"
+    assert result.snapshot.application.active_steering_curve.definition.interpolation.value == (
+        "monotone-cubic-v1"
     )
 
 
@@ -281,7 +276,7 @@ def test_post_activation_output_failure_uses_existing_fatal_health_path() -> Non
     assert kernel.health.steering_actuator_fault.message == "activation output failed"
 
 
-def test_serialized_snapshot_contains_complete_authoritative_active_projection() -> None:
+def test_runtime_snapshot_contains_complete_authoritative_active_projection() -> None:
     engine = SimulatedControllerRuntime()
     engine.start()
     custom = constant_curve(500)
@@ -290,25 +285,9 @@ def test_serialized_snapshot_contains_complete_authoritative_active_projection()
     )
     assert commit is not None
 
-    serialized = snapshot_to_dict(engine.snapshot(), include_trace=False)
-
-    active = serialized["application"]["active_steering_curve"]
-    assert active == {
-        "definition": {
-            "schema_version": 1,
-            "interpolation": "linear-v1",
-            "points": [
-                {
-                    "speed_deci_kph": point.speed_deci_kph,
-                    "assistance_per_mille": 500,
-                }
-                for point in custom.points
-            ],
-        },
-        "fingerprint": steering_curve_fingerprint(custom),
-        "activation_revision": 2,
-        "status": "active",
-        "saved_profile_id": SAVED_PROFILE_ID,
-        "saved_profile_revision": 4,
-        "supported_interpolations": ["linear-v1", "monotone-cubic-v1"],
-    }
+    active = engine.snapshot().application.active_steering_curve
+    assert active.definition == custom
+    assert active.fingerprint == steering_curve_fingerprint(custom)
+    assert active.activation_revision == 2
+    assert active.saved_profile_id == SAVED_PROFILE_ID
+    assert active.saved_profile_revision == 4

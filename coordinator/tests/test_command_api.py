@@ -56,7 +56,7 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
         disabled = client.put(
             "/api/commands/maximum-assistance", json={"enabled": False}
         )
-        snapshot = client.get("/api/snapshot")
+        snapshot = client.app.state.controller_service.snapshot()
 
     assert first.json()["accepted"] is True
     assert set(first.json()) == {"accepted", "boot_id", "revision"}
@@ -64,9 +64,9 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     assert repeated.json()["revision"] > first.json()["revision"]
     assert mode.status_code == repeated_mode.status_code == disabled.status_code == 200
     assert repeated_mode.json()["revision"] > mode.json()["revision"]
-    assert snapshot.json()["application"]["maximum_assistance_active"] is False
-    assert snapshot.json()["application"]["steering_mode"] == "manual"
-    assert snapshot.json()["application"]["manual_assistance_level"] == 4
+    assert snapshot.application.maximum_assistance_active is False
+    assert snapshot.application.steering_mode.value == "manual"
+    assert snapshot.application.manual_assistance_level == 4
 
 
 def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -> None:

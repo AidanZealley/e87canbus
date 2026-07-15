@@ -287,7 +287,6 @@ class LiveControllerRuntime:
             raise RuntimeError("live controller kernel did not start")
         execution = RuntimeExecution(
             execution.result,
-            execution.compatibility_snapshot,
             execution.events,
             execution.changed_topics | {StateTopic.DEVICES},
             execution.commit_count,
@@ -338,7 +337,6 @@ class LiveControllerRuntime:
                     self._kernel.diagnostics().revision,
                     self._kernel.health.fatal,
                 ),
-                completed.compatibility_snapshot,
                 completed.events,
                 completed.changed_topics,
                 completed.commit_count,
@@ -440,7 +438,6 @@ class LiveControllerRuntime:
         commit = result if isinstance(result, Commit) else None
         return RuntimeExecution(
             result,
-            self._kernel.snapshot(),
             changed_topics=(frozenset() if commit is None else commit.changed_topics),
             commit_count=0 if commit is None else 1,
         )

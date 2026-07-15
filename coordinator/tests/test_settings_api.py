@@ -75,14 +75,6 @@ class MemorySettingsRepository:
         return self.settings
 
 
-class RecordingManager:
-    def __init__(self) -> None:
-        self.broadcasts: list[Any] = []
-
-    async def broadcast(self, events: Any) -> None:
-        self.broadcasts.append(events)
-
-
 def injected_app(repository: ApplicationSettingsRepository):
     return create_app(
         profile_repository=cast(SteeringProfileRepository, object()),
@@ -93,8 +85,8 @@ def injected_app(repository: ApplicationSettingsRepository):
 def test_get_and_put_serialize_complete_authoritative_document() -> None:
     repository = MemorySettingsRepository()
     app = injected_app(repository)
-    manager = RecordingManager()
-    app.state.manager = manager
+    events = []
+    app.state.live_publisher.offer_resource = events.append
     with TestClient(app) as client:
         fetched = client.get("/api/settings")
         payload = update_json()
@@ -106,15 +98,13 @@ def test_get_and_put_serialize_complete_authoritative_document() -> None:
     assert updated.status_code == 200
     assert updated.json() == settings_json(repository.settings)
     assert updated.json()["revision"] == 2
-    assert manager.broadcasts == [
-        (
-            {
-                "type": "resources.changed",
-                "resource": "settings",
-                "id": None,
-                "revision": 2,
-            },
-        )
+    assert [event.model_dump() for event in events] == [
+        {
+            "type": "resources.changed",
+            "resource": "settings",
+            "id": None,
+            "revision": 2,
+        }
     ]
 
 
@@ -133,8 +123,8 @@ def test_invalid_request_or_domain_value_is_422_and_not_broadcast(
 ) -> None:
     repository = MemorySettingsRepository()
     app = injected_app(repository)
-    manager = RecordingManager()
-    app.state.manager = manager
+    events = []
+    app.state.live_publisher.offer_resource = events.append
     payload = {**update_json(), **change}
 
     with TestClient(app) as client:
@@ -143,15 +133,15 @@ def test_invalid_request_or_domain_value_is_422_and_not_broadcast(
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
     assert repository.settings == DEFAULT_APPLICATION_SETTINGS
-    assert manager.broadcasts == []
+    assert events == []
 
 
 def test_conflict_includes_current_revision_and_does_not_broadcast() -> None:
     repository = MemorySettingsRepository()
     repository.settings = replace(DEFAULT_APPLICATION_SETTINGS, revision=3)
     app = injected_app(repository)
-    manager = RecordingManager()
-    app.state.manager = manager
+    events = []
+    app.state.live_publisher.offer_resource = events.append
 
     with TestClient(app) as client:
         response = client.put("/api/settings", json=update_json(expected_revision=1))
@@ -162,7 +152,7 @@ def test_conflict_includes_current_revision_and_does_not_broadcast() -> None:
         "message": "application settings are at revision 3, not 1",
         "current_revision": 3,
     }
-    assert manager.broadcasts == []
+    assert events == []
 
 
 @pytest.mark.parametrize("method", ["get", "put"])
@@ -170,8 +160,8 @@ def test_storage_failure_is_typed_503_and_not_broadcast(method: str) -> None:
     repository = MemorySettingsRepository()
     repository.error = SettingsStorageError("database unavailable")
     app = injected_app(repository)
-    manager = RecordingManager()
-    app.state.manager = manager
+    events = []
+    app.state.live_publisher.offer_resource = events.append
 
     with TestClient(app) as client:
         response = getattr(client, method)(
@@ -181,7 +171,7 @@ def test_storage_failure_is_typed_503_and_not_broadcast(method: str) -> None:
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "settings_storage_error"
-    assert manager.broadcasts == []
+    assert events == []
 
 
 def test_settings_persist_across_app_restart(tmp_path: Path) -> None:

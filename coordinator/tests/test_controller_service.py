@@ -51,7 +51,6 @@ class RecordingRuntime:
         assert commit is not None
         return RuntimeExecution(
             commit,
-            commit.snapshot,
             changed_topics=commit.changed_topics,
             commit_count=1,
         )
@@ -71,7 +70,6 @@ class RecordingRuntime:
             return None
         return RuntimeExecution(
             commit,
-            commit.snapshot,
             changed_topics=commit.changed_topics,
             commit_count=1,
         )
@@ -199,10 +197,12 @@ def test_simulation_reset_changes_session_without_changing_service_boot(
 
     with TestClient(app) as client:
         boot_id = app.state.controller_service.boot_id
-        before = client.get("/api/snapshot").json()
+        before = app.state.controller_service.snapshot()
         reset = client.post("/api/dev/simulation/reset").json()
 
-        assert (before["session_id"], reset["session_id"]) == (1, 2)
+        assert before.adapter.simulation_session_id == 1
+        assert reset == {"accepted": True, "boot_id": boot_id}
+        assert app.state.controller_service.snapshot().adapter.simulation_session_id == 2
         assert app.state.controller_service.boot_id == boot_id
 
 

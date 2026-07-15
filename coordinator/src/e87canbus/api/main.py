@@ -22,8 +22,7 @@ from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
-from e87canbus.api.internal.websocket import ConnectionManager
-from e87canbus.api.routes import commands, health, settings, simulation, steering, websocket
+from e87canbus.api.routes import commands, health, settings, simulation, steering
 from e87canbus.composition import CompositionSelection, build_controller_service
 from e87canbus.config import AppConfig
 from e87canbus.features.profile_repository import SteeringProfileRepository
@@ -123,13 +122,12 @@ def create_app(
         assert database is not None
         settings_repository = SqliteApplicationSettingsRepository(database)
 
-    manager = ConnectionManager(service.config.simulation.websocket_send_timeout_s)
     sio = BoundedSocketIoServer(
         async_mode="asgi",
         cors_allowed_origins=socket_origin_policy(selected_cors_origins),
         outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
     )
-    publisher = LiveStatePublisher(sio, service, manager, service.config)
+    publisher = LiveStatePublisher(sio, service, service.config)
     install_socket_handlers(sio, publisher)
 
     app = FastAPI(
@@ -146,7 +144,6 @@ def create_app(
 
     app.state.controller_service = service
     app.state.controller_mode = mode
-    app.state.manager = manager
     app.state.socketio = sio
     app.state.live_publisher = publisher
     app.state.profile_repository = profile_repository
@@ -159,9 +156,6 @@ def create_app(
     app.include_router(commands.router)
     if mode is ControllerMode.SIMULATED:
         app.include_router(simulation.router)
-        # Phase 8 removes these raw simulator read transports after the frontend migrates.
-        app.include_router(simulation.snapshot_router)
-        app.include_router(websocket.router)
     static_app = (
         SpaStaticFiles(directory=frontend_directory, html=True)
         if frontend_directory is not None

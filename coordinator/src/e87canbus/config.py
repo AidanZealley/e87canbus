@@ -76,7 +76,6 @@ class PlaceholderBmwIds:
 class SimulationConfig:
     trace_capacity: int = 2_000
     steering_watchdog_timeout_s: float = 0.25
-    websocket_send_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
@@ -86,13 +85,6 @@ class SimulationConfig:
             or self.steering_watchdog_timeout_s <= 0
         ):
             raise ValueError("simulation steering watchdog timeout must be finite and positive")
-        if (
-            not math.isfinite(self.websocket_send_timeout_s)
-            or self.websocket_send_timeout_s <= 0
-        ):
-            raise ValueError("simulation WebSocket send timeout must be finite and positive")
-
-
 @dataclass(frozen=True)
 class LivePublicationConfig:
     telemetry_hz: float = 25.0
@@ -101,6 +93,7 @@ class LivePublicationConfig:
     trace_batch_size: int = 100
     resource_capacity: int = 256
     client_queue_capacity: int = 64
+    send_timeout_s: float = 1.0
     shutdown_timeout_s: float = 2.0
 
     def __post_init__(self) -> None:
@@ -116,6 +109,8 @@ class LivePublicationConfig:
             raise ValueError("live resource publication capacity must be positive")
         if self.client_queue_capacity < 1:
             raise ValueError("live client queue capacity must be positive")
+        if not math.isfinite(self.send_timeout_s) or self.send_timeout_s <= 0:
+            raise ValueError("live publication send timeout must be finite and positive")
         if not math.isfinite(self.shutdown_timeout_s) or self.shutdown_timeout_s <= 0:
             raise ValueError("live publisher shutdown timeout must be finite and positive")
 

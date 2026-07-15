@@ -70,12 +70,12 @@ remain in `/dev`.
 ### State rules
 
 - Keep selected saved profile, local draft, dirty state, pending activation and last error explicit.
-- Do not replace a dirty draft when a WebSocket active-state update arrives.
+- Do not replace a dirty draft when a Socket.IO active-state update arrives.
 - Changing the selected profile with a dirty draft requires confirmation or an explicit discard.
 - Revert does not mutate the backend.
 - Apply remains disabled when the draft is invalid or already matches active state.
 - Pending activation prevents duplicate submissions.
-- Server response/snapshot is authoritative for active state.
+- Socket.IO live state is authoritative after the HTTP acknowledgement.
 - Include saved provenance only when the submitted draft exactly matches that saved revision;
   modified drafts activate without false saved provenance.
 - Editing and Apply remain available at any speed.

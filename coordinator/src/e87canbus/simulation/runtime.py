@@ -197,111 +197,6 @@ def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict
     }
 
 
-def network_status_to_dict(status: SimulatedNetworkStatus) -> dict[str, Any]:
-    return {
-        "id": status.config.network.value,
-        "label": status.config.label,
-        "interface": status.config.interface,
-        "bitrate": status.config.bitrate,
-        "connected": status.connected,
-        "nodes": list(status.nodes),
-    }
-
-
-def snapshot_to_dict(
-    snapshot: SimulatorSnapshot,
-    *,
-    include_trace: bool,
-) -> dict[str, Any]:
-    active_curve = snapshot.application.active_steering_curve
-    supported_interpolations = snapshot.application.supported_steering_curve_interpolations
-    serialized: dict[str, Any] = {
-        "session_id": snapshot.session_id,
-        "revision": snapshot.revision,
-        "fatal": snapshot.fatal,
-        "application": {
-            "vehicle_speed_kph": snapshot.application.vehicle_speed_kph,
-            "speed_valid": snapshot.application.speed_valid,
-            "engine": {
-                "rpm": {
-                    "value": snapshot.application.engine.rpm.value,
-                    "status": snapshot.application.engine.rpm.status.value,
-                },
-                "oil_temperature_c": {
-                    "value": snapshot.application.engine.oil_temperature_c.value,
-                    "status": snapshot.application.engine.oil_temperature_c.status.value,
-                },
-                "coolant_temperature_c": {
-                    "value": snapshot.application.engine.coolant_temperature_c.value,
-                    "status": snapshot.application.engine.coolant_temperature_c.status.value,
-                },
-            },
-            "steering_mode": snapshot.application.steering_mode.value,
-            "manual_assistance_level": snapshot.application.manual_assistance_level,
-            "maximum_assistance_active": snapshot.application.maximum_assistance_active,
-            "active_steering_curve": {
-                "definition": {
-                    "schema_version": active_curve.definition.schema_version,
-                    "interpolation": active_curve.definition.interpolation.value,
-                    "points": [
-                        {
-                            "speed_deci_kph": point.speed_deci_kph,
-                            "assistance_per_mille": point.assistance_per_mille,
-                        }
-                        for point in active_curve.definition.points
-                    ],
-                },
-                "fingerprint": active_curve.fingerprint,
-                "activation_revision": active_curve.activation_revision,
-                "status": snapshot.application.steering_curve_activation_status.value,
-                "saved_profile_id": active_curve.saved_profile_id,
-                "saved_profile_revision": active_curve.saved_profile_revision,
-                "supported_interpolations": [
-                    interpolation.value for interpolation in supported_interpolations
-                ],
-            },
-        },
-        "led_colours": snapshot.led_colours,
-        "steering_controller": {
-            "effective_assistance": snapshot.steering_controller.effective_assistance,
-            "last_command_reason": (
-                None
-                if snapshot.steering_controller.last_command_reason is None
-                else snapshot.steering_controller.last_command_reason.value
-            ),
-            "watchdog_timed_out": snapshot.steering_controller.watchdog_timed_out,
-        },
-        "devices": [
-            {
-                "id": device.id.value,
-                "label": device.label,
-                "source_mode": device.source_mode.value,
-                "connected": device.connected,
-                "last_seen_monotonic_s": device.last_seen_monotonic_s,
-                "desired_led_colours": device.desired_led_colours,
-                "observed_led_colours": device.observed_led_colours,
-                "last_output_fault": device.last_output_fault,
-            }
-            for device in snapshot.devices
-        ],
-        "networks": [network_status_to_dict(status) for status in snapshot.networks],
-    }
-    if include_trace:
-        serialized["trace"] = [
-            trace_entry_to_event(entry, snapshot.session_id) for entry in snapshot.trace
-        ]
-    return serialized
-
-
-def snapshot_event(snapshot: SimulatorSnapshot, *, include_trace: bool) -> dict[str, Any]:
-    return {
-        "type": "snapshot",
-        "session_id": snapshot.session_id,
-        "revision": snapshot.revision,
-        "snapshot": snapshot_to_dict(snapshot, include_trace=include_trace),
-    }
-
-
 class SimulatedControllerRuntime:
     """Selected simulated adapters and devices; owned by ``ControllerService``."""
 
@@ -378,11 +273,6 @@ class SimulatedControllerRuntime:
 
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
-        before_application = self.kernel.snapshot()
-        before_steering = self._steering_snapshot()
-        before_fatal = self.kernel.health.fatal
-        snapshot_trace: bool | None = False
-
         match command:
             case PressButton(index):
                 self._send_button(index, pressed=True)
@@ -395,7 +285,6 @@ class SimulatedControllerRuntime:
                 self.vehicle.emit_coolant_temperature()
                 self._drain_kernel_inputs()
                 self._dispatch(TimerElapsed(now))
-                snapshot_trace = None
             case SetVehicleSpeed(speed_kph):
                 self.vehicle.set_speed(speed_kph)
             case SilenceVehicleSpeed():
@@ -423,24 +312,10 @@ class SimulatedControllerRuntime:
                     )
                 self._build_session()
                 before_sequence = 0
-                snapshot_trace = True
             case _:
                 raise TypeError(f"unsupported simulation command: {command!r}")
 
-        result = self._process_pending(
-            before_sequence,
-            snapshot_trace=snapshot_trace,
-        )
-        if isinstance(command, RunControlTimer) and (
-            result.snapshot.application != before_application
-            or result.snapshot.steering_controller != before_steering
-            or result.snapshot.fatal != before_fatal
-        ):
-            return replace(
-                result,
-                events=(snapshot_event(result.snapshot, include_trace=False), *result.events),
-            )
-        return result
+        return self._process_pending(before_sequence)
 
     def execute_controller_command(
         self,
@@ -456,7 +331,7 @@ class SimulatedControllerRuntime:
         before_sequence = self.topology.latest_sequence
         self._execution_commits = []
         self._dispatch(command)
-        return self._process_pending(before_sequence, snapshot_trace=False)
+        return self._process_pending(before_sequence)
 
     def execute_controller_failure(self, failure: ControllerFailure) -> SimulationResult:
         """Record a service/adapter failure through the ordered kernel boundary."""
@@ -467,14 +342,14 @@ class SimulatedControllerRuntime:
         self._dispatch(failure)
         if self.kernel.health.fatal:
             self._dispatch(ShutdownRequested(self._clock()))
-        return self._process_pending(before_sequence, snapshot_trace=False)
+        return self._process_pending(before_sequence)
 
     def shutdown(self) -> SimulationResult:
         self._require_started()
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
         self._dispatch(ShutdownRequested(self._clock()))
-        return self._process_pending(before_sequence, snapshot_trace=False)
+        return self._process_pending(before_sequence)
 
     def _build_session(self) -> None:
         if hasattr(self, "executor"):
@@ -560,8 +435,6 @@ class SimulatedControllerRuntime:
     def _process_pending(
         self,
         before_sequence: int,
-        *,
-        snapshot_trace: bool | None,
     ) -> SimulationResult:
         self._drain_kernel_inputs()
         self._process_button_output()
@@ -571,10 +444,7 @@ class SimulatedControllerRuntime:
         new_trace = tuple(
             entry for entry in self.topology.trace() if entry.sequence > before_sequence
         )
-        events: list[dict[str, Any]] = []
-        if snapshot_trace is not None:
-            events.append(snapshot_event(snapshot, include_trace=snapshot_trace))
-        events.extend(trace_entry_to_event(entry, self._session_id) for entry in new_trace)
+        events = [trace_entry_to_event(entry, self._session_id) for entry in new_trace]
         return SimulationResult(snapshot, tuple(events), tuple(self._execution_commits))
 
     def _drain_kernel_inputs(self) -> int:

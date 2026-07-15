@@ -43,7 +43,6 @@ from e87canbus.simulation.runtime import (
     SilenceVehicleSpeed,
     SimulatedControllerRuntime,
     SimulationSessionFailed,
-    snapshot_to_dict,
 )
 
 TEST_SIMULATOR_CONFIG = replace(
@@ -226,17 +225,14 @@ def test_reset_releases_old_session_topology_devices_and_endpoints() -> None:
     assert all(reference() is None for reference in old_pi_buses)
 
 
-def test_first_startup_command_failure_has_serializable_fatal_snapshot() -> None:
+def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
     engine = build_test_engine(steering_controller_factory=RejectingSteeringController)
 
     snapshot = engine.snapshot()
-    serialized = snapshot_to_dict(snapshot, include_trace=True)
-
     assert (snapshot.revision, snapshot.fatal) == (2, True)
     assert snapshot.steering_controller.effective_assistance == 0.0
     assert snapshot.steering_controller.last_command_reason is None
     assert snapshot.steering_controller.watchdog_timed_out is True
-    assert serialized["steering_controller"]["last_command_reason"] is None
     assert engine.steering_controller.attempts == 2
 
 
@@ -329,7 +325,7 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
 
     assert failed.fatal is True
     assert failed.revision == engine.kernel.diagnostics().revision == 3
-    assert [event["type"] for event in failure_result.events] == ["snapshot"]
+    assert failure_result.events == ()
     assert engine.kernel.health.steering_actuator_fault is not None
     assert engine.kernel.health.steering_actuator_fault.message == ("actuator failed on attempt 2")
     assert controllers[0].attempts == 3
@@ -449,7 +445,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert snapshot.led_colours[3] == LED_COLOUR_OFF
 
 
-def test_timer_publishes_when_it_recovers_a_timed_out_actuator() -> None:
+def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> None:
     clock = MutableClock(10.0)
     controller = build_test_engine(clock=clock)
 
@@ -457,18 +453,18 @@ def test_timer_publishes_when_it_recovers_a_timed_out_actuator() -> None:
     result = controller.execute(RunControlTimer(clock()))
 
     assert result.snapshot.application.speed_valid is False
-    assert [event["type"] for event in result.events] == ["snapshot"]
+    assert result.events == ()
     assert result.snapshot.steering_controller.watchdog_timed_out is False
 
 
-def test_timer_publishes_new_manual_actuator_projection() -> None:
+def test_timer_updates_new_manual_actuator_projection() -> None:
     controller = build_test_engine()
 
     command = controller.execute(PressButton(0))
     timer = controller.execute(RunControlTimer(1.0))
 
-    assert [event["type"] for event in command.events].count("snapshot") == 1
-    assert [event["type"] for event in timer.events] == ["snapshot"]
+    assert [event["type"] for event in command.events] == ["frame", "frame"]
+    assert timer.events == ()
     assert timer.snapshot.steering_controller.last_command_reason is SteeringCommandReason.MANUAL
 
 

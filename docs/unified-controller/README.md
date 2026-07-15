@@ -213,15 +213,12 @@ schema platform.
 
 ## Compatibility and cutover policy
 
-- Existing HTTP and WebSocket behavior may be retained temporarily when a phase needs it to keep
-  the current frontend operational.
-- Compatibility paths must be clearly marked, covered and assigned a removal phase.
-- No new feature may target a legacy path.
-- Phase 5 switches the frontend to the new ownership model.
-- Phase 8 removes the legacy raw WebSocket/snapshot-cache path and separate simulator-only
-  composition after all consumers have moved.
-- CLI aliases may remain when they are harmless operator compatibility wrappers around the same
-  composition; they must not construct a second architecture.
+- The repository has completed the frontend ownership cutover.
+- Raw `/ws`, `GET /api/snapshot`, HTTP response snapshots and their compatibility publisher/state
+  seams are removed.
+- No feature may add a second runtime, live-state owner or transport facade.
+- CLI operation must construct the canonical composition; an alias is acceptable only when it is a
+  documented thin invocation of that same composition.
 
 ## Working method
 

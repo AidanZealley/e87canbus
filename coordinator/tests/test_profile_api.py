@@ -41,6 +41,20 @@ def profile_payload(name: str = "Dry track", *, second_assistance: int = 850) ->
     return {"name": name, "definition": definition_json(second_assistance=second_assistance)}
 
 
+def definition_primitive(definition) -> dict[str, Any]:
+    return {
+        "schema_version": definition.schema_version,
+        "interpolation": definition.interpolation.value,
+        "points": [
+            {
+                "speed_deci_kph": point.speed_deci_kph,
+                "assistance_per_mille": point.assistance_per_mille,
+            }
+            for point in definition.points
+        ],
+    }
+
+
 def make_app(
     path: Path,
     *,
@@ -503,21 +517,19 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
             "/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0}
         )
         assert speed.status_code == 200
-        with client.websocket_connect("/ws") as websocket:
-            initial = websocket.receive_json()
-            activation = client.post(
-                "/api/commands/activate-steering-profile",
-                json={
-                    "profile_id": saved["profile_id"],
-                    "expected_revision": saved["revision"],
-                },
-            )
-            fatal_publication = websocket.receive_json()
+        before = app.state.controller_service.snapshot()
+        activation = client.post(
+            "/api/commands/activate-steering-profile",
+            json={
+                "profile_id": saved["profile_id"],
+                "expected_revision": saved["revision"],
+            },
+        )
         fetched = client.get(f"/api/steering/profiles/{saved['profile_id']}")
         curve_state = client.get("/api/steering/curve-state")
-        runtime_snapshot = client.get("/api/snapshot")
+        runtime_snapshot = app.state.controller_service.snapshot()
 
-    assert initial["snapshot"]["fatal"] is False
+    assert before.diagnostics.health.fatal is False
     assert activation.status_code == 503
     assert activation.json()["error"] == {
         "code": "controller_failed",
@@ -528,16 +540,14 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     assert curve_state.status_code == 200
     assert curve_state.json()["definition"] == saved["definition"]
     assert curve_state.json()["saved_profile_id"] == saved["profile_id"]
-    assert runtime_snapshot.json()["fatal"] is True
-    assert fatal_publication["type"] == "snapshot"
-    assert fatal_publication["snapshot"]["fatal"] is True
+    assert runtime_snapshot.diagnostics.health.fatal is True
     assert (
-        fatal_publication["snapshot"]["application"]["active_steering_curve"]["definition"]
+        definition_primitive(runtime_snapshot.application.active_steering_curve.definition)
         == saved["definition"]
     )
 
 
-def test_websocket_reconnect_snapshot_and_catalog_invalidation_are_authoritative(
+def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     client: TestClient,
 ) -> None:
     applied_definition = definition_json(second_assistance=850)
@@ -547,20 +557,11 @@ def test_websocket_reconnect_snapshot_and_catalog_invalidation_are_authoritative
     )
     assert applied.status_code == 200
 
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
-        created = client.post("/api/steering/profiles", json=profile_payload())
-        invalidation = websocket.receive_json()
+    snapshot = client.app.state.controller_service.snapshot()
+    created = client.post("/api/steering/profiles", json=profile_payload())
 
-    assert initial["type"] == "snapshot"
     assert (
-        initial["snapshot"]["application"]["active_steering_curve"]["definition"]
+        definition_primitive(snapshot.application.active_steering_curve.definition)
         == applied_definition
     )
     assert created.status_code == 201
-    assert invalidation == {
-        "type": "resources.changed",
-        "resource": "steering_profile",
-        "id": created.json()["profile_id"],
-        "revision": 1,
-    }

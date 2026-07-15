@@ -37,7 +37,6 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
 def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
     assert default_config().simulation.steering_watchdog_timeout_s == 0.25
-    assert default_config().simulation.websocket_send_timeout_s == 1.0
 
 
 def test_default_live_publication_bounds() -> None:
@@ -49,6 +48,7 @@ def test_default_live_publication_bounds() -> None:
     assert publication.trace_batch_size == 100
     assert publication.resource_capacity == 256
     assert publication.client_queue_capacity == 64
+    assert publication.send_timeout_s == 1.0
     assert publication.shutdown_timeout_s == 2.0
 
 
@@ -61,6 +61,7 @@ def test_default_live_publication_bounds() -> None:
         {"trace_batch_size": 0},
         {"resource_capacity": 0},
         {"client_queue_capacity": 0},
+        {"send_timeout_s": 0.0},
         {"shutdown_timeout_s": float("nan")},
     ],
 )
@@ -76,12 +77,11 @@ def test_live_publication_bounds_reject_invalid_values(
     [
         "trace_capacity",
         "steering_watchdog_timeout_s",
-        "websocket_send_timeout_s",
     ],
 )
 @pytest.mark.parametrize("value", [0, -1])
 def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
-    with pytest.raises(ValueError, match="capacity|watchdog|WebSocket"):
+    with pytest.raises(ValueError, match="capacity|watchdog"):
         SimulationConfig(**{field: value})
 
 
@@ -166,7 +166,7 @@ def test_runtime_inbox_limits_reject_unsafe_values(
         (SteeringConfig, "speed_timeout_s"),
         (EngineTelemetryConfig, "timeout_s"),
         (SimulationConfig, "steering_watchdog_timeout_s"),
-        (SimulationConfig, "websocket_send_timeout_s"),
+        (LivePublicationConfig, "send_timeout_s"),
         (TxPolicyConfig, "network_window_s"),
     ],
 )
@@ -175,6 +175,7 @@ def test_duration_configuration_rejects_non_finite_values(
         type[SteeringConfig]
         | type[EngineTelemetryConfig]
         | type[SimulationConfig]
+        | type[LivePublicationConfig]
         | type[TxPolicyConfig]
     ),
     field: str,

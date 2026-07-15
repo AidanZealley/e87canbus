@@ -323,7 +323,6 @@ class _SimulatedRuntimeAdapter:
                     result.snapshot.revision,
                     result.snapshot.fatal,
                 ),
-                execution.compatibility_snapshot,
                 execution.events,
                 execution.changed_topics,
                 execution.commit_count,
@@ -462,7 +461,6 @@ class _SimulatedRuntimeAdapter:
             commit_count = 1
         return RuntimeExecution(
             result,
-            result.snapshot,
             result.events,
             frozenset(changed_topics),
             commit_count,

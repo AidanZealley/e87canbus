@@ -56,10 +56,9 @@ class ControllerMode(StrEnum):
 
 @dataclass(frozen=True)
 class RuntimeExecution:
-    """One runtime operation and any ordered compatibility publications it produced."""
+    """One runtime operation and any ordered diagnostic events it produced."""
 
     result: object
-    compatibility_snapshot: object
     events: tuple[dict[str, object], ...] = ()
     changed_topics: frozenset[StateTopic] = frozenset()
     commit_count: int = 0
@@ -223,7 +222,6 @@ class ControllerService:
         self._thread: threading.Thread | None = None
         self._notification: RuntimeNotification | None = None
         self._boot_id: str | None = None
-        self._latest_execution: RuntimeExecution | None = None
         self._latest_snapshot: ControllerServiceSnapshot | None = None
         self._revision = 0
         self._topic_revisions = {topic: 0 for topic in StateTopic}
@@ -294,13 +292,6 @@ class ControllerService:
     @property
     def fatal_exit_required(self) -> bool:
         return self._fatal_exit.is_set()
-
-    @property
-    def latest_compatibility_snapshot(self) -> object:
-        with self._lock:
-            if self._latest_execution is None:
-                raise ControllerServiceNotRunning("controller service has not started")
-            return self._latest_execution.compatibility_snapshot
 
     def snapshot(self) -> ControllerServiceSnapshot:
         with self._lock:
@@ -514,7 +505,6 @@ class ControllerService:
                     execution,
                     result=replace(execution.result, revision=self._revision),
                 )
-            self._latest_execution = execution
             assert self._boot_id is not None
             self._latest_snapshot = ControllerServiceSnapshot(
                 boot_id=self._boot_id,
@@ -646,10 +636,8 @@ class ControllerService:
                 topic_revisions=tuple(self._topic_revisions.items()),
                 service=service,
             )
-            assert self._latest_execution is not None
             execution = RuntimeExecution(
                 result=None,
-                compatibility_snapshot=self._latest_execution.compatibility_snapshot,
                 changed_topics=frozenset({StateTopic.HEALTH}),
             )
             notification = self._notification

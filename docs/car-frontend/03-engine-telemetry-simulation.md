@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add RPM, oil temperature and coolant temperature to the hardware-independent application snapshot
+Add RPM, oil temperature and coolant temperature to the hardware-independent application projection
 and drive them through unmistakably simulation-only CAN frames. Each signal can be set and silenced
 independently from `/dev`, and stale or never-observed values remain explicit.
 
@@ -29,7 +29,7 @@ without moving backward.
 Add typed configuration for a fixed one-second engine-telemetry timeout. Keep it separate from the
 steering speed timeout even though both initially equal one second.
 
-## Snapshot contract
+## Live-state contract
 
 Add `application.engine`:
 
@@ -54,7 +54,7 @@ Projection rules:
 - Sample beyond timeout: `stale`, value `null`.
 - Retain the last sample internally for transition history, but do not serialize it as a current
   usable value.
-- Existing speed projection remains unchanged for compatibility.
+- Existing speed projection remains unchanged.
 
 ## Simulation-only CAN protocol
 
@@ -101,7 +101,7 @@ speed. Do not update application state directly from an HTTP handler.
 ## Simulation commands and API
 
 Add closed simulation command values for setting and silencing each signal. Include them in the
-engine's exhaustive command match and normal slim-snapshot response path.
+engine's exhaustive command match and canonical controller service path.
 
 Endpoints:
 
@@ -122,12 +122,13 @@ Bodies:
 ```
 
 Pydantic rejects unknown fields. Domain/protocol validation maps to the current 422 API contract.
-Every success returns the complete slim snapshot, including all three telemetry projections.
+Every success returns only `accepted` and the stable process `boot_id`; authoritative telemetry,
+revision and simulation session identity arrive through Socket.IO.
 
 ## Frontend types and development controls
 
-Extend simulator snapshot types and the empty placeholder snapshot with the complete engine shape.
-Placeholder values use `null` and `never_observed`, never numeric zero.
+Extend the generated live-state types and Zustand engine slice with the complete shape. Initial
+values use `null` and `never_observed`, never numeric zero.
 
 Add typed API functions for all six commands. Extend the existing simulated-vehicle card rather
 than adding unrelated top-level panels:
@@ -165,12 +166,12 @@ Simulation/API:
 - Silence stops only the selected signal.
 - Time advance after silence produces stale while other signals remain valid.
 - Reset returns all to never-observed.
-- Snapshot HTTP and initial/reconnect WebSocket shapes include engine telemetry.
+- Initial/reconnect Socket.IO snapshots and `engine.state` include engine telemetry.
 - Invalid request values return 422 without changing state.
 
 Frontend:
 
-- Empty snapshot is never a plausible zero reading.
+- Initial live state is never a plausible zero reading.
 - API functions send exact bodies and paths.
 - Controls call the correct Set/Silence commands and reflect independent status.
 - Existing speed-control component tests remain valid.
@@ -179,7 +180,7 @@ Frontend:
 
 - All three values travel through the normal simulated CAN and application pipeline.
 - They are independently controllable, traceable and ageable.
-- Snapshot consumers can distinguish valid, never-observed and stale states.
+- Live-state consumers can distinguish valid, never-observed and stale states.
 - No production identifier, decoder or live hardware claim is introduced.
 - The development workbench can deterministically create every telemetry validity state needed by
   later car-screen tests.

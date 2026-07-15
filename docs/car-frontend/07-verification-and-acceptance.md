@@ -49,7 +49,7 @@ Verify through API tests or direct inspection:
 - Live `ProtocolRouter` ignores those identifiers.
 - Per-signal silence produces stale/null independently.
 - Device role projection and reset are deterministic.
-- Initial and reconnect WebSocket snapshots contain complete engine and device projections.
+- Initial and reconnect Socket.IO snapshots contain complete engine and device projections.
 - Settings change publication causes another client to refetch.
 - Existing steering, speed, button-pad and trace behavior has no regression.
 
@@ -110,7 +110,7 @@ display.
 ### Telemetry and warnings
 
 1. Use `/dev` to set speed, RPM and both temperatures.
-2. Observe `/car/drive` using the authoritative snapshot.
+2. Observe `/car/drive` using authoritative Zustand live state.
 3. Cross warning and critical thresholds, then lower values around the 3 C hysteresis boundaries.
 4. Silence one signal and advance/wait past one second; only it becomes stale.
 5. Stop/restart the backend and confirm live values become unavailable during loss/reconnection.

@@ -1,4 +1,4 @@
-"""Bounded Socket.IO publication and legacy-read compatibility bridge."""
+"""Bounded Socket.IO live-state publication."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from typing import Any
 
 import socketio  # type: ignore[import-untyped]
 
-from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.models.live import (
     LiveData,
     LiveEnvelope,
@@ -75,17 +74,15 @@ class LiveStatePublisher:
         self,
         sio: socketio.AsyncServer,
         service: ControllerService,
-        legacy_manager: ConnectionManager,
         config: AppConfig,
     ) -> None:
         self._sio = sio
         self._service = service
-        self._legacy_manager = legacy_manager
         self._telemetry_interval_s = 1.0 / config.live_publication.telemetry_hz
         self._health_interval_s = 1.0 / config.live_publication.health_hz
         self._trace_interval_s = 1.0 / config.live_publication.trace_hz
         self._trace_batch_size = config.live_publication.trace_batch_size
-        self._send_timeout_s = config.simulation.websocket_send_timeout_s
+        self._send_timeout_s = config.live_publication.send_timeout_s
         self._trace_capacity = config.simulation.trace_capacity
         self._resource_capacity = config.live_publication.resource_capacity
         self._shutdown_timeout_s = config.live_publication.shutdown_timeout_s
@@ -94,9 +91,6 @@ class LiveStatePublisher:
         self._trace: deque[dict[str, object]] = deque(maxlen=self._trace_capacity)
         self._trace_session_id: int | None = None
         self._resources: deque[ResourceChangedEvent] = deque(maxlen=self._resource_capacity)
-        self._legacy_batches: deque[tuple[dict[str, object], ...]] = deque(
-            maxlen=self._resource_capacity
-        )
         self._loop: asyncio.AbstractEventLoop | None = None
         self._wake: asyncio.Event | None = None
         self._wake_scheduled = False
@@ -119,11 +113,6 @@ class LiveStatePublisher:
         self._wake = asyncio.Event()
         self._task = asyncio.create_task(self._run(), name="live-state-publisher")
         self._sync_service_health()
-
-    def set_legacy_manager(self, manager: ConnectionManager) -> None:
-        if self._task is not None:
-            raise RuntimeError("legacy manager must be selected before publisher startup")
-        self._legacy_manager = manager
 
     async def stop(self) -> None:
         self._stopping = True
@@ -173,7 +162,6 @@ class LiveStatePublisher:
                 self._pending_topics.clear()
                 self._trace.clear()
                 self._resources.clear()
-                self._legacy_batches.clear()
             self._sync_service_health(enqueue=False)
 
     def offer(self, execution: RuntimeExecution) -> None:
@@ -197,8 +185,6 @@ class LiveStatePublisher:
                             self._dropped.get("trace.batch", 0) + 1
                         )
                     self._trace.append(trace_event)
-            if execution.events:
-                self._legacy_batches.append(execution.events)
             self._max_pending_topics = max(
                 self._max_pending_topics,
                 len(self._pending_topics),
@@ -211,14 +197,12 @@ class LiveStatePublisher:
         self._sync_service_health()
 
     def offer_resource(self, event: ResourceChangedEvent) -> None:
-        serialized = event.model_dump()
         with self._lock:
             if len(self._resources) == self._resources.maxlen:
                 self._dropped["resources.changed"] = (
                     self._dropped.get("resources.changed", 0) + 1
                 )
             self._resources.append(event)
-            self._legacy_batches.append((serialized,))
         self._signal()
         self._sync_service_health()
 
@@ -357,8 +341,6 @@ class LiveStatePublisher:
                 self._pending_topics.pop(topic, None)
             resources = tuple(self._resources)
             self._resources.clear()
-            legacy_batches = tuple(self._legacy_batches)
-            self._legacy_batches.clear()
             trace_rows: tuple[dict[str, object], ...] = ()
             if trace_due:
                 trace_rows = tuple(self._trace)[-self._trace_batch_size :]
@@ -379,17 +361,6 @@ class LiveStatePublisher:
                 self._envelope(snapshot, batch),
                 room=TRACE_ROOM,
             )
-
-        for legacy_events in legacy_batches:
-            try:
-                async with asyncio.timeout(self._send_timeout_s):
-                    await self._legacy_manager.broadcast(legacy_events)
-            except Exception:
-                LOGGER.warning("legacy WebSocket publication failed", exc_info=True)
-                with self._lock:
-                    self._failures += 1
-                    self._last_fault = "legacy WebSocket publication failed"
-                self._sync_service_health()
 
     async def _emit(
         self,

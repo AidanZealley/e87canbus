@@ -14,7 +14,7 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/live.py` — SocketCAN readers and the live runtime adapter.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
-- `src/e87canbus/api/` — HTTP, Socket.IO live publication, and temporary raw-WebSocket reads.
+- `src/e87canbus/api/` — HTTP resources/commands and bounded Socket.IO live publication.
 - `src/e87canbus/cli/` — executable entry points and bench utilities.
 - `tests/` — tests arranged to mirror the source responsibilities.
 
@@ -120,8 +120,7 @@ packets. No network client can block the controller owner or effect execution. P
 shutdown share one two-second deadline and cancel all remaining publication tasks if it expires.
 The generated contract is documented in
 `protocol/README.md`. The repository frontend owns one Socket.IO connection outside the React tree.
-The simulated raw `/ws` endpoint remains only as a bounded compatibility path for external
-consumers and is removed in Phase 8.
+There is no raw WebSocket or HTTP live-snapshot compatibility path.
 
 Health publication is framework-independent and process-local. It reports controller lifecycle and
 readiness, configured network connection/fault/counters, bounded inbox depth/capacity and latency,
@@ -177,25 +176,29 @@ cannot prevent later interfaces from closing.
 
 The controller service owns one bounded inbox and dedicated owner thread in live and simulated
 composition. It serializes button-device commands, persistent synthetic vehicle-speed selection and
-silence, control timers, resets, kernel commits, ordered effects and compatibility publication.
-Before each control timer, a selected speed is
-re-emitted by the external vehicle and decoded through the kernel. Browser compatibility snapshots
-expose the reset-local kernel revision, simulation session ID, fatal-health status, and the ideal simulated
-controller's effective dimensionless assistance, optional last accepted command reason, and
-watchdog state. The service revision remains monotonic across simulation reset while that separate
-session identity and compatibility revision restart. An output fault terminates the session after
-one committed shutdown attempt; normal
+silence, control timers, resets, kernel commits and ordered effects. Before each control timer, a
+selected speed is re-emitted by the external vehicle and decoded through the kernel. The canonical
+service projection supplies Socket.IO topic values including simulation session identity and the
+ideal simulated controller's dimensionless assistance, optional last accepted command reason and
+watchdog state. The service revision remains monotonic across simulation reset while the session
+identity and trace sequence restart. An output fault terminates the session after one committed
+shutdown attempt; normal
 commands are rejected until reset creates a fresh kernel at revision one. A reset-time shutdown
-fault is recorded on the stopped session and retained in logs while the reset response reports the
-new healthy session. Socket.IO and compatibility WebSocket sends are bounded by the simulation send
-timeout, and Socket.IO client queues have a separate finite packet capacity. Their bounded publisher
+fault is recorded on the stopped session and retained in logs while the canonical service and
+Socket.IO projection report the new session. Socket.IO sends have a finite timeout, and every
+Engine.IO client has a separate
+finite packet capacity. The bounded publisher
 is detached from the controller owner, so a stalled peer can delay only browser publication while
 latest topic values replace older pending values; a saturated peer is then disconnected. Incremental
 trace frames use the session ID with their reset-local sequence number.
 
+Every development action returns only `accepted` and the process `boot_id`. It does not report a
+revision or session because later queued work may complete before the HTTP coroutine resumes. It
+never returns or owns a parallel live snapshot; clients converge from Socket.IO state.
+
 The same simulated vehicle can independently select or silence RPM, oil temperature and coolant
 temperature. Each value uses its own unmistakably simulation-only extended PT-CAN frame adjacent
-to the synthetic speed identifier, then follows normal ingress, routing, transition and snapshot
+to the synthetic speed identifier, then follows normal ingress, routing, transition and live-state
 publication. These identifiers are not BMW candidates and remain absent from `ProtocolRouter`.
 RPM is canonical integer RPM; temperatures are canonical tenths of a degree Celsius. The
 application retains observations internally but projects `null` with `never_observed` or `stale`
@@ -216,7 +219,7 @@ single-artifact drift in IDs, lengths, byte positions, state values, or colour c
 The coordinator derives exactly 16 desired LED colours, emits one `SetButtonLeds` effect, and packs
 one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
 observed colours; invalid frames preserve the previous observation. There is one wire codec and no
-simulator callback or compatibility decoder.
+simulator callback or alternate decoder.
 
 ## Running the unified controller
 
@@ -234,8 +237,9 @@ compositions. Custom IDs `0x700` and `0x701` still require collision validation 
 in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
 
 Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
-routes and the raw `/ws` stream are registered only in simulated mode; live mode returns `404` for
-those development-only paths. Use `--log-level` to change logging verbosity.
+routes are registered only in simulated mode; live mode returns `404` for those development-only
+paths. Both modes use the same HTTP/Socket.IO application composition. Use `--log-level` to change
+logging verbosity.
 Use `--button-pad-source emulated|observer|disabled` for simulated composition and
 `--button-pad-source physical|observer|disabled` for live composition. The selection is fixed for
 the process lifetime and invalid mode/source combinations fail before adapters start.

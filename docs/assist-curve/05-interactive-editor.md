@@ -102,7 +102,7 @@ Derive:
 - `draftMatchesSelectedSaved` likewise.
 - Whether Apply, Save, Revert and Delete are enabled.
 
-Never replace a dirty draft because a background WebSocket snapshot arrives. If active state
+Never replace a dirty draft because a background Socket.IO snapshot arrives. If active state
 changes elsewhere, retain the draft and show that its base is stale, offering explicit reload or
 compare actions.
 

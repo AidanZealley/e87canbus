@@ -30,17 +30,18 @@ simulation.
 | 5 — Frontend data ownership | Verified | 2026-07-15 | One bounded Socket.IO/Zustand path and Query ownership pass browser acceptance |
 | 6 — Simulation/device convergence | Verified | 2026-07-15 | Physical, emulated, observer and disabled pathways converge honestly |
 | 7 — Reliability/deployment | Verified | 2026-07-15 | Bounded health/failure policy, deterministic shutdown, soak and Pi service verified |
-| 8 — Cutover/acceptance | Not started | — | Legacy removal, integrated checks and soak evidence |
+| 8 — Cutover/acceptance | Verified | 2026-07-15 | Legacy removed; integrated, browser and bounded-retention acceptance passed |
 
 ## Current handoff
 
-Start Phase 8 from the verified bounded controller, publication and frontend ownership. Preserve
-the explicit service-owned failure policy, exact `/health/live` and `/health/ready` semantics,
-process-local bounded diagnostics, loopback production trust boundary, deny-by-default TX and fixed
-shutdown order. Remove the remaining backend raw `/ws` and `GET /api/snapshot` compatibility
-surfaces and any superseded startup/docs paths rather than retaining facades. The T3 soak exposed
-and fixed trace re-subscription across a Socket.IO connection epoch; retain that regression. Real
-CAN TX and steering output remain unauthorized, and simulated safe requests make no physical claim.
+All eight unified-controller phases are verified. One canonical controller/application architecture
+remains, with HTTP command/resource ownership, Socket.IO/Zustand live ownership, bounded diagnostics
+and deny-by-default physical output. Preserve the service-owned failure policy, exact readiness
+semantics, loopback production trust boundary, fixed shutdown order and no-facade cutover. Real CAN
+TX, physical steering and optional read-only hardware checks remain under the existing
+`docs/requires-hardware` evidence boundaries and are not authorized by this roadmap. Proceed to the
+final repository review and completed-work report; do not reopen retired transports or infer
+physical behavior from simulation.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -69,6 +70,90 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 8: legacy ownership removed and integrated cutover verified
+
+- **Status:** Verified
+- **Scope:** Removed every remaining legacy live-read and simulator response-snapshot path, reduced
+  the runtime/publication seam to the canonical controller service, and exercised integrated
+  simulation, command, resource, reconnect, restart and overload scenarios on isolated services.
+- **Changed:** Deleted the raw `/ws` route and its connection manager and removed
+  `GET /api/snapshot`. Removed the publisher's legacy batch queue/broadcast, lifecycle-held latest
+  compatibility snapshot, `RuntimeExecution.compatibility_snapshot`, the service compatibility
+  accessor, simulator snapshot serializer/events and transport-specific simulation timeout.
+  Development reset, button and vehicle-signal controls now return the strict acknowledgement
+  `{accepted, boot_id}`; authoritative live values continue only through fixed Socket.IO topics.
+  Parent review removed initially included current revision/session fields because another queued
+  action can finish before the awaiting HTTP coroutine resumes, making those fields identify later
+  work. The Socket.IO send timeout now belongs to bounded live-publication
+  configuration. Legacy-specific tests were removed and remaining API/runtime tests assert the
+  canonical service projection, acknowledgements, precise resource publication and explicit route
+  absence.
+- **Decisions:** The in-memory simulated runtime remains a selected adapter behind the same
+  `ControllerService`, not an independent application owner. Its internal immutable snapshot is
+  retained only as the adapter projection/effect result; it is not serialized as a parallel public
+  contract. Diagnostic `frame` events remain the sole runtime event rows accepted by the bounded
+  trace publisher. HTTP acknowledgements do not merge into frontend live state. No CLI alias,
+  compatibility facade, schema platform or unbounded retention was added.
+- **Verification:** Full `uv run pytest -q` passed with 499 tests and the one existing
+  Starlette/httpx deprecation warning; the count is ten lower because raw-WebSocket manager,
+  snapshot-response and compatibility-broadcast tests were deleted with their production code.
+  `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus` (61 source files), both generated
+  protocol checks, `bash -n scripts/*.sh` and `git diff --check` passed. `pnpm test` passed 30 unit
+  and 58 component tests; `pnpm lint`, `pnpm typecheck` and `pnpm build` passed with 2,968 transformed
+  modules. PlatformIO passed at 21.5% RAM and 25.6% flash. Dead-path searches find no compatibility
+  snapshot, serializer/event, manager, route registration or old timeout symbol in production code.
+  A concurrent reset/action regression asserts both responses contain only stable boot-scoped
+  acknowledgement facts while the canonical service projection alone reports the final session;
+  the post-review simulator/controller/command/publication focus passed 63 tests before the full
+  499-test rerun.
+- **Browser/soak/physical checks:** T3 product-native preview was retried with `preview_status` and
+  `preview_open`, but both returned `Auth required`; no T3 automation is claimed. Under the user's
+  offered alternative, final acceptance used an isolated Chrome 150 CDP instance against a
+  development backend on port 18100, Vite on 15173 and temporary SQLite. At exactly 800x480, `/dev`,
+  `/car`, `/car/drive`, `/car/steering` and `/car/settings` synchronized in light and dark. Every car
+  route had no horizontal overflow and zero viewport-clipped controls; `/dev` was intentionally
+  vertically scrollable with no horizontal overflow. All four car routes were also visually
+  inspected from 800x480 production captures. A development speed PUT for 67.5 returned exactly
+  `{accepted: true, boot_id}` and Zustand converged from Socket.IO to 67.5 with no console or network
+  errors. A forced backend restart showed `Connected` → `Reconnecting` with `synchronized=false` →
+  `Connected`; boot changed from `725eed...` to `a83102...`, transient speed became invalid/0, trace
+  rows became 0, the Connected badge was true and the Reconnecting badge false. This directly
+  confirms the reported stuck-reconnecting regression is absent. After initial lazy loading, a
+  second 24-route same-document development cycle plateaued at exactly one active socket, one
+  document, 82 DOM nodes and 1,142 event listeners; repeated-batch GC heap moved 26.3 to 26.7 MB,
+  with no console/network errors. The production build transformed 2,968 modules and ran same-origin
+  on 18101. Direct loading the same ten route/theme combinations had no horizontal overflow,
+  reconnect/unavailable banners, console errors, HTTP errors or network errors. After route modules
+  loaded, the second 48-route same-document production cycle plateaued at one document, 190 nodes
+  and 998 listeners; GC heap moved 8.3 to 8.5 MB. Isolated port 8030 integration additionally proved
+  generated `0x700` ingress and `0x701` desired/observed convergence, repeated maximum-assistance
+  set, independent engine staleness, precise settings/profile events to a second Engine.IO client,
+  stale-writer winner preservation, full reconnect snapshot without trace replay, reset to a new
+  simulation session, restart to a new boot ID, durable settings/profile survival and transient
+  telemetry clearing. The Phase 8 backend soak completed 900 mixed commands in 45.02 seconds at
+  19.99/s with a deliberately stalled trace subscriber: inbox peak was 1/1,024, maximum latency
+  6.06 ms, warnings/overflow/fatal/publisher failures/drops were zero, the saturated peer was
+  disconnected, trace ended at 0/2,000 and backend RSS sampled 43.9, 45.8, 46.2 and 46.7 MiB. As
+  supporting prior-phase evidence, Phase 7's attached browser ran more than 13 minutes and included
+  two 42-second traffic windows. Independently, the user reports their opened application tabs stay
+  stable significantly beyond the former 5–10 minute crash. Real CAN TX, physical steering and
+  physical read-only checks were unavailable and not enabled.
+- **Documentation:** Updated root, coordinator, frontend, simulation, unified-controller,
+  car-frontend and assist-curve guidance to describe one controller composition, acknowledgement-only
+  development HTTP, Socket.IO/Zustand live ownership and precise Query resource ownership; appended
+  the completed cutover note to ADR 0008 and removed active documentation for compatibility
+  WebSocket/snapshot behavior.
+- **Dependencies/migrations:** None. No dependency, lockfile, SQLite schema, generated live schema,
+  custom CAN wire or firmware migration. The development HTTP response shape intentionally removes
+  superseded simulator snapshots in favor of acknowledgements.
+- **Compatibility/removal:** No compatibility live-read or second-publication path remains. Raw
+  `/ws`, `GET /api/snapshot`, snapshot-shaped development responses and all repository internals
+  used only by them are removed with explicit 404/route-absence coverage.
+- **Remaining:** None for software Phase 8. Optional physical/read-only evidence remains under
+  `docs/requires-hardware` and is not blocking; no physical TX or steering authority is granted.
+- **Next handoff:** All roadmap phases are verified. Perform the final repository review and report
+  the completed architecture, removal, verification and remaining hardware-evidence boundaries.
 
 ### 2026-07-15 — Phase 7: bounded reliability and supervised deployment verified
 

@@ -98,7 +98,7 @@ Expose at least:
 - Optional matching saved profile ID/revision.
 - Interpolation and schema versions.
 
-WebSocket snapshots remain authoritative after reconnect. A browser must be able to reconstruct
+Socket.IO snapshots remain authoritative after reconnect. A browser must be able to reconstruct
 active state without replaying earlier activation events.
 
 ## Tests

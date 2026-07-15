@@ -27,10 +27,7 @@ def create_lifespan(
         except BaseException as exc:
             service.mark_persistence_fault(str(exc))
             raise
-        publisher.set_legacy_manager(app.state.manager)
-
         def publish(execution: RuntimeExecution) -> None:
-            app.state.latest_snapshot = execution.compatibility_snapshot
             publisher.offer(execution)
 
         try:
@@ -48,7 +45,6 @@ def create_lifespan(
                 finally:
                     await asyncio.to_thread(service.close_adapter)
             raise
-        app.state.latest_snapshot = service.latest_compatibility_snapshot
         try:
             yield
         finally:

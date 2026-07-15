@@ -32,6 +32,8 @@ protocol-v1 snapshot arrives. Unknown protocol versions fail visibly. Strict Mod
 reuse the same client and listener set. If the trace view remains logically open across a transport
 reconnect, its owner re-subscribes on the new connection epoch; leaving the trace route removes the
 subscription and retains only the fixed local trace capacity.
+HTTP commands and development controls return acknowledgements only. Components never merge an
+HTTP response into live state; Socket.IO remains the sole path into Zustand.
 
 The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
 Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature

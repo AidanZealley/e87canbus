@@ -50,13 +50,13 @@ zero in the car UI.
 | 2 | [Application settings](02-application-settings.md) | Revisioned SQLite settings, API and frontend settings data flow | Phase 1 for final UI placement |
 | 3 | [Engine telemetry simulation](03-engine-telemetry-simulation.md) | RPM/oil/coolant through the normal simulation pipeline | Existing coordinator architecture |
 | 4 | [Device roles](04-device-health.md) | Source, desired/observed and emulator-control contract | Unified controller composition |
-| 5 | [Car UI foundation](05-car-ui-foundation.md) | Shared car data provider, conversions, warnings and instruments | Phases 1-4 |
+| 5 | [Car UI foundation](05-car-ui-foundation.md) | Shared Zustand/Query selectors, conversions, warnings and instruments | Phases 1-4 |
 | 6 | [Car screens](06-car-screens.md) | Overview, drive, steering and settings experiences | Phase 5 |
 | 7 | [Verification and acceptance](07-verification-and-acceptance.md) | Repository checks and 800x480 visual acceptance | Phases 1-6 |
 
 Phases 2, 3 and 4 may be implemented independently after their current-code prerequisites are
 confirmed. Their composition changes must be coordinated because each touches the FastAPI
-application and simulator snapshot contract. Phases 5 and 6 must not start against invented local
+application and live-state contract. Phases 5 and 6 must not start against invented local
 data shapes; consume the committed contracts from the earlier phases.
 
 ## Cross-phase architecture
@@ -66,7 +66,7 @@ Development controls
   -> semantic HTTP command or explicit emulator press/release
   -> single-owner simulation engine
   -> generated custom-device or simulation-only vehicle CAN frame
-  -> normal application transition and snapshot projection
+  -> normal application transition and service projection
   -> versioned Socket.IO publication
   -> Zustand current-state store
   -> overview / drive / steering / settings views
@@ -80,7 +80,7 @@ Application settings use a parallel persistence path:
   -> settings domain validation
   -> short SQLite transaction
   -> committed authoritative response
-  -> cache replacement + WebSocket invalidation for other clients
+  -> exact Query cache replacement + precise Socket.IO invalidation for other clients
 ```
 
 Keep current ownership rules intact:
@@ -89,7 +89,7 @@ Keep current ownership rules intact:
 - Synthetic telemetry enters through `SimulationProtocolRouter`; the live `ProtocolRouter` must
   not decode simulation identifiers.
 - Runtime mutation remains submitted to the bounded single-owner queue.
-- SQLite transactions never span runtime or WebSocket work.
+- SQLite transactions never span runtime or Socket.IO work.
 - React components do not manufacture backend-valid state when the backend reports unavailable.
 
 ## Public contracts introduced by the roadmap
@@ -120,14 +120,14 @@ POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/press
 POST /api/dev/simulation/devices/button-pad/buttons/{button_index}/release
 ```
 
-Snapshot additions:
+Live-state topics:
 
 - `application.engine.rpm`
 - `application.engine.oil_temperature_c`
 - `application.engine.coolant_temperature_c`
 - `devices.state` button-pad role, desired/observed and fault projection
 
-WebSocket event addition:
+Socket.IO resource event:
 
 - `resources.changed` with `resource`, `id` and `revision`
 

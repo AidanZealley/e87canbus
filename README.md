@@ -153,8 +153,8 @@ fresh synthetic F-CAN frame before each control timer until explicitly silenced.
 shows effective dimensionless simulated assistance, the last accepted command reason (or “No
 command accepted”), and watchdog state; these are an ideal simulation projection, not measured
 physical feedback. Socket.IO publication is bounded and latest-state coalesced; the frontend uses
-one Socket.IO-to-Zustand path. The backend raw WebSocket remains external-consumer compatibility
-until Phase 8 and has no repository-owned frontend consumer.
+one Socket.IO-to-Zustand path. Development HTTP controls return acknowledgements; live state is
+never duplicated in HTTP response snapshots.
 
 Operational diagnostics retain counters rather than event history: bounded inbox depth/capacity and
 latency, per-network frame/effect outcomes, bounded publisher/coalescing/drop counts, active sockets,

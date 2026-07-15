@@ -37,7 +37,7 @@ Preserve these project boundaries:
 - Runtime mutation remains ordered through the existing bounded single-owner path.
 - Synthetic engine messages remain unmistakably simulation-only and must never enter the live
   ProtocolRouter as guessed BMW definitions.
-- SQLite transactions do not span runtime commands or WebSocket broadcasts.
+- SQLite transactions do not span runtime commands or Socket.IO publication.
 - Missing/stale telemetry remains explicit and must never be presented as a convincing zero.
 - Draft, saved and active steering curve state remain distinct.
 - Device connection/observation is projected only from adapter evidence; controller desire and a

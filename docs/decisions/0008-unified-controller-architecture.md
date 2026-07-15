@@ -102,3 +102,11 @@ does not accept ADR 0007, select a BMW identifier or authorize physical steering
 - Generic brokers, runtime event registration, event sourcing, a separate simulator state owner
   and a full-car simulation are rejected. They add ownership or retention complexity without
   improving the required controller behavior.
+
+## Implementation note — 2026-07-15
+
+Phase 8 completed the planned cutover. The raw `/ws` endpoint, `GET /api/snapshot`, simulator
+response snapshots, compatibility connection manager and second publication queue are removed.
+Current browser live state flows only from Socket.IO into Zustand; durable HTTP resources remain in
+TanStack Query. Development HTTP actions return only `accepted` and the stable process `boot_id`,
+while revisioned/session-scoped authority arrives through Socket.IO rather than an HTTP facade.
