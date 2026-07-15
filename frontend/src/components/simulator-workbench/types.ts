@@ -95,15 +95,13 @@ export type SnapshotEvent = {
 
 export type SimulatorEvent = SnapshotEvent | CanTraceEntry
 
-export type SteeringProfileCatalogChangedEvent = {
-  type: "steering_profile_catalog_changed"
-}
-
-export type ApplicationSettingsChangedEvent = {
-  type: "application_settings_changed"
+export type ResourceChangedEvent = {
+  type: "resources.changed"
+  resource: "settings" | "steering_profile"
+  id: string | null
+  revision: number
 }
 
 export type SimulatorSocketEvent =
   | SimulatorEvent
-  | SteeringProfileCatalogChangedEvent
-  | ApplicationSettingsChangedEvent
+  | ResourceChangedEvent

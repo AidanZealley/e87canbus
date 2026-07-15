@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 
 import {
   activateSteeringCurve,
-  listSteeringProfiles,
-  steeringProfilesQueryKey,
+  steeringProfilesQueryOptions,
   type ActiveSteeringCurve,
   type SteeringCurveDefinition,
 } from "@/api/steering"
@@ -75,10 +74,7 @@ const LoadedSteeringEditor = ({
   initialActive: ActiveSteeringCurve
 }) => {
   const liveActive = application.active_steering_curve ?? initialActive
-  const profilesQuery = useQuery({
-    queryKey: steeringProfilesQueryKey,
-    queryFn: listSteeringProfiles,
-  })
+  const profilesQuery = useQuery(steeringProfilesQueryOptions())
   const profiles = profilesQuery.data ?? []
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     null
@@ -89,8 +85,6 @@ const LoadedSteeringEditor = ({
   const [draftBase, setDraftBase] = useState<SteeringCurveDefinition>(
     initialActive.definition
   )
-  const [acknowledgedActive, setAcknowledgedActive] =
-    useState<ActiveSteeringCurve | null>(null)
   const [pending, setPending] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const [activationMessage, setActivationMessage] = useState<string | null>(
@@ -101,11 +95,7 @@ const LoadedSteeringEditor = ({
     string | null | undefined
   >()
 
-  const active =
-    acknowledgedActive !== null &&
-    acknowledgedActive.activation_revision > liveActive.activation_revision
-      ? acknowledgedActive
-      : liveActive
+  const active = liveActive
 
   const selectedProfile =
     profiles.find((profile) => profile.profile_id === selectedProfileId) ?? null
@@ -146,13 +136,12 @@ const LoadedSteeringEditor = ({
     setLastError(null)
     setActivationMessage(null)
     try {
-      const response = await activateSteeringCurve(
+      await activateSteeringCurve(
         draft,
         draftMatchesSelected ? (selectedProfile ?? undefined) : undefined
       )
-      setAcknowledgedActive(response)
       setActivationMessage(
-        "Draft is active. The saved profile was not changed."
+        "Activation accepted. Live state will confirm the active curve."
       )
     } catch (error) {
       setLastError(

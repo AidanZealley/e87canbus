@@ -113,7 +113,7 @@ The conflict envelope includes `current_revision`.
 After commit, broadcast:
 
 ```json
-{"type": "application_settings_changed"}
+{"type": "resources.changed", "resource": "settings", "id": null, "revision": 2}
 ```
 
 Do not broadcast validation, conflict or persistence failures. The response contains the complete
@@ -130,8 +130,8 @@ Create a typed settings API module with:
 - Compiled default settings matching the backend seed.
 
 On successful PUT, replace the query cache with the response. Extend WebSocket event handling to
-invalidate the settings query on `application_settings_changed`, allowing another open display to
-refetch.
+invalidate the settings query on the exact `resources.changed` settings event, allowing another
+open display to refetch.
 
 Later car screens consume an effective settings value:
 
@@ -192,4 +192,3 @@ Frontend boundary:
 - API and WebSocket behavior allow multiple open displays to converge.
 - Frontend consumers can distinguish authoritative settings from fallback defaults.
 - Theme remains exclusively owned by the existing browser theme provider.
-

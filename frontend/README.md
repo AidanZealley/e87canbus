@@ -77,9 +77,9 @@ seed defaults and stable TanStack Query options. `src/lib/application-settings-q
 effective value that distinguishes authoritative data from defaults and reports a separate
 persistence-fault flag. Saving is unavailable until an authoritative revision exists; a successful
 full-document update replaces the cache with the committed response, while a failed update leaves
-the previous authoritative value intact. The simulator WebSocket invalidates this query on
-`application_settings_changed` so other open displays refetch. Unsaved form drafts and theme choice
-are not stored in the settings query cache.
+the previous authoritative value intact. The temporary simulator WebSocket invalidates this query
+on the precise `resources.changed` settings event so other open displays refetch. Unsaved form
+drafts and theme choice are not stored in the settings query cache.
 
 ## In-car screens
 

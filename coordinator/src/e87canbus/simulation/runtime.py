@@ -13,7 +13,7 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import SteeringCommandReason
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CanNetworkConfig, CustomCanIds, simulator_config
-from e87canbus.features.steering import CurveInterpolation, SteeringCurveDefinition
+from e87canbus.features.steering import CurveInterpolation
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -30,10 +30,13 @@ from e87canbus.runtime import (
     CoordinatorKernel,
     KernelStarted,
     ReceivedCanFrame,
+    SetMaximumAssistance,
+    SetSteeringMode,
     ShutdownRequested,
     SteeringActuatorFailed,
     TimerElapsed,
 )
+from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
     SimulatedNeoTrellisNode,
@@ -168,13 +171,6 @@ class ResetSimulation:
     pass
 
 
-@dataclass(frozen=True)
-class ActivateCurve:
-    definition: SteeringCurveDefinition
-    saved_profile_id: str | None = None
-    saved_profile_revision: int | None = None
-
-
 SimulationCommand = (
     PressButton
     | ReleaseButton
@@ -190,7 +186,10 @@ SimulationCommand = (
     | SilenceCoolantTemperature
     | SetDeviceStatus
     | ResetSimulation
-    | ActivateCurve
+)
+
+SemanticControllerCommand = (
+    ActivateSteeringCurve | SetMaximumAssistance | SetSteeringMode
 )
 
 
@@ -200,7 +199,7 @@ class SimulationResult:
     events: tuple[dict[str, Any], ...]
 
 
-class SimulationSessionFailed(RuntimeError):
+class SimulationSessionFailed(ControllerWorkUnavailable):
     """Raised when a normal command targets a terminal simulation session."""
 
 
@@ -440,15 +439,6 @@ class SimulatedControllerRuntime:
                     else device
                     for device in self._devices
                 )
-            case ActivateCurve(definition, saved_profile_id, saved_profile_revision):
-                self._dispatch(
-                    ActivateSteeringCurve(
-                        definition,
-                        saved_profile_id,
-                        saved_profile_revision,
-                        requested_at=self._clock(),
-                    )
-                )
             case ResetSimulation():
                 replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
@@ -478,6 +468,21 @@ class SimulatedControllerRuntime:
                 events=(snapshot_event(result.snapshot, include_trace=False), *result.events),
             )
         return result
+
+    def execute_controller_command(
+        self,
+        command: SemanticControllerCommand,
+    ) -> SimulationResult:
+        """Run semantic controller intent through the same kernel/effect path."""
+
+        self._require_started()
+        if self.kernel.health.fatal:
+            raise SimulationSessionFailed(
+                "simulation session has fatal kernel health; reset required"
+            )
+        before_sequence = self.topology.latest_sequence
+        self._dispatch(command)
+        return self._process_pending(before_sequence, snapshot_trace=False)
 
     def shutdown(self) -> SimulationResult:
         self._require_started()

@@ -32,11 +32,13 @@ from e87canbus.runtime import (
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
+    SetMaximumAssistance,
+    SetSteeringMode,
     ShutdownRequested,
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.service import RuntimeExecution, RuntimeInputSink
+from e87canbus.service import ControllerCommandResult, RuntimeExecution, RuntimeInputSink
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +58,8 @@ CONTROLLER_INPUT_TYPES = (
     InboxOverflowed,
     ShutdownRequested,
     ActivateSteeringCurve,
+    SetMaximumAssistance,
+    SetSteeringMode,
 )
 
 
@@ -290,7 +294,17 @@ class LiveControllerRuntime:
                     queue_latency_s,
                 )
         execution = self._dispatch(work)
-        return execution or self._current_execution(None)
+        completed = execution or self._current_execution(None)
+        if isinstance(work, (ActivateSteeringCurve, SetMaximumAssistance, SetSteeringMode)):
+            return RuntimeExecution(
+                ControllerCommandResult(
+                    self._kernel.diagnostics().revision,
+                    self._kernel.health.fatal,
+                ),
+                completed.compatibility_snapshot,
+                completed.events,
+            )
+        return completed
 
     def timer(self, now: float) -> RuntimeExecution | None:
         overflow = self._overflow.kernel_input

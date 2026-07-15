@@ -6,7 +6,6 @@ from fastapi import APIRouter, Query, Request
 
 from e87canbus.api.internal import steering
 from e87canbus.api.models.steering import (
-    ActivateCurveRequest,
     CreateProfileRequest,
     UpdateProfileRequest,
 )
@@ -66,16 +65,5 @@ async def delete_steering_profile(
 
 @router.get("/curve-state")
 async def steering_curve_state(request: Request) -> dict[str, Any]:
-    return steering.curve_state_to_dict(request.app.state.latest_snapshot)
-
-
-@router.post("/curve-state/activate")
-async def activate_steering_curve(
-    request: Request,
-    body: ActivateCurveRequest,
-) -> dict[str, Any]:
-    return await steering.activate_curve(
-        request.app,
-        request.app.state.profile_repository,
-        body,
-    )
+    application = request.app.state.controller_service.snapshot().application
+    return steering.curve_state_to_dict(application)

@@ -134,16 +134,18 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
         "/api/steering/profiles",
         json={"name": "Smooth", "definition": smooth},
     )
-    activated = client.post(
-        "/api/steering/curve-state/activate",
+    activated = client.put(
+        "/api/commands/steering-curve",
         json={"definition": smooth},
     )
+    active = client.get("/api/steering/curve-state")
 
     assert saved.status_code == 201
     assert saved.json()["definition"] == smooth
     assert activated.status_code == 200
-    assert activated.json()["definition"] == smooth
-    assert activated.json()["supported_interpolations"] == [
+    assert set(activated.json()) == {"accepted", "boot_id", "revision"}
+    assert active.json()["definition"] == smooth
+    assert active.json()["supported_interpolations"] == [
         "linear-v1",
         "monotone-cubic-v1",
     ]
@@ -159,8 +161,8 @@ def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejec
         )
     ) as client:
         before = client.get("/api/steering/curve-state").json()
-        response = client.post(
-            "/api/steering/curve-state/activate",
+        response = client.put(
+            "/api/commands/steering-curve",
             json={"definition": definition_json(interpolation="monotone-cubic-v1")},
         )
         after = client.get("/api/steering/curve-state").json()
@@ -304,68 +306,68 @@ def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
     initial_curve = client.get("/api/steering/curve-state").json()
     applied_definition = definition_json(second_assistance=850)
 
-    applied = client.post(
-        "/api/steering/curve-state/activate",
+    applied = client.put(
+        "/api/commands/steering-curve",
         json={"definition": applied_definition},
     )
+    active_after_apply = client.get("/api/steering/curve-state").json()
     catalog_after_apply = client.get("/api/steering/profiles").json()["profiles"]
     saved = create_profile(client, "Saved only")
     curve_after_save = client.get("/api/steering/curve-state").json()
 
     assert applied.status_code == 200
-    assert applied.json()["definition"] == applied_definition
-    assert applied.json()["activation_revision"] == initial_curve["activation_revision"] + 1
-    assert applied.json()["saved_profile_id"] is None
+    assert applied.json()["accepted"] is True
+    assert active_after_apply["definition"] == applied_definition
+    assert (
+        active_after_apply["activation_revision"]
+        == initial_curve["activation_revision"] + 1
+    )
+    assert active_after_apply["saved_profile_id"] is None
     assert len(catalog_after_apply) == 1
     assert saved["definition"] == applied_definition
-    assert curve_after_save == applied.json()
+    assert curve_after_save == active_after_apply
 
 
-@pytest.mark.parametrize("mismatch", ["revision", "definition"])
-def test_false_saved_provenance_is_rejected(client: TestClient, mismatch: str) -> None:
+def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     saved = create_profile(client)
-    request = {
-        "definition": saved["definition"],
-        "saved_profile_id": saved["profile_id"],
-        "saved_profile_revision": saved["revision"],
-    }
-    if mismatch == "revision":
-        request["saved_profile_revision"] = 99
-    else:
-        request["definition"] = definition_json(second_assistance=800)
     before = client.get("/api/steering/curve-state").json()
 
-    response = client.post("/api/steering/curve-state/activate", json=request)
+    response = client.post(
+        "/api/commands/activate-steering-profile",
+        json={"profile_id": saved["profile_id"], "expected_revision": 99},
+    )
 
     assert response.status_code == 409
-    assert response.json()["error"]["code"] == "saved_provenance_mismatch"
+    assert response.json()["error"]["code"] == "profile_revision_conflict"
     assert response.json()["error"]["current_revision"] == 1
     assert client.get("/api/steering/curve-state").json() == before
 
 
-def test_matching_saved_provenance_is_published(client: TestClient) -> None:
+def test_matching_saved_profile_is_activated(client: TestClient) -> None:
     saved = create_profile(client)
 
     response = client.post(
-        "/api/steering/curve-state/activate",
+        "/api/commands/activate-steering-profile",
         json={
-            "definition": saved["definition"],
-            "saved_profile_id": saved["profile_id"],
-            "saved_profile_revision": saved["revision"],
+            "profile_id": saved["profile_id"],
+            "expected_revision": saved["revision"],
         },
     )
+    active = client.get("/api/steering/curve-state").json()
 
     assert response.status_code == 200
-    assert response.json()["saved_profile_id"] == saved["profile_id"]
-    assert response.json()["saved_profile_revision"] == 1
+    assert response.json()["accepted"] is True
+    assert active["saved_profile_id"] == saved["profile_id"]
+    assert active["saved_profile_revision"] == 1
 
 
-def test_partial_saved_provenance_is_validation_error(client: TestClient) -> None:
+def test_saved_profile_command_rejects_unknown_fields(client: TestClient) -> None:
     response = client.post(
-        "/api/steering/curve-state/activate",
+        "/api/commands/activate-steering-profile",
         json={
+            "profile_id": "11111111-1111-4111-8111-111111111111",
+            "expected_revision": 1,
             "definition": definition_json(),
-            "saved_profile_id": "11111111-1111-4111-8111-111111111111",
         },
     )
 
@@ -421,15 +423,21 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     app.state.manager = manager
 
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        first = pool.submit(client.post, "/api/buttons/0/press")
+        first = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        )
         assert manager.entered.wait(timeout=1.0)
-        second = pool.submit(client.post, "/api/buttons/0/release")
+        second = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+        )
         deadline = time.monotonic() + 1.0
         while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
         assert app.state.controller_service.inbox_depth == 1
-        overloaded = client.post(
-            "/api/steering/curve-state/activate",
+        overloaded = client.put(
+            "/api/commands/steering-curve",
             json={"definition": definition_json(second_assistance=850)},
         )
         manager.release.set()
@@ -463,16 +471,17 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
 
     with TestClient(app) as client:
         saved = create_profile(client)
-        speed = client.post("/api/vehicle/speed", json={"speed_kph": 10.0})
+        speed = client.put(
+            "/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0}
+        )
         assert speed.status_code == 200
         with client.websocket_connect("/ws") as websocket:
             initial = websocket.receive_json()
             activation = client.post(
-                "/api/steering/curve-state/activate",
+                "/api/commands/activate-steering-profile",
                 json={
-                    "definition": saved["definition"],
-                    "saved_profile_id": saved["profile_id"],
-                    "saved_profile_revision": saved["revision"],
+                    "profile_id": saved["profile_id"],
+                    "expected_revision": saved["revision"],
                 },
             )
             fatal_publication = websocket.receive_json()
@@ -483,8 +492,8 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     assert initial["snapshot"]["fatal"] is False
     assert activation.status_code == 503
     assert activation.json()["error"] == {
-        "code": "activation_effect_failed",
-        "message": "curve activation committed but its immediate runtime effect failed",
+        "code": "controller_failed",
+        "message": "controller entered a failed state while processing the command",
     }
     assert fetched.status_code == 200
     assert fetched.json() == saved
@@ -504,8 +513,8 @@ def test_websocket_reconnect_snapshot_and_catalog_invalidation_are_authoritative
     client: TestClient,
 ) -> None:
     applied_definition = definition_json(second_assistance=850)
-    applied = client.post(
-        "/api/steering/curve-state/activate",
+    applied = client.put(
+        "/api/commands/steering-curve",
         json={"definition": applied_definition},
     )
     assert applied.status_code == 200
@@ -521,4 +530,9 @@ def test_websocket_reconnect_snapshot_and_catalog_invalidation_are_authoritative
         == applied_definition
     )
     assert created.status_code == 201
-    assert invalidation == {"type": "steering_profile_catalog_changed"}
+    assert invalidation == {
+        "type": "resources.changed",
+        "resource": "steering_profile",
+        "id": created.json()["profile_id"],
+        "revision": 1,
+    }

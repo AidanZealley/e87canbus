@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
+from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.settings import UpdateApplicationSettingsRequest
 from e87canbus.features.application_settings import (
     ApplicationSettings,
@@ -74,7 +75,12 @@ async def update_settings(
     committed = await repository_operation(
         lambda: repository.update_settings(request.expected_revision, candidate)
     )
-    await app.state.manager.broadcast(({"type": "application_settings_changed"},))
+    await publish_resource_change(
+        app,
+        resource="settings",
+        resource_id=None,
+        revision=committed.revision,
+    )
     return settings_to_dict(committed)
 
 

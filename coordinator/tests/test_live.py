@@ -16,7 +16,7 @@ from e87canbus.live import InboxOverflow, read_frames_into_queue
 from e87canbus.protocol.can import CanFrame
 from e87canbus.runtime import (
     CanReaderFailed,
-    KernelInput,
+    ControllerInput,
     ReceivedCanFrame,
 )
 from e87canbus.service import ControllerServiceError, ControllerServiceLifecycle
@@ -119,7 +119,7 @@ class StubbornSocketCanBus(FakeSocketCanBus):
 
 def test_reader_timestamps_frame_at_receive_and_stops() -> None:
     bus = BlockingFakeBus()
-    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox: queue.Queue[ControllerInput] = queue.Queue()
     stop = threading.Event()
     overflow = InboxOverflow()
     clock = MutableClock(12.5)
@@ -144,7 +144,7 @@ def test_reader_recovers_after_one_receive_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     bus = BlockingFakeBus()
-    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox: queue.Queue[ControllerInput] = queue.Queue()
     stop = threading.Event()
     frame = CanFrame(0x123, b"\x01")
     reader = threading.Thread(
@@ -168,7 +168,7 @@ def test_reader_recovers_after_one_receive_error(
 
 def test_repeated_reader_errors_become_one_kernel_input_and_reader_exits() -> None:
     bus = BlockingFakeBus()
-    inbox: queue.Queue[KernelInput] = queue.Queue()
+    inbox: queue.Queue[ControllerInput] = queue.Queue()
     stop = threading.Event()
     for _ in range(live.MAX_CONSECUTIVE_READER_ERRORS):
         bus.received.put(OSError("receive failed"))

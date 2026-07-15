@@ -74,7 +74,10 @@ test("settings WebSocket event invalidates authoritative settings", async () => 
 
   assert.equal(
     handleResourceInvalidationEvent(queryClient, {
-      type: "application_settings_changed",
+      type: "resources.changed",
+      resource: "settings",
+      id: null,
+      revision: 2,
     }),
     true
   )

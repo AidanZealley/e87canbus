@@ -25,7 +25,7 @@ simulation.
 |---:|---|---|---|
 | 1 — Runtime contracts | Verified | 2026-07-15 | Architecture, runtime contracts and regression baseline complete |
 | 2 — Unified composition | Verified | 2026-07-15 | One bounded controller/API lifecycle with validated adapter selection |
-| 3 — Commands and resources | Not started | — | Semantic commands and precise durable resources |
+| 3 — Commands and resources | Verified | 2026-07-15 | Typed commands, development actions and precise durable resources complete |
 | 4 — Socket.IO publication | Not started | — | Fixed topics, reconnect snapshot and bounded delivery |
 | 5 — Frontend data ownership | Not started | — | Zustand live state and TanStack Query HTTP ownership |
 | 6 — Simulation/device convergence | Not started | — | Physical, emulated and observer pathways |
@@ -34,12 +34,13 @@ simulation.
 
 ## Current handoff
 
-Start Phase 3 through `ControllerService.submit`: define typed, idempotent semantic commands and
-precise durable-resource boundaries without exposing a kernel or runtime adapter to routes. Live
-mode currently registers health/settings only; Phase 3 owns making its command/resource surface
-precise. Preserve the fresh service `boot_id`, separate simulation `session_id`, synchronous ordered
-effect execution, deny-by-default live output and Phase-8-owned raw simulator transport. Phase 7
-still owns the recorded effect/actuator-failure health commit gap.
+Start Phase 4 from `ControllerCommandResult`, `ResourceChangedEvent` and the service snapshot: add
+one bounded Socket.IO publication path with fixed topics, complete reconnect snapshots and
+boot-scoped revisions. Preserve the exact command acknowledgement revision, separate simulation
+`session_id`, synchronous ordered effect execution, deny-by-default live output and the remaining
+raw `/api/snapshot` plus `/ws` read compatibility until their Phase 5/8 consumers move. Phase 7
+still owns the recorded effect/actuator-failure health commit gap. The obsolete `KernelInput` alias
+is gone; use `ControllerInput` directly.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -68,6 +69,63 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 3: typed commands and precise durable resources
+
+- **Status:** Verified
+- **Scope:** Replaced simulator-owned HTTP mutations with typed semantic commands and explicit
+  development-adapter actions, made settings/profile invalidation precise, and prepared frontend
+  HTTP/query ownership. Socket.IO, Zustand live state and physical output remain later phases.
+- **Changed:** Added idempotent `SetMaximumAssistance` and `SetSteeringMode` controller inputs plus
+  the existing typed curve activation path to both live and simulated adapters. Added
+  `PUT /api/commands/maximum-assistance`, `PUT /api/commands/steering-mode`,
+  `POST /api/commands/activate-steering-profile` and the current draft-editor extension
+  `PUT /api/commands/steering-curve`. Commands submit exactly once through the bounded service,
+  wait with a finite configured timeout and return only `accepted`, `boot_id` and their matched
+  commit revision. Replaced every simulator mutation URL with `/api/dev/simulation/*`, registered
+  explicit unavailable-adapter failures in live mode, and removed the old reset/button/vehicle,
+  curve-activation and simulated `ActivateCurve` paths rather than retaining aliases. Settings and
+  profile CRUD continue to return complete revisioned SQLite resources; successful mutations now
+  emit typed `resources.changed` values with exact resource, ID and revision. The frontend now
+  sends all HTTP through the shared API client, uses domain-specific query keys/options, replaces
+  initiating mutation caches precisely, handles exact resource invalidation and consumes small
+  command acknowledgements. Removed the final `KernelInput` compatibility alias and migrated its
+  remaining tests. Generic steering reads now serialize only the canonical service
+  `ApplicationSnapshot` and have no simulator compatibility-type dependency.
+- **Decisions:** Kept saved-profile activation distinct from unsaved draft activation so the server
+  resolves and verifies saved identity/revision without accepting client-claimed provenance.
+  `ControllerCommandResult` carries the matched revision and failure state from the owner, avoiding
+  a later snapshot race. Steering mode remains an independent desired value beneath temporary
+  maximum assistance. Current settings are display configuration and profile rows are inert until
+  an explicit activation command, so resource CRUD has no runtime configuration to reconcile at
+  startup. Development routes remain callable in live composition only to return the stable
+  `simulation_adapter_unavailable` problem; they cannot reach an absent adapter.
+- **Verification:** Full `uv run pytest -q`: 482 passed with one existing Starlette/httpx
+  deprecation warning. `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus`, `uv run
+  python scripts/generate_custom_protocol.py --check`, `bash -n scripts/*.sh` and `git diff
+  --check`: passed. `pnpm test`: 45 unit and 55 component tests passed. `pnpm lint`, `pnpm
+  typecheck` and `pnpm build`: passed; Vite 8.1.4 transformed 2,936 modules.
+- **Browser/soak/physical checks:** No browser or soak run was required for this transport/resource
+  phase. FastAPI/WebSocket tests covered exact command bodies, strict validation, bounded overload,
+  timeout ambiguity, exact typed HTTP submissions, repeat-safe command topics/effects, accepted
+  live-mode semantic commands, unavailable live simulation capability, revision conflicts,
+  precise invalidations and virtual-CAN button traversal. Real CAN TX was unavailable and not
+  enabled; no physical CAN or steering evidence was claimed.
+- **Documentation:** Updated coordinator, frontend, simulator and prior feature API guidance for
+  the command/development namespaces and `resources.changed`; updated this status/handoff record.
+- **Dependencies/migrations:** None. No dependency, lockfile, generated protocol or SQLite schema
+  changed. Added the positive `runtime_command_timeout_s` configuration value; existing SQLite v2
+  settings/profile data remains valid without migration.
+- **Compatibility/removal:** Removed all superseded HTTP mutation endpoints, the simulated
+  activation wrapper and the internal `KernelInput` alias in this phase. The raw simulated
+  `GET /api/snapshot`, `/ws` snapshot/trace stream and compatibility snapshot responses from
+  development actions remain only for current live-state consumers; Phase 5 migrates their
+  frontend ownership and Phase 8 removes them.
+- **Remaining:** None for Phase 3. Phase 4 must transport live topics and `resources.changed` over
+  bounded Socket.IO without turning socket client events into business commands.
+- **Next handoff:** Build Phase 4 publication from service commits and exact resource changes. Treat
+  command acknowledgements as processing receipts, not authoritative state, and preserve their
+  matched boot/revision semantics.
 
 ### 2026-07-15 — Phase 2: unified controller and API composition
 

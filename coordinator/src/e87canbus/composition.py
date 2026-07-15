@@ -12,8 +12,15 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_config
 from e87canbus.features.steering import CurveInterpolation
 from e87canbus.live import LiveControllerRuntime
-from e87canbus.runtime import SUPPORTED_STEERING_CURVE_INTERPOLATIONS, DiagnosticSnapshot
+from e87canbus.runtime import (
+    SUPPORTED_STEERING_CURVE_INTERPOLATIONS,
+    ActivateSteeringCurve,
+    DiagnosticSnapshot,
+    SetMaximumAssistance,
+    SetSteeringMode,
+)
 from e87canbus.service import (
+    ControllerCommandResult,
     ControllerMode,
     ControllerRuntimeAdapter,
     ControllerService,
@@ -22,7 +29,6 @@ from e87canbus.service import (
 )
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.runtime import (
-    ActivateCurve,
     PressButton,
     ReleaseButton,
     ResetSimulation,
@@ -267,7 +273,12 @@ _SIMULATION_COMMAND_TYPES = (
     SilenceCoolantTemperature,
     SetDeviceStatus,
     ResetSimulation,
-    ActivateCurve,
+)
+
+_SEMANTIC_CONTROLLER_COMMAND_TYPES = (
+    ActivateSteeringCurve,
+    SetMaximumAssistance,
+    SetSteeringMode,
 )
 
 
@@ -284,10 +295,21 @@ class _SimulatedRuntimeAdapter:
         return self._execution(self._runtime.start())
 
     def execute(self, work: object) -> RuntimeExecution:
-        if not isinstance(work, _SIMULATION_COMMAND_TYPES):
-            raise TypeError(f"unsupported simulated controller work: {work!r}")
-        command: SimulationCommand = work
-        return self._execution(self._runtime.execute(command))
+        if isinstance(work, _SIMULATION_COMMAND_TYPES):
+            command: SimulationCommand = work
+            return self._execution(self._runtime.execute(command))
+        if isinstance(work, _SEMANTIC_CONTROLLER_COMMAND_TYPES):
+            result = self._runtime.execute_controller_command(work)
+            execution = self._execution(result)
+            return RuntimeExecution(
+                ControllerCommandResult(
+                    result.snapshot.revision,
+                    result.snapshot.fatal,
+                ),
+                execution.compatibility_snapshot,
+                execution.events,
+            )
+        raise TypeError(f"unsupported simulated controller work: {work!r}")
 
     def timer(self, now: float) -> RuntimeExecution | None:
         try:

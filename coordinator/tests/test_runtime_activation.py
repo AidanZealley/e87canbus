@@ -32,7 +32,6 @@ from e87canbus.runtime import (
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 from e87canbus.simulation.runtime import (
-    ActivateCurve,
     RunControlTimer,
     SetVehicleSpeed,
     SimulatedControllerRuntime,
@@ -106,7 +105,9 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
 
     engine.execute(SetVehicleSpeed(speed_kph))
     engine.execute(RunControlTimer(1.0))
-    result = engine.execute(ActivateCurve(smooth))
+    result = engine.execute_controller_command(
+        ActivateSteeringCurve(smooth, requested_at=1.0)
+    )
     serialized = snapshot_to_dict(result.snapshot, include_trace=False)
 
     assert result.snapshot.steering_controller.effective_assistance == pytest.approx(expected)

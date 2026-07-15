@@ -130,8 +130,8 @@ describe("SteeringCurveEditor", () => {
           definition: SteeringCurveDefinition
         }
         requests.push({ url, method, definition: body.definition })
-        if (url.endsWith("/api/steering/curve-state/activate")) {
-          return jsonResponse(active(body.definition, 2))
+        if (url.endsWith("/api/commands/steering-curve")) {
+          return commandResponse()
         }
         throw new Error(`Unexpected request: ${method} ${url}`)
       })
@@ -143,13 +143,14 @@ describe("SteeringCurveEditor", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Apply draft" }))
 
-    expect(await screen.findByText("Active · r2")).toBeTruthy()
-    expect(screen.getByText("Draft matches active")).toBeTruthy()
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(screen.getByText("Active · r1")).toBeTruthy()
+    expect(screen.getByText("Draft changed")).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "Use linear draft" })
     ).toBeTruthy()
     expect(requests).toHaveLength(1)
-    expect(requests[0]?.url).toMatch(/\/curve-state\/activate$/)
+    expect(requests[0]?.url).toMatch(/\/api\/commands\/steering-curve$/)
     expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
     expect(
       requests.some((request) => request.url.endsWith("/steering/profiles"))
@@ -219,9 +220,9 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]?.definition?.interpolation).toBe("monotone-cubic-v1")
-    expect(requests.some((request) => request.url.endsWith("/activate"))).toBe(
-      false
-    )
+    expect(
+      requests.some((request) => request.url.includes("/api/commands/"))
+    ).toBe(false)
   })
 
   it("keeps Apply and Save as separate operations and evaluates active separately", async () => {
@@ -236,11 +237,8 @@ describe("SteeringCurveEditor", () => {
         if (url.endsWith("/api/steering/profiles") && method === "GET") {
           return jsonResponse({ profiles: [saved] })
         }
-        if (url.endsWith("/api/steering/curve-state/activate")) {
-          const request = JSON.parse(String(init?.body)) as {
-            definition: SteeringCurveDefinition
-          }
-          return jsonResponse(active(request.definition, 2))
+        if (url.endsWith("/api/commands/steering-curve")) {
+          return commandResponse()
         }
         if (url.includes(`/api/steering/profiles/${saved.profile_id}`)) {
           const request = JSON.parse(String(init?.body)) as {
@@ -269,7 +267,7 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() =>
       expect(
-        requests.filter((request) => request.url.endsWith("/activate"))
+        requests.filter((request) => request.url.includes("/api/commands/"))
       ).toHaveLength(1)
     )
     expect(
@@ -292,7 +290,7 @@ describe("SteeringCurveEditor", () => {
       ).toHaveLength(1)
     )
     expect(
-      requests.filter((request) => request.url.endsWith("/activate"))
+      requests.filter((request) => request.url.includes("/api/commands/"))
     ).toHaveLength(1)
   })
 
@@ -410,13 +408,11 @@ describe("SteeringCurveEditor", () => {
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([input]) =>
-          String(input).endsWith("/activate")
+          String(input).includes("/api/commands/")
         )
       ).toHaveLength(1)
     )
-    resolveActivation?.(
-      activeResponse(definition([1000, 800, 780, 670, 380, 0, 0, 0]), 2)
-    )
+    resolveActivation?.(commandResponse())
     await waitFor(() => expect(screen.queryByText("Applying…")).toBeNull())
   })
 
@@ -485,7 +481,7 @@ describe("SteeringCurveEditor", () => {
       )
     ).toBe(true)
     expect(
-      requests.filter((request) => request.url.endsWith("/activate"))
+      requests.filter((request) => request.url.includes("/api/commands/"))
     ).toHaveLength(0)
   })
 
@@ -543,5 +539,5 @@ describe("SteeringCurveEditor", () => {
   })
 })
 
-const activeResponse = (value: SteeringCurveDefinition, revision: number) =>
-  jsonResponse(active(value, revision))
+const commandResponse = () =>
+  jsonResponse({ accepted: true, boot_id: "test-boot", revision: 2 })

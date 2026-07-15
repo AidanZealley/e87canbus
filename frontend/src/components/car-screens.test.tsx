@@ -259,9 +259,7 @@ it("keeps steering draft local, survives active updates and confirms one provena
         return jsonResponse({ profiles: [profile(), profile("Wet track")] })
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>
       requests.push({ url, method, body })
-      return jsonResponse(
-        active(body.definition as SteeringCurveDefinition, 2, null)
-      )
+      return jsonResponse({ accepted: true, boot_id: "test-boot", revision: 2 })
     })
   )
   const view = renderScreen(<CarSteeringEditor />)
@@ -295,9 +293,10 @@ it("keeps steering draft local, survives active updates and confirms one provena
   fireEvent.click(screen.getByRole("button", { name: "Apply" }))
   fireEvent.click(screen.getByRole("button", { name: "Confirm activation" }))
   await waitFor(() => expect(requests).toHaveLength(1))
-  expect(requests[0]?.url).toMatch(/curve-state\/activate$/)
-  expect(requests[0]?.body?.saved_profile_id).toBeNull()
-  expect(requests[0]?.body?.saved_profile_revision).toBeNull()
+  expect(requests[0]?.url).toMatch(/api\/commands\/steering-curve$/)
+  expect(requests[0]?.body).toEqual({
+    definition: definition([1000, 800, 780, 670, 380, 0, 0, 0]),
+  })
   expect(requests.some((request) => request.url.endsWith("/profiles"))).toBe(
     false
   )

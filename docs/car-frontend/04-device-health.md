@@ -77,7 +77,7 @@ Rules:
 Add:
 
 ```text
-PUT /api/simulation/devices/{device_id}/status
+PUT /api/dev/simulation/devices/{device_id}/status
 ```
 
 Body:

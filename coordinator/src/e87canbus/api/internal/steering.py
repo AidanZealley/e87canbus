@@ -9,13 +9,13 @@ from typing import Any, TypeVar
 from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
-from e87canbus.api.internal.simulation import submit
+from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.steering import (
-    ActivateCurveRequest,
     CreateProfileRequest,
     SteeringCurveDefinitionRequest,
     UpdateProfileRequest,
 )
+from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.features.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
@@ -29,12 +29,6 @@ from e87canbus.features.steering import (
     SteeringCurvePoint,
     StoredSteeringProfile,
     validate_steering_profile_id,
-)
-from e87canbus.runtime import UnsupportedSteeringCurveInterpolation
-from e87canbus.simulation.runtime import (
-    ActivateCurve,
-    SimulationSessionFailed,
-    SimulatorSnapshot,
 )
 
 T = TypeVar("T")
@@ -55,7 +49,6 @@ def definition_from_request(
         )
     except ValueError as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
-
 
 def definition_to_dict(definition: SteeringCurveDefinition) -> dict[str, Any]:
     return {
@@ -82,18 +75,18 @@ def profile_to_dict(profile: StoredSteeringProfile) -> dict[str, Any]:
     }
 
 
-def curve_state_to_dict(snapshot: SimulatorSnapshot) -> dict[str, Any]:
-    active = snapshot.application.active_steering_curve
+def curve_state_to_dict(application: ApplicationSnapshot) -> dict[str, Any]:
+    active = application.active_steering_curve
     return {
         "definition": definition_to_dict(active.definition),
         "fingerprint": active.fingerprint,
         "activation_revision": active.activation_revision,
-        "status": snapshot.application.steering_curve_activation_status.value,
+        "status": application.steering_curve_activation_status.value,
         "saved_profile_id": active.saved_profile_id,
         "saved_profile_revision": active.saved_profile_revision,
         "supported_interpolations": [
             interpolation.value
-            for interpolation in snapshot.application.supported_steering_curve_interpolations
+            for interpolation in application.supported_steering_curve_interpolations
         ],
     }
 
@@ -112,7 +105,12 @@ async def create_profile(
     profile = await repository_operation(
         lambda: repository.create_profile(request.name, definition)
     )
-    await publish_profile_catalog_changed(app)
+    await publish_resource_change(
+        app,
+        resource="steering_profile",
+        resource_id=profile.profile_id,
+        revision=profile.revision,
+    )
     return profile_to_dict(profile)
 
 
@@ -143,7 +141,12 @@ async def update_profile(
             definition,
         )
     )
-    await publish_profile_catalog_changed(app)
+    await publish_resource_change(
+        app,
+        resource="steering_profile",
+        resource_id=profile.profile_id,
+        revision=profile.revision,
+    )
     return profile_to_dict(profile)
 
 
@@ -155,61 +158,12 @@ async def delete_profile(
 ) -> None:
     validate_profile_id(profile_id)
     await repository_operation(lambda: repository.delete_profile(profile_id, expected_revision))
-    await publish_profile_catalog_changed(app)
-
-
-async def activate_curve(
-    app: FastAPI,
-    repository: SteeringProfileRepository,
-    request: ActivateCurveRequest,
-) -> dict[str, Any]:
-    definition = definition_from_request(request.definition)
-    saved_profile_id = request.saved_profile_id
-    saved_profile_revision = request.saved_profile_revision
-    if (saved_profile_id is None) != (saved_profile_revision is None):
-        raise ApiProblem(
-            422,
-            "validation_error",
-            "saved_profile_id and saved_profile_revision must be supplied together",
-        )
-    if saved_profile_id is not None:
-        validate_profile_id(saved_profile_id, field_name="saved_profile_id")
-        saved = await repository_operation(lambda: repository.get_profile(saved_profile_id))
-        current_revision = None if saved is None else saved.revision
-        if (
-            saved is None
-            or saved.revision != saved_profile_revision
-            or saved.definition != definition
-        ):
-            raise ApiProblem(
-                409,
-                "saved_provenance_mismatch",
-                "claimed saved profile provenance does not match the committed definition",
-                current_revision=current_revision,
-            )
-    try:
-        result = await submit(
-            app,
-            ActivateCurve(definition, saved_profile_id, saved_profile_revision),
-        )
-    except UnsupportedSteeringCurveInterpolation as exc:
-        raise ApiProblem(
-            409,
-            "unsupported_interpolation",
-            str(exc),
-            supported_interpolations=tuple(item.value for item in exc.supported_interpolations),
-        ) from exc
-    except ValueError as exc:
-        raise ApiProblem(422, "validation_error", str(exc)) from exc
-    except SimulationSessionFailed as exc:
-        raise ApiProblem(409, "simulation_session_failed", str(exc)) from exc
-    if result.snapshot.fatal:
-        raise ApiProblem(
-            503,
-            "activation_effect_failed",
-            "curve activation committed but its immediate runtime effect failed",
-        )
-    return curve_state_to_dict(result.snapshot)
+    await publish_resource_change(
+        app,
+        resource="steering_profile",
+        resource_id=profile_id,
+        revision=expected_revision,
+    )
 
 
 async def repository_operation(operation: Callable[[], T]) -> T:
@@ -237,7 +191,3 @@ def validate_profile_id(profile_id: str, *, field_name: str = "profile_id") -> N
         validate_steering_profile_id(profile_id, field_name=field_name)
     except ValueError as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
-
-
-async def publish_profile_catalog_changed(app: FastAPI) -> None:
-    await app.state.manager.broadcast(({"type": "steering_profile_catalog_changed"},))

@@ -79,14 +79,15 @@ blue.
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
-Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such as
+Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
 simulation-only CAN frame on the in-memory F-CAN. The runtime timestamps and decodes that frame
 through the kernel; the API does not inject `SpeedObserved` or application state. The live router
 does not recognize the synthetic ID. The selected speed persists on the external vehicle. Immediately
 before each ordered control timer, the vehicle emits a fresh encoded frame and the runtime drains it
-through the kernel before dispatching the timer. `POST /api/vehicle/speed/silence` clears the
-selection; subsequent timers emit no speed frame until another speed is set.
+through the kernel before dispatching the timer.
+`POST /api/dev/simulation/vehicle/speed/silence` clears the selection; subsequent timers emit no
+speed frame until another speed is set.
 
 On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
 assistance curve. Never-seen and stale speed select zero simulated assistance with distinct reasons.

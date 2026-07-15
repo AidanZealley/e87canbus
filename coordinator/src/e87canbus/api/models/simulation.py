@@ -6,10 +6,14 @@ from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
 
 
 class StepRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
     button_index: int = 0
 
 
 class SpeedRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
     speed_kph: float
 
 

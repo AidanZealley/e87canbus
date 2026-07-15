@@ -110,13 +110,13 @@ HTTP resources:
 ```text
 GET  /api/settings
 PUT  /api/settings
-POST /api/vehicle/rpm
-POST /api/vehicle/rpm/silence
-POST /api/vehicle/oil-temperature
-POST /api/vehicle/oil-temperature/silence
-POST /api/vehicle/coolant-temperature
-POST /api/vehicle/coolant-temperature/silence
-PUT  /api/simulation/devices/{device_id}/status
+PUT  /api/dev/simulation/vehicle/rpm
+POST /api/dev/simulation/vehicle/rpm/silence
+PUT  /api/dev/simulation/vehicle/oil-temperature
+POST /api/dev/simulation/vehicle/oil-temperature/silence
+PUT  /api/dev/simulation/vehicle/coolant-temperature
+POST /api/dev/simulation/vehicle/coolant-temperature/silence
+PUT  /api/dev/simulation/devices/{device_id}/status
 ```
 
 Snapshot additions:
@@ -128,7 +128,7 @@ Snapshot additions:
 
 WebSocket event addition:
 
-- `application_settings_changed`
+- `resources.changed` with `resource`, `id` and `revision`
 
 The phase documents define the complete shapes and failure behavior.
 
@@ -155,4 +155,3 @@ the final integrated visual acceptance.
 - Automatic driving-state restrictions.
 - Browser E2E framework adoption.
 - Automated pixel-size assertions for touch controls.
-

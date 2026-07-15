@@ -106,7 +106,16 @@ def test_get_and_put_serialize_complete_authoritative_document() -> None:
     assert updated.status_code == 200
     assert updated.json() == settings_json(repository.settings)
     assert updated.json()["revision"] == 2
-    assert manager.broadcasts == [({"type": "application_settings_changed"},)]
+    assert manager.broadcasts == [
+        (
+            {
+                "type": "resources.changed",
+                "resource": "settings",
+                "id": None,
+                "revision": 2,
+            },
+        )
+    ]
 
 
 @pytest.mark.parametrize(

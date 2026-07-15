@@ -125,7 +125,12 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
     with TestClient(app) as client:
         assert client.get("/api/health").status_code == 200
         assert client.get("/api/snapshot").status_code == 404
-        assert client.post("/api/buttons/0/press").status_code == 404
+        assert (
+            client.post(
+                "/api/dev/simulation/devices/button-pad/buttons/0/press"
+            ).status_code
+            == 503
+        )
         assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
 
 
@@ -137,7 +142,7 @@ def test_simulation_reset_changes_session_without_changing_service_boot(
     with TestClient(app) as client:
         boot_id = app.state.controller_service.boot_id
         before = client.get("/api/snapshot").json()
-        reset = client.post("/api/reset").json()
+        reset = client.post("/api/dev/simulation/reset").json()
 
         assert (before["session_id"], reset["session_id"]) == (1, 2)
         assert app.state.controller_service.boot_id == boot_id

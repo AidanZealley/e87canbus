@@ -146,7 +146,7 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert client.get("/api/health").json() == {"status": "ok"}
 
     response = client.options(
-        "/api/buttons/0/press",
+        "/api/dev/simulation/devices/button-pad/buttons/0/press",
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "POST",
@@ -235,9 +235,9 @@ def test_failed_first_command_is_published_without_fabricated_reason() -> None:
 @pytest.mark.parametrize(
     ("path", "expected_mode"),
     (
-        ("/api/buttons/0/press", "manual"),
-        ("/api/buttons/0/release", "auto"),
-        ("/api/step", "manual"),
+        ("/api/dev/simulation/devices/button-pad/buttons/0/press", "manual"),
+        ("/api/dev/simulation/devices/button-pad/buttons/0/release", "auto"),
+        ("/api/dev/simulation/step", "manual"),
     ),
 )
 def test_button_commands_return_slim_snapshots(
@@ -245,7 +245,7 @@ def test_button_commands_return_slim_snapshots(
     path: str,
     expected_mode: str,
 ) -> None:
-    kwargs = {"json": {"button_index": 0}} if path == "/api/step" else {}
+    kwargs = {"json": {"button_index": 0}} if path.endswith("/step") else {}
     response = client.post(path, **kwargs)
 
     assert response.status_code == 200
@@ -254,13 +254,13 @@ def test_button_commands_return_slim_snapshots(
 
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
-    client.post("/api/buttons/0/press")
+    client.post("/api/dev/simulation/devices/button-pad/buttons/0/press")
     client.put(
-        "/api/simulation/devices/button_pad/status",
+        "/api/dev/simulation/devices/button_pad/status",
         json={"status": "offline"},
     )
 
-    response = client.post("/api/reset")
+    response = client.post("/api/dev/simulation/reset")
 
     assert response.status_code == 200
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
@@ -285,7 +285,7 @@ def test_device_status_endpoint_updates_exact_device_and_returns_complete_snapsh
     reason: str | None,
 ) -> None:
     response = client.put(
-        f"/api/simulation/devices/{device_id}/status",
+        f"/api/dev/simulation/devices/{device_id}/status",
         json={"status": status},
     )
 
@@ -321,7 +321,7 @@ def test_invalid_device_status_request_does_not_change_devices(
     before = client.get("/api/snapshot").json()["devices"]
 
     response = client.put(
-        f"/api/simulation/devices/{device_id}/status",
+        f"/api/dev/simulation/devices/{device_id}/status",
         json=body,
     )
 
@@ -339,7 +339,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
-        response = client.post("/api/reset")
+        response = client.post("/api/dev/simulation/reset")
 
     assert response.status_code == 200
     assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
@@ -348,7 +348,9 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
 
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
-    response = client.post("/api/buttons/16/press")
+    response = client.post(
+        "/api/dev/simulation/devices/button-pad/buttons/16/press"
+    )
 
     assert response.status_code == 422
     assert "button_index" in response.json()["error"]["message"]
@@ -357,7 +359,9 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     client: TestClient,
 ) -> None:
-    response = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
+    )
 
     assert response.status_code == 200
     assert response.json()["application"]["vehicle_speed_kph"] == 42.5
@@ -365,7 +369,9 @@ def test_vehicle_speed_command_emits_external_frame_and_updates_application(
 
 
 def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
-    response = client.post("/api/vehicle/speed", json={"speed_kph": -1.0})
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0}
+    )
 
     assert response.status_code == 422
     assert "simulated speed" in response.json()["error"]["message"]
@@ -374,26 +380,32 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
 @pytest.mark.parametrize(
     ("path", "body"),
     [
-        ("/api/step", {"button_index": 0, "unexpected": True}),
-        ("/api/vehicle/speed", {"speed_kph": 42.5, "unexpected": True}),
+        ("/api/dev/simulation/step", {"button_index": 0, "unexpected": True}),
+        (
+            "/api/dev/simulation/vehicle/speed",
+            {"speed_kph": 42.5, "unexpected": True},
+        ),
     ],
 )
-def test_existing_simulation_requests_continue_to_ignore_unknown_fields(
+def test_development_simulation_requests_reject_unknown_fields(
     client: TestClient,
     path: str,
     body: dict[str, bool | float | int],
 ) -> None:
-    response = client.post(path, json=body)
+    method = client.put if "/vehicle/" in path else client.post
+    response = method(path, json=body)
 
-    assert response.status_code == 200
+    assert response.status_code == 422
 
 
 def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
     client: TestClient,
 ) -> None:
-    selected = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+    selected = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
+    )
 
-    response = client.post("/api/vehicle/speed/silence")
+    response = client.post("/api/dev/simulation/vehicle/speed/silence")
 
     assert response.status_code == 200
     assert response.json()["session_id"] == selected.json()["session_id"]
@@ -404,21 +416,21 @@ def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
 @pytest.mark.parametrize(
     ("path", "body", "field", "expected"),
     [
-        ("/api/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
         (
-            "/api/vehicle/oil-temperature",
+            "/api/dev/simulation/vehicle/oil-temperature",
             {"temperature_c": 112.54},
             "oil_temperature_c",
             112.5,
         ),
         (
-            "/api/vehicle/coolant-temperature",
+            "/api/dev/simulation/vehicle/coolant-temperature",
             {"temperature_c": -12.3},
             "coolant_temperature_c",
             -12.3,
         ),
         (
-            "/api/vehicle/oil-temperature",
+            "/api/dev/simulation/vehicle/oil-temperature",
             {"temperature_c": 110},
             "oil_temperature_c",
             110.0,
@@ -432,7 +444,7 @@ def test_engine_commands_return_complete_slim_snapshot(
     field: str,
     expected: float | int,
 ) -> None:
-    response = client.post(path, json=body)
+    response = client.put(path, json=body)
 
     assert response.status_code == 200
     assert response.json()["application"]["engine"][field] == {
@@ -450,9 +462,9 @@ def test_engine_commands_return_complete_slim_snapshot(
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/vehicle/rpm/silence",
-        "/api/vehicle/oil-temperature/silence",
-        "/api/vehicle/coolant-temperature/silence",
+        "/api/dev/simulation/vehicle/rpm/silence",
+        "/api/dev/simulation/vehicle/oil-temperature/silence",
+        "/api/dev/simulation/vehicle/coolant-temperature/silence",
     ],
 )
 def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
@@ -466,17 +478,17 @@ def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -
 @pytest.mark.parametrize(
     ("path", "body"),
     [
-        ("/api/vehicle/rpm", {"rpm": -1}),
-        ("/api/vehicle/rpm", {"rpm": 12_001}),
-        ("/api/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": -40.1}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": 250.1}),
-        ("/api/vehicle/rpm", {"rpm": True}),
-        ("/api/vehicle/rpm", {"rpm": "3500"}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": True}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": "110"}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": True}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": "98"}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": -1}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 12_001}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": -40.1}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": 250.1}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": True}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": "3500"}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": True}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": "110"}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": True}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": "98"}),
     ],
 )
 def test_invalid_engine_request_returns_422_without_changing_state(
@@ -486,7 +498,7 @@ def test_invalid_engine_request_returns_422_without_changing_state(
 ) -> None:
     before = client.get("/api/snapshot").json()
 
-    response = client.post(path, json=body)
+    response = client.put(path, json=body)
 
     assert response.status_code == 422
     after = client.get("/api/snapshot").json()
@@ -498,7 +510,9 @@ def test_invalid_engine_request_returns_422_without_changing_state(
 def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:
     with client.websocket_connect("/ws") as websocket:
         initial = websocket.receive_json()
-        response = client.post("/api/buttons/0/press")
+        response = client.post(
+            "/api/dev/simulation/devices/button-pad/buttons/0/press"
+        )
         snapshot = websocket.receive_json()
         frame = websocket.receive_json()
 
@@ -524,7 +538,9 @@ def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
         initial = websocket.receive_json()
         websocket.send_text("ping")
         heartbeat = websocket.receive_json()
-        response = client.post("/api/buttons/0/press")
+        response = client.post(
+            "/api/dev/simulation/devices/button-pad/buttons/0/press"
+        )
         snapshot = websocket.receive_json()
 
     assert initial["type"] == "snapshot"
@@ -534,7 +550,7 @@ def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
 
 
 def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient) -> None:
-    selected = client.post("/api/vehicle/rpm", json={"rpm": 4200})
+    selected = client.put("/api/dev/simulation/vehicle/rpm", json={"rpm": 4200})
     assert selected.status_code == 200
 
     with client.websocket_connect("/ws") as websocket:
@@ -552,7 +568,7 @@ def test_reconnecting_websocket_receives_complete_current_device_shape(
     client: TestClient,
 ) -> None:
     selected = client.put(
-        "/api/simulation/devices/steering_controller/status",
+        "/api/dev/simulation/devices/steering_controller/status",
         json={"status": "degraded"},
     )
     assert selected.status_code == 200
@@ -569,8 +585,14 @@ def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> Non
     app.state.manager = manager
 
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        press = pool.submit(client.post, "/api/buttons/0/press")
-        release = pool.submit(client.post, "/api/buttons/0/release")
+        press = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        )
+        release = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+        )
         assert press.result().status_code == 200
         assert release.result().status_code == 200
 
@@ -590,8 +612,11 @@ def test_reset_cannot_interleave_with_another_operation() -> None:
     app.state.manager = manager
 
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        press = pool.submit(client.post, "/api/buttons/0/press")
-        reset = pool.submit(client.post, "/api/reset")
+        press = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        )
+        reset = pool.submit(client.post, "/api/dev/simulation/reset")
         assert press.result().status_code == 200
         assert reset.result().status_code == 200
 
@@ -608,20 +633,33 @@ def test_controller_inbox_overflow_returns_503_and_service_recovers() -> None:
     app.state.manager = manager
 
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        first = pool.submit(client.post, "/api/buttons/0/press")
+        first = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        )
         assert manager.entered.wait(timeout=1.0)
-        second = pool.submit(client.post, "/api/buttons/0/release")
+        second = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+        )
         deadline = time.monotonic() + 1.0
         while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
 
-        overloaded = client.post("/api/step", json={"button_index": 0})
+        overloaded = client.post(
+            "/api/dev/simulation/step", json={"button_index": 0}
+        )
         manager.release.set()
 
         assert overloaded.status_code == 503
         assert first.result().status_code == 200
         assert second.result().status_code == 200
-        assert client.post("/api/buttons/0/press").status_code == 200
+        assert (
+            client.post(
+                "/api/dev/simulation/devices/button-pad/buttons/0/press"
+            ).status_code
+            == 200
+        )
 
 
 def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
@@ -660,7 +698,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
         ):
             assert time.monotonic() < deadline
 
-        reset = client.post("/api/reset")
+        reset = client.post("/api/dev/simulation/reset")
         assert (reset.json()["revision"], reset.json()["fatal"]) == (1, False)
 
         deadline = time.monotonic() + 1.0

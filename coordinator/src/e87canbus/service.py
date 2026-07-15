@@ -29,6 +29,10 @@ class ControllerInboxFull(ControllerServiceError):
     """Raised when bounded runtime work cannot be accepted."""
 
 
+class ControllerWorkUnavailable(ControllerServiceError):
+    """Raised when selected runtime state cannot process otherwise valid work."""
+
+
 class ControllerServiceLifecycle(StrEnum):
     CREATED = "created"
     RUNNING = "running"
@@ -47,6 +51,14 @@ class RuntimeExecution:
     result: object
     compatibility_snapshot: object
     events: tuple[dict[str, object], ...] = ()
+
+
+@dataclass(frozen=True)
+class ControllerCommandResult:
+    """Boot-local revision committed for one matched semantic command."""
+
+    revision: int
+    controller_failed: bool
 
 
 @dataclass(frozen=True)

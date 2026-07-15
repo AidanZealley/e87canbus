@@ -1,3 +1,6 @@
+import { queryOptions } from "@tanstack/react-query"
+
+import type { CommandAcknowledgement } from "./commands.ts"
 import { ApiError, requestApi } from "./client.ts"
 
 export type SteeringCurvePoint = {
@@ -32,7 +35,9 @@ export type StoredSteeringProfile = {
   updated_at: string
 }
 
-export const steeringProfilesQueryKey = ["steering-profiles"] as const
+export const steeringProfilesQueryKey = ["steering-profiles", "list"] as const
+export const steeringProfileQueryKey = (profileId: string) =>
+  ["steering-profiles", "detail", profileId] as const
 
 export const listSteeringProfiles = async () => {
   const response = await requestApi<{ profiles: StoredSteeringProfile[] }>(
@@ -41,6 +46,12 @@ export const listSteeringProfiles = async () => {
   )
   return response.profiles
 }
+
+export const steeringProfilesQueryOptions = () =>
+  queryOptions({
+    queryKey: steeringProfilesQueryKey,
+    queryFn: listSteeringProfiles,
+  })
 
 export const createSteeringProfile = (
   name: string,
@@ -78,18 +89,28 @@ export const deleteSteeringProfile = (profile: StoredSteeringProfile) =>
 export const activateSteeringCurve = (
   definition: SteeringCurveDefinition,
   savedProfile?: StoredSteeringProfile
-) =>
-  requestApi<ActiveSteeringCurve>(
-    "/api/steering/curve-state/activate",
+) => {
+  if (savedProfile !== undefined) {
+    return requestApi<CommandAcknowledgement>(
+      "/api/commands/activate-steering-profile",
+      "Steering",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          profile_id: savedProfile.profile_id,
+          expected_revision: savedProfile.revision,
+        }),
+      }
+    )
+  }
+  return requestApi<CommandAcknowledgement>(
+    "/api/commands/steering-curve",
     "Steering",
     {
-      method: "POST",
-      body: JSON.stringify({
-        definition,
-        saved_profile_id: savedProfile?.profile_id ?? null,
-        saved_profile_revision: savedProfile?.revision ?? null,
-      }),
+      method: "PUT",
+      body: JSON.stringify({ definition }),
     }
   )
+}
 
 export { ApiError as SteeringApiError }

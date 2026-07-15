@@ -16,7 +16,8 @@ GET    /api/steering/profiles/{profile_id}
 PUT    /api/steering/profiles/{profile_id}
 DELETE /api/steering/profiles/{profile_id}
 GET    /api/steering/curve-state
-POST   /api/steering/curve-state/activate
+POST   /api/commands/activate-steering-profile
+PUT    /api/commands/steering-curve
 ```
 
 Avoid an endpoint named `save-and-activate` initially. Save and activation have different owners

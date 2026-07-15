@@ -25,6 +25,8 @@ from e87canbus.runtime import (
     KernelStarted,
     ReceivedCanFrame,
     RuntimeFaultKind,
+    SetMaximumAssistance,
+    SetSteeringMode,
     ShutdownRequested,
     StateTopic,
     SteeringActuatorFailed,
@@ -34,6 +36,10 @@ from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simul
 
 AUTO_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
 MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
+MAXIMUM_LEDS = ButtonLedState(
+    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE)
+    + (LedColour.OFF,) * 12
+)
 
 
 class SpeedRouter(ProtocolRouter):
@@ -96,6 +102,50 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     )
     assert first_commits[2].changed_topics == frozenset()
     assert first_commits[2].state_changed is False
+
+
+def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> None:
+    kernel = CoordinatorKernel()
+    assert kernel.dispatch(KernelStarted(0.0)) is not None
+
+    maximum = kernel.dispatch(SetMaximumAssistance(True))
+    repeated_maximum = kernel.dispatch(SetMaximumAssistance(True))
+    hidden_mode = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+    repeated_hidden_mode = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+    normal = kernel.dispatch(SetMaximumAssistance(False))
+    repeated_normal = kernel.dispatch(SetMaximumAssistance(False))
+    auto = kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
+    repeated_auto = kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
+
+    assert maximum is not None
+    assert maximum.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
+    assert maximum.effects == (SetButtonLeds(MAXIMUM_LEDS),)
+    assert maximum.snapshot.maximum_assistance_active is True
+
+    for repeated in (
+        repeated_maximum,
+        hidden_mode,
+        repeated_hidden_mode,
+        repeated_normal,
+        repeated_auto,
+    ):
+        assert repeated is not None
+        assert repeated.changed_topics == frozenset()
+        assert repeated.effects == ()
+        assert repeated.state_changed is False
+
+    assert normal is not None
+    assert normal.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
+    assert normal.effects == (SetButtonLeds(MANUAL_LEDS),)
+    assert normal.snapshot.steering_mode is SteeringMode.MANUAL
+    assert normal.snapshot.manual_assistance_level == 4
+    assert normal.snapshot.maximum_assistance_active is False
+
+    assert auto is not None
+    assert auto.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
+    assert auto.effects == (SetButtonLeds(AUTO_LEDS),)
+    assert auto.snapshot.steering_mode is SteeringMode.AUTO
+    assert auto.snapshot.manual_assistance_level == 4
 
 
 def test_unknown_and_malformed_frames_create_no_commits(

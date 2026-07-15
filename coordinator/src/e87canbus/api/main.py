@@ -16,7 +16,7 @@ from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsReposito
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.websocket import ConnectionManager
-from e87canbus.api.routes import health, settings, simulation, steering, vehicle, websocket
+from e87canbus.api.routes import commands, health, settings, simulation, steering, websocket
 from e87canbus.composition import build_controller_service
 from e87canbus.config import AppConfig
 from e87canbus.features.profile_repository import SteeringProfileRepository
@@ -81,14 +81,16 @@ def create_app(
     app.state.manager = ConnectionManager(service.config.simulation.websocket_send_timeout_s)
     app.state.profile_repository = profile_repository
     app.state.settings_repository = settings_repository
+    app.state.monotonic_clock = clock
 
     app.include_router(health.router)
     app.include_router(settings.router)
+    app.include_router(steering.router)
+    app.include_router(commands.router)
+    app.include_router(simulation.router)
     if mode is ControllerMode.SIMULATED:
-        # Phase 8 removes these raw simulator transport paths after the frontend migrates.
-        app.include_router(simulation.router)
-        app.include_router(vehicle.router)
-        app.include_router(steering.router)
+        # Phase 8 removes these raw simulator read transports after the frontend migrates.
+        app.include_router(simulation.snapshot_router)
         app.include_router(websocket.router)
     return app
 

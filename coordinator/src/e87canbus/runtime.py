@@ -21,10 +21,12 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ControlTimerElapsed,
+    MaximumAssistanceSet,
     SteeringFallbackReason,
     SteeringFallbackRequested,
+    SteeringModeSet,
 )
-from e87canbus.application.state import ApplicationState
+from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
@@ -123,6 +125,29 @@ class ActivateSteeringCurve:
     requested_at: float = field(kw_only=True)
 
 
+@dataclass(frozen=True)
+class SetMaximumAssistance:
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        if type(self.enabled) is not bool:
+            raise ValueError("enabled must be a boolean")
+
+
+@dataclass(frozen=True)
+class SetSteeringMode:
+    mode: SteeringMode
+    manual_level: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, SteeringMode):
+            raise ValueError("mode must be a supported SteeringMode value")
+        if self.manual_level is not None and (
+            type(self.manual_level) is not int or self.manual_level < 0
+        ):
+            raise ValueError("manual_level must be a non-negative integer")
+
+
 ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
@@ -133,12 +158,9 @@ ControllerInput = (
     | InboxOverflowed
     | ShutdownRequested
     | ActivateSteeringCurve
+    | SetMaximumAssistance
+    | SetSteeringMode
 )
-
-# Compatibility for the current live and simulation compositions. New composition code uses the
-# architecture vocabulary above; Phase 8 owns removal after all internal consumers have moved.
-KernelInput = ControllerInput
-
 
 class StateTopic(StrEnum):
     """Closed service projection topics; not a runtime-extensible event bus."""
@@ -393,6 +415,14 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._activate_steering_curve(kernel_input)
+            case SetMaximumAssistance(enabled):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(MaximumAssistanceSet(enabled))
+            case SetSteeringMode(mode, manual_level):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(SteeringModeSet(mode, manual_level))
             case _:
                 assert_never(kernel_input)
 

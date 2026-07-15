@@ -106,12 +106,12 @@ engine's exhaustive command match and normal slim-snapshot response path.
 Endpoints:
 
 ```text
-POST /api/vehicle/rpm
-POST /api/vehicle/rpm/silence
-POST /api/vehicle/oil-temperature
-POST /api/vehicle/oil-temperature/silence
-POST /api/vehicle/coolant-temperature
-POST /api/vehicle/coolant-temperature/silence
+PUT  /api/dev/simulation/vehicle/rpm
+POST /api/dev/simulation/vehicle/rpm/silence
+PUT  /api/dev/simulation/vehicle/oil-temperature
+POST /api/dev/simulation/vehicle/oil-temperature/silence
+PUT  /api/dev/simulation/vehicle/coolant-temperature
+POST /api/dev/simulation/vehicle/coolant-temperature/silence
 ```
 
 Bodies:
@@ -183,4 +183,3 @@ Frontend:
 - No production identifier, decoder or live hardware claim is introduced.
 - The development workbench can deterministically create every telemetry validity state needed by
   later car-screen tests.
-

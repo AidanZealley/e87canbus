@@ -82,27 +82,27 @@ development allowlist; it does not broaden the deployment or authentication boun
 `features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
 Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
 document and replaces all editable fields with an expected-revision `PUT`. Successful commits
-increment once, receive one canonical UTC timestamp and publish
-`application_settings_changed`; stale writers receive a typed `409`, while corrupt or unavailable
+increment once, receive one canonical UTC timestamp and publish a precise `resources.changed`
+event for `settings`; stale writers receive a typed `409`, while corrupt or unavailable
 storage is a typed `503`. Theme remains browser-local and is absent from this contract.
 
 `/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
 accept one complete integer-unit definition; update and delete require `expected_revision`, with
 delete carrying it as a query parameter. Responses contain the complete committed profile.
-`/api/steering/curve-state` returns the authoritative active projection and its `/activate`
-subresource accepts a complete definition with optional saved ID/revision provenance. Claimed
-provenance is published only when the repository row has the same revision and definition.
-Activation is enqueued with timers and simulated-device commands through the bounded controller
-service; handlers never dispatch the kernel directly. Save and activation remain separate operations,
-so saving cannot alter active state and applying cannot write a profile row.
+`/api/steering/curve-state` returns the authoritative active projection. Saved profiles are
+activated by identity and expected revision through
+`POST /api/commands/activate-steering-profile`; an unsaved editor draft uses the explicit
+idempotent `PUT /api/commands/steering-curve` command. Maximum assistance and steering mode use
+their corresponding `PUT /api/commands/*` set commands. Every command enters the bounded
+controller service and returns only `accepted`, `boot_id` and the matched commit `revision`;
+handlers never dispatch the kernel directly. Save and activation remain separate operations.
 
 API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
-are `404`, name/revision/provenance conflicts are `409`, and storage or bounded-owner overload is
-`503`; an immediate runtime effect failure after activation also returns typed `503` after the
-owner publishes the committed active curve and fatal snapshot. Revision conflicts also return
+are `404`, name/revision conflicts are `409`, and storage, timeout, unavailable adapter or
+bounded-owner overload is `503`. Revision conflicts also return
 `current_revision`; an interpolation capability conflict is `409` and returns
-`supported_interpolations`. Successful saved CRUD publishes only a
-`steering_profile_catalog_changed` WebSocket invalidation. Reconnecting clients receive the full
+`supported_interpolations`. Successful saved CRUD publishes an exact `resources.changed` event
+with resource ID and revision. Reconnecting clients receive the full
 active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
 or missed-event replay are required.
 

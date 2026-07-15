@@ -5,9 +5,9 @@ import {
   activateSteeringCurve,
   createSteeringProfile,
   deleteSteeringProfile,
-  listSteeringProfiles,
   SteeringApiError,
   steeringProfilesQueryKey,
+  steeringProfilesQueryOptions,
   updateSteeringProfile,
   type ActiveSteeringCurve,
   type SteeringCurveDefinition,
@@ -33,8 +33,7 @@ export const SteeringCurveCard = ({
 }: SteeringCurveCardProps) => {
   const queryClient = useQueryClient()
   const profilesQuery = useQuery({
-    queryKey: steeringProfilesQueryKey,
-    queryFn: listSteeringProfiles,
+    ...steeringProfilesQueryOptions(),
     retry: false,
   })
   const { mutateAsync: activate } = useMutation({

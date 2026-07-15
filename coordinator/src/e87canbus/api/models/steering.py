@@ -25,9 +25,3 @@ class CreateProfileRequest(StrictRequest):
 
 class UpdateProfileRequest(CreateProfileRequest):
     expected_revision: int = Field(ge=1)
-
-
-class ActivateCurveRequest(StrictRequest):
-    definition: SteeringCurveDefinitionRequest
-    saved_profile_id: str | None = None
-    saved_profile_revision: int | None = Field(default=None, ge=1)

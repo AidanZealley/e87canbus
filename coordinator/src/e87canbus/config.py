@@ -117,6 +117,7 @@ class AppConfig:
     tick_interval_s: float = 0.1
     runtime_inbox_capacity: int = 1_024
     runtime_queue_latency_warning_s: float = 0.1
+    runtime_command_timeout_s: float = 2.0
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.tick_interval_s) or self.tick_interval_s <= 0:
@@ -128,6 +129,11 @@ class AppConfig:
             or self.runtime_queue_latency_warning_s < 0
         ):
             raise ValueError("runtime_queue_latency_warning_s must be finite and non-negative")
+        if (
+            not math.isfinite(self.runtime_command_timeout_s)
+            or self.runtime_command_timeout_s <= 0
+        ):
+            raise ValueError("runtime_command_timeout_s must be finite and positive")
 
 
 def default_config() -> AppConfig:
