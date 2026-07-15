@@ -264,16 +264,6 @@ def test_pressing_button_creates_button_event_frame() -> None:
     assert trace[0].sequence == 1
 
 
-def test_runtime_update_does_not_duplicate_the_retained_trace() -> None:
-    controller = build_test_engine()
-
-    result = controller.execute(PressButton(0))
-
-    assert not hasattr(result, "snapshot")
-    assert len(controller.topology.trace()) == 2
-    assert [event["sequence"] for event in result.events] == [1, 2]
-
-
 def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> None:
     controller = build_test_engine()
 

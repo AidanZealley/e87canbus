@@ -112,26 +112,17 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
     assert unsaved_state.active_steering_curve.saved_profile_id is None
 
 
-def test_commands_are_strict_and_old_mutation_routes_are_removed(tmp_path: Path) -> None:
+def test_commands_are_strict_and_active_state_has_no_http_read(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         invalid = client.put(
             "/api/commands/maximum-assistance",
             json={"enabled": True, "toggle": True},
         )
-        old_routes = (
-            client.post("/api/reset"),
-            client.post("/api/buttons/0/press"),
-            client.post("/api/vehicle/speed", json={"speed_kph": 20.0}),
-            client.get("/api/steering/curve-state"),
-            client.post(
-                "/api/steering/curve-state/activate",
-                json={"definition": definition_json()},
-            ),
-        )
+        active_state = client.get("/api/steering/curve-state")
 
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "validation_error"
-    assert all(response.status_code == 404 for response in old_routes)
+    assert active_state.status_code == 404
 
 
 def test_each_semantic_http_use_case_submits_one_correct_typed_input(

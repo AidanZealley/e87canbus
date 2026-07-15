@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { DropletIcon } from "lucide-react"
+import { afterEach, expect, it } from "vitest"
 
 import { DeviceStatusFooter } from "@/components/device-status-footer"
+import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { RpmBar } from "@/components/rpm-bar"
 import { TelemetryValue } from "@/components/telemetry-value"
 import { TemperatureGauge } from "@/components/temperature-gauge"
@@ -40,16 +42,45 @@ it("renders severity and RPM stage as text in addition to color", () => {
         severity="critical"
       />
       <RpmBar rpm={7600} stage="redline" position={1} redlineRpm={7200} />
+      <DriveTemperatureGauge
+        icon={DropletIcon}
+        label="Oil temperature"
+        value={230}
+        valueC={110}
+        unit="°F"
+        operatingTemperatureC={110}
+        status="valid"
+        severity="critical"
+      />
     </div>
   )
 
-  expect(screen.getByText("Critical")).toBeTruthy()
+  expect(screen.getAllByText("Critical")).toHaveLength(2)
   expect(screen.getByText("Redline")).toBeTruthy()
   expect(screen.getByRole("meter").getAttribute("aria-valuenow")).toBe("7200")
   expect(screen.getByRole("meter").getAttribute("aria-valuemax")).toBe("7200")
   expect(screen.getByRole("meter").getAttribute("aria-valuetext")).toContain(
     "7600 RPM"
   )
+  const rpmSegments = screen
+    .getByRole("meter")
+    .querySelectorAll('[aria-hidden="true"]')
+  expect(rpmSegments).toHaveLength(18)
+  for (const segment of rpmSegments) {
+    expect(segment.className).toContain("motion-safe:animate-shift-strobe")
+  }
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Oil temperature position" })
+      .getAttribute("aria-valuenow")
+  ).toBe("50")
+  const criticalBadge = within(screen.getByLabelText("Oil temperature")).getByText(
+    "Critical"
+  )
+  expect(criticalBadge.getAttribute("data-variant")).toBe("destructive")
+  expect(criticalBadge.className).toContain("motion-safe:animate-strobe")
+  expect(criticalBadge.className).not.toContain("animate-pulse")
+  expect(criticalBadge.querySelector("svg[data-icon=inline-start]")).toBeTruthy()
 })
 
 it("fails an absent custom device closed", () => {
@@ -85,41 +116,4 @@ it("does not present physical desired state as an observation", () => {
   expect(screen.getByText(/connection unknown/)).toBeTruthy()
   expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
   expect(container.querySelector(".bg-emerald-500")).toBeNull()
-})
-
-describe.each(["light", "dark"])("%s theme", (theme) => {
-  it("renders every reusable instrument", () => {
-    const { container } = render(
-      <div className={theme}>
-        <TelemetryValue label="Speed" value={62} unit="mph" status="Live" />
-        <TemperatureGauge
-          label="Oil temperature"
-          value={127}
-          unit="°C"
-          status="valid"
-          severity="warning"
-        />
-        <RpmBar rpm={6900} stage="stage_1" position={0.95} redlineRpm={7200} />
-        <DeviceStatusFooter
-          devices={[
-            {
-              id: "button_pad",
-              label: "Button pad",
-              source_mode: "emulated",
-              connected: true,
-              last_seen_monotonic_s: 1,
-              desired_led_colours: Array(16).fill(0),
-              observed_led_colours: Array(16).fill(0),
-              last_output_fault: null,
-            },
-          ]}
-        />
-      </div>
-    )
-
-    expect(container.textContent).toContain("62")
-    expect(container.textContent).toContain("Warning")
-    expect(container.textContent).toContain("Shift stage 1")
-    expect(container.textContent).toContain("Button pad")
-  })
 })

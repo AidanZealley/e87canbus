@@ -116,20 +116,6 @@ def test_live_composition_supplies_no_steering_actuator() -> None:
     assert "steering_actuator=" not in (PACKAGE / "live.py").read_text()
 
 
-def test_pre_kernel_compatibility_names_are_absent() -> None:
-    obsolete = {
-        "ApplicationController",
-        "CoordinatorRuntime",
-        "RateLimitedCanBus",
-        "SimulatorController",
-        "min_id_gap_s",
-        "min_identical_frame_gap_s",
-    }
-    production = "\n".join(path.read_text() for path in PACKAGE.rglob("*.py"))
-
-    assert not {name for name in obsolete if name in production}
-
-
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
     paths = (
         PACKAGE / "application" / "controller.py",

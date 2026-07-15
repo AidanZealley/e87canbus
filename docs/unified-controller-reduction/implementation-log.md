@@ -13,20 +13,21 @@ or reformatted code as simplification.
 | 3 — Runtime/service reduction | Verified | 2026-07-15 | 302 | One shared adapter update and projection path |
 | 4 — Publication/diagnostics reduction | Verified | 2026-07-15 | 327 | Decision-useful health and one publisher diagnostic owner |
 | 5 — Composition/frontend seams | Verified | 2026-07-15 | 202 | Explicit constructors and one application-lifetime transport owner |
-| 6 — Test-suite reduction | Not started | — | — | Remove implementation archaeology and redundant tests |
+| 6 — Test-suite reduction | Verified | 2026-07-15 | 0 | 323 test lines and three test files removed |
 | 7 — Cutover/acceptance | Not started | — | — | Prove overall reduction and behavior |
 
 ## Current handoff
 
-Start Phase 6 from the controlling Phase 5 commit once recorded. The roadmap base remains
-`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +454/-1,375, net -921. Preserve
-the explicit `build_live_controller_service` and `build_simulated_controller_service` boundaries,
-direct `DeviceSource` validation, default no-live-TX policy and application-lifetime frontend
-transport construction. The transport remains one Socket.IO instance/listener set; current live and
-trace state remain in bounded Zustand stores and durable resources remain Query-owned. Phase 6 may
-remove implementation-archaeology tests, but must not recreate selection mirrors, a React transport
-owner, compatibility aliases or test-only production lifecycle seams. No compatibility path exists
-or is authorized.
+Start Phase 7 from the controlling Phase 6 commit once recorded. The roadmap base remains
+`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +454/-1,375, net -921. The
+surviving suite has 31 backend files/485 cases/7,329 lines, 6 frontend unit files/30 cases/847 lines
+and 16 frontend component files/55 cases/2,451 lines. Preserve the explicit live/simulated
+constructors, direct `DeviceSource` validation, default no-live-TX policy, application-lifetime
+frontend transport, strict public contracts and all bounded owner/publication/store behavior.
+Phase 7 should perform integrated acceptance, dead-code review and target reconciliation; it must
+not restore deleted private-shape tests, predecessor-name inventories, dead standalone component
+tests, selection mirrors, React transport ownership, compatibility aliases or test-only seams. No
+compatibility path exists or is authorized.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 `Implemented` requires a measurable simplification and focused checks. `Verified` requires all
@@ -60,6 +61,100 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Phase 6: behavior-focused suite replaces implementation archaeology
+
+- **Status:** Verified
+- **Scope:** Reduced backend and frontend tests after the production boundaries stabilized. The
+  controller, runtime, simulation, publication, public HTTP/Socket.IO contracts, durable resources,
+  frontend behavior and all production code were intentionally unchanged.
+- **Deletion hypothesis:** A predecessor-name inventory, deleted result/snapshot-shape assertions,
+  private duplicate-trace assertions, one-test-per-bus-method coverage, tautological configuration
+  assertions, repeated retired-route probes, unexecuted standalone component files and a same-branch
+  theme matrix added maintenance effort without protecting a distinct supported behavior.
+- **Production accounting:** Phase base
+  `3c33e2fc264212de39e7d8e3dffb5f35955a3d65`. Backend production +0/-0; frontend production +0/-0;
+  production files added/deleted/touched 0/0/0. Tests are +38/-361, net -323 across ten touched
+  paths, with three files deleted: backend +5/-157, net -152 across seven paths and frontend
+  +33/-204, net -171 across three paths. Backend file accounting is `test_architecture.py` +0/-14,
+  `test_command_api.py` +3/-12, `test_config.py` +0/-19, `test_events.py` +0/-34,
+  `test_simulation_bus.py` +2/-39, `test_simulation_runtime.py` +0/-10 and deleted
+  `test_steering.py` +0/-29. Frontend file accounting is `CarFoundation.test.tsx` +33/-39 and the
+  deleted `DriveTemperatureGauge.test.tsx` +0/-133 and `RpmBar.test.tsx` +0/-32. Documentation is
+  this log +105/-10, net +95; generated artifacts +0/-0; temporary compatibility +0/-0. Cumulatively from roadmap
+  base `a31d2f8`, production remains +454/-1,375, net -921 (backend +407/-1,151, net -744;
+  frontend +47/-224, net -177), while tests are +342/-748, net -406 (backend +305/-501, net -196;
+  frontend +37/-247, net -210). There are no production additions; the largest test addition is
+  +33 in `CarFoundation.test.tsx`, consolidating the distinct drive-gauge Celsius-position,
+  critical accessible-status and redline motion-safe strobe checks before deleting 165 lines of
+  unexecuted standalone tests.
+- **Cognitive accounting:** Production owners, concepts, flow hops, queues, schemas and contract
+  copies added/removed: 0/0. Removed test-only concepts are the pre-kernel obsolete-name inventory,
+  deleted simulation result shape, private second-trace-storage checks, separate send/receive bus
+  method cases, duplicated hard-coded protocol/config facts, repeated historical route probes, two
+  dead standalone component clusters and a light/dark execution of the same assertion branch.
+  In-memory network delivery is now one peer-delivery/sender-isolation contract. Current public,
+  safety, concurrency/bounds, regression, domain and integration owners remain directly tested.
+- **Changed:** Deleted the fully superseded three-case `test_steering.py`; curve interpolation,
+  endpoint and manual clamp behavior remains covered at the curve-domain/controller boundaries.
+  Deleted trivial frozen-value field-copy assertions and obsolete production-name searches. Removed
+  assertions that the Phase 3 result/snapshot and trace duplication had not returned. Consolidated
+  four private bus mechanics into one delivery contract and retained topology isolation, global
+  order and ring overflow. Removed tautological valid-config cases and a hard-coded custom-ID copy;
+  invalid bounds, generated definition currentness and codec vectors remain. The command API keeps
+  strict-body validation and the current negative HTTP active-state ownership guarantee without
+  probing every historical mutation route. Frontend critical-status, Celsius-position and active
+  redline motion-safe-strobe evidence now lives in the existing component boundary; duplicated/dead
+  files and same-branch theme executions are gone.
+- **Protected behavior:** Retained one-owner order, inbox overflow and fatal-result truth; no-TX and
+  capability validation; production CAN vectors and simulation parity; strict HTTP/Socket.IO
+  contracts; complete reconnect/`boot_id` replacement and singleton listeners; peer/latest/resource/
+  trace bounds and slow-client isolation; SQLite conflict winner preservation; lifecycle readiness,
+  shutdown and cleanup; route behavior, unavailable-state masking, text alternatives, critical
+  status and the redline shift strobe; curve, freshness and device-domain behavior.
+- **Tests:** Retained clusters map to the rubric: command/resource/socket contracts are public
+  behavior; output grants/failsafe/fatal rejection are safety; inbox/publication/store/listener and
+  deadline tests are concurrency/bounds; reconnect, lifecycle leak and retained-state cases are real
+  regressions; curve/codecs/freshness/device cases are domain examples; API/runtime/publication/DOM
+  route and screen tests provide integration confidence. Negative route tests remain only for the
+  active-live-state HTTP authority boundary and retired snapshot/raw-WebSocket surfaces whose
+  restoration would overlap Socket.IO authority or be masked by SPA routing. No test was replaced
+  one-for-one and no production seam was added.
+- **Test accounting:** Backend changes from 32 files/498 cases/7,481 lines to 31 files/485 cases/
+  7,329 lines; collection changes from 0.38s to 0.35s and full execution from 9.96s to 10.49s, normal
+  timing variance rather than a claimed speedup. Frontend unit remains 6 files/30 cases/847 lines;
+  runtime changes from 211.8ms to 207.9ms. Executed frontend components change from 16 files/57
+  cases/2,457 lines to 16 files/55 cases/2,451 lines and 4.44s to 3.97s. Two additional tracked but
+  unexecuted component files (165 lines/six declarations) were deleted, so total tracked frontend
+  tests change from 24 files/3,469 lines to 22 files/3,298 lines. Total tracked tests change from 56
+  files/10,950 lines to 53 files/10,627 lines. Firmware has no test files and was untouched;
+  browser/integration has no standalone tracked suite beyond the DOM component/route tests.
+- **Verification:** Focused changed backend tests passed 97 cases in 1.00s and the consolidated
+  component file passed four cases in 1.13s. Full `uv run pytest -q` passed 485 tests in 10.49s with
+  the existing Starlette/httpx warning. `uv run ruff check .`, mypy over 61 source files, both
+  generated checks, `bash -n scripts/*.sh`, `git diff --check`, frontend `pnpm test` (30 unit plus
+  55 component), `pnpm lint`, `pnpm typecheck` and `pnpm build` (2,966 modules) passed. One focused
+  pnpm invocation from the repository root failed before collecting tests because the manifest is
+  under `frontend`; the same command was rerun there and passed. Dead-file/symbol searches found no
+  active reference to the removed test files, cases or predecessor symbols.
+- **Browser/soak/physical checks:** Browser runtime discovery returned no available browser, so no
+  new interactive browser evidence is claimed. Complete route/component regressions passed and no
+  production frontend behavior changed. No soak or physical check was needed for test-only changes;
+  firmware, CAN TX and physical steering were untouched and remain unclaimed.
+- **Dependencies/migrations:** None. No dependency, lockfile, database schema, CAN protocol,
+  firmware, generated artifact or build input changed.
+- **Compatibility/removal:** None. No facade, alias, deprecated path, forwarding layer or temporary
+  compatibility is retained or introduced; there is therefore no consumer, removal condition or
+  deferred removal phase.
+- **Target variance:** Phase criterion is met with 323 net test lines, 13 backend cases, two executed
+  frontend cases and three tracked files removed. Production remains unchanged as required. The
+  result does not claim reduction from generated output, moved code, weakened types or lost safety
+  coverage.
+- **Remaining:** None for Phase 6. Runtime improvement is not claimed because backend timing varied
+  upward even though the frontend unit and component timings decreased.
+- **Next handoff:** Phase 7 should run integrated acceptance and audit residual production/test
+  paths against the cumulative -921 production-line reduction, retaining the reduced suite's public,
+  safety, bounds, regression, domain and integration coverage.
 
 ### 2026-07-15 — Phase 5: explicit composition and application-owned transport
 
