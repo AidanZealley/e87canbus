@@ -4,8 +4,8 @@ import { afterEach, expect, it, vi } from "vitest"
 
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
-import { NetworkTopology } from "./components/network-topology"
-import { SteeringStatus } from "./components/steering-status"
+import { NetworkTopology } from "./components/network-topology/NetworkTopology"
+import { SteeringStatus } from "./components/steering-status/SteeringStatus"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 
 afterEach(() => {

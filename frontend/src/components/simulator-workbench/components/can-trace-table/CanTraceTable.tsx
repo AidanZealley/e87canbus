@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { NetworkFilters } from "../network-filters"
+import { NetworkFilters } from "../network-filters/NetworkFilters"
 import { decodeMeaning } from "./utils"
 
 type CanNetwork = TraceRow["network"]

@@ -1,7 +1,7 @@
 import {
   NeoTrellisPanel,
   type NeoTrellisButton,
-} from "./components/neo-trellis-panel"
+} from "./components/neo-trellis-panel/NeoTrellisPanel"
 import { useLiveStore } from "@/live/live-store"
 import { LED_COUNT } from "./utils"
 

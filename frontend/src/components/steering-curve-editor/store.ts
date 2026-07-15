@@ -184,6 +184,3 @@ const errorMessage = (error: unknown) =>
 
 export const selectStatus = (state: SteeringCurveEditorStore) =>
   deriveEditorStatus(state, state.profiles)
-
-export const selectPending = (state: SteeringCurveEditorStore) =>
-  state.pendingAction !== null

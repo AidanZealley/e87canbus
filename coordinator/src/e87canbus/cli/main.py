@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         choices=("run",),
         default="run",
-        help="Controller operation (defaults to run for live-runner compatibility).",
+        help="Controller operation (defaults to run).",
     )
     parser.add_argument("--mode", choices=tuple(ControllerMode), default=ControllerMode.LIVE)
     parser.add_argument("--host", default="127.0.0.1")

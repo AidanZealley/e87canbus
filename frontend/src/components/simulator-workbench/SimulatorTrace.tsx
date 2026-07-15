@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import type { TraceRow } from "@/api/live-events"
 
-import { CanTraceTable } from "./components/can-trace-table"
-import { FrameDetail } from "./components/frame-detail"
+import { CanTraceTable } from "./components/can-trace-table/CanTraceTable"
+import { FrameDetail } from "./components/frame-detail/FrameDetail"
 import { useLiveStore } from "@/live/live-store"
 import { useTraceStore } from "@/live/trace-store"
 import { subscribeLiveTrace } from "@/live/transport"

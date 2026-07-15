@@ -14,20 +14,20 @@ or reformatted code as simplification.
 | 4 — Publication/diagnostics reduction | Verified | 2026-07-15 | 327 | Decision-useful health and one publisher diagnostic owner |
 | 5 — Composition/frontend seams | Verified | 2026-07-15 | 202 | Explicit constructors and one application-lifetime transport owner |
 | 6 — Test-suite reduction | Verified | 2026-07-15 | 0 | 323 test lines and three test files removed |
-| 7 — Cutover/acceptance | Not started | — | — | Prove overall reduction and behavior |
+| 7 — Cutover/acceptance | Verified | 2026-07-15 | 100 | Final dead-path removal; cumulative production net -1,021 |
 
 ## Current handoff
 
-Start Phase 7 from the controlling Phase 6 commit once recorded. The roadmap base remains
-`a31d2f8016bb3d6766425ae5fb244a5058fecc63`; cumulative production is +454/-1,375, net -921. The
-surviving suite has 31 backend files/485 cases/7,329 lines, 6 frontend unit files/30 cases/847 lines
-and 16 frontend component files/55 cases/2,451 lines. Preserve the explicit live/simulated
-constructors, direct `DeviceSource` validation, default no-live-TX policy, application-lifetime
-frontend transport, strict public contracts and all bounded owner/publication/store behavior.
-Phase 7 should perform integrated acceptance, dead-code review and target reconciliation; it must
-not restore deleted private-shape tests, predecessor-name inventories, dead standalone component
-tests, selection mirrors, React transport ownership, compatibility aliases or test-only seams. No
-compatibility path exists or is authorized.
+All seven phases are verified on the controlling branch through the pending Phase 7 commit. The
+roadmap base remains `a31d2f8016bb3d6766425ae5fb244a5058fecc63`; the direct cumulative production
+diff is +467/-1,488, net -1,021: backend +403/-1,225, net -822, and frontend +64/-263,
+net -199. The surviving suite has 31 backend files/485 cases/7,325 lines, 6 frontend unit
+files/30 cases/847 lines and 16 frontend component files/55 cases/2,451 lines. Preserve the one
+ordered owner, explicit live/simulated constructors, direct `DeviceSource` validation, default
+no-live-TX policy, application-lifetime frontend transport, strict public contracts and every
+bounded inbox/publication/trace/store/peer behavior. No compatibility path or deferred reduction
+remains. Interactive browser and physical-CAN evidence were unavailable and are not inferred from
+the automated and isolated-service acceptance.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 `Implemented` requires a measurable simplification and focused checks. `Verified` requires all
@@ -61,6 +61,139 @@ Add entries newest first:
 ```
 
 ## Entries
+
+### 2026-07-15 — Phase 7: integrated cutover meets the honest reduction target
+
+- **Status:** Verified
+- **Scope:** Performed the final dead-symbol, forwarding-facade, compatibility, route-authority,
+  diagnostics and test-seam audit; removed the last production-only diagnostic archaeology and
+  nested import forwarding files; then ran repository-wide and isolated-service acceptance.
+  Controller state, effect behavior, public payloads, routes, queues, stores, schemas, lifecycle,
+  frontend rendering and configuration were intentionally unchanged.
+- **Deletion hypothesis:** Phase 4 removed the last production/public consumer of process-lifetime
+  effect outcome counters, but `EffectExecutionDiagnostics`, its empty value, aggregation function,
+  `EffectExecutor.diagnostics` accessor and seven private counters remained solely for four private
+  test assertions. Eighteen nested one-line `index.ts` barrels added import forwarding without a
+  contract or ownership boundary. Two TypeScript exports had no consumer. These were deletable
+  without replacing their behavior or creating a new abstraction.
+- **Production accounting:** Phase base
+  `55357e20c7a461b910110a7e291ab8bbea7790c2`. Backend production is +2/-80, net -78 across
+  `coordinator/src/e87canbus/output.py` +1/-79 and `cli/main.py` +1/-1; frontend production is
+  +18/-40, net -22 across 27 touched
+  paths. Frontend API/editor files are `api/steering.ts` +0/-1,
+  `steering-curve-editor/store.ts` +0/-3, `SteeringCurveEditor.tsx` +8/-8 and
+  `curve-actions/CurveActions.tsx` +2/-2. Simulator consumer files are
+  `SimulatorNeoTrellis.tsx` +1/-1, `SimulatorTrace.tsx` +2/-2,
+  `SimulatorWorkbench.tsx` +3/-3, `can-trace-table/CanTraceTable.tsx` +1/-1 and
+  `simulator-toolbar/SimulatorToolbar.tsx` +1/-1. The other 18 frontend production paths are the
+  deleted one-line nested `index.ts` barrels under `simulator-workbench/components` (8) and
+  `steering-curve-editor/components` (10). Total production is +20/-120, net -100; 18 files are
+  deleted, 0 added and 29 production paths touched. Tests are +5/-9, net -4 across
+  `coordinator/tests/test_output.py` +0/-4,
+  `frontend/src/components/simulator-workbench/SimulatorWorkbench.test.tsx` +3/-3 and
+  `live-availability.test.tsx` +2/-2. Documentation is this log +144/-11, net +133; generated
+  artifacts +0/-0; deployment/scripts +0/-0; firmware +0/-0; temporary compatibility +0/-0.
+  Cumulatively from roadmap base `a31d2f8`, the direct production diff is +467/-1,488, net -1,021:
+  backend +403/-1,225, net -822, and frontend +64/-263, net -199. Cumulative tests are
+  +347/-757, net -410; generated live schema +12/-244, net -232; documentation +1,040/-26,
+  net +1,014; deployment/scripts, firmware and temporary compatibility remain net zero. Current
+  physical production is 7,828 backend lines/61 files and 8,971 frontend lines/114 files, versus
+  8,650/61 and 9,170/134 at the roadmap base. The largest apparent additions are 18 direct import
+  path replacements, one direct transmitter call replacement and one corrected CLI help line; they add no logic or concept and
+  enable deletion of the 18 forwarding files and the retired diagnostics path.
+- **Cognitive accounting:** Removed named production concepts are `EffectExecutionDiagnostics`,
+  `EMPTY_EFFECT_DIAGNOSTICS`, `add_effect_diagnostics`, `EffectExecutor.diagnostics`, seven private
+  outcome counters, `SteeringCurveInterpolation`, `selectPending` and 18 forwarding modules. Added
+  concepts: 0. The in-repository directory-import consumers were changed to direct component-file
+  imports in the same phase; the barrels were not unconsumed files, and no compatibility import was
+  retained. Operational/lifecycle/publication/frontend socket owners remain 1/1; queues/stores
+  remain one controller inbox, latest-topic map, resource deque, trace deque, frontend trace ring
+  and one finite Engine.IO queue per peer. Schemas, runtime state owners and public contract copies
+  added/removed in this phase: 0/0. Across the programme, named result/projection/selection/
+  diagnostics/lifecycle concepts removed include the Phase 3 result/snapshot/reader layers, Phase 4
+  publication and health mirrors, Phase 5 selection/provider/transport-owner layers and this final
+  effect diagnostic. Contract copies removed are two resource/live structural copies in Phase 2
+  and one publisher-health representation in Phase 4; no replacement schema platform exists.
+- **Final flow accounting:** The seven Phase 1 normal paths change in file hops as follows:
+  SocketCAN observation 7 -> 7, semantic command 9 -> 8, simulation action 10 -> 9, commit-to-topic
+  6 -> 6, reconnect-to-Zustand 4 -> 4, durable mutation 8 -> 8 and startup/shutdown 7 -> 7.
+  Every unchanged file count crosses fewer named transformations: reader/result/projection rewraps,
+  repeated Pydantic reconstruction, publisher-health copies, resource dictionaries, generic
+  composition selection, React transport ownership or effect diagnostics were removed. CLI
+  composition is preset/selection/generic-builder -> explicit constructor; browser startup is
+  provider/reference-counted-owner/transport -> application-owned transport. No flow was shortened
+  by hiding a value in `Any`, a generated layer or a generic framework.
+- **Changed:** `EffectExecutor` now records only bounded rate-window timestamps needed to enforce
+  output safety and returns explicit execution failures; it no longer retains unused historical
+  outcome totals. Observable unavailable-capability logging, encoded output, rate limiting,
+  uncertain-send reservation, CAN failure and steering failure behavior remain. Nested frontend
+  consumers and three Vitest mocks now name their canonical component files directly. No route,
+  socket event, payload, configuration option, queue, schema, owner, dependency or generated file
+  changed.
+- **Protected behavior:** One ordered bounded owner still handles frames, timers, commands, faults
+  and shutdown. Live and simulated compositions use one service and production codecs/effects;
+  default live remains unable to transmit. HTTP command/resource authority and Socket.IO live
+  authority remain non-overlapping. Complete reconnect snapshots, new-`boot_id` replacement,
+  topic-local revisions, singleton frontend listeners, resource invalidation, trace opt-in/reset/
+  2,000-row retention, eight-resource retention, latest-topic coalescing, 1,024-input capacity,
+  finite peer queues, slow-peer isolation, readiness/fatal truth and shutdown deadlines all pass.
+- **Tests:** Removed four assertions against the retired private counter accessor. The same tests
+  retain the meaningful guarantees: deny-by-default output and explicit grants are safety;
+  network-window exhaustion and no replay are concurrency/boundedness; exact LED bytes are domain/
+  integration behavior; distinct returned CAN/steering failures are current failure contracts.
+  Direct-import mock replacements preserve the existing disconnected workbench regression. No test
+  case/file was added or removed, no production seam was added for a test, and no safety, public,
+  boundedness, regression, domain or integration cluster was weakened.
+- **Test accounting:** Tracked tests change from 53 files/10,627 lines to 53 files/10,623 lines.
+  Backend remains 31 files/485 cases and changes 7,329 -> 7,325 lines; full runtime was 10.58s.
+  Frontend remains 6 unit files/30 cases/847 lines and 16 component files/55 cases/2,451 lines;
+  runtimes were 238ms and 3.72s. Test declarations remain 570 total. Test/doc/generated deletion is
+  not credited to the production target.
+- **Verification:** Focused output/live/simulation/service coverage passed 61 cases in 1.57s. Full
+  `uv run pytest -q` passed 485 tests in 10.58s with the existing Starlette/httpx deprecation
+  warning. `uv run ruff check .`, mypy over 61 source files, both generated checks,
+  `bash -n scripts/*.sh` and `git diff --check` passed. Frontend `pnpm test` passed 30 unit and 55
+  component tests; `pnpm lint`, `pnpm typecheck` and `pnpm build` passed with 2,948 transformed
+  modules. An initial root `pnpm` command failed before execution because the manifest is under
+  `frontend`; the package-local commands passed. An initial frontend typecheck correctly exposed
+  directory imports through the deleted barrels; consumers and three matching mocks were updated,
+  after which all checks passed. Dead-symbol/import/active-document searches find none of the
+  removed diagnostic, result, selection, transport-owner or compatibility names and no raw `/ws`,
+  snapshot or curve-state live path.
+- **Browser/soak/physical checks:** Browser-control setup, one required troubleshooting pass and
+  discovery returned no available browser, so no fresh interactive route/theme/800x480 DOM or heap
+  evidence is claimed. The unchanged 16-file DOM route/component suite passed. An isolated
+  simulated service processed 300 HTTP speed commands at 1,154.5/s while Engine.IO polling was
+  trace-subscribed; an authoritative resync returned ready true, fatal false, inbox depth 0/1,024,
+  no latency warning/overflow, publisher failures/resource drops/trace drops zero, 274 received
+  trace rows and one durable resource event. Abandoned polling sessions produced one bounded peer
+  saturation without blocking the controller. RSS was 62,880 KiB. Clean shutdown/restart changed
+  `boot_id` from `9881ab6b...` to `388b4bf3...` and returned ready true/fatal false. Two preliminary
+  high-level client attempts failed because optional `websocket-client`/`requests` packages are not
+  installed; the dependency-free raw Engine.IO polling acceptance then passed. Firmware, real CAN,
+  physical steering and physical output were untouched and remain unavailable/unclaimed.
+- **Dependencies/migrations:** None. No dependency, lockfile, SQLite schema, CAN protocol, firmware,
+  generated artifact, deployment file or build input changed. Temporary SQLite and build artifacts
+  were removed/restored.
+- **Compatibility/removal:** None retained or introduced. The deleted frontend forwarding files had
+  only in-repository consumers, all updated directly in this phase; they have no external import
+  contract. Current Socket.IO v1, semantic HTTP resources/commands and canonical `e87canbus run`
+  are present contracts, not compatibility. There is no consumer, temporary reason, objective
+  removal condition or deferred phase to record.
+- **Target variance:** Phase 7 removes 100 net production lines and 18 production files through
+  genuine dead state/diagnostic and forwarding-layer deletion. Cumulative production is net
+  -1,021, exceeding the approved 1,000-line target by 21 without moving the 85-line frontend test
+  fixture, counting tests/docs/generated output, compressing formatting, weakening types or hiding
+  complexity. The baseline predicate's test-fixture classification is left unchanged rather than
+  exploited.
+- **Remaining:** No roadmap production, compatibility or verification deletion remains. The system
+  is not claimed minimal: controller/runtime, bounded publication, strict boundary schemas, SQLite
+  concurrency, explicit mode composition and frontend state owners remain because each protects a
+  current ownership, safety, retention or public-contract guarantee. Fresh interactive browser and
+  physical-vehicle acceptance remain evidence limitations, not deferred code removal.
+- **Next handoff:** Controlling review should verify this diff/log and commit Phase 7. Thereafter the
+  final roadmap review should reject any future second state owner, live transport, unbounded
+  retention path, compatibility facade or test-only production diagnostic seam.
 
 ### 2026-07-15 — Phase 6: behavior-focused suite replaces implementation archaeology
 

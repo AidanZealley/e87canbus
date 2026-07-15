@@ -7,7 +7,7 @@ import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorWorkbench } from "./SimulatorWorkbench"
 
-vi.mock("./components/simulated-vehicle-controls", () => ({
+vi.mock("./components/simulated-vehicle-controls/SimulatedVehicleControls", () => ({
   SimulatedVehicleControls: ({
     speedKph,
     engine,
@@ -27,10 +27,10 @@ vi.mock("./components/steering-curve-card", () => ({
 vi.mock("./components/simulator-toolbar", () => ({
   SimulatorToolbar: () => <div>Toolbar</div>,
 }))
-vi.mock("./components/network-topology", () => ({
+vi.mock("./components/network-topology/NetworkTopology", () => ({
   NetworkTopology: () => null,
 }))
-vi.mock("./components/steering-status", () => ({
+vi.mock("./components/steering-status/SteeringStatus", () => ({
   SteeringStatus: () => null,
 }))
 vi.mock("./SimulatorNeoTrellis", () => ({ SimulatorNeoTrellis: () => null }))

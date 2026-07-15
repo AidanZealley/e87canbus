@@ -90,8 +90,6 @@ def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
     executor.execute((SetButtonLeds(WHITE_LEDS), SetButtonLeds(BLUE_LEDS)))
 
     assert raw.sent == [CanFrame(0x701, b"\x55" * 8)]
-    assert dict(executor.diagnostics.sent)[CanNetwork.KCAN] == 1
-    assert dict(executor.diagnostics.rate_limited)[CanNetwork.KCAN] == 1
 
 
 def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
@@ -121,8 +119,6 @@ def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
         CanEffectFailure(CanNetwork.KCAN, "failed 1793"),
         SteeringActuatorFailure("failed 0.5"),
     )
-    assert dict(executor.diagnostics.failed)[CanNetwork.KCAN] == 1
-    assert executor.diagnostics.steering_failed == 1
 
 
 def test_alternating_payloads_on_one_id_share_network_window(

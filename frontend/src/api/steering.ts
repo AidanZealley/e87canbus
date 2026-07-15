@@ -7,7 +7,6 @@ import { DURABLE_STALE_TIME_MS } from "./query-policy.ts"
 
 export type ActiveSteeringCurve = SteeringState["active_curve"]
 export type SteeringCurveDefinition = ActiveSteeringCurve["definition"]
-export type SteeringCurveInterpolation = SteeringCurveDefinition["interpolation"]
 
 export type StoredSteeringProfile = {
   profile_id: string

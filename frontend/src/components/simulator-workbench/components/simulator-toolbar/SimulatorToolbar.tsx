@@ -5,7 +5,7 @@ import { ModeToggle } from "@/components/mode-toggle"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { ConnectionBadge } from "../connection-badge"
+import { ConnectionBadge } from "../connection-badge/ConnectionBadge"
 import type { LiveConnectionStatus } from "@/live/live-store"
 
 type SimulatorToolbarProps = {
