@@ -12,7 +12,7 @@ afterEach(cleanup)
 it("never renders a manufactured numeric zero for unavailable values", () => {
   render(
     <div>
-      <TelemetryValue label="Speed" value={null} unit="mph" />
+      <TelemetryValue value={null} unit="mph" />
       <TemperatureGauge
         label="Oil temperature"
         value={null}
@@ -105,7 +105,7 @@ describe.each(["light", "dark"])("%s theme", (theme) => {
   it("renders every reusable instrument", () => {
     const { container } = render(
       <div className={theme}>
-        <TelemetryValue label="Speed" value={62} unit="mph" status="Live" />
+        <TelemetryValue value={62} unit="mph" />
         <TemperatureGauge
           label="Oil temperature"
           value={127}
