@@ -8,7 +8,10 @@ import {
 } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
-import type { CanTraceEntry, NetworkStatus } from "../../types"
+import type { DevicesState, TraceRow } from "@/api/live-events"
+
+type CanTraceEntry = TraceRow
+type NetworkStatus = DevicesState["networks"][number]
 import { CanTraceTable } from "./CanTraceTable"
 
 const networks: NetworkStatus[] = [
@@ -65,6 +68,10 @@ it("renders only a bounded virtual window for a full trace", async () => {
   })
   expect(screen.getByText("2000 frames captured")).toBeTruthy()
   expect(document.querySelector("[data-state='selected']")).toBeNull()
+  expect(
+    document.querySelector<HTMLTableSectionElement>("[data-slot='table-body']")
+      ?.className
+  ).toContain("[&_td]:h-8")
   expect(
     document.querySelector<HTMLButtonElement>(
       "button[aria-label='Jump to latest CAN frame']"

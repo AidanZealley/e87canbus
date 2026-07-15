@@ -8,12 +8,12 @@ dependencies = [
     "cantools>=40.0",
     "fastapi>=0.115",
     "python-can>=4.4",
+    "python-socketio>=5.13",
     "uvicorn[standard]>=0.30",
 ]
 
 [project.scripts]
 e87canbus = "e87canbus.cli.main:main"
-e87canbus-sim-api = "e87canbus.api.cli:main"
 
 [dependency-groups]
 dev = [

@@ -25,12 +25,13 @@ The card is read-only. Do not add mode or assistance controls.
 Resolve the profile name from the existing profile catalog query. An unavailable catalog must not
 hide the active curve's functional state; show a neutral unknown/modified label instead.
 
-### Temperatures and devices
+### Temperatures and device role
 
 - Show oil and coolant gauges using effective settings and Phase 5 severity.
 - Invalid readings use an em dash and explicit state.
 - Do not add speed or RPM to this page.
-- Place the minimal two-device status footer at the bottom.
+- Place the minimal button-pad source/connection footer at the bottom. Unknown evidence must remain
+  visibly unknown.
 
 ## Drive: `/car/drive`
 
@@ -69,12 +70,12 @@ remain in `/dev`.
 ### State rules
 
 - Keep selected saved profile, local draft, dirty state, pending activation and last error explicit.
-- Do not replace a dirty draft when a WebSocket active-state update arrives.
+- Do not replace a dirty draft when a Socket.IO active-state update arrives.
 - Changing the selected profile with a dirty draft requires confirmation or an explicit discard.
 - Revert does not mutate the backend.
 - Apply remains disabled when the draft is invalid or already matches active state.
 - Pending activation prevents duplicate submissions.
-- Server response/snapshot is authoritative for active state.
+- Socket.IO live state is authoritative after the HTTP acknowledgement.
 - Include saved provenance only when the submitted draft exactly matches that saved revision;
   modified drafts activate without false saved provenance.
 - Editing and Apply remain available at any speed.
@@ -138,7 +139,8 @@ Overview:
 - One-based manual level and effective percent.
 - Saved, modified and unavailable profile labels.
 - Valid/warning/critical/stale temperatures.
-- All device states and missing-device fallback.
+- Physical, emulated and observer source presentation, unknown connection evidence, output fault
+  and missing-role fallback.
 
 Drive:
 
@@ -185,4 +187,3 @@ Routes:
 - Settings are atomic, revision-aware and canonical-unit safe.
 - Missing data and failures remain visible and honest.
 - No physical-output, BMW decoding or kiosk authority is added.
-

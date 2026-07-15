@@ -3,6 +3,7 @@ import type {
   SteeringCurveDefinition,
   StoredSteeringProfile,
 } from "@/api/steering"
+import type { CommandAcknowledgement } from "@/api/commands"
 
 export type PendingCurveAction = "apply" | "save" | "save-as" | "delete" | null
 
@@ -28,7 +29,7 @@ export type SteeringCurveEditorEffects = {
   activate: (
     definition: SteeringCurveDefinition,
     savedProfile?: StoredSteeringProfile
-  ) => Promise<ActiveSteeringCurve>
+  ) => Promise<CommandAcknowledgement>
   createProfile: (
     name: string,
     definition: SteeringCurveDefinition

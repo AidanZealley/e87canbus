@@ -48,8 +48,8 @@ Verify through API tests or direct inspection:
 - All simulator telemetry uses synthetic extended PT-CAN identifiers.
 - Live `ProtocolRouter` ignores those identifiers.
 - Per-signal silence produces stale/null independently.
-- Device state changes and reset are deterministic.
-- Initial and reconnect WebSocket snapshots contain complete engine and device projections.
+- Device role projection and reset are deterministic.
+- Initial and reconnect Socket.IO snapshots contain complete engine and device projections.
 - Settings change publication causes another client to refetch.
 - Existing steering, speed, button-pad and trace behavior has no regression.
 
@@ -77,7 +77,7 @@ Inspect both light and dark themes:
 - Normal, warning and critical oil temperature.
 - Normal, warning and critical coolant temperature.
 - RPM below stage 1, at stage 1, at stage 2 and at/above redline.
-- Online, degraded and offline for both devices.
+- Emulated, observer and absent button-pad presentation; known and unknown connection evidence.
 - Steering dirty state and confirmation dialog.
 - Settings validation, save success and revision conflict.
 
@@ -110,16 +110,19 @@ display.
 ### Telemetry and warnings
 
 1. Use `/dev` to set speed, RPM and both temperatures.
-2. Observe `/car/drive` using the authoritative snapshot.
+2. Observe `/car/drive` using authoritative Zustand live state.
 3. Cross warning and critical thresholds, then lower values around the 3 C hysteresis boundaries.
 4. Silence one signal and advance/wait past one second; only it becomes stale.
 5. Stop/restart the backend and confirm live values become unavailable during loss/reconnection.
 
-### Device health
+### Device role and observation
 
-1. Set each device to online, degraded and offline from `/dev`.
-2. Confirm the overview footer changes label/status without affecting simulated functional behavior.
-3. Reset and confirm both return online.
+1. Run `/dev` with the emulated role and confirm explicit press/release controls are enabled, use
+   generated wire traffic and display decoded LED observation.
+2. Run with the observer role and confirm the source is labeled, connection/observation are unknown,
+   wire controls are disabled and synchronized semantic controller commands remain available.
+3. Reset and confirm the session identity changes, old virtual resources are released and device
+   and vehicle projections return to their documented initial values.
 
 ### Settings
 
@@ -146,7 +149,7 @@ At a normal desktop viewport:
 
 - Mode chooser is balanced and keyboard navigable.
 - `/dev` retains its current workbench content, grids, trace and dialogs.
-- New vehicle/device controls do not make existing cards unusable.
+- Vehicle and explicit emulator controls do not make existing cards unusable.
 - Dev connection error continues to provide detailed troubleshooting.
 
 ## Documentation and handoff
@@ -168,4 +171,3 @@ At a normal desktop viewport:
 - No phase is marked `Verified` without satisfying its own completion criteria.
 - Remaining physical touchscreen tuning is explicitly documented for the user rather than encoded
   as an arbitrary automated size rule.
-

@@ -1,4 +1,4 @@
-import type { EngineTelemetryStatus } from "@/components/simulator-workbench/types"
+import type { EngineTelemetryValue } from "@/api/live-events"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -8,7 +8,7 @@ export type TemperatureGaugeProps = {
   label: string
   value: number | null
   unit: "°C" | "°F"
-  status: EngineTelemetryStatus
+  status: EngineTelemetryValue["status"]
   severity: TemperatureSeverity
   className?: string
 }

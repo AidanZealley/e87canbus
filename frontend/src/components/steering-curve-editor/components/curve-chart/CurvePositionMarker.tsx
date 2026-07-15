@@ -1,4 +1,4 @@
-import { ReferenceDot } from "recharts"
+import { ReferenceLine } from "recharts"
 
 import { assistanceToPercent } from "../../utils"
 
@@ -16,13 +16,11 @@ export const CurvePositionMarker = ({
   const assistancePercent = assistanceToPercent(activeAssistance)
 
   return (
-    <ReferenceDot
-      x={speedKph}
+    <ReferenceLine
       y={assistancePercent}
-      r={7}
-      fill="var(--color-background)"
-      stroke="var(--color-primary)"
-      strokeWidth={3}
+      stroke="var(--color-indigo-500)"
+      strokeWidth={2}
+      strokeOpacity={0.65}
       className="pointer-events-none"
       ifOverflow="extendDomain"
     />

@@ -1,19 +1,19 @@
-import { HomeIcon, RefreshCcwIcon, StepForwardIcon } from "lucide-react"
+import { HomeIcon, RefreshCcwIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { ConnectionBadge } from "../connection-badge"
-import type { SimulatorConnectionState } from "../../connection"
+import { ConnectionBadge } from "../connection-badge/ConnectionBadge"
+import type { LiveConnectionStatus } from "@/live/live-store"
 
 type SimulatorToolbarProps = {
-  connectionState: SimulatorConnectionState
+  connectionState: LiveConnectionStatus
   autoScroll: boolean
   onAutoScrollChange: (enabled: boolean) => void
   onReset: () => void
-  onStep: () => void
+  resetPending?: boolean
 }
 
 export const SimulatorToolbar = ({
@@ -21,7 +21,7 @@ export const SimulatorToolbar = ({
   autoScroll,
   onAutoScrollChange,
   onReset,
-  onStep,
+  resetPending = false,
 }: SimulatorToolbarProps) => (
   <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
     <div className="mx-auto flex min-h-14 w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2 lg:px-6">
@@ -54,11 +54,12 @@ export const SimulatorToolbar = ({
           />
           Auto-scroll
         </label>
-        <Button variant="outline" size="sm" onClick={onStep}>
-          <StepForwardIcon data-icon="inline-start" />
-          Step
-        </Button>
-        <Button variant="outline" size="sm" onClick={onReset}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={resetPending}
+          onClick={onReset}
+        >
           <RefreshCcwIcon data-icon="inline-start" />
           Reset
         </Button>

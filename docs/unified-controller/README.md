@@ -5,6 +5,11 @@ to one controller application with replaceable physical and simulated adapters. 
 truth for the approved architecture, sequencing, ownership boundaries, public contracts and
 verification requirements.
 
+The migration is complete. A follow-up
+[unified-controller reduction roadmap](../unified-controller-reduction/README.md) addresses the
+production-code and cognitive growth introduced while preserving this roadmap's verified ownership,
+reconnect, bounded-resource and safety outcomes.
+
 The roadmap optimizes for the lowest practical complexity that still provides deterministic
 control, bounded resource use, honest simulation, safe output and a performant frontend. It does
 not grant authority for unverified BMW decoding, physical steering output or live CAN
@@ -193,6 +198,7 @@ HTTP
   /api/commands/maximum-assistance
   /api/commands/steering-mode
   /api/commands/activate-steering-profile
+  /api/commands/steering-curve
   /api/dev/simulation/*                 development composition only
 
 Socket.IO server events
@@ -213,15 +219,12 @@ schema platform.
 
 ## Compatibility and cutover policy
 
-- Existing HTTP and WebSocket behavior may be retained temporarily when a phase needs it to keep
-  the current frontend operational.
-- Compatibility paths must be clearly marked, covered and assigned a removal phase.
-- No new feature may target a legacy path.
-- Phase 5 switches the frontend to the new ownership model.
-- Phase 8 removes the legacy raw WebSocket/snapshot-cache path and separate simulator-only
-  composition after all consumers have moved.
-- CLI aliases may remain when they are harmless operator compatibility wrappers around the same
-  composition; they must not construct a second architecture.
+- The repository has completed the frontend ownership cutover.
+- Raw `/ws`, `GET /api/snapshot`, `GET /api/steering/curve-state`, HTTP response snapshots and
+  their compatibility publisher/state seams are removed.
+- No feature may add a second runtime, live-state owner or transport facade.
+- CLI operation must construct the canonical composition; an alias is acceptable only when it is a
+  documented thin invocation of that same composition.
 
 ## Working method
 

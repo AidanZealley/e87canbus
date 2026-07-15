@@ -9,10 +9,12 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/features/` — pure steering-assistance calculations.
 - `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
 - `src/e87canbus/runtime.py` — single-owner kernel, ordered input values, commits, and diagnostics.
-- `src/e87canbus/live.py` — threaded SocketCAN readers and the single-consumer live loop.
+- `src/e87canbus/service.py` — bounded controller inbox, owner thread, timer and lifecycle.
+- `src/e87canbus/composition.py` — validated live/simulated adapter presets and service factory.
+- `src/e87canbus/live.py` — SocketCAN readers and the live runtime adapter.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
-- `src/e87canbus/api/` — HTTP and WebSocket interface used by the frontend.
+- `src/e87canbus/api/` — HTTP resources/commands and bounded Socket.IO live publication.
 - `src/e87canbus/cli/` — executable entry points and bench utilities.
 - `tests/` — tests arranged to mirror the source responsibilities.
 
@@ -63,13 +65,12 @@ application-settings document. Initialization uses an exclusive transaction, ena
 with `FULL` synchronous durability and fails closed on unsupported future versions. Operations use
 short-lived connections and each mutation is one transaction. Lists are ordered by
 case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
-closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
-live composition still has no profile-storage consumer and does not open the database.
+closed unless redundant columns, canonical definition JSON and the stored fingerprint agree.
 
-The simulator API composes the profile and settings repositories over that shared database. Its
+The unified API composes the profile and settings repositories over that shared database. Its
 default path is `steering-profiles.sqlite3` in the process working directory;
-`e87canbus-sim-api --profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string
-deployment) selects a different file and remains compatible despite the file's expanded role.
+`e87canbus run --mode simulated --profile-database PATH` (or
+`E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a different file.
 Startup applies migrations and seeding before accepting requests. Tests and other compositions can
 inject the repositories independently.
 
@@ -81,29 +82,68 @@ development allowlist; it does not broaden the deployment or authentication boun
 `features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
 Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
 document and replaces all editable fields with an expected-revision `PUT`. Successful commits
-increment once, receive one canonical UTC timestamp and publish
-`application_settings_changed`; stale writers receive a typed `409`, while corrupt or unavailable
+increment once, receive one canonical UTC timestamp and publish a precise `resources.changed`
+event for `settings`; stale writers receive a typed `409`, while corrupt or unavailable
 storage is a typed `503`. Theme remains browser-local and is absent from this contract.
 
 `/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
 accept one complete integer-unit definition; update and delete require `expected_revision`, with
 delete carrying it as a query parameter. Responses contain the complete committed profile.
-`/api/steering/curve-state` returns the authoritative active projection and its `/activate`
-subresource accepts a complete definition with optional saved ID/revision provenance. Claimed
-provenance is published only when the repository row has the same revision and definition.
-Activation is enqueued with timers and simulated-device commands through the bounded simulation
-owner; handlers never dispatch the kernel directly. Save and activation remain separate operations,
-so saving cannot alter active state and applying cannot write a profile row.
+Saved profiles are activated by identity and expected revision through
+`POST /api/commands/activate-steering-profile`; an unsaved editor draft uses the explicit
+idempotent `PUT /api/commands/steering-curve` command. Maximum assistance and steering mode use
+their corresponding `PUT /api/commands/*` set commands. Every command enters the bounded
+controller service and returns only `accepted`, `boot_id` and the matched commit `revision`;
+handlers never dispatch the kernel directly. The active curve is live operational state and is
+published only in `controller.snapshot` and `steering.state`, not through an overlapping HTTP read
+facade. Save and activation remain separate operations.
 
 API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
-are `404`, name/revision/provenance conflicts are `409`, and storage or bounded-owner overload is
-`503`; an immediate runtime effect failure after activation also returns typed `503` after the
-owner publishes the committed active curve and fatal snapshot. Revision conflicts also return
+are `404`, name/revision conflicts are `409`, and storage, timeout, unavailable adapter or
+bounded-owner overload is `503`. Revision conflicts also return
 `current_revision`; an interpolation capability conflict is `409` and returns
-`supported_interpolations`. Successful saved CRUD publishes only a
-`steering_profile_catalog_changed` WebSocket invalidation. Reconnecting clients receive the full
+`supported_interpolations`. Successful saved CRUD publishes an exact `resources.changed` event
+with resource ID and revision. Reconnecting clients receive the full
 active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
 or missed-event replay are required.
+
+Socket.IO is mounted with FastAPI at `/socket.io` and uses one namespace. Every connection receives
+`controller.snapshot`, containing protocol version 1, the opaque service `boot_id`, a monotonic
+boot-scoped revision, fixed per-topic revisions and every current projection. Incremental server
+events are `vehicle.state`, `engine.state`, `steering.state`, `buttons.state`, `devices.state`,
+`controller.health`, `resources.changed`, and opt-in `trace.batch`. Only
+`controller.resync`, `trace.subscribe`, and `trace.unsubscribe` are accepted from sockets; business
+commands remain HTTP-only. Vehicle and engine values coalesce to 25 Hz, topic handoff retains one
+latest unsent value, trace storage/batches and resource changes are bounded, and each Engine.IO
+client has a finite 64-packet outbound queue. A client that fills that queue is disconnected and
+counted as a transport saturation instead of blocking publication or losing arbitrary protocol
+packets. No network client can block the controller owner or effect execution. Publisher and socket
+shutdown share one two-second deadline and cancel all remaining publication tasks if it expires.
+The generated contract is documented in
+`protocol/README.md`. The repository frontend owns one Socket.IO connection outside the React tree.
+There is no raw WebSocket or HTTP live-snapshot compatibility path.
+
+Health publication is framework-independent and process-local. It reports readiness and fatal truth;
+explicit network, device and steering faults; bounded inbox depth, capacity, current latency, warning
+and overflow truth; persistence availability; and publisher running/fault state, failures,
+trace/resource drops and slow-client queue saturations. Network availability and selected device
+evidence remain in `devices.state` rather than being copied into health. Only the fixed trace ring
+retains per-frame detail. Controller health is coalesced to one publication per second, while urgent
+state topics keep their existing delivery behavior. A failed publisher records transport health
+without notifying itself recursively. Persistence, readiness and decision-useful publisher changes
+advance the service and health-topic revisions even when controller input is idle, so synchronized
+clients do not discard them as stale.
+
+The failure policy is explicit: a fatal reader, inbox overflow, CAN output or steering-actuator fault
+enters the ordered safe shutdown path once; unknown output outcomes are never retried. Queue overflow
+latches, rejects new commands and stops normal ingestion. Queue timestamps are retained and a
+warning is logged when latency crosses into the configured warning state. Storage failure rejects
+only the affected resource operation and does not rewrite already-loaded controller state. Emulator
+failure becomes typed adapter health and
+does not claim physical device behavior. Shutdown marks not-ready, stops ingress, commits the safe
+request, drains only bounded work, stops publication, then closes adapters and short-lived database
+resources. The complete owner/behavior table and recorded soak metrics are in
+[`docs/reliability.md`](../docs/reliability.md).
 
 The simulator server defaults to loopback and permits the two local Vite development origins. It is
 unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
@@ -130,64 +170,91 @@ a 500 kbit/s network before errors or retransmissions. This is a safety ceiling 
 intended send cadence; it is not derived from LED count, startup output, or human timing. A dropped
 frame is logged and discarded, not queued, so a later complete state converges without replaying an
 intermediate output. Live reader threads only receive, timestamp, and enqueue into the configured
-bounded inbox; the main thread alone dispatches kernel inputs and executes effects. Queue latency is
+bounded inbox; the controller owner thread alone dispatches kernel inputs and executes effects.
+Queue latency is
 logged without changing observation time.
 Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
-stops the runner with a non-zero result. SocketCAN interfaces are closed independently so one
-shutdown error cannot prevent later interfaces from closing or mask an existing failure result.
+ends the controller lifecycle. SocketCAN interfaces are closed independently so one shutdown error
+cannot prevent later interfaces from closing.
 
-The browser simulator has a separate bounded command queue. One asynchronous owner serializes
-button-device commands, persistent synthetic vehicle-speed selection and silence, control timers,
-resets, kernel commits, and WebSocket publication. Before each control timer, a selected speed is
-re-emitted by the external vehicle and decoded through the kernel. Browser snapshots expose the
-kernel-owned revision, simulation session ID, fatal-health status, and the ideal simulated
-controller's effective dimensionless assistance, optional last accepted command reason, and
-watchdog state. An output fault terminates the session after one committed shutdown attempt; normal
+The controller service owns one bounded inbox and dedicated owner thread in live and simulated
+composition. It serializes button-device commands, persistent synthetic vehicle-speed selection and
+silence, control timers, resets, kernel commits and ordered effects. Before each control timer, a
+selected speed is re-emitted by the external vehicle and decoded through the kernel. The canonical
+service projection supplies Socket.IO topic values including simulation session identity and the
+ideal simulated controller's dimensionless assistance, optional last accepted command reason and
+watchdog state. The service revision remains monotonic across simulation reset while the session
+identity and trace sequence restart. An output fault terminates the session after one committed
+shutdown attempt; normal
 commands are rejected until reset creates a fresh kernel at revision one. A reset-time shutdown
-fault is recorded on the stopped session and retained in logs while the reset response reports the
-new healthy session. Initial and incremental WebSocket sends are bounded by the simulation send
-timeout, and a stalled peer is removed without detaching or reordering publication. Incremental
+fault is recorded on the stopped session and retained in logs while the canonical service and
+Socket.IO projection report the new session. Socket.IO sends have a finite timeout, and every
+Engine.IO client has a separate
+finite packet capacity. The bounded publisher
+is detached from the controller owner, so a stalled peer can delay only browser publication while
+latest topic values replace older pending values; a saturated peer is then disconnected. Incremental
 trace frames use the session ID with their reset-local sequence number.
+
+Every development action returns only `accepted` and the process `boot_id`. It does not report a
+revision or session because later queued work may complete before the HTTP coroutine resumes. It
+never returns or owns a parallel live snapshot; clients converge from Socket.IO state.
 
 The same simulated vehicle can independently select or silence RPM, oil temperature and coolant
 temperature. Each value uses its own unmistakably simulation-only extended PT-CAN frame adjacent
-to the synthetic speed identifier, then follows normal ingress, routing, transition and snapshot
+to the synthetic speed identifier, then follows normal ingress, routing, transition and live-state
 publication. These identifiers are not BMW candidates and remain absent from `ProtocolRouter`.
 RPM is canonical integer RPM; temperatures are canonical tenths of a degree Celsius. The
 application retains observations internally but projects `null` with `never_observed` or `stale`
 when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
 and every active signal is re-emitted before each ordered control-timer evaluation.
 
-Simulator snapshots also contain a complete, stable-order `devices` projection for the button pad
-and steering controller. Both start online; the single-owner simulation queue can explicitly set
-either to online, degraded or offline, and reset restores both online. Degraded and offline use the
-stable `simulated_degraded` and `simulated_offline` reasons. These manually selected values are UI
-test inputs only: they do not change CAN traffic, steering behavior, watchdog state, or establish
-real device heartbeat and diagnostic criteria.
+Composition selects the repository-owned button pad as `physical`, `emulated`, `observer`, or
+`disabled`, with exactly one source per role. Physical input is accepted only by live SocketCAN;
+emulated input is accepted only from the virtual K-CAN device; observer cannot originate input;
+disabled omits the capability. The projection separates controller-desired LEDs from
+device-observed LEDs. The emulator may report connection and observation because it decodes the
+actual output frame. A physical pad has no acknowledgement, so its connection and observed LEDs
+remain unknown. No heartbeat or manually selected presentation-health state exists.
 
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
-The coordinator derives exactly 16 logical LED colours, emits one `SetButtonLeds` effect, and packs
+The coordinator derives exactly 16 desired LED colours, emits one `SetButtonLeds` effect, and packs
 one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
-stored colours; there is one complete LED publication shape and no compatibility decoder.
+observed colours; invalid frames preserve the previous observation. There is one wire codec and no
+simulator callback or alternate decoder.
 
-## Running live
+## Running the unified controller
 
 Bring up every enabled SocketCAN interface at its configured bitrate, then run:
 
 ```bash
-uv run e87canbus
+uv run e87canbus run --mode live
 ```
 
-The default configuration opens all three networks with application transmission disabled. It does
+The default live preset opens all three networks with application transmission disabled and exposes
+the API after startup synchronization. It does
 not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
 deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
 compositions. Custom IDs `0x700` and `0x701` still require collision validation before any future
-in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md). Use
-`--log-level` to change logging verbosity. `uv run e87canbus --dry-run` prints the configuration
-without opening CAN interfaces.
+in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
 
-Phase 8 has proved the controller and failure paths against simulation-only speed and actuator
-boundaries. Real steering failsafe work remains blocked until speed frames and the actuator boundary
+Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
+routes are registered only in simulated mode; live mode returns `404` for those development-only
+paths. Both modes use the same HTTP/Socket.IO application composition. Use `--log-level` to change
+logging verbosity.
+Use `--button-pad-source emulated|observer|disabled` for simulated composition and
+`--button-pad-source physical|observer|disabled` for live composition. The selection is fixed for
+the process lifetime and invalid mode/source combinations fail before adapters start.
+`uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
+
+Live mode defaults to loopback, serves an optional built `frontend/dist` with
+`--frontend-directory`, registers no development mutation routes and enables no development CORS
+origins. A non-loopback live bind is rejected because this API is unauthenticated. `/health/live`
+proves the event loop responds and `/health/ready` proves the database and non-fatal controller are
+ready. The canonical CLI observes a fatal owner stop and returns non-zero for supervised restart.
+Install and operate it with the checked-in [systemd template](../deploy/README.md).
+
+Software tests have proved the controller failure paths only against simulation and injected
+adapters. Real steering failsafe work remains blocked until speed frames and the actuator boundary
 are backed by named captures and hardware evidence. Placeholder candidate IDs remain non-executable.

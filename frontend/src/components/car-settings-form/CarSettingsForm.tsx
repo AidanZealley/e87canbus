@@ -8,7 +8,6 @@ import {
   type SpeedUnit,
   type TemperatureUnit,
 } from "@/api/settings"
-import { useCarData } from "@/components/car-layout"
 import { ModeToggle } from "@/components/mode-toggle"
 import {
   AlertDialog,
@@ -32,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useUpdateApplicationSettings } from "@/lib/application-settings-query"
+import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import type { ApplicationSettingsDraft } from "./types"
 import {
   changeDraftTemperatureUnit,
@@ -41,14 +41,15 @@ import {
 } from "./utils"
 
 export const CarSettingsForm = () => {
+  const effectiveSettings = useEffectiveApplicationSettings()
   const {
     settings,
-    settingsAuthoritative,
-    settingsError,
-    settingsLoading,
-    settingsRefetching,
-    settingsRefetch,
-  } = useCarData()
+    isAuthoritative: settingsAuthoritative,
+    error: settingsError,
+    isLoading: settingsLoading,
+    isRefetching: settingsRefetching,
+    refetch: settingsRefetch,
+  } = effectiveSettings
 
   return (
     <section className="min-h-full p-2" aria-labelledby="settings-title">

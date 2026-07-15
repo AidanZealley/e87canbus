@@ -102,14 +102,14 @@ Derive:
 - `draftMatchesSelectedSaved` likewise.
 - Whether Apply, Save, Revert and Delete are enabled.
 
-Never replace a dirty draft because a background WebSocket snapshot arrives. If active state
+Never replace a dirty draft because a background Socket.IO snapshot arrives. If active state
 changes elsewhere, retain the draft and show that its base is stale, offering explicit reload or
 compare actions.
 
 ## Actions and feedback
 
 - **Apply:** activate the current draft; disable while pending; replace active projection only from
-  the server response/snapshot.
+  authoritative Socket.IO state after the acknowledgement.
 - **Save:** create or update using the selected saved revision; update local catalog from the
   committed server response.
 - **Save as:** require a new name and create a new profile ID.

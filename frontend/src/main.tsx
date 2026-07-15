@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router"
 
 import "./index.css"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { startLiveTransport } from "@/live/transport"
 import { router } from "@/router"
 
 const queryClient = new QueryClient({
@@ -15,6 +16,8 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+startLiveTransport(queryClient)
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

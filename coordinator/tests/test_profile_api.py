@@ -1,4 +1,3 @@
-import asyncio
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -10,10 +9,10 @@ from typing import Any
 import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.engine import SimulationEngine
 from fastapi.testclient import TestClient
 
 
@@ -41,14 +40,40 @@ def profile_payload(name: str = "Dry track", *, second_assistance: int = 850) ->
     return {"name": name, "definition": definition_json(second_assistance=second_assistance)}
 
 
-def make_app(path: Path, *, engine: SimulationEngine | None = None):
-    config = replace(
-        simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=64),
-        tick_interval_s=60.0,
+def definition_primitive(definition) -> dict[str, Any]:
+    return {
+        "schema_version": definition.schema_version,
+        "interpolation": definition.interpolation.value,
+        "points": [
+            {
+                "speed_deci_kph": point.speed_deci_kph,
+                "assistance_per_mille": point.assistance_per_mille,
+            }
+            for point in definition.points
+        ],
+    }
+
+
+def make_app(
+    path: Path,
+    *,
+    config=None,
+    steering_controller_factory=SimulatedSteeringController,
+    supported_steering_curve_interpolations=(
+        CurveInterpolation.LINEAR_V1,
+        CurveInterpolation.MONOTONE_CUBIC_V1,
+    ),
+):
+    config = config or replace(
+        simulator_config(), tick_interval_s=60.0
+    )
+    service = build_simulated_controller_service(
+        config=config,
+        steering_controller_factory=steering_controller_factory,
+        supported_steering_curve_interpolations=supported_steering_curve_interpolations,
     )
     return create_app(
-        engine or SimulationEngine(config=config),
+        controller_service=service,
         profile_database_path=path,
     )
 
@@ -121,16 +146,18 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
         "/api/steering/profiles",
         json={"name": "Smooth", "definition": smooth},
     )
-    activated = client.post(
-        "/api/steering/curve-state/activate",
+    activated = client.put(
+        "/api/commands/steering-curve",
         json={"definition": smooth},
     )
+    active = client.app.state.controller_service.snapshot().application
 
     assert saved.status_code == 201
     assert saved.json()["definition"] == smooth
     assert activated.status_code == 200
-    assert activated.json()["definition"] == smooth
-    assert activated.json()["supported_interpolations"] == [
+    assert set(activated.json()) == {"accepted", "boot_id", "revision"}
+    assert definition_primitive(active.active_steering_curve.definition) == smooth
+    assert [item.value for item in active.supported_steering_curve_interpolations] == [
         "linear-v1",
         "monotone-cubic-v1",
     ]
@@ -139,17 +166,17 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
 def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejected(
     tmp_path: Path,
 ) -> None:
-    engine = SimulationEngine(
-        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,)
+    app = make_app(
+        tmp_path / "profiles.sqlite3",
+        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,),
     )
-
-    with TestClient(make_app(tmp_path / "profiles.sqlite3", engine=engine)) as client:
-        before = client.get("/api/steering/curve-state").json()
-        response = client.post(
-            "/api/steering/curve-state/activate",
+    with TestClient(app) as client:
+        before = app.state.controller_service.snapshot().application
+        response = client.put(
+            "/api/commands/steering-curve",
             json={"definition": definition_json(interpolation="monotone-cubic-v1")},
         )
-        after = client.get("/api/steering/curve-state").json()
+        after = app.state.controller_service.snapshot().application
 
     assert response.status_code == 409
     assert response.json()["error"] == {
@@ -287,71 +314,76 @@ def test_stale_delete_preserves_the_newer_profile(client: TestClient) -> None:
 
 
 def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
-    initial_curve = client.get("/api/steering/curve-state").json()
+    initial_curve = (
+        client.app.state.controller_service.snapshot().application.active_steering_curve
+    )
     applied_definition = definition_json(second_assistance=850)
 
-    applied = client.post(
-        "/api/steering/curve-state/activate",
+    applied = client.put(
+        "/api/commands/steering-curve",
         json={"definition": applied_definition},
     )
+    active_after_apply = client.app.state.controller_service.snapshot().application
     catalog_after_apply = client.get("/api/steering/profiles").json()["profiles"]
     saved = create_profile(client, "Saved only")
-    curve_after_save = client.get("/api/steering/curve-state").json()
+    curve_after_save = client.app.state.controller_service.snapshot().application
 
     assert applied.status_code == 200
-    assert applied.json()["definition"] == applied_definition
-    assert applied.json()["activation_revision"] == initial_curve["activation_revision"] + 1
-    assert applied.json()["saved_profile_id"] is None
+    assert applied.json()["accepted"] is True
+    assert (
+        definition_primitive(active_after_apply.active_steering_curve.definition)
+        == applied_definition
+    )
+    assert (
+        active_after_apply.active_steering_curve.activation_revision
+        == initial_curve.activation_revision + 1
+    )
+    assert active_after_apply.active_steering_curve.saved_profile_id is None
     assert len(catalog_after_apply) == 1
     assert saved["definition"] == applied_definition
-    assert curve_after_save == applied.json()
+    assert curve_after_save.active_steering_curve == active_after_apply.active_steering_curve
 
 
-@pytest.mark.parametrize("mismatch", ["revision", "definition"])
-def test_false_saved_provenance_is_rejected(client: TestClient, mismatch: str) -> None:
+def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     saved = create_profile(client)
-    request = {
-        "definition": saved["definition"],
-        "saved_profile_id": saved["profile_id"],
-        "saved_profile_revision": saved["revision"],
-    }
-    if mismatch == "revision":
-        request["saved_profile_revision"] = 99
-    else:
-        request["definition"] = definition_json(second_assistance=800)
-    before = client.get("/api/steering/curve-state").json()
-
-    response = client.post("/api/steering/curve-state/activate", json=request)
-
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "saved_provenance_mismatch"
-    assert response.json()["error"]["current_revision"] == 1
-    assert client.get("/api/steering/curve-state").json() == before
-
-
-def test_matching_saved_provenance_is_published(client: TestClient) -> None:
-    saved = create_profile(client)
+    before = client.app.state.controller_service.snapshot().application
 
     response = client.post(
-        "/api/steering/curve-state/activate",
-        json={
-            "definition": saved["definition"],
-            "saved_profile_id": saved["profile_id"],
-            "saved_profile_revision": saved["revision"],
-        },
+        "/api/commands/activate-steering-profile",
+        json={"profile_id": saved["profile_id"], "expected_revision": 99},
     )
 
-    assert response.status_code == 200
-    assert response.json()["saved_profile_id"] == saved["profile_id"]
-    assert response.json()["saved_profile_revision"] == 1
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "profile_revision_conflict"
+    assert response.json()["error"]["current_revision"] == 1
+    assert client.app.state.controller_service.snapshot().application == before
 
 
-def test_partial_saved_provenance_is_validation_error(client: TestClient) -> None:
+def test_matching_saved_profile_is_activated(client: TestClient) -> None:
+    saved = create_profile(client)
+
     response = client.post(
-        "/api/steering/curve-state/activate",
+        "/api/commands/activate-steering-profile",
         json={
+            "profile_id": saved["profile_id"],
+            "expected_revision": saved["revision"],
+        },
+    )
+    active = client.app.state.controller_service.snapshot().application.active_steering_curve
+
+    assert response.status_code == 200
+    assert response.json()["accepted"] is True
+    assert active.saved_profile_id == saved["profile_id"]
+    assert active.saved_profile_revision == 1
+
+
+def test_saved_profile_command_rejects_unknown_fields(client: TestClient) -> None:
+    response = client.post(
+        "/api/commands/activate-steering-profile",
+        json={
+            "profile_id": "11111111-1111-4111-8111-111111111111",
+            "expected_revision": 1,
             "definition": definition_json(),
-            "saved_profile_id": "11111111-1111-4111-8111-111111111111",
         },
     )
 
@@ -382,47 +414,82 @@ def test_concurrent_updates_allow_one_expected_revision_to_win(client: TestClien
     assert client.get(path).json()["revision"] == 2
 
 
-class BlockingManager:
-    def __init__(self) -> None:
+class BlockingShutdownController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+        *,
+        block_shutdown: bool,
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.block_shutdown = block_shutdown
         self.entered = Event()
         self.release = Event()
 
-    async def broadcast(self, _events: Any) -> None:
-        self.entered.set()
-        await asyncio.to_thread(self.release.wait)
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        if self.block_shutdown and command.reason is SteeringCommandReason.SHUTDOWN:
+            self.entered.set()
+            assert self.release.wait(timeout=10.0)
+        super().set_assistance(command)
 
 
 def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=1),
+        simulation=SimulationConfig(),
         tick_interval_s=60.0,
+        runtime_inbox_capacity=1,
     )
+    controllers: list[BlockingShutdownController] = []
+
+    def build_controller(
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> BlockingShutdownController:
+        controller = BlockingShutdownController(
+            watchdog_timeout_s,
+            clock,
+            block_shutdown=not controllers,
+        )
+        controllers.append(controller)
+        return controller
+
     app = make_app(
         tmp_path / "profiles.sqlite3",
-        engine=SimulationEngine(config=config),
+        config=config,
+        steering_controller_factory=build_controller,
     )
-    manager = BlockingManager()
-    app.state.manager = manager
 
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        first = pool.submit(client.post, "/api/buttons/0/press")
-        assert manager.entered.wait(timeout=1.0)
-        second = pool.submit(client.post, "/api/buttons/0/release")
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=3) as pool:
+        first = pool.submit(
+            client.post,
+            "/api/dev/simulation/reset",
+        )
+        controller = controllers[0]
+        assert controller.entered.wait(timeout=1.0)
+        second = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+        )
         deadline = time.monotonic() + 1.0
-        while app.state.command_queue.qsize() != 1 and time.monotonic() < deadline:
+        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
-        assert app.state.command_queue.qsize() == 1
-        overloaded = client.post(
-            "/api/steering/curve-state/activate",
+        assert app.state.controller_service.inbox_depth == 1
+        overloaded = pool.submit(
+            client.put,
+            "/api/commands/steering-curve",
             json={"definition": definition_json(second_assistance=850)},
         )
-        manager.release.set()
+        try:
+            overloaded_response = overloaded.result(timeout=1.0)
+        finally:
+            controller.release.set()
         assert first.result().status_code == 200
-        assert second.result().status_code == 200
+        assert second.result().status_code == 503
 
-    assert overloaded.status_code == 503
-    assert overloaded.json()["error"]["code"] == "runtime_queue_full"
+    assert overloaded_response.status_code == 503
+    assert overloaded_response.json()["error"]["code"] == "runtime_queue_full"
 
 
 class RejectingActivationController(SimulatedSteeringController):
@@ -442,70 +509,61 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app(
         tmp_path / "profiles.sqlite3",
-        engine=SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingActivationController,
-        ),
+        config=config,
+        steering_controller_factory=RejectingActivationController,
     )
 
     with TestClient(app) as client:
         saved = create_profile(client)
-        speed = client.post("/api/vehicle/speed", json={"speed_kph": 10.0})
+        speed = client.put(
+            "/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0}
+        )
         assert speed.status_code == 200
-        with client.websocket_connect("/ws") as websocket:
-            initial = websocket.receive_json()
-            activation = client.post(
-                "/api/steering/curve-state/activate",
-                json={
-                    "definition": saved["definition"],
-                    "saved_profile_id": saved["profile_id"],
-                    "saved_profile_revision": saved["revision"],
-                },
-            )
-            fatal_publication = websocket.receive_json()
+        before = app.state.controller_service.snapshot()
+        activation = client.post(
+            "/api/commands/activate-steering-profile",
+            json={
+                "profile_id": saved["profile_id"],
+                "expected_revision": saved["revision"],
+            },
+        )
         fetched = client.get(f"/api/steering/profiles/{saved['profile_id']}")
-        curve_state = client.get("/api/steering/curve-state")
-        runtime_snapshot = client.get("/api/snapshot")
+        runtime_snapshot = app.state.controller_service.snapshot()
 
-    assert initial["snapshot"]["fatal"] is False
+    assert before.diagnostics.health.fatal is False
     assert activation.status_code == 503
     assert activation.json()["error"] == {
-        "code": "activation_effect_failed",
-        "message": "curve activation committed but its immediate runtime effect failed",
+        "code": "controller_failed",
+        "message": "controller entered a failed state while processing the command",
     }
     assert fetched.status_code == 200
     assert fetched.json() == saved
-    assert curve_state.status_code == 200
-    assert curve_state.json()["definition"] == saved["definition"]
-    assert curve_state.json()["saved_profile_id"] == saved["profile_id"]
-    assert runtime_snapshot.json()["fatal"] is True
-    assert fatal_publication["type"] == "snapshot"
-    assert fatal_publication["snapshot"]["fatal"] is True
+    assert runtime_snapshot.diagnostics.health.fatal is True
     assert (
-        fatal_publication["snapshot"]["application"]["active_steering_curve"]["definition"]
+        definition_primitive(runtime_snapshot.application.active_steering_curve.definition)
         == saved["definition"]
+    )
+    assert (
+        runtime_snapshot.application.active_steering_curve.saved_profile_id
+        == saved["profile_id"]
     )
 
 
-def test_websocket_reconnect_snapshot_and_catalog_invalidation_are_authoritative(
+def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     client: TestClient,
 ) -> None:
     applied_definition = definition_json(second_assistance=850)
-    applied = client.post(
-        "/api/steering/curve-state/activate",
+    applied = client.put(
+        "/api/commands/steering-curve",
         json={"definition": applied_definition},
     )
     assert applied.status_code == 200
 
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
-        created = client.post("/api/steering/profiles", json=profile_payload())
-        invalidation = websocket.receive_json()
+    snapshot = client.app.state.controller_service.snapshot()
+    created = client.post("/api/steering/profiles", json=profile_payload())
 
-    assert initial["type"] == "snapshot"
     assert (
-        initial["snapshot"]["application"]["active_steering_curve"]["definition"]
+        definition_primitive(snapshot.application.active_steering_curve.definition)
         == applied_definition
     )
     assert created.status_code == 201
-    assert invalidation == {"type": "steering_profile_catalog_changed"}

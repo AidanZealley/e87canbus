@@ -75,25 +75,44 @@ class PlaceholderBmwIds:
 @dataclass(frozen=True)
 class SimulationConfig:
     trace_capacity: int = 2_000
-    command_queue_capacity: int = 64
     steering_watchdog_timeout_s: float = 0.25
-    websocket_send_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
             raise ValueError("simulation trace capacity must be positive")
-        if self.command_queue_capacity < 1:
-            raise ValueError("simulation command queue capacity must be positive")
         if (
             not math.isfinite(self.steering_watchdog_timeout_s)
             or self.steering_watchdog_timeout_s <= 0
         ):
             raise ValueError("simulation steering watchdog timeout must be finite and positive")
-        if (
-            not math.isfinite(self.websocket_send_timeout_s)
-            or self.websocket_send_timeout_s <= 0
-        ):
-            raise ValueError("simulation WebSocket send timeout must be finite and positive")
+@dataclass(frozen=True)
+class LivePublicationConfig:
+    telemetry_hz: float = 25.0
+    health_hz: float = 1.0
+    trace_hz: float = 10.0
+    trace_batch_size: int = 100
+    resource_capacity: int = 256
+    client_queue_capacity: int = 64
+    send_timeout_s: float = 1.0
+    shutdown_timeout_s: float = 2.0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.telemetry_hz) or self.telemetry_hz <= 0:
+            raise ValueError("live telemetry rate must be finite and positive")
+        if not math.isfinite(self.health_hz) or self.health_hz <= 0:
+            raise ValueError("live health rate must be finite and positive")
+        if not math.isfinite(self.trace_hz) or self.trace_hz <= 0:
+            raise ValueError("live trace rate must be finite and positive")
+        if self.trace_batch_size < 1:
+            raise ValueError("live trace batch size must be positive")
+        if self.resource_capacity < 1:
+            raise ValueError("live resource publication capacity must be positive")
+        if self.client_queue_capacity < 1:
+            raise ValueError("live client queue capacity must be positive")
+        if not math.isfinite(self.send_timeout_s) or self.send_timeout_s <= 0:
+            raise ValueError("live publication send timeout must be finite and positive")
+        if not math.isfinite(self.shutdown_timeout_s) or self.shutdown_timeout_s <= 0:
+            raise ValueError("live publisher shutdown timeout must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -112,6 +131,7 @@ class TxPolicyConfig:
 class AppConfig:
     can_networks: tuple[CanNetworkConfig, ...] = field(default_factory=default_can_networks)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
+    live_publication: LivePublicationConfig = field(default_factory=LivePublicationConfig)
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)
@@ -120,6 +140,7 @@ class AppConfig:
     tick_interval_s: float = 0.1
     runtime_inbox_capacity: int = 1_024
     runtime_queue_latency_warning_s: float = 0.1
+    runtime_command_timeout_s: float = 2.0
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.tick_interval_s) or self.tick_interval_s <= 0:
@@ -131,6 +152,11 @@ class AppConfig:
             or self.runtime_queue_latency_warning_s < 0
         ):
             raise ValueError("runtime_queue_latency_warning_s must be finite and non-negative")
+        if (
+            not math.isfinite(self.runtime_command_timeout_s)
+            or self.runtime_command_timeout_s <= 0
+        ):
+            raise ValueError("runtime_command_timeout_s must be finite and positive")
 
 
 def default_config() -> AppConfig:

@@ -1,21 +1,21 @@
 """Steering curve and stored-profile routes."""
 
-from typing import Any
-
 from fastapi import APIRouter, Query, Request
 
 from e87canbus.api.internal import steering
 from e87canbus.api.models.steering import (
-    ActivateCurveRequest,
     CreateProfileRequest,
     UpdateProfileRequest,
 )
+from e87canbus.features.steering import StoredSteeringProfile
 
 router = APIRouter(prefix="/api/steering", tags=["steering"])
 
 
 @router.get("/profiles")
-async def list_steering_profiles(request: Request) -> dict[str, Any]:
+async def list_steering_profiles(
+    request: Request,
+) -> dict[str, tuple[StoredSteeringProfile, ...]]:
     return await steering.list_profiles(request.app.state.profile_repository)
 
 
@@ -23,7 +23,7 @@ async def list_steering_profiles(request: Request) -> dict[str, Any]:
 async def create_steering_profile(
     request: Request,
     body: CreateProfileRequest,
-) -> dict[str, Any]:
+) -> StoredSteeringProfile:
     return await steering.create_profile(
         request.app,
         request.app.state.profile_repository,
@@ -32,7 +32,10 @@ async def create_steering_profile(
 
 
 @router.get("/profiles/{profile_id}")
-async def get_steering_profile(request: Request, profile_id: str) -> dict[str, Any]:
+async def get_steering_profile(
+    request: Request,
+    profile_id: str,
+) -> StoredSteeringProfile:
     return await steering.get_profile(request.app.state.profile_repository, profile_id)
 
 
@@ -41,7 +44,7 @@ async def update_steering_profile(
     request: Request,
     profile_id: str,
     body: UpdateProfileRequest,
-) -> dict[str, Any]:
+) -> StoredSteeringProfile:
     return await steering.update_profile(
         request.app,
         request.app.state.profile_repository,
@@ -61,21 +64,4 @@ async def delete_steering_profile(
         request.app.state.profile_repository,
         profile_id,
         expected_revision,
-    )
-
-
-@router.get("/curve-state")
-async def steering_curve_state(request: Request) -> dict[str, Any]:
-    return steering.curve_state_to_dict(request.app.state.latest_snapshot)
-
-
-@router.post("/curve-state/activate")
-async def activate_steering_curve(
-    request: Request,
-    body: ActivateCurveRequest,
-) -> dict[str, Any]:
-    return await steering.activate_curve(
-        request.app,
-        request.app.state.profile_repository,
-        body,
     )

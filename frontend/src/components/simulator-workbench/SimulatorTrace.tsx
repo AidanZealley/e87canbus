@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import type { TraceRow } from "@/api/live-events"
 
-import { CanTraceTable } from "./components/can-trace-table"
-import { FrameDetail } from "./components/frame-detail"
-import { useNetworks, useTrace } from "./query"
-import type { CanNetwork, CanTraceEntry } from "./types"
+import { CanTraceTable } from "./components/can-trace-table/CanTraceTable"
+import { FrameDetail } from "./components/frame-detail/FrameDetail"
+import { useLiveStore } from "@/live/live-store"
+import { useTraceStore } from "@/live/trace-store"
+import { subscribeLiveTrace } from "@/live/transport"
+type CanNetwork = TraceRow["network"]
 
 const allNetworks: CanNetwork[] = ["kcan", "ptcan", "fcan"]
 
@@ -12,8 +15,11 @@ type SimulatorTraceProps = {
 }
 
 export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
-  const trace = useTrace()
-  const networks = useNetworks()
+  const trace = useTraceStore((state) => state.rows)
+  const networks = useLiveStore((state) => state.devices.networks)
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  const displayedNetworks = synchronized ? networks : []
+  useEffect(() => subscribeLiveTrace(), [])
   const [selectedSequence, setSelectedSequence] = useState<number | null>(null)
   const [selectedNetworks, setSelectedNetworks] = useState<Set<CanNetwork>>(
     new Set(allNetworks)
@@ -47,11 +53,11 @@ export const SimulatorTrace = ({ autoScroll }: SimulatorTraceProps) => {
       <CanTraceTable
         trace={visibleTrace}
         totalCount={trace.length}
-        networks={networks}
+        networks={displayedNetworks}
         selectedNetworks={selectedNetworks}
         selected={selectedFrame}
         autoScroll={autoScroll}
-        onSelect={(entry: CanTraceEntry) => setSelectedSequence(entry.sequence)}
+        onSelect={(entry: TraceRow) => setSelectedSequence(entry.sequence)}
         onToggleNetwork={toggleNetwork}
       />
       <FrameDetail frame={detailFrame} />

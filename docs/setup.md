@@ -25,7 +25,7 @@ uv run python scripts/generate_custom_protocol.py --check
 Run the dry-run CLI:
 
 ```bash
-uv run e87canbus --dry-run
+uv run e87canbus run --mode live --dry-run
 ```
 
 ## Button-pad device

@@ -16,6 +16,7 @@ from e87canbus.application.events import (
     CoolantTemperatureObserved,
     EngineRpmObserved,
     LedColour,
+    MaximumAssistanceSet,
     OilTemperatureObserved,
     SetButtonLeds,
     SetSteeringAssistance,
@@ -23,11 +24,13 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
+    SteeringModeSet,
 )
 from e87canbus.application.state import (
     ApplicationState,
     MaximumAssistance,
     SteeringMode,
+    SteeringState,
 )
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.features.steering import (
@@ -120,6 +123,10 @@ def transition(
                 next_state,
                 (_steering_command(next_state, config, active_definition),),
             )
+        case MaximumAssistanceSet(enabled):
+            return _set_maximum_assistance(state, enabled)
+        case SteeringModeSet(mode, manual_level):
+            return _set_steering_mode(state, mode, manual_level, config)
         case SteeringFallbackRequested(reason):
             return Transition(
                 state,
@@ -291,6 +298,66 @@ def _toggle_maximum_assistance(
         ),
     )
     return new_state
+
+
+def _set_maximum_assistance(
+    state: ApplicationState,
+    enabled: bool,
+) -> Transition:
+    steering = state.steering
+    next_steering: SteeringState
+    if enabled:
+        next_steering = (
+            steering
+            if isinstance(steering, MaximumAssistance)
+            else MaximumAssistance(previous=steering)
+        )
+    else:
+        next_steering = steering.previous if isinstance(steering, MaximumAssistance) else steering
+    next_state = replace(state, steering=next_steering)
+    return Transition(next_state, _steering_state_effects(state, next_state))
+
+
+def _set_steering_mode(
+    state: ApplicationState,
+    mode: SteeringMode,
+    manual_level: int | None,
+    config: SteeringConfig,
+) -> Transition:
+    if not isinstance(mode, SteeringMode):
+        raise ValueError("mode must be a supported SteeringMode value")
+    if manual_level is not None:
+        if type(manual_level) is not int:
+            raise ValueError("manual_level must be an integer")
+        if not 0 <= manual_level < config.manual_level_count:
+            raise ValueError(
+                f"manual_level must be between 0 and {config.manual_level_count - 1}"
+            )
+    steering = state.steering
+    normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
+    next_normal = replace(
+        normal,
+        mode=mode,
+        manual_level=normal.manual_level if manual_level is None else manual_level,
+    )
+    next_state = replace(
+        state,
+        steering=(
+            MaximumAssistance(previous=next_normal)
+            if isinstance(steering, MaximumAssistance)
+            else next_normal
+        ),
+    )
+    return Transition(next_state, _steering_state_effects(state, next_state))
+
+
+def _steering_state_effects(
+    previous: ApplicationState,
+    current: ApplicationState,
+) -> tuple[ApplicationEffect, ...]:
+    previous_leds = button_led_state(previous)
+    current_leds = button_led_state(current)
+    return () if previous_leds == current_leds else (SetButtonLeds(current_leds),)
 
 
 def _steering_projection(

@@ -17,10 +17,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Separator } from "@/components/ui/separator"
-import type { CanTraceEntry } from "../../types"
+import type { TraceRow } from "@/api/live-events"
 
 type FrameDetailProps = {
-  frame: CanTraceEntry | null
+  frame: TraceRow | null
 }
 
 export const FrameDetail = ({ frame }: FrameDetailProps) => (

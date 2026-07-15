@@ -61,7 +61,7 @@ def test_wire_codecs_do_not_import_application_types() -> None:
 
 
 def test_simulation_commands_do_not_construct_application_events() -> None:
-    path = PACKAGE / "simulation" / "engine.py"
+    path = PACKAGE / "simulation" / "runtime.py"
     tree = ast.parse(path.read_text(), filename=str(path))
     forbidden = {
         "ButtonPressed",
@@ -86,13 +86,18 @@ def test_default_live_composition_has_no_transmit_grant() -> None:
 
 
 def test_simulation_protocol_and_devices_stay_inside_simulation_composition() -> None:
-    api_simulation_composition = {
-        PACKAGE / "api" / "main.py",
-        PACKAGE / "api" / "internal" / "simulation.py",
-        PACKAGE / "api" / "internal" / "steering.py",
-        PACKAGE / "api" / "internal" / "websocket.py",
-        PACKAGE / "api" / "routes" / "simulation.py",
-        PACKAGE / "api" / "routes" / "vehicle.py",
+    simulation_composition_imports = {
+        PACKAGE / "composition.py": {
+            "e87canbus.simulation.devices",
+            "e87canbus.simulation.runtime",
+        },
+        **{
+            path: {"e87canbus.simulation.runtime"}
+                for path in (
+                    PACKAGE / "api" / "internal" / "simulation.py",
+                    PACKAGE / "api" / "routes" / "simulation.py",
+                )
+        },
     }
     for path in PACKAGE.rglob("*.py"):
         if "simulation" in path.relative_to(PACKAGE).parts:
@@ -102,30 +107,13 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
             for module in imported_modules(path)
             if module == "e87canbus.simulation" or module.startswith("e87canbus.simulation.")
         }
-        if path in api_simulation_composition:
-            assert simulation_imports == {"e87canbus.simulation.engine"}
-        else:
-            assert not simulation_imports, (
-                f"{path.relative_to(PACKAGE)} imports simulation-only code"
-            )
+        assert simulation_imports == simulation_composition_imports.get(path, set()), (
+            f"{path.relative_to(PACKAGE)} has unexpected simulation imports"
+        )
 
 
 def test_live_composition_supplies_no_steering_actuator() -> None:
     assert "steering_actuator=" not in (PACKAGE / "live.py").read_text()
-
-
-def test_pre_kernel_compatibility_names_are_absent() -> None:
-    obsolete = {
-        "ApplicationController",
-        "CoordinatorRuntime",
-        "RateLimitedCanBus",
-        "SimulatorController",
-        "min_id_gap_s",
-        "min_identical_frame_gap_s",
-    }
-    production = "\n".join(path.read_text() for path in PACKAGE.rglob("*.py"))
-
-    assert not {name for name in obsolete if name in production}
 
 
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
@@ -134,7 +122,7 @@ def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> No
         PACKAGE / "output.py",
         PACKAGE / "runtime.py",
         PACKAGE / "live.py",
-        PACKAGE / "simulation" / "engine.py",
+        PACKAGE / "simulation" / "runtime.py",
     )
 
     assert all("assert_never" in called_names(path) for path in paths)

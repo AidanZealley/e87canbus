@@ -5,11 +5,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
 
 
-class StepRequest(BaseModel):
-    button_index: int = 0
+class SimulationCommandAcknowledgement(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    accepted: Literal[True] = True
+    boot_id: str
 
 
 class SpeedRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
     speed_kph: float
 
 
@@ -23,9 +28,3 @@ class EngineRpmRequest(EngineTelemetryRequest):
 
 class TemperatureRequest(EngineTelemetryRequest):
     temperature_c: StrictFloat
-
-
-class DeviceStatusRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: Literal["online", "degraded", "offline"]

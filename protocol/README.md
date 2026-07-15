@@ -20,3 +20,23 @@ hardware evidence.
 
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
+
+`live-events-v1.schema.json` is the generated Pydantic-owned Socket.IO payload schema. Run
+`uv run python scripts/generate_live_contract.py` after changing a live payload model and use
+`--check` in verification. The explicit TypeScript event map in
+`frontend/src/api/live-events.ts` is checked against the schema's fixed event names; it contains
+transport types only and does not duplicate controller behavior or CAN constants.
+
+The `devices.state` button-pad projection identifies its selected physical, emulated, or observer
+source and keeps controller-desired LEDs separate from device-observed LEDs. Emulator observation
+means its decoder received a valid complete `0x701` frame. Physical connection and observation stay
+unknown until the wire protocol supplies evidence; a successful send is not an acknowledgement.
+
+`controller.health` is a bounded, process-local operational projection rather than durable event
+history or arbitrary logs. It contains readiness and fatal truth, explicit capability faults,
+current inbox bounds/latency/overflow state, persistence status, and publisher failure,
+trace/resource-drop and slow-client-isolation counters. Network availability and selected device
+evidence remain in `devices.state`. Publication is coalesced to 1 Hz; reconnecting clients receive
+the current complete health state in `controller.snapshot`. A service-only change advances both the
+global envelope revision and health topic revision, so an already-synchronized client applies
+persistence, readiness and decision-useful publisher changes without a controller input.

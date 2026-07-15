@@ -1,0 +1,25 @@
+[Unit]
+Description=E87 unified CAN controller
+After=network.target
+
+[Service]
+Type=simple
+User=e87canbus
+Group=e87canbus
+WorkingDirectory=/opt/e87canbus
+EnvironmentFile=/etc/e87canbus/controller.env
+ExecStart=/opt/e87canbus/.venv/bin/e87canbus run --mode live --host 127.0.0.1 --port ${E87CANBUS_PORT} --profile-database ${E87CANBUS_DATABASE} --frontend-directory ${E87CANBUS_FRONTEND}
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/e87canbus
+
+[Install]
+WantedBy=multi-user.target

@@ -122,16 +122,11 @@ export const createSteeringCurveEditorStore = ({
         const savedProvenance = status.draftMatchesSelectedSaved
           ? (status.selectedProfile ?? undefined)
           : undefined
-        const active = await state.effects.activate(
+        await state.effects.activate(
           state.draft,
           savedProvenance
         )
-        set({
-          active,
-          draftBaseActivationRevision: active.activation_revision,
-          draftBaseFingerprint: active.fingerprint,
-          lastError: null,
-        })
+        set({ lastError: null })
       }),
     saveRevision: () => {
       const state = get()
@@ -189,6 +184,3 @@ const errorMessage = (error: unknown) =>
 
 export const selectStatus = (state: SteeringCurveEditorStore) =>
   deriveEditorStatus(state, state.profiles)
-
-export const selectPending = (state: SteeringCurveEditorStore) =>
-  state.pendingAction !== null

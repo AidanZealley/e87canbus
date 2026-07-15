@@ -35,11 +35,13 @@ class SimulatedNeoTrellisNode:
 
     bus: CanEndpoint
     ids: CustomCanIds
-    button_index: int = 0
-    next_pressed: bool = True
     led_colours: tuple[int, ...] = (LED_COLOUR_OFF,) * LED_COUNT
+    clock: Callable[[], float] = time.monotonic
+    last_seen_monotonic_s: float | None = None
 
     def send_button_event(self, button_index: int, pressed: bool) -> CanFrame:
+        if not 0 <= button_index < LED_COUNT:
+            raise ValueError(f"button_index must be between 0 and {LED_COUNT - 1}")
         frame = encode_button_event(
             ArduinoButtonEventPayload(
                 button_index=button_index,
@@ -48,11 +50,6 @@ class SimulatedNeoTrellisNode:
             self.ids,
         )
         self.bus.send(frame)
-        return frame
-
-    def send_next_button_event(self) -> CanFrame:
-        frame = self.send_button_event(self.button_index, self.next_pressed)
-        self.next_pressed = not self.next_pressed
         return frame
 
     def process_pending_led_snapshots(self) -> list[LedSnapshotPayload]:
@@ -67,6 +64,7 @@ class SimulatedNeoTrellisNode:
                 continue
 
             self.led_colours = snapshot.colour_codes
+            self.last_seen_monotonic_s = self.clock()
             snapshots.append(snapshot)
 
     def _decode_led_snapshot(self, frame: CanFrame) -> LedSnapshotPayload | None:

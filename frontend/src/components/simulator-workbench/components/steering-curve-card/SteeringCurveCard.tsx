@@ -5,9 +5,10 @@ import {
   activateSteeringCurve,
   createSteeringProfile,
   deleteSteeringProfile,
-  listSteeringProfiles,
   SteeringApiError,
+  steeringProfileQueryKey,
   steeringProfilesQueryKey,
+  steeringProfilesQueryOptions,
   updateSteeringProfile,
   type ActiveSteeringCurve,
   type SteeringCurveDefinition,
@@ -33,8 +34,7 @@ export const SteeringCurveCard = ({
 }: SteeringCurveCardProps) => {
   const queryClient = useQueryClient()
   const profilesQuery = useQuery({
-    queryKey: steeringProfilesQueryKey,
-    queryFn: listSteeringProfiles,
+    ...steeringProfilesQueryOptions(),
     retry: false,
   })
   const { mutateAsync: activate } = useMutation({
@@ -79,6 +79,10 @@ export const SteeringCurveCard = ({
   const { mutateAsync: deleteProfile } = useMutation({
     mutationFn: deleteSteeringProfile,
     onSuccess: (_, deleted) => {
+      queryClient.removeQueries({
+        queryKey: steeringProfileQueryKey(deleted.profile_id),
+        exact: true,
+      })
       queryClient.setQueryData<StoredSteeringProfile[]>(
         steeringProfilesQueryKey,
         (current = []) =>
@@ -114,6 +118,7 @@ const replaceProfileInCatalog = (
   queryClient: ReturnType<typeof useQueryClient>,
   saved: StoredSteeringProfile
 ) => {
+  queryClient.setQueryData(steeringProfileQueryKey(saved.profile_id), saved)
   queryClient.setQueryData<StoredSteeringProfile[]>(
     steeringProfilesQueryKey,
     (current = []) =>

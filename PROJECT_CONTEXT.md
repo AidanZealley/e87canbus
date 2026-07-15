@@ -197,7 +197,7 @@ e87canbus/
 │   │   ├── protocol/              # Generated wire values and CAN codecs
 │   │   ├── adapters/              # Real hardware and OS integrations
 │   │   ├── simulation/            # Virtual CAN and device implementations
-│   │   ├── api/                   # FastAPI and WebSocket interface
+│   │   ├── api/                   # FastAPI and Socket.IO interface
 │   │   └── cli/                   # Executable entry points
 │   └── tests/
 ├── devices/

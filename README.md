@@ -37,6 +37,12 @@ The simulator operates external nodes and follows that same path rather than inj
 events or state. A button-pad LED decision is one complete 16-colour state, one effect, and one
 provisional `0x701` DLC-8 frame; accepted frames replace the simulated device state atomically.
 
+Each repository-owned button-pad composition selects exactly one `physical`, `emulated`,
+`observer`, or `disabled` source. The workbench's emulator controls emit the generated `0x700` wire
+message and are unavailable outside the emulated role. Dashboard operational controls use semantic
+HTTP commands instead. Desired LEDs and observed emulator LEDs remain distinct; physical
+observation is unknown because the protocol has no acknowledgement or heartbeat.
+
 ## Local Setup
 
 ```bash
@@ -46,13 +52,13 @@ uv sync
 Run the dry-run CLI:
 
 ```bash
-uv run e87canbus --dry-run
+uv run e87canbus run --mode live --dry-run
 ```
 
 Run the visual simulator workbench:
 
 ```bash
-uv run e87canbus-sim-api --reload
+uv run e87canbus run --mode simulated --reload
 cd frontend
 pnpm install
 pnpm dev
@@ -62,6 +68,10 @@ Default URLs:
 
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
+
+Process liveness is exposed at `/health/live`; `/health/ready` becomes successful only after the
+database, controller and publisher have started and returns `503` on persistence or fatal controller
+failure. The old placeholder `/api/health` route no longer exists.
 
 In the workbench, the topology panel shows all three networks and the chronological trace can be
 filtered by network without another API request. Press NeoTrellis button `0` to toggle the
@@ -109,7 +119,7 @@ pio run
 
 ## Safety Status
 
-The default live runner disables application transmission on every CAN network. K-CAN transmission
+The default live composition disables application transmission on every CAN network. K-CAN transmission
 is granted only by the isolated simulator and bench compositions, where coordinator output remains
 rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
 hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,
@@ -142,4 +152,15 @@ In the workbench, setting speed stores the selection on the external simulated v
 fresh synthetic F-CAN frame before each control timer until explicitly silenced. The steering panel
 shows effective dimensionless simulated assistance, the last accepted command reason (or “No
 command accepted”), and watchdog state; these are an ideal simulation projection, not measured
-physical feedback. WebSocket publication is bounded, ordered, and isolates stalled peers.
+physical feedback. Socket.IO publication is bounded and latest-state coalesced; the frontend uses
+one Socket.IO-to-Zustand path. Development HTTP controls return acknowledgements; live state is
+never duplicated in HTTP response snapshots.
+
+Operational diagnostics expose current bounded inbox depth, capacity, latency, warning and overflow
+truth; explicit network, device and steering faults; persistence availability; and decision-useful
+publisher failure, trace/resource-drop and slow-client-isolation counters. Network availability and
+selected device state remain in `devices.state`, while trace retention stays fixed at 2,000 rows.
+Publisher or client failure cannot block the controller owner. See the
+[failure policy and soak evidence](docs/reliability.md) and
+[Pi deployment and operation](deploy/README.md) for the loopback same-origin service, restart policy
+and journal commands.

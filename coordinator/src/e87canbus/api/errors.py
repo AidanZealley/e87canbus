@@ -28,7 +28,9 @@ class ApiProblem(Exception):
 
 def install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiProblem)
-    async def api_problem_handler(_request: Request, exc: ApiProblem) -> JSONResponse:
+    async def api_problem_handler(request: Request, exc: ApiProblem) -> JSONResponse:
+        if exc.code in {"settings_storage_error", "profile_storage_error"}:
+            request.app.state.controller_service.mark_persistence_fault(exc.message)
         error: dict[str, Any] = {"code": exc.code, "message": exc.message}
         if exc.current_revision is not None:
             error["current_revision"] = exc.current_revision

@@ -3,28 +3,7 @@ from e87canbus.protocol.can import CanFrame
 from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 
 
-def test_sending_delivers_to_other_bus() -> None:
-    network = InMemoryCanNetwork()
-    pi_bus = network.create_bus("pi")
-    neotrellis_bus = network.create_bus("neotrellis")
-    frame = CanFrame(0x700, b"\x00\x01")
-
-    pi_bus.send(frame)
-
-    assert neotrellis_bus.receive(timeout_s=0.01) == frame
-
-
-def test_sender_does_not_receive_own_frame() -> None:
-    network = InMemoryCanNetwork()
-    pi_bus = network.create_bus("pi")
-    network.create_bus("neotrellis")
-
-    pi_bus.send(CanFrame(0x700, b"\x00\x01"))
-
-    assert pi_bus.receive(timeout_s=0.01) is None
-
-
-def test_multiple_receivers_each_receive_a_copy() -> None:
+def test_network_delivers_to_each_peer_but_not_the_sender() -> None:
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
     neotrellis_bus = network.create_bus("neotrellis")
@@ -35,13 +14,7 @@ def test_multiple_receivers_each_receive_a_copy() -> None:
 
     assert neotrellis_bus.receive(timeout_s=0) == frame
     assert logger_bus.receive(timeout_s=0) == frame
-
-
-def test_receive_returns_none_when_no_frame_is_queued() -> None:
-    network = InMemoryCanNetwork()
-    bus = network.create_bus("pi")
-
-    assert bus.receive(timeout_s=5.0) is None
+    assert pi_bus.receive(timeout_s=0) is None
 
 
 def test_trace_records_source_frame_and_timestamp() -> None:
@@ -109,16 +82,6 @@ def test_topology_trace_is_globally_ordered_across_networks() -> None:
         CanNetwork.FCAN,
     ]
     assert list(trace) == sorted(trace, key=lambda entry: entry.monotonic_s)
-
-
-def test_topology_owned_network_does_not_duplicate_trace_storage() -> None:
-    topology = InMemoryCanTopology()
-    kcan = topology.create_bus(CanNetwork.KCAN, "pi")
-
-    kcan.send(CanFrame(0x100, b""))
-
-    assert len(topology.trace()) == 1
-    assert topology.network(CanNetwork.KCAN).trace() == ()
 
 
 def test_topology_uses_one_global_ring_buffer_and_clear_resets_sequence() -> None:

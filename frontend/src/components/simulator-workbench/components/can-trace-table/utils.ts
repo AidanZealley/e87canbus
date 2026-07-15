@@ -1,5 +1,5 @@
-import type { CanTraceEntry } from "../../types"
-import { isCompleteLedSnapshot, LED_COUNT } from "../../utils.ts"
+import type { TraceRow } from "@/api/live-events"
+import { LED_COUNT } from "../../utils.ts"
 
 const LED_SNAPSHOT_HEX_PATTERN = /^[0-9a-fA-F]{16}$/
 
@@ -13,10 +13,12 @@ export const decodeLedSnapshot = (dataHex: string): number[] | null => {
     const packed = Number.parseInt(dataHex.slice(byteStart, byteStart + 2), 16)
     return index % 2 === 0 ? packed & 0x0f : packed >> 4
   })
-  return isCompleteLedSnapshot(colours) ? colours : null
+  return colours.every((colour) => colour >= 0 && colour <= 5)
+    ? colours
+    : null
 }
 
-export const decodeMeaning = (entry: CanTraceEntry) => {
+export const decodeMeaning = (entry: TraceRow) => {
   if (entry.network !== "kcan") return "unknown"
 
   if (entry.arbitration_id_hex === "0x700") {

@@ -15,8 +15,8 @@ POST   /api/steering/profiles
 GET    /api/steering/profiles/{profile_id}
 PUT    /api/steering/profiles/{profile_id}
 DELETE /api/steering/profiles/{profile_id}
-GET    /api/steering/curve-state
-POST   /api/steering/curve-state/activate
+POST   /api/commands/activate-steering-profile
+PUT    /api/commands/steering-curve
 ```
 
 Avoid an endpoint named `save-and-activate` initially. Save and activation have different owners
@@ -84,8 +84,9 @@ Activation accepts a complete definition plus optional saved provenance:
 The service must verify that claimed saved provenance matches the repository definition. If it
 doesn't, either reject the claim or activate without saved provenance; never publish a false match.
 
-The activation response returns authoritative curve state, including activation status and
-revision. In the current in-process implementation it completes as `active`. The contract reserves
+The activation response is a small acknowledgement containing the process boot and matched commit
+revision. Authoritative curve state arrives through `controller.snapshot` and `steering.state`.
+The current in-process implementation completes with status `active`; the live contract reserves
 `activating` and `activation_failed` for a future device consumer.
 
 ## Draft, Apply and Save semantics
@@ -94,7 +95,8 @@ revision. In the current in-process implementation it completes as `active`. The
 - Apply: send the draft definition to activation; no SQLite write.
 - Save new: create a saved profile; no activation.
 - Save changes: update a saved profile using `expected_revision`; no activation.
-- Revert to active: replace browser draft from `curve-state`; no backend mutation.
+- Revert to active: replace the browser draft from the current Zustand steering slice; no backend
+  mutation or HTTP live-state query.
 - Load saved: replace browser draft from a selected saved profile; no activation.
 
 The UI may expose `Save and apply`, but it is a two-result workflow: save first, then activate the
@@ -120,13 +122,13 @@ Suggested HTTP mappings:
 | Runtime command queue full | 503 |
 | Activation consumer rejects/fails | 409 or 503, with typed detail |
 
-## WebSocket publication
+## Socket.IO publication
 
 Publish the full active curve projection in authoritative snapshots. Additionally publish a
 profile-catalog invalidation or revision event after saved CRUD so other open displays can refetch
 the list.
 
-Do not broadcast every drag movement. WebSocket reconnect must recover from a missed event using a
+Do not broadcast every drag movement. Socket.IO reconnect must recover from a missed event using a
 full snapshot plus a fresh profile list request.
 
 ## Security and deployment boundary
@@ -147,7 +149,7 @@ validation.
 - False saved provenance is rejected or removed.
 - Concurrent updates allow exactly one expected revision to win.
 - Activation queue overload is bounded and reported.
-- WebSocket snapshot/reconnect contains authoritative active state.
+- Socket.IO snapshot/reconnect contains authoritative active state.
 - Saved catalog changes cause a refetch signal without transmitting draft state.
 
 ## Completion criteria

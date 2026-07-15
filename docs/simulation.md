@@ -8,8 +8,11 @@ Linux.
 Run the FastAPI backend:
 
 ```bash
-uv run e87canbus-sim-api --reload
+uv run e87canbus run --mode simulated --reload
 ```
+
+Use `--button-pad-source observer` or `--button-pad-source disabled` to inspect those fixed
+composition roles. The default simulated role is `emulated`; source changes require restart.
 
 Run the browser frontend:
 
@@ -24,69 +27,76 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench exposes one in-memory `SimulationEngine` software component through REST plus a
-WebSocket stream; “engine” here means the single-owner simulator runner, not a vehicle engine. A
-bounded command queue serializes button actions, periodic control timers, and resets through one
-owner task; an overloaded API request receives HTTP 503. Its `CoordinatorKernel` uses the same
+The workbench selects one in-memory simulated runtime adapter behind the same `ControllerService`
+used by live mode. A bounded controller inbox serializes button actions, periodic control timers,
+and resets through one owner thread; an overloaded API request receives HTTP 503. Its
+`CoordinatorKernel` uses the same
 decode, transition, commit, effect-execution, and TX-policy path as the live Pi runner. Simulated
-devices emit frames onto the in-memory networks, and the engine timestamps those frames at receipt
+devices emit frames onto the in-memory networks, and the adapter timestamps those frames at receipt
 before submitting them through the kernel's sole `dispatch` entry point.
 
-Snapshots carry the kernel-owned revision, fatal-health status, and simulation session ID. Reset
+The service projection carries boot-scoped revisions, fatal health and simulation session ID. Reset
 starts a new session because trace sequence numbers restart at one; frame identity is therefore the
-pair of session ID and sequence. Initial loads and resets carry the complete trace. Command
-snapshots omit it and WebSocket frame events append only the new trace entries. Periodic timers
-publish a snapshot only when that operation changes the public application, controller, or fatal
-projection; refreshed external speed frames remain ordinary incremental trace events.
-WebSocket sends, including the initial full snapshot, have a one-second default timeout. A stalled
-or failed peer is removed while publication continues in order to the remaining peers; publication
-is not detached from the owning operation. The browser retries initial HTTP startup twice before
-reporting the backend as unavailable, then probes it every ten seconds so the UI can recover. It
-reconnects a closed WebSocket with jittered exponential backoff capped at ten seconds. The first
-full snapshot on every connection is authoritative, so a restarted backend can safely reset its
-session and revision counters without stale browser state winning the merge. While connected,
-the browser sends a heartbeat every five seconds and closes and reconnects a connection that has
-received no server message for fifteen seconds. The workbench badge distinguishes initial
-connection, disconnection, and reconnection.
+pair of session ID and sequence. Development controls return only `accepted` and the stable process
+`boot_id`, never potentially stale revision/session metadata or a second live-state snapshot. The
+repository frontend uses one Socket.IO connection owned outside the React tree. Socket sends have a
+one-second default timeout and Engine.IO client queues are finite. A stalled or failed peer can
+delay only publication; it cannot block the controller owner, CAN input processing, or effect
+execution. Socket.IO owns reconnect and Engine.IO heartbeat behavior. The first full
+snapshot on every connection is authoritative, so a restarted backend can safely reset its session
+and revision counters without stale browser state winning the merge. Until that snapshot arrives,
+the frontend masks current live observations as unavailable. The workbench badge distinguishes
+initial connection, synchronization, disconnection, and reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
-commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
+commit. The simulated runtime then commits and attempts shutdown once, publishes fatal health, and rejects
 normal commands until reset. A failure during that final attempt is logged and discarded rather
 than fed back or retried. If the ordinary shutdown effect initiated by reset fails, the stopped
-session records and logs that fault; reset still replaces it and returns the new healthy session at
-revision one. The replaced session's fault remains in logs rather than being copied into the new
-session or a second diagnostic store.
+session records and logs that fault; reset still replaces it, and the canonical service/Socket.IO
+projection reports the new healthy session at revision one. The replaced session's fault remains
+in logs rather than being copied into the new session or a second diagnostic store.
 
 It models three independent CAN broadcast domains:
 
 | Network | Interface | Bitrate | Nodes |
 |---|---|---:|---|
-| K-CAN | `can0` | 100,000 | Pi, simulated vehicle, NeoTrellis |
+| K-CAN | `can0` | 100,000 | Pi, simulated vehicle, button-pad emulator |
 | PT-CAN | `can1` | 500,000 | Pi, simulated vehicle |
 | F-CAN | `can2` | 500,000 | Pi, simulated vehicle |
 
 There is no automatic gateway behavior. Every emitted frame is retained in one chronological
 2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
-and reset's full empty snapshot clears the frontend trace while retaining topology configuration
+and reset's changed session identity clears the frontend trace while retaining topology configuration
 and filter choices.
 
-Button `0` starts blue because the authoritative steering mode starts in Auto. Press it to send
+The default simulated composition selects the button pad's `emulated` role. The workbench labels
+wire-level emulator exercise separately from semantic controller commands. Button `0` starts blue
+because the authoritative steering mode starts in Auto. Press it to send
 `0x700 0001`; the application changes to Manual, replies with
 `0x701 0400000000000000`, and the complete device state is replaced with button 0 amber and all
 other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
 application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
 blue.
 
+Controller LEDs are desired state. The emulator's displayed observation changes only after it
+receives and atomically decodes the complete `0x701` frame. A rate-limited or malformed output can
+therefore leave desired and observed values different until a later accepted snapshot converges.
+Observer mode has no emulator controls or device-originated traffic; physical state remains unknown
+without a protocol acknowledgement; disabled omits the capability. Source-mode changes require
+restart. Reset reconstructs the virtual topology and emulator, clears trace identity and restores
+vehicle signals to never-observed without retaining old endpoints.
+
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 
-Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such as
+Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
-simulation-only CAN frame on the in-memory F-CAN. The engine timestamps and decodes that frame
+simulation-only CAN frame on the in-memory F-CAN. The runtime timestamps and decodes that frame
 through the kernel; the API does not inject `SpeedObserved` or application state. The live router
 does not recognize the synthetic ID. The selected speed persists on the external vehicle. Immediately
-before each queued control timer, the vehicle emits a fresh encoded frame and the engine drains it
-through the kernel before dispatching the timer. `POST /api/vehicle/speed/silence` clears the
-selection; subsequent timers emit no speed frame until another speed is set.
+before each ordered control timer, the vehicle emits a fresh encoded frame and the runtime drains it
+through the kernel before dispatching the timer.
+`POST /api/dev/simulation/vehicle/speed/silence` clears the selection; subsequent timers emit no
+speed frame until another speed is set.
 
 On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
 assistance curve. Never-seen and stale speed select zero simulated assistance with distinct reasons.
@@ -104,9 +114,9 @@ fallback; it is not a verified physical command or electrical safe state. Physic
 transport, range and polarity, valve response, feedback, controller topology, and watchdog behavior
 remain unknown.
 
-The current scheduled vehicle source, direct steering capability, and passive NeoTrellis LED sink
+The current scheduled vehicle source, direct steering capability, and button-pad emulator
 settle in one visible processing pass. Before the first simulated device is allowed to emit a CAN
-response while processing an incoming CAN frame, `SimulationEngine` must regain a bounded
+response while processing an incoming CAN frame, the simulated runtime adapter must gain a bounded
 run-until-quiescent loop with an explicit livelock cap and deterministic tests. No unused cascade
 loop is installed today.
 
@@ -127,7 +137,7 @@ external devices remain unrestricted. A later accepted `0x701` snapshot replaces
 LED colours and repairs a missed intermediate state. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
-The simulator decodes the provisional project protocol on K-CAN:
+The emulator and physical pad share the generated provisional project protocol on K-CAN:
 
 - `0x700`: button-pad event.
 - `0x701`: complete 16-colour coordinator LED snapshot.

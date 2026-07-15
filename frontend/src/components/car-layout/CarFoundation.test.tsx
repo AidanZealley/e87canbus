@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { DropletIcon } from "lucide-react"
+import { afterEach, expect, it } from "vitest"
 
 import { DeviceStatusFooter } from "@/components/device-status-footer"
+import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { RpmBar } from "@/components/rpm-bar"
 import { TelemetryValue } from "@/components/telemetry-value"
 import { TemperatureGauge } from "@/components/temperature-gauge"
@@ -12,7 +14,7 @@ afterEach(cleanup)
 it("never renders a manufactured numeric zero for unavailable values", () => {
   render(
     <div>
-      <TelemetryValue value={null} unit="mph" />
+      <TelemetryValue label="Speed" value={null} unit="mph" />
       <TemperatureGauge
         label="Oil temperature"
         value={null}
@@ -26,6 +28,7 @@ it("never renders a manufactured numeric zero for unavailable values", () => {
 
   expect(screen.getAllByText("—")).toHaveLength(3)
   expect(screen.queryByText("0")).toBeNull()
+  expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(3)
 })
 
 it("renders severity and RPM stage as text in addition to color", () => {
@@ -39,97 +42,78 @@ it("renders severity and RPM stage as text in addition to color", () => {
         severity="critical"
       />
       <RpmBar rpm={7600} stage="redline" position={1} redlineRpm={7200} />
+      <DriveTemperatureGauge
+        icon={DropletIcon}
+        label="Oil temperature"
+        value={230}
+        valueC={110}
+        unit="°F"
+        operatingTemperatureC={110}
+        status="valid"
+        severity="critical"
+      />
     </div>
   )
 
-  expect(screen.getByText("Critical")).toBeTruthy()
+  expect(screen.getAllByText("Critical")).toHaveLength(2)
+  expect(screen.getByText("Redline")).toBeTruthy()
   expect(screen.getByRole("meter").getAttribute("aria-valuenow")).toBe("7200")
   expect(screen.getByRole("meter").getAttribute("aria-valuemax")).toBe("7200")
+  expect(screen.getByRole("meter").getAttribute("aria-valuetext")).toContain(
+    "7600 RPM"
+  )
+  const rpmSegments = screen
+    .getByRole("meter")
+    .querySelectorAll('[aria-hidden="true"]')
+  expect(rpmSegments).toHaveLength(18)
+  for (const segment of rpmSegments) {
+    expect(segment.className).toContain("motion-safe:animate-shift-strobe")
+  }
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Oil temperature position" })
+      .getAttribute("aria-valuenow")
+  ).toBe("50")
+  const criticalBadge = within(screen.getByLabelText("Oil temperature")).getByText(
+    "Critical"
+  )
+  expect(criticalBadge.getAttribute("data-variant")).toBe("destructive")
+  expect(criticalBadge.className).toContain("motion-safe:animate-strobe")
+  expect(criticalBadge.className).not.toContain("animate-pulse")
+  expect(criticalBadge.querySelector("svg[data-icon=inline-start]")).toBeTruthy()
 })
 
-it("keeps device order stable and fails missing entries closed", () => {
+it("fails an absent custom device closed", () => {
   const { container } = render(
-    <DeviceStatusFooter
-      devices={[
-        {
-          id: "steering_controller",
-          label: "Steering controller",
-          status: "degraded",
-          reason: "simulated warning",
-        },
-      ]}
-    />
+    <DeviceStatusFooter devices={[]} />
   )
 
   const footer = screen.getByRole("contentinfo", { name: "Device status" })
-  const text = footer.textContent ?? ""
-  expect(text.indexOf("Button pad")).toBeLessThan(
-    text.indexOf("Steering controller")
-  )
-  expect(within(footer).getByText("offline")).toBeTruthy()
-  expect(within(footer).getByText(/unavailable/)).toBeTruthy()
-  expect(within(footer).getByText("degraded")).toBeTruthy()
-  expect(within(footer).getByText(/simulated warning/)).toBeTruthy()
+  expect(within(footer).getByText("Button pad")).toBeTruthy()
+  expect(within(footer).getByText("Unavailable")).toBeTruthy()
   expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
 })
 
-it("distinguishes destructive offline health from muted unavailable fallback", () => {
+it("does not present physical desired state as an observation", () => {
   const { container } = render(
     <DeviceStatusFooter
       devices={[
         {
-          id: "steering_controller",
-          label: "Steering controller",
-          status: "offline",
-          reason: "simulated_offline",
+          id: "button_pad",
+          label: "Button pad",
+          source_mode: "physical",
+          connected: null,
+          last_seen_monotonic_s: null,
+          desired_led_colours: Array(16).fill(0),
+          observed_led_colours: null,
+          last_output_fault: null,
         },
       ]}
     />
   )
 
-  const unavailableRow = screen.getByText("Button pad").parentElement
-  const offlineRow = screen.getByText("Steering controller").parentElement
-  expect(unavailableRow?.querySelector(".bg-muted-foreground")).toBeTruthy()
-  expect(unavailableRow?.querySelector(".bg-destructive")).toBeNull()
-  expect(offlineRow?.querySelector(".bg-destructive")).toBeTruthy()
-  expect(offlineRow?.querySelector(".text-destructive")).toBeTruthy()
-  expect(container.textContent).toContain("simulated_offline")
-})
-
-describe.each(["light", "dark"])("%s theme", (theme) => {
-  it("renders every reusable instrument", () => {
-    const { container } = render(
-      <div className={theme}>
-        <TelemetryValue value={62} unit="mph" />
-        <TemperatureGauge
-          label="Oil temperature"
-          value={127}
-          unit="°C"
-          status="valid"
-          severity="warning"
-        />
-        <RpmBar rpm={6900} stage="stage_1" position={0.95} redlineRpm={7200} />
-        <DeviceStatusFooter
-          devices={[
-            {
-              id: "button_pad",
-              label: "Button pad",
-              status: "online",
-              reason: null,
-            },
-            {
-              id: "steering_controller",
-              label: "Steering controller",
-              status: "offline",
-              reason: "simulated offline",
-            },
-          ]}
-        />
-      </div>
-    )
-
-    expect(container.textContent).toContain("62")
-    expect(container.textContent).toContain("Warning")
-    expect(container.textContent).toContain("Button pad")
-  })
+  expect(screen.getByText("physical")).toBeTruthy()
+  expect(screen.getByText(/connection unknown/)).toBeTruthy()
+  expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
+  expect(container.querySelector(".bg-emerald-500")).toBeNull()
 })

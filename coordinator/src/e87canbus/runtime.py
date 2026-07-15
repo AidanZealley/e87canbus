@@ -10,6 +10,7 @@ from typing import assert_never
 
 from e87canbus.application.controller import (
     ApplicationSnapshot,
+    button_led_state,
     initial_effects,
     normalize_state,
     snapshot,
@@ -20,11 +21,14 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ControlTimerElapsed,
+    MaximumAssistanceSet,
     SteeringFallbackReason,
     SteeringFallbackRequested,
+    SteeringModeSet,
 )
-from e87canbus.application.state import ApplicationState
+from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import CanNetwork, EngineTelemetryConfig, SteeringConfig
+from e87canbus.device import DeviceRole
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     CurveInterpolation,
@@ -104,7 +108,14 @@ class SteeringActuatorFailed:
 
 @dataclass(frozen=True)
 class InboxOverflowed:
-    network: CanNetwork
+    network: CanNetwork | None
+    failed_at: float
+    message: str
+
+
+@dataclass(frozen=True)
+class DeviceAdapterFailed:
+    role: DeviceRole
     failed_at: float
     message: str
 
@@ -119,9 +130,33 @@ class ActivateSteeringCurve:
     definition: SteeringCurveDefinition
     saved_profile_id: str | None = None
     saved_profile_revision: int | None = None
+    requested_at: float = field(kw_only=True)
 
 
-KernelInput = (
+@dataclass(frozen=True)
+class SetMaximumAssistance:
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        if type(self.enabled) is not bool:
+            raise ValueError("enabled must be a boolean")
+
+
+@dataclass(frozen=True)
+class SetSteeringMode:
+    mode: SteeringMode
+    manual_level: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, SteeringMode):
+            raise ValueError("mode must be a supported SteeringMode value")
+        if self.manual_level is not None and (
+            type(self.manual_level) is not int or self.manual_level < 0
+        ):
+            raise ValueError("manual_level must be a non-negative integer")
+
+
+ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
     | TimerElapsed
@@ -129,8 +164,32 @@ KernelInput = (
     | CanEffectExecutionFailed
     | SteeringActuatorFailed
     | InboxOverflowed
+    | DeviceAdapterFailed
     | ShutdownRequested
     | ActivateSteeringCurve
+    | SetMaximumAssistance
+    | SetSteeringMode
+)
+
+class StateTopic(StrEnum):
+    """Closed service projection topics; not a runtime-extensible event bus."""
+
+    VEHICLE = "vehicle"
+    ENGINE = "engine"
+    STEERING = "steering"
+    BUTTONS = "buttons"
+    DEVICES = "devices"
+    HEALTH = "health"
+
+
+INITIAL_KERNEL_TOPICS = frozenset(
+    {
+        StateTopic.VEHICLE,
+        StateTopic.ENGINE,
+        StateTopic.STEERING,
+        StateTopic.BUTTONS,
+        StateTopic.HEALTH,
+    }
 )
 
 
@@ -145,6 +204,7 @@ class RuntimeFaultKind(StrEnum):
     CAN_EFFECT_EXECUTION = "can_effect_execution"
     STEERING_ACTUATOR = "steering_actuator"
     INBOX_OVERFLOW = "inbox_overflow"
+    DEVICE_ADAPTER = "device_adapter"
 
 
 @dataclass(frozen=True)
@@ -158,6 +218,16 @@ class RuntimeFault:
 class NetworkRuntimeHealth:
     network: CanNetwork
     fault: RuntimeFault | None = None
+    received_frames: int = 0
+    decoded_frames: int = 0
+    ignored_frames: int = 0
+    malformed_frames: int = 0
+
+
+@dataclass(frozen=True)
+class DeviceRuntimeHealth:
+    role: DeviceRole
+    fault: RuntimeFault | None = None
 
 
 def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
@@ -168,37 +238,93 @@ def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
 class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
     steering_actuator_fault: RuntimeFault | None = None
+    inbox_overflow_fault: RuntimeFault | None = None
+    devices: tuple[DeviceRuntimeHealth, ...] = (
+        DeviceRuntimeHealth(DeviceRole.BUTTON_PAD),
+    )
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
 
     @property
     def fatal(self) -> bool:
-        return self.steering_actuator_fault is not None or any(
-            item.fault is not None for item in self.networks
+        return (
+            self.steering_actuator_fault is not None
+            or self.inbox_overflow_fault is not None
+            or any(item.fault is not None for item in self.networks)
         )
 
     def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
         return self._replace(replace(self.for_network(network), fault=fault))
 
     def _replace(self, replacement: NetworkRuntimeHealth) -> RuntimeHealth:
-        return RuntimeHealth(
+        return replace(
+            self,
             networks=tuple(
                 replacement if item.network is replacement.network else item
                 for item in self.networks
             ),
-            steering_actuator_fault=self.steering_actuator_fault,
         )
 
     def with_steering_actuator_fault(self, fault: RuntimeFault) -> RuntimeHealth:
         return replace(self, steering_actuator_fault=fault)
 
+    def with_inbox_overflow(
+        self,
+        network: CanNetwork | None,
+        fault: RuntimeFault,
+    ) -> RuntimeHealth:
+        updated = replace(self, inbox_overflow_fault=fault)
+        return updated if network is None else updated.with_fault(network, fault)
+
+    def with_device_fault(self, role: DeviceRole, fault: RuntimeFault) -> RuntimeHealth:
+        return replace(
+            self,
+            devices=tuple(
+                replace(item, fault=fault) if item.role is role else item
+                for item in self.devices
+            ),
+        )
+
+    def with_frame_outcome(self, network: CanNetwork, outcome: str) -> RuntimeHealth:
+        current = self.for_network(network)
+        if outcome == "decoded":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                decoded_frames=current.decoded_frames + 1,
+            )
+        elif outcome == "ignored":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                ignored_frames=current.ignored_frames + 1,
+            )
+        elif outcome == "malformed":
+            updated = replace(
+                current,
+                received_frames=current.received_frames + 1,
+                malformed_frames=current.malformed_frames + 1,
+            )
+        else:
+            raise ValueError(f"unsupported frame outcome: {outcome}")
+        return self._replace(updated)
+
 
 @dataclass(frozen=True)
 class Commit:
+    """One accepted transition after state mutation, with ordered desired effects.
+
+    ``snapshot`` is the complete immutable application projection. Button output is derived from
+    that application state and emitted atomically; adapter-owned device observations and immutable
+    runtime diagnostics remain separate service projections rather than duplicate application
+    state.
+    """
+
     revision: int
     snapshot: ApplicationSnapshot
     effects: tuple[ApplicationEffect, ...]
+    changed_topics: frozenset[StateTopic]
     state_changed: bool
 
 
@@ -278,7 +404,7 @@ class CoordinatorKernel:
     def diagnostics(self) -> DiagnosticSnapshot:
         return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
 
-    def dispatch(self, kernel_input: KernelInput) -> Commit | None:
+    def dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         """Accept the kernel's only state-changing input path."""
 
         if (
@@ -306,23 +432,31 @@ class CoordinatorKernel:
                 self._lifecycle = KernelLifecycle.RUNNING
                 return self._commit_startup()
             case CanReaderFailed(network, failed_at, message):
+                previous_health = self._health
                 self._health = self._health.with_fault(
                     network,
                     RuntimeFault(RuntimeFaultKind.CAN_READER, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(
-                        SteeringFallbackReason.CAN_READER_FAILURE
-                    )
+                    SteeringFallbackRequested(SteeringFallbackReason.CAN_READER_FAILURE),
+                    previous_health=previous_health,
                 )
             case InboxOverflowed(network, failed_at, message):
-                self._health = self._health.with_fault(
+                previous_health = self._health
+                self._health = self._health.with_inbox_overflow(
                     network,
                     RuntimeFault(RuntimeFaultKind.INBOX_OVERFLOW, failed_at, message),
                 )
                 return self._transition(
-                    SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW)
+                    SteeringFallbackRequested(SteeringFallbackReason.INBOX_OVERFLOW),
+                    previous_health=previous_health,
                 )
+            case DeviceAdapterFailed(role, failed_at, message):
+                self._health = self._health.with_device_fault(
+                    role,
+                    RuntimeFault(RuntimeFaultKind.DEVICE_ADAPTER, failed_at, message),
+                )
+                return None
             case CanEffectExecutionFailed(network, failed_at, message):
                 self._health = self._health.with_fault(
                     network,
@@ -354,6 +488,14 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._activate_steering_curve(kernel_input)
+            case SetMaximumAssistance(enabled):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(MaximumAssistanceSet(enabled))
+            case SetSteeringMode(mode, manual_level):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(SteeringModeSet(mode, manual_level))
             case _:
                 assert_never(kernel_input)
 
@@ -369,11 +511,22 @@ class CoordinatorKernel:
                 routed.frame.data.hex(),
                 exc,
             )
+            self._health = self._health.with_frame_outcome(received.network, "malformed")
             return None
-        return None if event is None else self._transition(event)
+        if event is None:
+            self._health = self._health.with_frame_outcome(received.network, "ignored")
+            return None
+        self._health = self._health.with_frame_outcome(received.network, "decoded")
+        return self._transition(event)
 
-    def _transition(self, event: ApplicationEvent) -> Commit:
+    def _transition(
+        self,
+        event: ApplicationEvent,
+        *,
+        previous_health: RuntimeHealth | None = None,
+    ) -> Commit:
         previous_snapshot = self.snapshot()
+        previous_button_leds = button_led_state(self._state)
         result = transition(
             self._state,
             event,
@@ -383,10 +536,19 @@ class CoordinatorKernel:
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
+        changed_topics = _changed_controller_topics(
+            previous_snapshot,
+            committed_snapshot,
+            buttons_changed=button_led_state(self._state) != previous_button_leds,
+            health_changed=(
+                previous_health is not None and self._health != previous_health
+            ),
+        )
         return Commit(
             revision=self._revision,
             snapshot=committed_snapshot,
             effects=result.effects,
+            changed_topics=changed_topics,
             state_changed=committed_snapshot != previous_snapshot,
         )
 
@@ -400,6 +562,7 @@ class CoordinatorKernel:
                 self._steering_config,
                 self._active_steering_curve.definition,
             ),
+            changed_topics=INITIAL_KERNEL_TOPICS,
             state_changed=True,
         )
 
@@ -442,5 +605,50 @@ class CoordinatorKernel:
             revision=self._revision,
             snapshot=committed_snapshot,
             effects=effects,
+            changed_topics=_changed_controller_topics(
+                previous_snapshot,
+                committed_snapshot,
+                buttons_changed=False,
+                health_changed=False,
+            ),
             state_changed=committed_snapshot != previous_snapshot,
         )
+
+
+def _changed_controller_topics(
+    previous: ApplicationSnapshot,
+    current: ApplicationSnapshot,
+    *,
+    buttons_changed: bool,
+    health_changed: bool,
+) -> frozenset[StateTopic]:
+    """Compare fixed projections without introducing string dispatch or registration."""
+
+    changed: set[StateTopic] = set()
+    if (
+        current.vehicle_speed_kph != previous.vehicle_speed_kph
+        or current.speed_valid != previous.speed_valid
+    ):
+        changed.add(StateTopic.VEHICLE)
+    if current.engine != previous.engine:
+        changed.add(StateTopic.ENGINE)
+    if (
+        current.steering_mode != previous.steering_mode
+        or current.manual_assistance_level != previous.manual_assistance_level
+        or current.maximum_assistance_active != previous.maximum_assistance_active
+        or current.active_steering_curve != previous.active_steering_curve
+        or (
+            current.steering_curve_activation_status
+            != previous.steering_curve_activation_status
+        )
+        or (
+            current.supported_steering_curve_interpolations
+            != previous.supported_steering_curve_interpolations
+        )
+    ):
+        changed.add(StateTopic.STEERING)
+    if buttons_changed:
+        changed.add(StateTopic.BUTTONS)
+    if health_changed:
+        changed.add(StateTopic.HEALTH)
+    return frozenset(changed)

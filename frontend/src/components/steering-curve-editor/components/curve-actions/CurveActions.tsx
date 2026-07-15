@@ -3,8 +3,8 @@ import { useShallow } from "zustand/react/shallow"
 import { Button } from "@/components/ui/button"
 import { selectStatus } from "../../store"
 import { useSteeringCurveEditorStore } from "../../store-context"
-import { DeleteSavedButton } from "./components/delete-saved-button"
-import { ReloadActiveButton } from "./components/reload-active-button"
+import { DeleteSavedButton } from "./components/delete-saved-button/DeleteSavedButton"
+import { ReloadActiveButton } from "./components/reload-active-button/ReloadActiveButton"
 
 export const CurveActions = () => {
   const {

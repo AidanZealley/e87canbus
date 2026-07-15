@@ -26,32 +26,32 @@ automotive instrument primitive.
 
 ## Long-lived car data owner
 
-The `/car` layout must own one connection to the existing snapshot/query system and expose a context
-or similarly direct hook boundary to its route children. It provides:
+One Socket.IO client outside React feeds the shared Zustand live store. The `/car` layout consumes
+narrow selectors from that store and TanStack Query for durable settings/profile state. It provides:
 
-- Current application and steering-controller snapshot.
-- Device array.
+- Current steering, vehicle and engine topic values.
+- Current device topic value.
 - Connection state.
 - Authoritative settings query state.
 - Effective settings: authoritative data or compiled defaults.
 - Whether defaults are active because settings failed.
 - Derived oil and coolant warning severity with persistent hysteresis.
 
-Do not mount separate WebSocket connections in each child page. Route changes must not reset
+Do not mount connections or transport listeners in components. Route changes must not reset
 hysteresis or throw away cached settings/profile data.
 
-Refactor current simulator hooks only as much as needed to make them reusable outside
-`SimulatorWorkbench`. Preserve existing query keys, merge ordering, trace behavior, heartbeat and
-reconnect semantics. Avoid a second parallel snapshot store.
+Reuse the shared live selectors and durable Query keys. Preserve topic revision ordering, bounded
+trace behavior and reconnect-snapshot semantics. Never introduce a parallel snapshot store or put
+live telemetry in TanStack Query.
 
 ## Connection and configuration faults
 
 The car layout reserves a compact top banner:
 
-- Show it while the initial snapshot is unavailable or the WebSocket is reconnecting/disconnected.
+- Show it while the initial Socket.IO snapshot is unavailable or the client is reconnecting/disconnected.
 - Use concise in-car wording rather than the dev workbench's port-8000 instructions.
-- On connection loss, live telemetry consumers render unavailable even if an old query snapshot is
-  still cached.
+- On connection loss, live telemetry consumers render unavailable even if Zustand still retains
+  the last bounded topic value.
 - Navigation and cached static/profile/settings views remain usable.
 
 If settings fail to load:
@@ -150,8 +150,10 @@ Use CSS/Tailwind and semantic markup unless an SVG materially improves scale ren
 
 ### Device footer
 
-Render button pad and steering controller in stable order with label, status and optional reason.
-Missing devices are unavailable/offline. Keep the visible footprint minimal and expose detail
+Render the button-pad role with its label, selected source and evidence-backed connection state.
+Show output faults distinctly. A null connection is explicitly unknown; an absent role is an
+unavailable capability. Do not infer device state from controller desire, network-node strings or
+the separate simulated steering actuator. Keep the visible footprint minimal and expose detail
 accessibly.
 
 ## Responsive and styling rules
@@ -178,7 +180,7 @@ Pure utilities:
 
 Provider/data flow:
 
-- Only one car snapshot subscription exists across route changes.
+- Only one shared live-state subscription path exists across route changes.
 - Connection loss masks live readings as unavailable.
 - Settings failure selects defaults and sets the fault flag.
 - Settings recovery replaces defaults with authoritative data.
@@ -198,4 +200,3 @@ Components:
 - Reusable instruments represent unavailable data honestly.
 - Connection/settings failures have compact shared presentation.
 - Foundation components fit the 800x480 shell without deciding final physical control sizes.
-

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import type { CanTraceEntry } from "../../types.ts"
+import type { TraceRow as CanTraceEntry } from "@/api/live-events"
 import { decodeLedSnapshot, decodeMeaning } from "./utils.ts"
 
 const ledFrame = (data_hex: string): CanTraceEntry => ({

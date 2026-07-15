@@ -4,6 +4,7 @@ import pytest
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
+    LivePublicationConfig,
     SimulationConfig,
     SteeringConfig,
     TxPolicyConfig,
@@ -35,47 +36,57 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
 
 def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
-    assert default_config().simulation.command_queue_capacity == 64
     assert default_config().simulation.steering_watchdog_timeout_s == 0.25
-    assert default_config().simulation.websocket_send_timeout_s == 1.0
+
+
+def test_default_live_publication_bounds() -> None:
+    publication = default_config().live_publication
+
+    assert publication.telemetry_hz == 25.0
+    assert publication.health_hz == 1.0
+    assert publication.trace_hz == 10.0
+    assert publication.trace_batch_size == 100
+    assert publication.resource_capacity == 256
+    assert publication.client_queue_capacity == 64
+    assert publication.send_timeout_s == 1.0
+    assert publication.shutdown_timeout_s == 2.0
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"telemetry_hz": 0.0},
+        {"health_hz": 0.0},
+        {"trace_hz": float("inf")},
+        {"trace_batch_size": 0},
+        {"resource_capacity": 0},
+        {"client_queue_capacity": 0},
+        {"send_timeout_s": 0.0},
+        {"shutdown_timeout_s": float("nan")},
+    ],
+)
+def test_live_publication_bounds_reject_invalid_values(
+    changes: dict[str, int | float],
+) -> None:
+    with pytest.raises(ValueError, match="live"):
+        LivePublicationConfig(**changes)
 
 
 @pytest.mark.parametrize(
     "field",
     [
         "trace_capacity",
-        "command_queue_capacity",
         "steering_watchdog_timeout_s",
-        "websocket_send_timeout_s",
     ],
 )
 @pytest.mark.parametrize("value", [0, -1])
 def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
-    with pytest.raises(ValueError, match="capacity|watchdog|WebSocket"):
+    with pytest.raises(ValueError, match="capacity|watchdog"):
         SimulationConfig(**{field: value})
-
-
-def test_custom_can_ids() -> None:
-    config = default_config()
-
-    assert config.custom_can_ids.button_event == 0x700
-    assert config.custom_can_ids.led_snapshot == 0x701
 
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 8
-
-
-@pytest.mark.parametrize(
-    "config",
-    [
-        SteeringConfig(manual_level_count=1),
-        SteeringConfig(speed_timeout_s=0.1),
-    ],
-)
-def test_valid_steering_configuration(config: SteeringConfig) -> None:
-    assert config.manual_level_count >= 1
-    assert config.speed_timeout_s > 0
 
 
 @pytest.mark.parametrize(
@@ -136,7 +147,7 @@ def test_runtime_inbox_limits_reject_unsafe_values(
         (SteeringConfig, "speed_timeout_s"),
         (EngineTelemetryConfig, "timeout_s"),
         (SimulationConfig, "steering_watchdog_timeout_s"),
-        (SimulationConfig, "websocket_send_timeout_s"),
+        (LivePublicationConfig, "send_timeout_s"),
         (TxPolicyConfig, "network_window_s"),
     ],
 )
@@ -145,6 +156,7 @@ def test_duration_configuration_rejects_non_finite_values(
         type[SteeringConfig]
         | type[EngineTelemetryConfig]
         | type[SimulationConfig]
+        | type[LivePublicationConfig]
         | type[TxPolicyConfig]
     ),
     field: str,

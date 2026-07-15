@@ -30,7 +30,6 @@ vi.mock("@/components/simulator-workbench", async () => {
           autoScroll
           onAutoScrollChange={vi.fn()}
           onReset={vi.fn()}
-          onStep={vi.fn()}
         />
       </div>
     ),
@@ -109,6 +108,7 @@ describe.each([
   it("renders inside the isolated car layout with the correct active link", async () => {
     await renderPath(path)
 
+    expect(screen.getByRole("heading", { name: heading })).toBeTruthy()
     const navigation = screen.getByRole("navigation", { name: "Car display" })
     const links = Array.from(navigation.querySelectorAll("a"))
     expect(links).toHaveLength(4)

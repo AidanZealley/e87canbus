@@ -10,6 +10,7 @@ from e87canbus.application.state import (
     EngineRpmSample,
     OilTemperatureSample,
     SpeedSample,
+    SteeringMode,
 )
 
 
@@ -69,6 +70,17 @@ class ControlTimerElapsed:
     now: float
 
 
+@dataclass(frozen=True)
+class MaximumAssistanceSet:
+    enabled: bool
+
+
+@dataclass(frozen=True)
+class SteeringModeSet:
+    mode: SteeringMode
+    manual_level: int | None = None
+
+
 class SteeringCommandReason(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
@@ -98,6 +110,8 @@ ApplicationEvent = (
     | OilTemperatureObserved
     | CoolantTemperatureObserved
     | ControlTimerElapsed
+    | MaximumAssistanceSet
+    | SteeringModeSet
     | SteeringFallbackRequested
 )
 

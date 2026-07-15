@@ -1,38 +1,48 @@
-import asyncio
+import json
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, cast
 
 import pytest
-from e87canbus.api.internal.websocket import ConnectionManager
-from e87canbus.api.main import create_app
+from e87canbus.api.main import create_app, socket_origin_policy
+from e87canbus.api.models.live import health_state
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
+from e87canbus.device import DeviceSource
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.engine import SimulationEngine, SimulatorSnapshot
-from fastapi import WebSocket
 from fastapi.testclient import TestClient
 
 
-def make_app(*, command_queue_capacity: int = 64):
+def make_app(*, inbox_capacity: int = 64):
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=command_queue_capacity),
+        simulation=SimulationConfig(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=60.0,
+        runtime_inbox_capacity=inbox_capacity,
     )
-    return make_app_for_engine(SimulationEngine(config=config))
+    return make_app_for_config(config)
 
 
-def make_app_for_engine(engine: SimulationEngine):
+def make_app_for_config(
+    config,
+    *,
+    steering_controller_factory=SimulatedSteeringController,
+    button_pad_source=None,
+):
     profile_directory = TemporaryDirectory()
+    service = build_simulated_controller_service(
+        config=config,
+        button_pad_source=button_pad_source,
+        steering_controller_factory=steering_controller_factory,
+    )
     app = create_app(
-        engine,
+        controller_service=service,
         profile_database_path=Path(profile_directory.name) / "profiles.sqlite3",
     )
     app.state.test_profile_directory = profile_directory
@@ -43,58 +53,6 @@ def make_app_for_engine(engine: SimulationEngine):
 def client() -> Iterator[TestClient]:
     with TestClient(make_app()) as test_client:
         yield test_client
-
-
-class RecordingManager:
-    def __init__(self) -> None:
-        self.broadcasts: list[Sequence[dict[str, Any]]] = []
-
-    async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
-        self.broadcasts.append(events)
-
-
-class BlockingManager(RecordingManager):
-    def __init__(self) -> None:
-        super().__init__()
-        self.entered = Event()
-        self.release = Event()
-        self._blocked = False
-
-    async def broadcast(self, events: Sequence[dict[str, Any]]) -> None:
-        await super().broadcast(events)
-        if not self._blocked:
-            self._blocked = True
-            self.entered.set()
-            await asyncio.to_thread(self.release.wait)
-
-
-class FakeWebSocket:
-    def __init__(self) -> None:
-        self.error: Exception | None = None
-        self.block = False
-        self.sent: list[dict[str, Any]] = []
-
-    async def accept(self) -> None:
-        pass
-
-    async def send_json(self, event: dict[str, Any]) -> None:
-        if self.block:
-            await asyncio.Event().wait()
-        if self.error is not None:
-            raise self.error
-        self.sent.append(event)
-
-
-class DisconnectingWebSocket(FakeWebSocket):
-    def __init__(self) -> None:
-        super().__init__()
-        self.on_send: Callable[[], None] | None = None
-
-    async def send_json(self, event: dict[str, Any]) -> None:
-        if self.on_send is not None:
-            self.on_send()
-            await asyncio.sleep(0)
-        await super().send_json(event)
 
 
 class FailingFirstSessionController(SimulatedSteeringController):
@@ -125,11 +83,33 @@ class RejectingShutdownController(SimulatedSteeringController):
         super().set_assistance(command)
 
 
+class BlockingShutdownController(SimulatedSteeringController):
+    def __init__(
+        self,
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+        *,
+        block_shutdown: bool,
+    ) -> None:
+        super().__init__(watchdog_timeout_s, clock)
+        self.block_shutdown = block_shutdown
+        self.entered = Event()
+        self.release = Event()
+
+    def set_assistance(self, command: SetSteeringAssistance) -> None:
+        if self.block_shutdown and command.reason is SteeringCommandReason.SHUTDOWN:
+            self.entered.set()
+            assert self.release.wait(timeout=10.0)
+        super().set_assistance(command)
+
+
 def test_health_and_browser_cors(client: TestClient) -> None:
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/health/live").json() == {"status": "live"}
+    assert client.get("/health/ready").json()["status"] == "ready"
+    assert client.get("/api/health").status_code == 404
 
     response = client.options(
-        "/api/buttons/0/press",
+        "/api/dev/simulation/devices/button-pad/buttons/0/press",
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "POST",
@@ -139,6 +119,37 @@ def test_health_and_browser_cors(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> None:
+    handshake = client.get("/socket.io/?EIO=4&transport=polling")
+
+    assert handshake.status_code == 200
+    assert handshake.text.startswith('0{"sid":')
+    sid = json.loads(handshake.text[1:])["sid"]
+    session_path = f"/socket.io/?EIO=4&transport=polling&sid={sid}"
+    connected = client.post(
+        session_path,
+        content="40",
+        headers={"content-type": "text/plain;charset=UTF-8"},
+    )
+    packets = client.get(session_path).text.split("\x1e")
+    snapshot_packet = next(packet for packet in packets if packet.startswith("42"))
+    event, payload = json.loads(snapshot_packet[2:])
+
+    assert connected.status_code == 200
+    assert event == "controller.snapshot"
+    assert payload["protocol_version"] == 1
+    topic_revisions = payload["data"]["topic_revisions"]
+    assert topic_revisions["health"] == payload["revision"]
+    assert {revision for topic, revision in topic_revisions.items() if topic != "health"} == {1}
+    health = payload["data"]["health"]
+    assert health["ready"] is True
+    assert health["inbox"]["capacity"] == 64
+    assert health["persistence"] == {"available": True, "fault": None}
+    assert health["publisher"]["running"] is True
+    assert health["publisher"]["failures"] == 0
+    assert client.get("/health/ready").status_code == 200
 
 
 def test_browser_cors_accepts_an_explicit_development_origin() -> None:
@@ -160,182 +171,122 @@ def test_browser_cors_accepts_an_explicit_development_origin() -> None:
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:15173"
 
 
-def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> None:
-    response = client.get("/api/snapshot")
+def test_socketio_origin_policy_allows_same_origin_and_exact_development_origins() -> None:
+    policy = socket_origin_policy(("http://127.0.0.1:15173",))
+    environ = {"wsgi.url_scheme": "http", "HTTP_HOST": "controller.local"}
 
-    assert response.status_code == 200
-    body = response.json()
-    assert (body["session_id"], body["revision"]) == (1, 1)
-    assert body["fatal"] is False
-    assert body["trace"] == []
-    assert body["application"]["steering_mode"] == "auto"
-    assert body["application"]["engine"] == {
-        "rpm": {"value": None, "status": "never_observed"},
-        "oil_temperature_c": {"value": None, "status": "never_observed"},
-        "coolant_temperature_c": {"value": None, "status": "never_observed"},
-    }
-    assert body["steering_controller"] == {
-        "effective_assistance": 0.0,
-        "last_command_reason": "speed_never_observed",
-        "watchdog_timed_out": False,
-    }
-    assert body["devices"] == [
-        {
-            "id": "button_pad",
-            "label": "Button pad",
-            "status": "online",
-            "reason": None,
-        },
-        {
-            "id": "steering_controller",
-            "label": "Steering controller",
-            "status": "online",
-            "reason": None,
-        },
-    ]
-    assert body["led_colours"] == [3] + [0] * 15
-    assert [network["id"] for network in body["networks"]] == ["kcan", "ptcan", "fcan"]
+    assert policy("http://controller.local", environ) is True
+    assert policy("http://127.0.0.1:15173", environ) is True
+    assert policy(None, environ) is True
+    assert policy("http://untrusted.invalid", environ) is False
 
 
-def test_failed_first_command_is_published_without_fabricated_reason() -> None:
+def test_legacy_snapshot_and_raw_websocket_routes_are_removed(
+    client: TestClient,
+) -> None:
+    assert client.get("/api/snapshot").status_code == 404
+    assert "/ws" not in {route.path for route in client.app.routes}
+
+
+def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingStartupController,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=RejectingStartupController,
     )
 
-    with TestClient(app) as client, client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
+    with TestClient(app):
+        snapshot = app.state.controller_service.snapshot()
 
-    assert initial["snapshot"]["fatal"] is True
-    assert initial["snapshot"]["steering_controller"] == {
-        "effective_assistance": 0.0,
-        "last_command_reason": None,
-        "watchdog_timed_out": True,
-    }
+    assert snapshot.diagnostics.health.fatal is True
+    assert snapshot.adapter.steering is not None
+    assert snapshot.adapter.steering.effective_assistance == 0.0
+    assert snapshot.adapter.steering.last_command_reason is None
+    assert snapshot.adapter.steering.watchdog_timed_out is True
 
 
 @pytest.mark.parametrize(
     ("path", "expected_mode"),
     (
-        ("/api/buttons/0/press", "manual"),
-        ("/api/buttons/0/release", "auto"),
-        ("/api/step", "manual"),
+        ("/api/dev/simulation/devices/button-pad/buttons/0/press", "manual"),
+        ("/api/dev/simulation/devices/button-pad/buttons/0/release", "auto"),
     ),
 )
-def test_button_commands_return_slim_snapshots(
+def test_button_commands_return_acknowledgements(
     client: TestClient,
     path: str,
     expected_mode: str,
 ) -> None:
-    kwargs = {"json": {"button_index": 0}} if path == "/api/step" else {}
-    response = client.post(path, **kwargs)
+    response = client.post(path)
 
     assert response.status_code == 200
-    assert response.json()["application"]["steering_mode"] == expected_mode
-    assert "trace" not in response.json()
+    assert set(response.json()) == {
+        "accepted",
+        "boot_id",
+    }
+    assert response.json()["accepted"] is True
+    assert client.app.state.controller_service.snapshot().application.steering_mode.value == (
+        expected_mode
+    )
+
+
+def test_observer_composition_rejects_emulator_controls() -> None:
+    config = replace(simulator_config(), tick_interval_s=60.0)
+    app = make_app_for_config(config, button_pad_source=DeviceSource.OBSERVER)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/dev/simulation/devices/button-pad/buttons/0/press"
+        )
+        snapshot = app.state.controller_service.snapshot()
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "controller_failed"
+    assert snapshot.application.steering_mode.value == "auto"
+    assert snapshot.adapter.devices[0].source_mode is DeviceSource.OBSERVER
+    assert snapshot.adapter.devices[0].observed_led_colours is None
 
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
-    client.post("/api/buttons/0/press")
-    client.put(
-        "/api/simulation/devices/button_pad/status",
-        json={"status": "offline"},
-    )
+    client.post("/api/dev/simulation/devices/button-pad/buttons/0/press")
 
-    response = client.post("/api/reset")
+    response = client.post("/api/dev/simulation/reset")
 
     assert response.status_code == 200
-    assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
-    assert response.json()["trace"] == []
-    assert response.json()["application"]["steering_mode"] == "auto"
-    assert all(device["status"] == "online" for device in response.json()["devices"])
-
-
-@pytest.mark.parametrize("device_id", ["button_pad", "steering_controller"])
-@pytest.mark.parametrize(
-    ("status", "reason"),
-    [
-        ("online", None),
-        ("degraded", "simulated_degraded"),
-        ("offline", "simulated_offline"),
-    ],
-)
-def test_device_status_endpoint_updates_exact_device_and_returns_complete_snapshot(
-    client: TestClient,
-    device_id: str,
-    status: str,
-    reason: str | None,
-) -> None:
-    response = client.put(
-        f"/api/simulation/devices/{device_id}/status",
-        json={"status": status},
-    )
-
-    assert response.status_code == 200
-    assert "trace" not in response.json()
-    assert [device["id"] for device in response.json()["devices"]] == [
-        "button_pad",
-        "steering_controller",
-    ]
-    selected = next(
-        device for device in response.json()["devices"] if device["id"] == device_id
-    )
-    assert (selected["status"], selected["reason"]) == (status, reason)
-
-
-@pytest.mark.parametrize(
-    ("device_id", "body", "expected_status"),
-    [
-        ("unknown", {"status": "offline"}, 404),
-        ("button_pad", {"status": "unknown"}, 422),
-        ("button_pad", {"status": "offline", "unexpected": True}, 422),
-        ("button_pad", {"status": True}, 422),
-        ("button_pad", {"status": 1}, 422),
-        ("button_pad", {}, 422),
-    ],
-)
-def test_invalid_device_status_request_does_not_change_devices(
-    client: TestClient,
-    device_id: str,
-    body: dict[str, bool | str],
-    expected_status: int,
-) -> None:
-    before = client.get("/api/snapshot").json()["devices"]
-
-    response = client.put(
-        f"/api/simulation/devices/{device_id}/status",
-        json=body,
-    )
-
-    assert response.status_code == expected_status
-    assert client.get("/api/snapshot").json()["devices"] == before
+    snapshot = client.app.state.controller_service.snapshot()
+    assert response.json() == {"accepted": True, "boot_id": snapshot.boot_id}
+    assert snapshot.adapter.simulation_session_id == 2
+    assert snapshot.application.steering_mode.value == "auto"
+    assert snapshot.adapter.devices[0].source_mode is DeviceSource.EMULATED
+    assert snapshot.adapter.devices[0].observed_led_colours == (3,) + (0,) * 15
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingShutdownController,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=RejectingShutdownController,
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
-        response = client.post("/api/reset")
+        response = client.post("/api/dev/simulation/reset")
+        fatal = app.state.controller_service.snapshot().diagnostics.health.fatal
 
     assert response.status_code == 200
-    assert (response.json()["session_id"], response.json()["revision"]) == (2, 1)
-    assert response.json()["fatal"] is False
+    assert response.json() == {
+        "accepted": True,
+        "boot_id": app.state.controller_service.boot_id,
+    }
+    assert fatal is False
     assert "reset replaced simulation session 1 with fatal diagnostics" in caplog.text
 
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
-    response = client.post("/api/buttons/16/press")
+    response = client.post(
+        "/api/dev/simulation/devices/button-pad/buttons/16/press"
+    )
 
     assert response.status_code == 422
     assert "button_index" in response.json()["error"]["message"]
@@ -344,126 +295,122 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     client: TestClient,
 ) -> None:
-    response = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
+    )
 
     assert response.status_code == 200
-    assert response.json()["application"]["vehicle_speed_kph"] == 42.5
-    assert response.json()["application"]["speed_valid"] is True
+    snapshot = client.app.state.controller_service.snapshot()
+    assert snapshot.application.vehicle_speed_kph == 42.5
+    assert snapshot.application.speed_valid is True
 
 
 def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
-    response = client.post("/api/vehicle/speed", json={"speed_kph": -1.0})
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0}
+    )
 
     assert response.status_code == 422
     assert "simulated speed" in response.json()["error"]["message"]
 
 
-@pytest.mark.parametrize(
-    ("path", "body"),
-    [
-        ("/api/step", {"button_index": 0, "unexpected": True}),
-        ("/api/vehicle/speed", {"speed_kph": 42.5, "unexpected": True}),
-    ],
-)
-def test_existing_simulation_requests_continue_to_ignore_unknown_fields(
-    client: TestClient,
-    path: str,
-    body: dict[str, bool | float | int],
-) -> None:
-    response = client.post(path, json=body)
-
-    assert response.status_code == 200
-
-
-def test_vehicle_speed_silence_command_returns_revisioned_snapshot(
+def test_development_simulation_requests_reject_unknown_fields(
     client: TestClient,
 ) -> None:
-    selected = client.post("/api/vehicle/speed", json={"speed_kph": 42.5})
+    response = client.put(
+        "/api/dev/simulation/vehicle/speed",
+        json={"speed_kph": 42.5, "unexpected": True},
+    )
 
-    response = client.post("/api/vehicle/speed/silence")
+    assert response.status_code == 422
+
+
+def test_vehicle_speed_silence_command_returns_current_acknowledgement(
+    client: TestClient,
+) -> None:
+    selected = client.put(
+        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
+    )
+
+    response = client.post("/api/dev/simulation/vehicle/speed/silence")
 
     assert response.status_code == 200
-    assert response.json()["session_id"] == selected.json()["session_id"]
-    assert response.json()["revision"] == selected.json()["revision"]
-    assert "trace" not in response.json()
+    assert response.json() == selected.json()
 
 
 @pytest.mark.parametrize(
     ("path", "body", "field", "expected"),
     [
-        ("/api/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
         (
-            "/api/vehicle/oil-temperature",
+            "/api/dev/simulation/vehicle/oil-temperature",
             {"temperature_c": 112.54},
             "oil_temperature_c",
             112.5,
         ),
         (
-            "/api/vehicle/coolant-temperature",
+            "/api/dev/simulation/vehicle/coolant-temperature",
             {"temperature_c": -12.3},
             "coolant_temperature_c",
             -12.3,
         ),
         (
-            "/api/vehicle/oil-temperature",
+            "/api/dev/simulation/vehicle/oil-temperature",
             {"temperature_c": 110},
             "oil_temperature_c",
             110.0,
         ),
     ],
 )
-def test_engine_commands_return_complete_slim_snapshot(
+def test_engine_commands_update_the_canonical_service_projection(
     client: TestClient,
     path: str,
     body: dict[str, float | int],
     field: str,
     expected: float | int,
 ) -> None:
-    response = client.post(path, json=body)
+    response = client.put(path, json=body)
 
     assert response.status_code == 200
-    assert response.json()["application"]["engine"][field] == {
-        "value": expected,
-        "status": "valid",
-    }
-    assert set(response.json()["application"]["engine"]) == {
-        "rpm",
-        "oil_temperature_c",
-        "coolant_temperature_c",
-    }
-    assert "trace" not in response.json()
+    engine = client.app.state.controller_service.snapshot().application.engine
+    observed = getattr(engine, field)
+    assert observed.value == expected
+    assert observed.status.value == "valid"
 
 
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/vehicle/rpm/silence",
-        "/api/vehicle/oil-temperature/silence",
-        "/api/vehicle/coolant-temperature/silence",
+        "/api/dev/simulation/vehicle/rpm/silence",
+        "/api/dev/simulation/vehicle/oil-temperature/silence",
+        "/api/dev/simulation/vehicle/coolant-temperature/silence",
     ],
 )
 def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
     first = client.post(path)
+    first_engine = client.app.state.controller_service.snapshot().application.engine
     second = client.post(path)
+    second_engine = client.app.state.controller_service.snapshot().application.engine
 
     assert first.status_code == second.status_code == 200
-    assert second.json()["application"]["engine"] == first.json()["application"]["engine"]
+    assert second.json() == first.json()
+    assert second_engine == first_engine
 
 
 @pytest.mark.parametrize(
     ("path", "body"),
     [
-        ("/api/vehicle/rpm", {"rpm": -1}),
-        ("/api/vehicle/rpm", {"rpm": 12_001}),
-        ("/api/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": -40.1}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": 250.1}),
-        ("/api/vehicle/rpm", {"rpm": True}),
-        ("/api/vehicle/rpm", {"rpm": "3500"}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": True}),
-        ("/api/vehicle/oil-temperature", {"temperature_c": "110"}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": True}),
-        ("/api/vehicle/coolant-temperature", {"temperature_c": "98"}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": -1}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 12_001}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": -40.1}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": 250.1}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": True}),
+        ("/api/dev/simulation/vehicle/rpm", {"rpm": "3500"}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": True}),
+        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": "110"}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": True}),
+        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": "98"}),
     ],
 )
 def test_invalid_engine_request_returns_422_without_changing_state(
@@ -471,144 +418,108 @@ def test_invalid_engine_request_returns_422_without_changing_state(
     path: str,
     body: dict[str, bool | float | int | str],
 ) -> None:
-    before = client.get("/api/snapshot").json()
+    before = client.app.state.controller_service.snapshot()
 
-    response = client.post(path, json=body)
+    response = client.put(path, json=body)
 
     assert response.status_code == 422
-    after = client.get("/api/snapshot").json()
-    assert after["revision"] == before["revision"]
-    assert after["application"]["engine"] == before["application"]["engine"]
-    assert after["trace"] == before["trace"]
+    after = client.app.state.controller_service.snapshot()
+    assert after.revision == before.revision
+    assert after.application.engine == before.application.engine
 
 
-def test_websocket_receives_revisioned_snapshot_and_session_frames(client: TestClient) -> None:
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
-        response = client.post("/api/buttons/0/press")
-        snapshot = websocket.receive_json()
-        frame = websocket.receive_json()
+def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -> None:
+    app = make_app()
 
-    assert initial["type"] == "snapshot"
-    assert (initial["session_id"], initial["revision"]) == (1, 1)
-    assert initial["snapshot"]["application"]["engine"]["rpm"] == {
-        "value": None,
-        "status": "never_observed",
-    }
-    assert [device["id"] for device in initial["snapshot"]["devices"]] == [
-        "button_pad",
-        "steering_controller",
-    ]
-    assert response.status_code == 200
-    assert snapshot["type"] == "snapshot"
-    assert "trace" not in snapshot["snapshot"]
-    assert frame["type"] == "frame"
-    assert (frame["session_id"], frame["sequence"]) == (1, 1)
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
+        press = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/press",
+        )
+        reset = pool.submit(client.post, "/api/dev/simulation/reset")
+        press_response = press.result()
+        reset_response = reset.result()
+        assert press_response.status_code == 200
+        assert reset_response.status_code == 200
+        assert press_response.json() == reset_response.json() == {
+            "accepted": True,
+            "boot_id": app.state.controller_service.boot_id,
+        }
+        assert app.state.controller_service.snapshot().adapter.simulation_session_id == 2
 
 
-def test_websocket_heartbeat_keeps_connection_live(client: TestClient) -> None:
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
-        websocket.send_text("ping")
-        heartbeat = websocket.receive_json()
-        response = client.post("/api/buttons/0/press")
-        snapshot = websocket.receive_json()
-
-    assert initial["type"] == "snapshot"
-    assert heartbeat == {"type": "heartbeat"}
-    assert response.status_code == 200
-    assert snapshot["type"] == "snapshot"
-
-
-def test_reconnecting_websocket_receives_current_engine_shape(client: TestClient) -> None:
-    selected = client.post("/api/vehicle/rpm", json={"rpm": 4200})
-    assert selected.status_code == 200
-
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
-
-    assert initial["type"] == "snapshot"
-    assert initial["snapshot"]["application"]["engine"] == {
-        "rpm": {"value": 4200, "status": "valid"},
-        "oil_temperature_c": {"value": None, "status": "never_observed"},
-        "coolant_temperature_c": {"value": None, "status": "never_observed"},
-    }
-
-
-def test_reconnecting_websocket_receives_complete_current_device_shape(
-    client: TestClient,
-) -> None:
-    selected = client.put(
-        "/api/simulation/devices/steering_controller/status",
-        json={"status": "degraded"},
+def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() -> None:
+    config = replace(
+        simulator_config(),
+        simulation=SimulationConfig(),
+        tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
+        tick_interval_s=60.0,
+        runtime_inbox_capacity=1,
     )
-    assert selected.status_code == 200
+    controllers: list[BlockingShutdownController] = []
 
-    with client.websocket_connect("/ws") as websocket:
-        initial = websocket.receive_json()
+    def build_controller(
+        watchdog_timeout_s: float,
+        clock: Callable[[], float],
+    ) -> BlockingShutdownController:
+        controller = BlockingShutdownController(
+            watchdog_timeout_s,
+            clock,
+            block_shutdown=not controllers,
+        )
+        controllers.append(controller)
+        return controller
 
-    assert initial["snapshot"]["devices"] == selected.json()["devices"]
+    app = make_app_for_config(config, steering_controller_factory=build_controller)
 
-
-def test_command_publications_are_ordered_and_contain_only_trace_deltas() -> None:
-    app = make_app()
-    manager = RecordingManager()
-    app.state.manager = manager
-
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        press = pool.submit(client.post, "/api/buttons/0/press")
-        release = pool.submit(client.post, "/api/buttons/0/release")
-        assert press.result().status_code == 200
-        assert release.result().status_code == 200
-
-    snapshots = [events[0] for events in manager.broadcasts]
-    frames = [
-        event for events in manager.broadcasts for event in events if event["type"] == "frame"
-    ]
-    assert len(snapshots) == 2
-    assert all(event["type"] == "snapshot" for event in snapshots)
-    assert all("trace" not in event["snapshot"] for event in snapshots)
-    assert [frame["sequence"] for frame in frames] == sorted(frame["sequence"] for frame in frames)
-
-
-def test_reset_cannot_interleave_with_another_operation() -> None:
-    app = make_app()
-    manager = RecordingManager()
-    app.state.manager = manager
-
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        press = pool.submit(client.post, "/api/buttons/0/press")
-        reset = pool.submit(client.post, "/api/reset")
-        assert press.result().status_code == 200
-        assert reset.result().status_code == 200
-
-    sessions = [events[0]["session_id"] for events in manager.broadcasts]
-    assert sessions == sorted(sessions)
-    for events in manager.broadcasts:
-        session_id = events[0]["session_id"]
-        assert all(event["session_id"] == session_id for event in events)
-
-
-def test_command_queue_overflow_returns_503_and_engine_recovers() -> None:
-    app = make_app(command_queue_capacity=1)
-    manager = BlockingManager()
-    app.state.manager = manager
-
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        first = pool.submit(client.post, "/api/buttons/0/press")
-        assert manager.entered.wait(timeout=1.0)
-        second = pool.submit(client.post, "/api/buttons/0/release")
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=3) as pool:
+        first = pool.submit(
+            client.post,
+            "/api/dev/simulation/reset",
+        )
+        controller = controllers[0]
+        assert controller.entered.wait(timeout=1.0)
+        second = pool.submit(
+            client.post,
+            "/api/dev/simulation/devices/button-pad/buttons/0/release",
+        )
         deadline = time.monotonic() + 1.0
-        while app.state.command_queue.qsize() != 1 and time.monotonic() < deadline:
+        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
 
-        overloaded = client.post("/api/step", json={"button_index": 0})
-        manager.release.set()
+        overloaded = pool.submit(
+            client.put,
+            "/api/dev/simulation/vehicle/speed",
+            json={"speed_kph": 42.5},
+        )
+        try:
+            overloaded_response = overloaded.result(timeout=1.0)
+        finally:
+            controller.release.set()
 
-        assert overloaded.status_code == 503
+        assert overloaded_response.status_code == 503
         assert first.result().status_code == 200
-        assert second.result().status_code == 200
-        assert client.post("/api/buttons/0/press").status_code == 200
+        assert second.result().status_code == 503
+        deadline = time.monotonic() + 1.0
+        while app.state.controller_service.ready and time.monotonic() < deadline:
+            pass
+        service = app.state.controller_service
+        assert service.stopped_event.wait(timeout=1.0)
+        snapshot = service.snapshot()
+        projected_health = health_state(snapshot)
+        assert service.ready is False
+        assert snapshot.service.inbox.overflow_latched is True
+        assert snapshot.diagnostics.health.fatal is True
+        assert snapshot.diagnostics.health.inbox_overflow_fault is not None
+        assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
+        assert projected_health.fatal is True
+        assert projected_health.inbox.overflow_latched is True
+        assert (
+            client.post(
+                "/api/dev/simulation/devices/button-pad/buttons/0/press"
+            ).status_code
+            == 503
+        )
 
 
 def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
@@ -627,108 +538,29 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
 
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=64),
+        simulation=SimulationConfig(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=0.01,
     )
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=build_controller,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=build_controller,
     )
-    manager = RecordingManager()
-    app.state.manager = manager
 
     with TestClient(app) as client:
         deadline = time.monotonic() + 1.0
-        while not any(
-            event["type"] == "snapshot" and event["snapshot"]["fatal"]
-            for events in manager.broadcasts
-            for event in events
-        ):
+        while not app.state.controller_service.snapshot().diagnostics.health.fatal:
             assert time.monotonic() < deadline
 
-        reset = client.post("/api/reset")
-        assert (reset.json()["revision"], reset.json()["fatal"]) == (1, False)
+        reset = client.post("/api/dev/simulation/reset")
+        assert reset.status_code == 200
+        assert reset.json() == {
+            "accepted": True,
+            "boot_id": app.state.controller_service.boot_id,
+        }
+        assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
 
+        initial_revision = app.state.controller_service.snapshot().revision
         deadline = time.monotonic() + 1.0
-        while client.get("/api/snapshot").json()["revision"] == 1:
+        while app.state.controller_service.snapshot().revision == initial_revision:
             assert time.monotonic() < deadline
-
-
-@pytest.mark.asyncio
-async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_client(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    manager = ConnectionManager(0.1)
-    snapshot = SimulationEngine().snapshot()
-
-    def get_snapshot() -> SimulatorSnapshot:
-        return snapshot
-
-    broken = FakeWebSocket()
-    healthy = FakeWebSocket()
-    await manager.connect(cast(WebSocket, broken), get_snapshot)
-    await manager.connect(cast(WebSocket, healthy), get_snapshot)
-    broken.error = ValueError("socket failed")
-    event = {"type": "test"}
-
-    await manager.broadcast((event,))
-
-    assert healthy.sent[-1] == event
-    assert cast(WebSocket, broken) not in manager._connections
-    assert "removing failed simulator WebSocket" in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_stalled_websocket_is_bounded_and_healthy_peer_keeps_event_order() -> None:
-    manager = ConnectionManager(0.01)
-    snapshot = SimulationEngine().snapshot()
-    stalled = FakeWebSocket()
-    healthy = FakeWebSocket()
-    await manager.connect(cast(WebSocket, stalled), lambda: snapshot)
-    await manager.connect(cast(WebSocket, healthy), lambda: snapshot)
-    stalled.block = True
-    events = ({"type": "first"}, {"type": "second"})
-
-    await asyncio.wait_for(manager.broadcast(events), timeout=0.1)
-
-    assert healthy.sent[-2:] == list(events)
-    assert cast(WebSocket, stalled) not in manager._connections
-
-
-@pytest.mark.asyncio
-async def test_concurrent_disconnect_does_not_abort_publication() -> None:
-    manager = ConnectionManager(0.1)
-    snapshot = SimulationEngine().snapshot()
-    disconnecting = DisconnectingWebSocket()
-    disconnected = FakeWebSocket()
-    healthy = FakeWebSocket()
-    await manager.connect(cast(WebSocket, disconnecting), lambda: snapshot)
-    await manager.connect(cast(WebSocket, disconnected), lambda: snapshot)
-    await manager.connect(cast(WebSocket, healthy), lambda: snapshot)
-    disconnecting.on_send = lambda: manager.disconnect(cast(WebSocket, disconnected))
-    event = {"type": "test"}
-
-    await manager.broadcast((event,))
-
-    assert disconnecting.sent[-1] == event
-    assert healthy.sent[-1] == event
-    assert cast(WebSocket, disconnected) not in manager._connections
-
-
-@pytest.mark.asyncio
-async def test_initial_snapshot_send_is_bounded() -> None:
-    manager = ConnectionManager(0.01)
-    snapshot = SimulationEngine().snapshot()
-    stalled = FakeWebSocket()
-    stalled.block = True
-
-    connected = await asyncio.wait_for(
-        manager.connect(cast(WebSocket, stalled), lambda: snapshot),
-        timeout=0.1,
-    )
-
-    assert connected is False
-    assert cast(WebSocket, stalled) not in manager._connections

@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "pnpm test:unit && pnpm test:component",
-    "test:unit": "node --experimental-strip-types --test src/components/car-layout/car-ui.test.ts src/components/car-overview/utils.test.ts src/components/car-settings-form/utils.test.ts src/components/simulator-workbench/utils.test.ts src/components/simulator-workbench/query.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts src/lib/application-settings-query.test.ts",
-    "test:component": "vitest run src/api/simulator.test.ts src/routes/-routes.test.tsx src/components/car-layout/CarDataProvider.test.tsx src/components/car-layout/CarFoundation.test.tsx src/components/car-screens.test.tsx src/components/simulator-workbench/components/can-trace-table/CanTraceTable.test.tsx src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
+    "test:unit": "node --experimental-strip-types --test src/components/car-layout/car-ui.test.ts src/components/car-overview/utils.test.ts src/components/car-settings-form/utils.test.ts src/components/simulator-workbench/components/can-trace-table/utils.test.ts src/components/steering-curve-editor/utils.test.ts src/lib/application-settings-query.test.ts",
+    "test:component": "vitest run src/api/commands.test.ts src/api/simulator.test.ts src/api/durable-query-ownership.test.ts src/live/live-store.test.ts src/live/transport.test.ts src/live/live-render.test.tsx src/routes/-routes.test.tsx src/components/car-layout/CarFoundation.test.tsx src/components/car-screens.test.tsx src/components/simulator-workbench/SimulatorWorkbench.test.tsx src/components/simulator-workbench/live-availability.test.tsx src/components/simulator-workbench/components/can-trace-table/CanTraceTable.test.tsx src/components/simulator-workbench/components/simulated-vehicle-controls/SimulatedVehicleControls.test.tsx src/components/steering-curve-editor/SteeringCurveEditor.test.tsx src/components/steering-curve-editor/components/curve-chart/CurveChart.test.tsx src/components/steering-curve-editor/components/curve-chart/DraggableCurvePoint.test.tsx",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview"
@@ -28,6 +28,7 @@
     "react-dom": "^19.2.6",
     "recharts": "3.8.0",
     "shadcn": "^4.13.0",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.4.0",

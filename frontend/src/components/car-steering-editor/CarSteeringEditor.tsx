@@ -1,18 +1,18 @@
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
+
+import type {
+  DevicesState,
+  SteeringState,
+  VehicleState,
+} from "@/api/live-events"
 
 import {
   activateSteeringCurve,
-  listSteeringProfiles,
-  steeringProfilesQueryKey,
+  steeringProfilesQueryOptions,
   type ActiveSteeringCurve,
   type SteeringCurveDefinition,
 } from "@/api/steering"
-import { useCarData } from "@/components/car-layout"
-import type {
-  ApplicationSnapshot,
-  SteeringControllerSnapshot,
-} from "@/components/simulator-workbench/types"
 import { CurveChart } from "@/components/steering-curve-editor/components/curve-chart"
 import {
   definitionsEqual,
@@ -37,13 +37,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useLiveStore } from "@/live/live-store"
 
 const NONE_SELECTED = "none-selected"
 
 export const CarSteeringEditor = () => {
-  const { application, steeringController } = useCarData()
-  const liveActive = application.active_steering_curve
-  if (liveActive === null) {
+  const steering = useLiveStore((state) => state.steering)
+  const vehicle = useLiveStore((state) => state.vehicle)
+  const steeringController = useLiveStore(
+    (state) => state.devices.steering_controller
+  )
+  const connected = useLiveStore((state) => state.connection.synchronized)
+  if (!connected || steering === null || steeringController === null) {
     return (
       <section className="grid min-h-full place-items-center p-4">
         <div className="text-center">
@@ -58,27 +63,27 @@ export const CarSteeringEditor = () => {
 
   return (
     <LoadedSteeringEditor
-      application={application}
+      steering={steering}
+      vehicle={vehicle}
       steeringController={steeringController}
-      initialActive={liveActive}
+      initialActive={steering.active_curve}
     />
   )
 }
 
 const LoadedSteeringEditor = ({
-  application,
+  steering,
+  vehicle,
   steeringController,
   initialActive,
 }: {
-  application: ApplicationSnapshot
-  steeringController: SteeringControllerSnapshot
+  steering: SteeringState
+  vehicle: VehicleState
+  steeringController: NonNullable<DevicesState["steering_controller"]>
   initialActive: ActiveSteeringCurve
 }) => {
-  const liveActive = application.active_steering_curve ?? initialActive
-  const profilesQuery = useQuery({
-    queryKey: steeringProfilesQueryKey,
-    queryFn: listSteeringProfiles,
-  })
+  const liveActive = steering.active_curve
+  const profilesQuery = useQuery(steeringProfilesQueryOptions())
   const profiles = profilesQuery.data ?? []
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     null
@@ -89,9 +94,15 @@ const LoadedSteeringEditor = ({
   const [draftBase, setDraftBase] = useState<SteeringCurveDefinition>(
     initialActive.definition
   )
-  const [acknowledgedActive, setAcknowledgedActive] =
-    useState<ActiveSteeringCurve | null>(null)
-  const [pending, setPending] = useState(false)
+  const activation = useMutation({
+    mutationFn: ({
+      definition,
+      savedProfile,
+    }: {
+      definition: SteeringCurveDefinition
+      savedProfile?: Parameters<typeof activateSteeringCurve>[1]
+    }) => activateSteeringCurve(definition, savedProfile),
+  })
   const [lastError, setLastError] = useState<string | null>(null)
   const [activationMessage, setActivationMessage] = useState<string | null>(
     null
@@ -101,11 +112,7 @@ const LoadedSteeringEditor = ({
     string | null | undefined
   >()
 
-  const active =
-    acknowledgedActive !== null &&
-    acknowledgedActive.activation_revision > liveActive.activation_revision
-      ? acknowledgedActive
-      : liveActive
+  const active = liveActive
 
   const selectedProfile =
     profiles.find((profile) => profile.profile_id === selectedProfileId) ?? null
@@ -114,9 +121,7 @@ const LoadedSteeringEditor = ({
   const draftMatchesSelected =
     selectedProfile !== null &&
     definitionsEqual(draft, selectedProfile.definition)
-  const speedKph = application.speed_valid
-    ? application.vehicle_speed_kph
-    : null
+  const speedKph = vehicle.speed_valid ? vehicle.speed_kph : null
   const activeAssistance =
     speedKph === null ? null : steeringController.effective_assistance
 
@@ -141,25 +146,24 @@ const LoadedSteeringEditor = ({
 
   const sourceName = draftMatchesSelected ? selectedProfile?.name : undefined
   const apply = async () => {
-    if (pending || draftMatchesActive) return
-    setPending(true)
+    if (activation.isPending || draftMatchesActive) return
     setLastError(null)
     setActivationMessage(null)
     try {
-      const response = await activateSteeringCurve(
-        draft,
-        draftMatchesSelected ? (selectedProfile ?? undefined) : undefined
-      )
-      setAcknowledgedActive(response)
+      await activation.mutateAsync({
+        definition: draft,
+        savedProfile: draftMatchesSelected
+          ? (selectedProfile ?? undefined)
+          : undefined,
+      })
       setActivationMessage(
-        "Draft is active. The saved profile was not changed."
+        "Activation accepted. Live state will confirm the active curve."
       )
     } catch (error) {
       setLastError(
         error instanceof Error ? error.message : "Activation failed. Try again."
       )
     } finally {
-      setPending(false)
       setConfirmApply(false)
     }
   }
@@ -182,7 +186,11 @@ const LoadedSteeringEditor = ({
               label: profile.name,
             })),
           ]}
-          disabled={pending || profilesQuery.isLoading || profilesQuery.isError}
+          disabled={
+            activation.isPending ||
+            profilesQuery.isLoading ||
+            profilesQuery.isError
+          }
           onValueChange={(value) =>
             requestSelection(value === NONE_SELECTED ? null : value)
           }
@@ -228,7 +236,7 @@ const LoadedSteeringEditor = ({
       <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="outline"
-          disabled={pending || !dirty}
+          disabled={activation.isPending || !dirty}
           onClick={() => {
             setDraft(draftBase)
             setLastError(null)
@@ -238,10 +246,10 @@ const LoadedSteeringEditor = ({
           Revert draft
         </Button>
         <Button
-          disabled={pending || draftMatchesActive}
+          disabled={activation.isPending || draftMatchesActive}
           onClick={() => setConfirmApply(true)}
         >
-          {pending ? "Applying…" : "Apply"}
+          {activation.isPending ? "Applying…" : "Apply"}
         </Button>
         <p
           className="min-w-0 truncate text-xs text-muted-foreground"
@@ -265,8 +273,13 @@ const LoadedSteeringEditor = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={pending} onClick={() => void apply()}>
+            <AlertDialogCancel disabled={activation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={activation.isPending}
+              onClick={() => void apply()}
+            >
               Confirm activation
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,20 +1,13 @@
-import type {
-  DeviceId,
-  DeviceSnapshot,
-} from "@/components/simulator-workbench/types"
-import { deviceOrUnavailable } from "@/components/simulator-workbench/utils"
+import type { DevicesState } from "@/api/live-events"
 import { cn } from "@/lib/utils"
 
-const devicesInDisplayOrder: readonly { id: DeviceId; label: string }[] = [
-  { id: "button_pad", label: "Button pad" },
-  { id: "steering_controller", label: "Steering controller" },
-]
+type Device = DevicesState["devices"][number]
 
 export const DeviceStatusFooter = ({
   devices,
   className,
 }: {
-  devices: readonly DeviceSnapshot[]
+  devices: readonly Device[]
   className?: string
 }) => (
   <footer
@@ -24,42 +17,49 @@ export const DeviceStatusFooter = ({
     )}
     aria-label="Device status"
   >
-    {devicesInDisplayOrder.map(({ id, label }) => {
-      const device = deviceOrUnavailable(devices, id, label)
-      const unavailable =
-        device.status === "offline" && device.reason === "unavailable"
-      const indicatorClass =
-        device.status === "online"
-          ? "bg-emerald-500"
-          : device.status === "degraded"
-            ? "bg-amber-500"
-            : unavailable
-              ? "bg-muted-foreground"
-              : "bg-destructive"
-      return (
-        <div key={id} className="flex min-w-0 items-center gap-1.5">
+    {devices.length === 0 ? (
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span
+          className="size-2 shrink-0 rounded-full bg-muted-foreground"
+          aria-hidden="true"
+        />
+        <span className="truncate font-medium">Button pad</span>
+        <span className="text-muted-foreground">Unavailable</span>
+      </div>
+    ) : (
+      devices.map((device) => (
+        <div key={device.id} className="flex min-w-0 items-center gap-1.5">
           <span
-            className={cn("size-2 shrink-0 rounded-full", indicatorClass)}
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              device.last_output_fault
+                ? "bg-destructive"
+                : device.connected === true
+                  ? "bg-emerald-500"
+                  : "bg-muted-foreground"
+            )}
             aria-hidden="true"
           />
           <span className="truncate font-medium">{device.label}</span>
-          <span
-            className={cn(
-              "capitalize",
-              device.status === "offline" && !unavailable
-                ? "text-destructive"
-                : "text-muted-foreground"
-            )}
-          >
-            {device.status}
+          <span className="text-muted-foreground capitalize">
+            {device.source_mode}
           </span>
-          {device.reason ? (
-            <span className="max-w-40 truncate text-muted-foreground">
-              — {device.reason}
+          <span className="max-w-48 truncate text-muted-foreground">
+            — {deviceConnectionLabel(device)}
+          </span>
+          {device.last_output_fault ? (
+            <span className="max-w-48 truncate text-destructive">
+              — {device.last_output_fault}
             </span>
           ) : null}
         </div>
-      )
-    })}
+      ))
+    )}
   </footer>
 )
+
+const deviceConnectionLabel = (device: Device) => {
+  if (device.connected === true) return "connected"
+  if (device.connected === false) return "disconnected"
+  return "connection unknown"
+}

@@ -55,7 +55,7 @@ class SafeCanTransmitter:
         self._clock = clock
         self._network_send_times: deque[float] = deque()
 
-    def send(self, frame: CanFrame) -> None:
+    def send(self, frame: CanFrame) -> bool:
         now = self._clock()
         _discard_expired(
             self._network_send_times,
@@ -66,12 +66,13 @@ class SafeCanTransmitter:
                 "dropped rate-limited CAN frame: id=0x%03x reason=network-window",
                 frame.arbitration_id,
             )
-            return
+            return False
 
         # Reserve the budget before I/O: a failed send has an uncertain bus outcome and must
         # not permit an unbounded retry loop.
         self._network_send_times.append(now)
         self._transmitter.send(frame)
+        return True
 
 
 class EffectExecutor:
