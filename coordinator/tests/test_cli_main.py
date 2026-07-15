@@ -1,26 +1,35 @@
-import logging
+from __future__ import annotations
+
+from typing import Any
 
 import pytest
-from e87canbus import live
-from e87canbus.cli.main import main
-from e87canbus.config import AppConfig
+from e87canbus.api import main as api_main
+from e87canbus.cli import main as cli
+from e87canbus.composition import ControllerMode
 
 
-def test_live_cli_returns_failure_and_logs_missing_interface(
+def test_canonical_cli_selects_live_api_without_opening_adapters_before_lifespan(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    def fail_without_can(config: AppConfig) -> int:
-        del config
-        logging.getLogger("e87canbus.live").error(
-            "failed to open SocketCAN interface can0: No such device"
-        )
-        return 1
+    calls: list[tuple[tuple[object, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        cli.uvicorn,
+        "run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
 
-    monkeypatch.setattr(live, "run_live", fail_without_can)
+    result = cli.main(("run", "--mode", "live"))
 
-    with caplog.at_level(logging.ERROR):
-        result = main([])
+    assert result == 0
+    assert api_main.app.state.controller_mode is ControllerMode.LIVE
+    assert calls[0][0] == ("e87canbus.api.main:app",)
 
-    assert result == 1
-    assert "failed to open SocketCAN interface can0" in caplog.text
+
+def test_dry_run_reports_selected_mode_without_starting_server(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli.uvicorn, "run", lambda *_args, **_kwargs: pytest.fail("started"))
+
+    assert cli.main(("run", "--mode", "simulated", "--dry-run")) == 0
+    assert '"mode": "simulated"' in capsys.readouterr().out

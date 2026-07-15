@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 
 from e87canbus.api.internal.simulation import run_command
 from e87canbus.api.models.simulation import EngineRpmRequest, SpeedRequest, TemperatureRequest
-from e87canbus.simulation.engine import (
+from e87canbus.simulation.runtime import (
     SetCoolantTemperature,
     SetEngineRpm,
     SetOilTemperature,

@@ -12,31 +12,48 @@ import pytest
 from e87canbus.api.internal.websocket import ConnectionManager
 from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.composition import ControllerMode, build_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.engine import SimulationEngine, SimulatorSnapshot
+from e87canbus.simulation.runtime import SimulatedControllerRuntime, SimulatorSnapshot
 from fastapi import WebSocket
 from fastapi.testclient import TestClient
 
 
-def make_app(*, command_queue_capacity: int = 64):
+def make_app(*, inbox_capacity: int = 64):
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=command_queue_capacity),
+        simulation=SimulationConfig(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=60.0,
+        runtime_inbox_capacity=inbox_capacity,
     )
-    return make_app_for_engine(SimulationEngine(config=config))
+    return make_app_for_config(config)
 
 
-def make_app_for_engine(engine: SimulationEngine):
+def make_app_for_config(
+    config,
+    *,
+    steering_controller_factory=SimulatedSteeringController,
+):
     profile_directory = TemporaryDirectory()
+    service = build_controller_service(
+        ControllerMode.SIMULATED,
+        config=config,
+        steering_controller_factory=steering_controller_factory,
+    )
     app = create_app(
-        engine,
+        controller_service=service,
         profile_database_path=Path(profile_directory.name) / "profiles.sqlite3",
     )
     app.state.test_profile_directory = profile_directory
     return app
+
+
+def simulator_snapshot() -> SimulatorSnapshot:
+    runtime = SimulatedControllerRuntime()
+    runtime.start()
+    return runtime.snapshot()
 
 
 @pytest.fixture
@@ -199,11 +216,9 @@ def test_snapshot_is_revisioned_and_contains_topology(client: TestClient) -> Non
 
 def test_failed_first_command_is_published_without_fabricated_reason() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingStartupController,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=RejectingStartupController,
     )
 
     with TestClient(app) as client, client.websocket_connect("/ws") as websocket:
@@ -318,11 +333,9 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingShutdownController,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=RejectingShutdownController,
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
@@ -589,8 +602,8 @@ def test_reset_cannot_interleave_with_another_operation() -> None:
         assert all(event["session_id"] == session_id for event in events)
 
 
-def test_command_queue_overflow_returns_503_and_engine_recovers() -> None:
-    app = make_app(command_queue_capacity=1)
+def test_controller_inbox_overflow_returns_503_and_service_recovers() -> None:
+    app = make_app(inbox_capacity=1)
     manager = BlockingManager()
     app.state.manager = manager
 
@@ -599,7 +612,7 @@ def test_command_queue_overflow_returns_503_and_engine_recovers() -> None:
         assert manager.entered.wait(timeout=1.0)
         second = pool.submit(client.post, "/api/buttons/0/release")
         deadline = time.monotonic() + 1.0
-        while app.state.command_queue.qsize() != 1 and time.monotonic() < deadline:
+        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
 
         overloaded = client.post("/api/step", json={"button_index": 0})
@@ -627,15 +640,13 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
 
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=64),
+        simulation=SimulationConfig(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
         tick_interval_s=0.01,
     )
-    app = make_app_for_engine(
-        SimulationEngine(
-            config=config,
-            steering_controller_factory=build_controller,
-        )
+    app = make_app_for_config(
+        config,
+        steering_controller_factory=build_controller,
     )
     manager = RecordingManager()
     app.state.manager = manager
@@ -662,7 +673,7 @@ async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_c
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = ConnectionManager(0.1)
-    snapshot = SimulationEngine().snapshot()
+    snapshot = simulator_snapshot()
 
     def get_snapshot() -> SimulatorSnapshot:
         return snapshot
@@ -684,7 +695,7 @@ async def test_broadcast_failure_is_logged_removed_and_does_not_affect_healthy_c
 @pytest.mark.asyncio
 async def test_stalled_websocket_is_bounded_and_healthy_peer_keeps_event_order() -> None:
     manager = ConnectionManager(0.01)
-    snapshot = SimulationEngine().snapshot()
+    snapshot = simulator_snapshot()
     stalled = FakeWebSocket()
     healthy = FakeWebSocket()
     await manager.connect(cast(WebSocket, stalled), lambda: snapshot)
@@ -701,7 +712,7 @@ async def test_stalled_websocket_is_bounded_and_healthy_peer_keeps_event_order()
 @pytest.mark.asyncio
 async def test_concurrent_disconnect_does_not_abort_publication() -> None:
     manager = ConnectionManager(0.1)
-    snapshot = SimulationEngine().snapshot()
+    snapshot = simulator_snapshot()
     disconnecting = DisconnectingWebSocket()
     disconnected = FakeWebSocket()
     healthy = FakeWebSocket()
@@ -721,7 +732,7 @@ async def test_concurrent_disconnect_does_not_abort_publication() -> None:
 @pytest.mark.asyncio
 async def test_initial_snapshot_send_is_bounded() -> None:
     manager = ConnectionManager(0.01)
-    snapshot = SimulationEngine().snapshot()
+    snapshot = simulator_snapshot()
     stalled = FakeWebSocket()
     stalled.block = True
 

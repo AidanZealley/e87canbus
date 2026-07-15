@@ -75,15 +75,12 @@ class PlaceholderBmwIds:
 @dataclass(frozen=True)
 class SimulationConfig:
     trace_capacity: int = 2_000
-    command_queue_capacity: int = 64
     steering_watchdog_timeout_s: float = 0.25
     websocket_send_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
             raise ValueError("simulation trace capacity must be positive")
-        if self.command_queue_capacity < 1:
-            raise ValueError("simulation command queue capacity must be positive")
         if (
             not math.isfinite(self.steering_watchdog_timeout_s)
             or self.steering_watchdog_timeout_s <= 0

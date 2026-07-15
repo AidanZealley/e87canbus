@@ -13,7 +13,6 @@ dependencies = [
 
 [project.scripts]
 e87canbus = "e87canbus.cli.main:main"
-e87canbus-sim-api = "e87canbus.api.cli:main"
 
 [dependency-groups]
 dev = [

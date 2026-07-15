@@ -9,7 +9,9 @@ authoritative application state and coordinates vehicle inputs, project devices,
 - `src/e87canbus/features/` — pure steering-assistance calculations.
 - `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
 - `src/e87canbus/runtime.py` — single-owner kernel, ordered input values, commits, and diagnostics.
-- `src/e87canbus/live.py` — threaded SocketCAN readers and the single-consumer live loop.
+- `src/e87canbus/service.py` — bounded controller inbox, owner thread, timer and lifecycle.
+- `src/e87canbus/composition.py` — validated live/simulated adapter presets and service factory.
+- `src/e87canbus/live.py` — SocketCAN readers and the live runtime adapter.
 - `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
 - `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
 - `src/e87canbus/api/` — HTTP and WebSocket interface used by the frontend.
@@ -63,13 +65,12 @@ application-settings document. Initialization uses an exclusive transaction, ena
 with `FULL` synchronous durability and fails closed on unsupported future versions. Operations use
 short-lived connections and each mutation is one transaction. Lists are ordered by
 case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
-closed unless redundant columns, canonical definition JSON and the stored fingerprint agree. The
-live composition still has no profile-storage consumer and does not open the database.
+closed unless redundant columns, canonical definition JSON and the stored fingerprint agree.
 
-The simulator API composes the profile and settings repositories over that shared database. Its
+The unified API composes the profile and settings repositories over that shared database. Its
 default path is `steering-profiles.sqlite3` in the process working directory;
-`e87canbus-sim-api --profile-database PATH` (or `E87CANBUS_PROFILE_DATABASE` for import-string
-deployment) selects a different file and remains compatible despite the file's expanded role.
+`e87canbus run --mode simulated --profile-database PATH` (or
+`E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a different file.
 Startup applies migrations and seeding before accepting requests. Tests and other compositions can
 inject the repositories independently.
 
@@ -91,8 +92,8 @@ delete carrying it as a query parameter. Responses contain the complete committe
 `/api/steering/curve-state` returns the authoritative active projection and its `/activate`
 subresource accepts a complete definition with optional saved ID/revision provenance. Claimed
 provenance is published only when the repository row has the same revision and definition.
-Activation is enqueued with timers and simulated-device commands through the bounded simulation
-owner; handlers never dispatch the kernel directly. Save and activation remain separate operations,
+Activation is enqueued with timers and simulated-device commands through the bounded controller
+service; handlers never dispatch the kernel directly. Save and activation remain separate operations,
 so saving cannot alter active state and applying cannot write a profile row.
 
 API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
@@ -130,15 +131,17 @@ a 500 kbit/s network before errors or retransmissions. This is a safety ceiling 
 intended send cadence; it is not derived from LED count, startup output, or human timing. A dropped
 frame is logged and discarded, not queued, so a later complete state converges without replaying an
 intermediate output. Live reader threads only receive, timestamp, and enqueue into the configured
-bounded inbox; the main thread alone dispatches kernel inputs and executes effects. Queue latency is
+bounded inbox; the controller owner thread alone dispatches kernel inputs and executes effects.
+Queue latency is
 logged without changing observation time.
 Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
-stops the runner with a non-zero result. SocketCAN interfaces are closed independently so one
-shutdown error cannot prevent later interfaces from closing or mask an existing failure result.
+ends the controller lifecycle. SocketCAN interfaces are closed independently so one shutdown error
+cannot prevent later interfaces from closing.
 
-The browser simulator has a separate bounded command queue. One asynchronous owner serializes
-button-device commands, persistent synthetic vehicle-speed selection and silence, control timers,
-resets, kernel commits, and WebSocket publication. Before each control timer, a selected speed is
+The controller service owns one bounded inbox and dedicated owner thread in live and simulated
+composition. It serializes button-device commands, persistent synthetic vehicle-speed selection and
+silence, control timers, resets, kernel commits, ordered effects and compatibility publication.
+Before each control timer, a selected speed is
 re-emitted by the external vehicle and decoded through the kernel. Browser snapshots expose the
 kernel-owned revision, simulation session ID, fatal-health status, and the ideal simulated
 controller's effective dimensionless assistance, optional last accepted command reason, and
@@ -172,21 +175,25 @@ The coordinator derives exactly 16 logical LED colours, emits one `SetButtonLeds
 one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
 stored colours; there is one complete LED publication shape and no compatibility decoder.
 
-## Running live
+## Running the unified controller
 
 Bring up every enabled SocketCAN interface at its configured bitrate, then run:
 
 ```bash
-uv run e87canbus
+uv run e87canbus run --mode live
 ```
 
-The default configuration opens all three networks with application transmission disabled. It does
+The default live preset opens all three networks with application transmission disabled and exposes
+the API after startup synchronization. It does
 not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
 deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
 compositions. Custom IDs `0x700` and `0x701` still require collision validation before any future
-in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md). Use
-`--log-level` to change logging verbosity. `uv run e87canbus --dry-run` prints the configuration
-without opening CAN interfaces.
+in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
+
+Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
+routes and the raw `/ws` stream are registered only in simulated mode; live mode returns `404` for
+those development-only paths. Use `--log-level` to change logging verbosity.
+`uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
 
 Phase 8 has proved the controller and failure paths against simulation-only speed and actuator
 boundaries. Real steering failsafe work remains blocked until speed frames and the actuator boundary

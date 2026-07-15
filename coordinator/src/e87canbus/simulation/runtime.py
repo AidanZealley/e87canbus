@@ -328,7 +328,9 @@ def snapshot_event(snapshot: SimulatorSnapshot, *, include_trace: bool) -> dict[
     }
 
 
-class SimulationEngine:
+class SimulatedControllerRuntime:
+    """Selected simulated adapters and devices; owned by ``ControllerService``."""
+
     def __init__(
         self,
         ids: CustomCanIds | None = None,
@@ -351,10 +353,19 @@ class SimulationEngine:
         self._steering_controller_factory = steering_controller_factory
         self._supported_steering_curve_interpolations = supported_steering_curve_interpolations
         self._session_id = 0
+        self._started = False
         self._devices: tuple[SimulatedDeviceSnapshot, ...]
+
+    def start(self) -> SimulationResult:
+        if self._started:
+            raise RuntimeError("simulated controller runtime may be started exactly once")
+        self._started = True
         self._build_session()
+        snapshot = self.snapshot()
+        return SimulationResult(snapshot, ())
 
     def snapshot(self) -> SimulatorSnapshot:
+        self._require_started()
         diagnostics = self.kernel.diagnostics()
         return SimulatorSnapshot(
             session_id=self._session_id,
@@ -377,6 +388,7 @@ class SimulationEngine:
         )
 
     def execute(self, command: SimulationCommand) -> SimulationResult:
+        self._require_started()
         if self.kernel.health.fatal and not isinstance(command, ResetSimulation):
             raise SimulationSessionFailed(
                 "simulation session has fatal kernel health; reset required"
@@ -466,6 +478,12 @@ class SimulationEngine:
                 events=(snapshot_event(result.snapshot, include_trace=False), *result.events),
             )
         return result
+
+    def shutdown(self) -> SimulationResult:
+        self._require_started()
+        before_sequence = self.topology.latest_sequence
+        self._dispatch(ShutdownRequested(self._clock()))
+        return self._process_pending(before_sequence, snapshot_trace=False)
 
     def _build_session(self) -> None:
         self._session_id += 1
@@ -595,6 +613,10 @@ class SimulationEngine:
     def _validate_button_index(self, button_index: int) -> None:
         if not 0 <= button_index < self.button_count:
             raise ValueError(f"button_index must be between 0 and {self.button_count - 1}")
+
+    def _require_started(self) -> None:
+        if not self._started:
+            raise RuntimeError("simulated controller runtime has not started")
 
 
 def _effect_failure_input(

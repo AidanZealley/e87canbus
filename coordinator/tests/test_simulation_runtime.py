@@ -19,7 +19,12 @@ from e87canbus.protocol.generated import (
     LED_COLOUR_WHITE,
 )
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.engine import (
+from e87canbus.simulation.protocol import (
+    SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+    SIMULATION_ONLY_ENGINE_RPM_ID,
+    SIMULATION_ONLY_OIL_TEMPERATURE_ID,
+)
+from e87canbus.simulation.runtime import (
     PressButton,
     ReleaseButton,
     ResetSimulation,
@@ -31,18 +36,13 @@ from e87canbus.simulation.engine import (
     SetVehicleSpeed,
     SilenceOilTemperature,
     SilenceVehicleSpeed,
+    SimulatedControllerRuntime,
     SimulatedDeviceId,
     SimulatedDeviceReason,
     SimulatedDeviceStatus,
-    SimulationEngine,
     SimulationSessionFailed,
     StepButton,
     snapshot_to_dict,
-)
-from e87canbus.simulation.protocol import (
-    SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
-    SIMULATION_ONLY_ENGINE_RPM_ID,
-    SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
 
 TEST_SIMULATOR_CONFIG = replace(
@@ -62,8 +62,10 @@ MAXIMUM_LEDS = (
 ) + (LED_COLOUR_OFF,) * 12
 
 
-def build_test_engine(**kwargs: object) -> SimulationEngine:
-    return SimulationEngine(config=TEST_SIMULATOR_CONFIG, **kwargs)
+def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
+    runtime = SimulatedControllerRuntime(config=TEST_SIMULATOR_CONFIG, **kwargs)
+    runtime.start()
+    return runtime
 
 
 class MutableClock:
@@ -384,7 +386,9 @@ def test_connected_means_coordinator_endpoint_is_attached() -> None:
         for item in config.can_networks
     )
 
-    snapshot = SimulationEngine(config=replace(config, can_networks=networks)).snapshot()
+    runtime = SimulatedControllerRuntime(config=replace(config, can_networks=networks))
+    runtime.start()
+    snapshot = runtime.snapshot()
 
     ptcan = next(
         status for status in snapshot.networks if status.config.network is CanNetwork.PTCAN
@@ -500,7 +504,8 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
             max_frames_per_network_window=2,
         ),
     )
-    controller = SimulationEngine(config=config, clock=clock)
+    controller = SimulatedControllerRuntime(config=config, clock=clock)
+    controller.start()
 
     accepted = controller.execute(PressButton(0)).snapshot
     controller.execute(ReleaseButton(0))
@@ -534,7 +539,8 @@ def test_startup_and_reset_session_synchronization_each_use_network_budget() -> 
         simulator_config(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=1),
     )
-    controller = SimulationEngine(config=config, clock=MutableClock())
+    controller = SimulatedControllerRuntime(config=config, clock=MutableClock())
+    controller.start()
 
     initial = controller.snapshot()
     after_initial_startup = controller.execute(PressButton(0)).snapshot

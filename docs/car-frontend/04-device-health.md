@@ -57,7 +57,7 @@ evidence. Manually selected simulation state is a UI test input only.
 
 ## Simulator ownership
 
-Store the simulated device states inside the single-owner `SimulationEngine` session. Add a closed
+Store the simulated device states inside the controller-service-owned simulated runtime. Add a closed
 command value that contains a validated device ID and status. The engine command match updates one
 device, produces the usual revisioned snapshot event and leaves the other unchanged.
 
@@ -140,4 +140,3 @@ Phase 6 will render a minimal overview footer:
 - Simulation reset is deterministic.
 - No real heartbeat, timeout or fault-detection behavior is claimed or invented.
 - Device state remains an extensible snapshot boundary rather than UI-only constants.
-

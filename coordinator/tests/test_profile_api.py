@@ -10,10 +10,10 @@ from typing import Any
 import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.composition import ControllerMode, build_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE, CurveInterpolation
 from e87canbus.simulation.devices import SimulatedSteeringController
-from e87canbus.simulation.engine import SimulationEngine
 from fastapi.testclient import TestClient
 
 
@@ -41,14 +41,27 @@ def profile_payload(name: str = "Dry track", *, second_assistance: int = 850) ->
     return {"name": name, "definition": definition_json(second_assistance=second_assistance)}
 
 
-def make_app(path: Path, *, engine: SimulationEngine | None = None):
-    config = replace(
-        simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=64),
-        tick_interval_s=60.0,
+def make_app(
+    path: Path,
+    *,
+    config=None,
+    steering_controller_factory=SimulatedSteeringController,
+    supported_steering_curve_interpolations=(
+        CurveInterpolation.LINEAR_V1,
+        CurveInterpolation.MONOTONE_CUBIC_V1,
+    ),
+):
+    config = config or replace(
+        simulator_config(), tick_interval_s=60.0
+    )
+    service = build_controller_service(
+        ControllerMode.SIMULATED,
+        config=config,
+        steering_controller_factory=steering_controller_factory,
+        supported_steering_curve_interpolations=supported_steering_curve_interpolations,
     )
     return create_app(
-        engine or SimulationEngine(config=config),
+        controller_service=service,
         profile_database_path=path,
     )
 
@@ -139,11 +152,12 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
 def test_api_reports_consumer_supported_versions_when_smooth_activation_is_rejected(
     tmp_path: Path,
 ) -> None:
-    engine = SimulationEngine(
-        supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,)
-    )
-
-    with TestClient(make_app(tmp_path / "profiles.sqlite3", engine=engine)) as client:
+    with TestClient(
+        make_app(
+            tmp_path / "profiles.sqlite3",
+            supported_steering_curve_interpolations=(CurveInterpolation.LINEAR_V1,),
+        )
+    ) as client:
         before = client.get("/api/steering/curve-state").json()
         response = client.post(
             "/api/steering/curve-state/activate",
@@ -395,12 +409,13 @@ class BlockingManager:
 def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     config = replace(
         simulator_config(),
-        simulation=SimulationConfig(command_queue_capacity=1),
+        simulation=SimulationConfig(),
         tick_interval_s=60.0,
+        runtime_inbox_capacity=1,
     )
     app = make_app(
         tmp_path / "profiles.sqlite3",
-        engine=SimulationEngine(config=config),
+        config=config,
     )
     manager = BlockingManager()
     app.state.manager = manager
@@ -410,9 +425,9 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         assert manager.entered.wait(timeout=1.0)
         second = pool.submit(client.post, "/api/buttons/0/release")
         deadline = time.monotonic() + 1.0
-        while app.state.command_queue.qsize() != 1 and time.monotonic() < deadline:
+        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
             pass
-        assert app.state.command_queue.qsize() == 1
+        assert app.state.controller_service.inbox_depth == 1
         overloaded = client.post(
             "/api/steering/curve-state/activate",
             json={"definition": definition_json(second_assistance=850)},
@@ -442,10 +457,8 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app(
         tmp_path / "profiles.sqlite3",
-        engine=SimulationEngine(
-            config=config,
-            steering_controller_factory=RejectingActivationController,
-        ),
+        config=config,
+        steering_controller_factory=RejectingActivationController,
     )
 
     with TestClient(app) as client:

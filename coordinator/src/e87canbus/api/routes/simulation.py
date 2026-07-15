@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.simulation import run_command, submit
 from e87canbus.api.models.simulation import DeviceStatusRequest, StepRequest
-from e87canbus.simulation.engine import (
+from e87canbus.simulation.runtime import (
     PressButton,
     ReleaseButton,
     ResetSimulation,

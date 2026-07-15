@@ -35,7 +35,6 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
 
 def test_default_simulation_trace_capacity() -> None:
     assert default_config().simulation.trace_capacity == 2_000
-    assert default_config().simulation.command_queue_capacity == 64
     assert default_config().simulation.steering_watchdog_timeout_s == 0.25
     assert default_config().simulation.websocket_send_timeout_s == 1.0
 
@@ -44,7 +43,6 @@ def test_default_simulation_trace_capacity() -> None:
     "field",
     [
         "trace_capacity",
-        "command_queue_capacity",
         "steering_watchdog_timeout_s",
         "websocket_send_timeout_s",
     ],

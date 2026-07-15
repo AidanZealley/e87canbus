@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
-from e87canbus.simulation.engine import SimulatorSnapshot, snapshot_event
+from e87canbus.simulation.runtime import SimulatorSnapshot, snapshot_event
 
 LOGGER = logging.getLogger(__name__)
 

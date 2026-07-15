@@ -31,7 +31,7 @@ from e87canbus.features.steering import (
     validate_steering_profile_id,
 )
 from e87canbus.runtime import UnsupportedSteeringCurveInterpolation
-from e87canbus.simulation.engine import (
+from e87canbus.simulation.runtime import (
     ActivateCurve,
     SimulationSessionFailed,
     SimulatorSnapshot,

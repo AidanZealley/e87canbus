@@ -16,7 +16,7 @@ React UI for the hardware-free simulator workbench and future in-car display.
 Start the simulator API from the repository root, then the frontend:
 
 ```bash
-uv run e87canbus-sim-api --reload
+uv run e87canbus run --mode simulated --reload
 cd frontend
 pnpm install
 pnpm dev

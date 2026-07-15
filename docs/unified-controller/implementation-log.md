@@ -24,7 +24,7 @@ simulation.
 | Phase | Status | Last entry | Notes |
 |---:|---|---|---|
 | 1 — Runtime contracts | Verified | 2026-07-15 | Architecture, runtime contracts and regression baseline complete |
-| 2 — Unified composition | Not started | — | One controller/API lifecycle with selected adapters |
+| 2 — Unified composition | Verified | 2026-07-15 | One bounded controller/API lifecycle with validated adapter selection |
 | 3 — Commands and resources | Not started | — | Semantic commands and precise durable resources |
 | 4 — Socket.IO publication | Not started | — | Fixed topics, reconnect snapshot and bounded delivery |
 | 5 — Frontend data ownership | Not started | — | Zustand live state and TanStack Query HTTP ownership |
@@ -34,11 +34,12 @@ simulation.
 
 ## Current handoff
 
-Start Phase 2 against the accepted ADR 0008 contracts: use `ControllerInput`, immutable commits
-and the closed topic vocabulary; create a fresh opaque service `boot_id` per lifecycle while
-keeping simulation reset identity separate. Preserve the deny-by-default live output boundary and
-temporary raw-WebSocket behavior. Phase 7 owns the recorded effect/actuator-failure health commit
-gap; do not create a second health owner while composing the Phase 2 lifecycle.
+Start Phase 3 through `ControllerService.submit`: define typed, idempotent semantic commands and
+precise durable-resource boundaries without exposing a kernel or runtime adapter to routes. Live
+mode currently registers health/settings only; Phase 3 owns making its command/resource surface
+precise. Preserve the fresh service `boot_id`, separate simulation `session_id`, synchronous ordered
+effect execution, deny-by-default live output and Phase-8-owned raw simulator transport. Phase 7
+still owns the recorded effect/actuator-failure health commit gap.
 
 Allowed status values are `Not started`, `In progress`, `Blocked`, `Implemented`, and `Verified`.
 Use `Implemented` when code exists and focused checks pass. Use `Verified` only when every phase
@@ -67,6 +68,63 @@ Copy this section to the top of **Entries**, newest first:
 Omit no field; write `None` when it genuinely does not apply.
 
 ## Entries
+
+### 2026-07-15 — Phase 2: unified controller and API composition
+
+- **Status:** Verified
+- **Scope:** Replaced the separate live runner and asynchronous simulator-API owner with one
+  bounded `ControllerService` lifecycle selected for live or simulated adapters. Socket.IO,
+  frontend state ownership, semantic-command redesign and physical output remain later phases.
+- **Changed:** Added the composition-owned controller service with a dedicated owner thread, one
+  bounded inbox, one timer schedule, thread-safe acknowledgements, immutable cached service
+  snapshots and a fresh opaque `boot_id`. Added validated live/simulated CAN, device-authority,
+  steering-capability and TX-grant selections. Converted the SocketCAN path into a live runtime
+  adapter and renamed the simulator state holder to a lazy-started simulated runtime adapter owned
+  only by the service in `simulation/runtime.py`. FastAPI now initializes SQLite, starts one service,
+  publishes readiness after startup effect synchronization, submits every retained simulator action
+  through the service and requests safe shutdown. Added `e87canbus run --mode live|simulated`;
+  live mode exposes an RX-only API and does not register development simulator
+  mutation/raw-WebSocket routes. Removed the
+  separate simulation command-queue configuration and all `SimulationEngine`, `run_live` and
+  `create_app(engine=...)` construction paths. Removed the independently executable legacy live
+  owner loop and the obsolete `e87canbus-sim-api` console entry/modules rather than retaining
+  runtime or CLI facades.
+- **Decisions:** Kept blocking CAN receive/effect I/O off the ASGI loop and synchronously bridged
+  bounded legacy WebSocket publication back to that loop so command/effect/publication order is
+  retained. Service snapshots cache the complete application projection and diagnostics
+  atomically; simulation reset changes only `session_id`, not service `boot_id`. Live construction
+  is side-effect-free until lifespan startup and always uses the production router. Physical
+  steering selection fails validation because no evidence-backed adapter/grant exists. Phase 7's
+  effect-failure health-commit gap was not duplicated or changed. The service carries its immutable
+  composition mode and FastAPI rejects mismatched service injection. Live shutdown commits the
+  safe transition before closing adapters, then verifies every reader exited and surfaces failure.
+- **Verification:** Full `uv run pytest -q`: 471 passed with one existing Starlette/httpx
+  deprecation warning. `uv run ruff check .`, `uv run mypy coordinator/src/e87canbus`, `uv run
+  python scripts/generate_custom_protocol.py --check`, `bash -n scripts/*.sh` and `git diff
+  --check`: passed. `pnpm test`: 45 unit and 53 component tests passed. `pnpm lint`, `pnpm
+  typecheck` and `pnpm build`: passed; Vite 8.1.4 transformed 2,936 modules.
+- **Browser/soak/physical checks:** No browser or soak check was required because retained frontend
+  transport behavior is covered by the unchanged component/API suites. Simulated adapter and fake
+  disabled/listen-only SocketCAN lifecycle, overflow, cleanup, stuck-reader detection, composition
+  mismatch and TX-grant scenarios passed. A repository search confirmed no second live owner loop,
+  old simulator engine module/name or legacy simulator console entry remains outside historical
+  specification/log text. Real CAN TX was unavailable and not enabled; no physical CAN or steering
+  evidence was claimed.
+- **Documentation:** Updated root/coordinator operation guidance, setup and simulation docs with
+  the canonical mode-selecting entry point, adapter behavior, development-route availability and
+  default RX-only live boundary. Updated this status/handoff record.
+- **Dependencies/migrations:** No dependency, lockfile, generated protocol or SQLite schema changed.
+  The obsolete `e87canbus-sim-api` project script and simulation-only command queue setting were
+  removed; the unified `e87canbus run --mode simulated` command and existing
+  `runtime_inbox_capacity` replace them.
+- **Compatibility/removal:** Current simulator HTTP payloads and raw `/ws` events remain direct
+  transports over `ControllerService`; Phase 8 owns their removal after frontend migration. No
+  legacy runtime, construction or CLI facade remains.
+- **Remaining:** None for Phase 2. Phase 3 must add typed semantic live commands and precise durable
+  resources; Phase 4 replaces raw WebSocket publication; Phase 7 reconciles failure-only health
+  publication and final operational failure policy.
+- **Next handoff:** Build Phase 3 routes only against `ControllerService.submit` and repositories.
+  Do not reintroduce a simulator owner, accept ambiguous toggles or grant live TX/physical steering.
 
 ### 2026-07-15 — Phase 1: runtime contracts and regression baseline
 

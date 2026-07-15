@@ -8,7 +8,7 @@ Linux.
 Run the FastAPI backend:
 
 ```bash
-uv run e87canbus-sim-api --reload
+uv run e87canbus run --mode simulated --reload
 ```
 
 Run the browser frontend:
@@ -24,12 +24,12 @@ Default URLs:
 - Backend: `http://127.0.0.1:8000`
 - Frontend: `http://127.0.0.1:5173`
 
-The workbench exposes one in-memory `SimulationEngine` software component through REST plus a
-WebSocket stream; “engine” here means the single-owner simulator runner, not a vehicle engine. A
-bounded command queue serializes button actions, periodic control timers, and resets through one
-owner task; an overloaded API request receives HTTP 503. Its `CoordinatorKernel` uses the same
+The workbench selects one in-memory simulated runtime adapter behind the same `ControllerService`
+used by live mode. A bounded controller inbox serializes button actions, periodic control timers,
+and resets through one owner thread; an overloaded API request receives HTTP 503. Its
+`CoordinatorKernel` uses the same
 decode, transition, commit, effect-execution, and TX-policy path as the live Pi runner. Simulated
-devices emit frames onto the in-memory networks, and the engine timestamps those frames at receipt
+devices emit frames onto the in-memory networks, and the adapter timestamps those frames at receipt
 before submitting them through the kernel's sole `dispatch` entry point.
 
 Snapshots carry the kernel-owned revision, fatal-health status, and simulation session ID. Reset
@@ -50,7 +50,7 @@ received no server message for fifteen seconds. The workbench badge distinguishe
 connection, disconnection, and reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
-commit. The engine then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
+commit. The simulated runtime then commits and attempts shutdown once, publishes a fatal snapshot, and rejects
 normal commands until reset. A failure during that final attempt is logged and discarded rather
 than fed back or retried. If the ordinary shutdown effect initiated by reset fails, the stopped
 session records and logs that fault; reset still replaces it and returns the new healthy session at
@@ -81,10 +81,10 @@ Buttons `1` and `2` enter Manual at the remembered runtime assistance level on t
 
 Set a synthetic vehicle speed through `POST /api/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
-simulation-only CAN frame on the in-memory F-CAN. The engine timestamps and decodes that frame
+simulation-only CAN frame on the in-memory F-CAN. The runtime timestamps and decodes that frame
 through the kernel; the API does not inject `SpeedObserved` or application state. The live router
 does not recognize the synthetic ID. The selected speed persists on the external vehicle. Immediately
-before each queued control timer, the vehicle emits a fresh encoded frame and the engine drains it
+before each ordered control timer, the vehicle emits a fresh encoded frame and the runtime drains it
 through the kernel before dispatching the timer. `POST /api/vehicle/speed/silence` clears the
 selection; subsequent timers emit no speed frame until another speed is set.
 
@@ -106,7 +106,7 @@ remain unknown.
 
 The current scheduled vehicle source, direct steering capability, and passive NeoTrellis LED sink
 settle in one visible processing pass. Before the first simulated device is allowed to emit a CAN
-response while processing an incoming CAN frame, `SimulationEngine` must regain a bounded
+response while processing an incoming CAN frame, the simulated runtime adapter must gain a bounded
 run-until-quiescent loop with an explicit livelock cap and deterministic tests. No unused cascade
 loop is installed today.
 

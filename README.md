@@ -46,13 +46,13 @@ uv sync
 Run the dry-run CLI:
 
 ```bash
-uv run e87canbus --dry-run
+uv run e87canbus run --mode live --dry-run
 ```
 
 Run the visual simulator workbench:
 
 ```bash
-uv run e87canbus-sim-api --reload
+uv run e87canbus run --mode simulated --reload
 cd frontend
 pnpm install
 pnpm dev
@@ -109,7 +109,7 @@ pio run
 
 ## Safety Status
 
-The default live runner disables application transmission on every CAN network. K-CAN transmission
+The default live composition disables application transmission on every CAN network. K-CAN transmission
 is granted only by the isolated simulator and bench compositions, where coordinator output remains
 rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
 hardware in listen-only mode, which remains a recommended deployment defense. DSC replay,

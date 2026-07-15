@@ -30,14 +30,14 @@ from e87canbus.runtime import (
     TimerElapsed,
     UnsupportedSteeringCurveInterpolation,
 )
-from e87canbus.simulation.engine import (
+from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
+from e87canbus.simulation.runtime import (
     ActivateCurve,
     RunControlTimer,
     SetVehicleSpeed,
-    SimulationEngine,
+    SimulatedControllerRuntime,
     snapshot_to_dict,
 )
-from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
 SAVED_PROFILE_ID = "11111111-1111-4111-8111-111111111111"
 
@@ -95,7 +95,8 @@ def test_activation_recalculates_fresh_auto_output_immediately() -> None:
 
 
 def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -> None:
-    engine = SimulationEngine()
+    engine = SimulatedControllerRuntime()
+    engine.start()
     smooth = replace(
         BUILT_IN_STEERING_CURVE,
         interpolation=CurveInterpolation.MONOTONE_CUBIC_V1,
@@ -280,7 +281,8 @@ def test_post_activation_output_failure_uses_existing_fatal_health_path() -> Non
 
 
 def test_serialized_snapshot_contains_complete_authoritative_active_projection() -> None:
-    engine = SimulationEngine()
+    engine = SimulatedControllerRuntime()
+    engine.start()
     custom = constant_curve(500)
     commit = engine.kernel.dispatch(
         ActivateSteeringCurve(custom, SAVED_PROFILE_ID, 4, requested_at=1.0)
