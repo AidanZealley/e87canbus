@@ -323,6 +323,8 @@ def encode_button_event(payload: ArduinoButtonEventPayload, ids: CustomCanIds) -
 def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEventPayload | None:
     if frame.arbitration_id != ids.button_event:
         return None
+    if frame.is_extended_id:
+        raise ValueError("button event frames must use a standard CAN ID")
     if len(frame.data) != BUTTON_EVENT_LENGTH:
         raise ValueError(f"button event payload must be exactly {BUTTON_EVENT_LENGTH} bytes")
     state = frame.data[BUTTON_EVENT_STATE_BYTE]
@@ -348,6 +350,8 @@ def encode_led_snapshot(payload: LedSnapshotPayload, ids: CustomCanIds) -> CanFr
 def decode_led_snapshot(frame: CanFrame, ids: CustomCanIds) -> LedSnapshotPayload | None:
     if frame.arbitration_id != ids.led_snapshot:
         return None
+    if frame.is_extended_id:
+        raise ValueError("LED snapshot frames must use a standard CAN ID")
     if len(frame.data) != LED_SNAPSHOT_LENGTH:
         raise ValueError(f"LED snapshot payload must be exactly {LED_SNAPSHOT_LENGTH} bytes")
     colour_codes = tuple(

@@ -209,18 +209,20 @@ class RejectingShutdownPeer(SimulatedServotronicPeer):
         super().set_assistance(command)
 
 
-def test_virtual_peers_publish_pending_then_active_through_encoded_registry_frames() -> None:
+def test_virtual_peers_register_and_send_immediate_first_heartbeat() -> None:
     runtime, clock = build_handshake_engine()
     ids = runtime.config.custom_can_ids
 
     first = runtime.deadline(clock())
 
-    assert {registry_status(runtime, role) for role in DeviceRole} == {"pending"}
-    assert {event["arbitration_id"] for event in first.events} == {
+    assert {registry_status(runtime, role) for role in DeviceRole} == {"active"}
+    assert {event["arbitration_id"] for event in first.events} >= {
         ids.button_pad_hello,
         ids.button_pad_welcome_ack,
+        ids.button_pad_heartbeat,
         ids.servotronic_controller_hello,
         ids.servotronic_controller_welcome_ack,
+        ids.servotronic_controller_heartbeat,
     }
     for role, hello_id, acknowledgement_id in (
         (DeviceRole.BUTTON_PAD, ids.button_pad_hello, ids.button_pad_welcome_ack),
@@ -249,16 +251,6 @@ def test_virtual_peers_publish_pending_then_active_through_encoded_registry_fram
         assert acknowledgement.device_session_id == hello.device_session_id
         assert acknowledgement.device_sequence == hello.sequence
 
-    clock.now = 1.0
-    second = runtime.deadline(clock())
-
-    assert {registry_status(runtime, role) for role in DeviceRole} == {"active"}
-    assert {event["arbitration_id"] for event in second.events} >= {
-        ids.button_pad_heartbeat,
-        ids.button_pad_welcome_ack,
-        ids.servotronic_controller_heartbeat,
-        ids.servotronic_controller_welcome_ack,
-    }
     for role, heartbeat_id, acknowledgement_id in (
         (DeviceRole.BUTTON_PAD, ids.button_pad_heartbeat, ids.button_pad_welcome_ack),
         (
@@ -304,17 +296,11 @@ def test_disconnect_expires_lease_reconnects_and_reboots_with_new_sessions() -> 
 
     runtime.execute(ConnectSimulatedDevice(DeviceRole.BUTTON_PAD))
     assert peer.session_id != original_session
-    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "pending"
-    clock.now = 5.0
-    runtime.deadline(clock())
     assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
 
     connected_session = peer.session_id
     runtime.execute(RebootSimulatedDevice(DeviceRole.BUTTON_PAD))
     assert peer.session_id != connected_session
-    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "pending"
-    clock.now = 6.0
-    runtime.deadline(clock())
     assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
 
 
@@ -351,9 +337,6 @@ def test_ack_loss_enters_controller_lost_and_connect_restarts_a_connected_peer()
     peer.process_pending = original_process_pending  # type: ignore[method-assign]
     clock.now = 5.0
     runtime.deadline(clock())
-    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
-    clock.now = 6.0
-    runtime.deadline(clock())
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
 
 
@@ -379,9 +362,6 @@ def test_incompatible_retry_fault_recovery_and_reset_restore_healthy_peers() -> 
     runtime.execute(
         SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 1)
     )
-    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
-    clock.now = 7.0
-    runtime.deadline(clock())
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
 
     runtime.execute(SetSimulatedDeviceStatusCode(DeviceRole.SERVOTRONIC_CONTROLLER, 7))
@@ -505,17 +485,17 @@ def test_reset_releases_old_session_topology_devices_and_endpoints() -> None:
     assert all(reference() is None for reference in old_pi_buses)
 
 
-def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
+def test_first_startup_command_failure_has_honest_nonfatal_adapter_snapshot() -> None:
     engine = build_test_engine(servotronic_factory=RejectingServotronicPeer)
 
     current_diagnostics = diagnostics(engine)
     steering = adapter(engine).servotronic
     assert steering is not None
-    assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (8, True)
+    assert current_diagnostics.health.fatal is False
+    assert current_diagnostics.health.steering_actuator_fault is not None
     assert steering.effective_assistance == 0.0
     assert steering.last_command_reason is None
-    assert steering.watchdog_timed_out is True
-    assert engine.servotronic.attempts == 2
+    assert engine.servotronic.attempts == 1
 
 
 def test_pressing_button_creates_button_event_frame() -> None:
@@ -605,7 +585,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     assert controller.topology.trace()[0].sequence == 1
 
 
-def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
+def test_actuator_failure_is_nonfatal_and_reset_starts_with_healthy_adapter(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock()
@@ -627,16 +607,13 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
     with caplog.at_level("ERROR"):
         failure_result = engine.execute(RunControlTimer(1.0))
 
-    assert diagnostics(engine).health.fatal is True
-    assert diagnostics(engine).revision == engine.kernel.diagnostics().revision == 9
+    assert diagnostics(engine).health.fatal is False
     assert failure_result.events == ()
     assert engine.kernel.health.steering_actuator_fault is not None
     assert engine.kernel.health.steering_actuator_fault.message == ("actuator failed on attempt 2")
-    assert controllers[0].attempts == 3
-    assert "terminal shutdown effect failed and was discarded" in caplog.text
-    assert "attempt 3" in caplog.text
-    with pytest.raises(ControllerWorkUnavailable, match="reset required"):
-        engine.execute(PressButton(0))
+    assert controllers[0].attempts == 2
+    assert "terminal shutdown effect failed and was discarded" not in caplog.text
+    engine.execute(PressButton(0))
 
     engine.execute(ResetSimulation())
 
@@ -645,7 +622,7 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
     assert diagnostics(engine).revision == engine.kernel.diagnostics().revision
 
 
-def test_reset_logs_shutdown_failure_and_returns_new_healthy_session(
+def test_reset_tolerates_nonfatal_shutdown_adapter_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     controllers: list[RejectingShutdownPeer] = []
@@ -664,7 +641,7 @@ def test_reset_logs_shutdown_failure_and_returns_new_healthy_session(
         engine.execute(ResetSimulation())
 
     assert controllers[0].attempts == 2
-    assert "reset replaced simulation session 1 with fatal diagnostics" in caplog.text
+    assert "fatal diagnostics" not in caplog.text
     assert adapter(engine).simulation_session_id == 2
     assert (diagnostics(engine).revision, diagnostics(engine).health.fatal) == (1, False)
 

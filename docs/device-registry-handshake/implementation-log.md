@@ -527,3 +527,140 @@ LED decoding is retained and the old fake periodic press/release loop is removed
 
 - Run isolated hardware bench validation, then record NeoTrellis rendering and K-CAN collision
   evidence before any live or in-car transmission is authorized.
+
+### Completed implementation audit and repair — 2026-07-16
+
+- **Agent:** Codex
+- **Final status:** Completed
+
+#### Summary
+
+Audited the complete five-phase implementation against `main` and the authoritative handshake
+specification. All seven reported findings were confirmed and repaired. Servotronic actuator
+execution failures now remain inside the optional output-adapter health boundary, leave controller
+readiness nonfatal, clear temporary maximum assistance, suppress further Servotronic output, and
+reject later operational changes as `feature_unavailable` until the adapter is replaced or the
+simulation is reset. Controller boot sessions now start from a random nonzero 16-bit seed and
+advance without repetition within the process, so a process restart no longer deterministically
+returns session `1`.
+
+Firmware local-fault contact now expires through `CONTROLLER_LOST`, resumes HELLO discovery, and
+returns to `LOCAL_FAULT` after rediscovery while continuing nonzero-status heartbeats. The virtual
+button pad now accepts button events and LED snapshots only while operational with a fresh
+controller lease. Simulation also sends the required first heartbeat immediately after an accepted
+WELCOME acknowledgement.
+
+The executor's raw-effect test compatibility path and the configurable catalogue-validation path
+were removed. Registry entries retain the supported version selected from the one static catalogue,
+whose protocol version now comes from the generated protocol constant. The default firmware
+identity remains `1` in checked-in source, while explicit compiler overrides no longer redefine a
+project build flag.
+
+#### Findings confirmed
+
+- Servotronic actuator failures incorrectly made global health fatal and stopped simulation.
+- Firmware `LOCAL_FAULT` did not expire the controller lease or resume discovery.
+- Controller sessions restarted deterministically from `1` in every process.
+- The simulated button pad bypassed operational-state and controller-lease gates.
+- `EffectExecutor` accepted raw `OutputEffect` values only for test convenience.
+- Registry construction exposed an unused configurable catalogue and re-read protocol versions
+  from the default catalogue instead of the installed entry.
+- The overridden `DEVICE_ID` build produced macro-redefinition warnings.
+
+#### Additional findings discovered
+
+- Simulated peers waited one heartbeat cadence after WELCOME instead of sending the first heartbeat
+  immediately.
+- Firmware rediscovery with a retained nonzero local status incorrectly selected `OPERATIONAL`
+  rather than returning to `LOCAL_FAULT`.
+- Button-event and LED-snapshot codecs accepted extended frames carrying the numeric standard IDs.
+- Several tests encoded the incorrect fatal optional-adapter behavior and brittle intermediate
+  revision counts rather than the specified health and lifecycle boundaries.
+
+#### Important files changed
+
+- `coordinator/src/e87canbus/runtime.py` — nonfatal Servotronic actuator health, output gating,
+  maximum-assistance clearing, and randomized nonzero boot-session seed.
+- `coordinator/src/e87canbus/simulation/runtime.py` — stop simulation only for genuinely fatal
+  execution failures.
+- `coordinator/src/e87canbus/simulation/devices.py` — immediate first heartbeat and fresh-lease
+  gating for simulated button and LED traffic.
+- `coordinator/src/e87canbus/output.py` — one canonical `EffectRequest` executor interface.
+- `coordinator/src/e87canbus/device.py` and `device_registry.py` — fixed static catalogue ownership
+  and generated protocol-version use.
+- `coordinator/src/e87canbus/protocol/can.py` — reject extended button-event and LED-snapshot
+  frames on the standard-ID protocol.
+- `devices/button-pad/src/main.cpp` — local-fault lease expiry, controller-loss rediscovery, and
+  fault-preserving recovery.
+- `devices/button-pad/platformio.ini` and `README.md` — warning-free build-time identity override.
+- Coordinator tests for registry, runtime health, output execution, protocol validation,
+  simulation, APIs, publication, profiles, and firmware-source regressions.
+
+#### Tests added or corrected
+
+- Added a subprocess regression proving controller sessions no longer reset deterministically
+  across process starts and a same-process non-repetition assertion.
+- Added focused nonfatal actuator-failure tests covering health, readiness, API behavior, output
+  suppression, continued scheduling, shutdown, and reset.
+- Added protocol-driven simulated NeoTrellis activation helpers and tests for pre-registration and
+  expired-lease button/LED rejection.
+- Added firmware-source regressions for local-fault controller-loss recovery and preservation of
+  local-fault state after rediscovery.
+- Added standard-versus-extended frame validation coverage for button and LED codecs.
+- Corrected simulator handshake tests to assert the immediate first heartbeat.
+- Removed catalogue configurability tests and converted all executor tests to the canonical
+  `EffectRequest` boundary.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `uv run pytest coordinator/tests/test_device_registry.py::test_controller_session_changes_across_process_restarts coordinator/tests/test_runtime.py::test_steering_actuator_failure_is_nonfatal_and_disables_servotronic_output coordinator/tests/test_output.py::test_executor_rejects_raw_effects_outside_effect_request_boundary coordinator/tests/test_simulation_devices.py::test_neotrellis_rejects_button_and_led_traffic_without_fresh_operational_lease coordinator/tests/test_button_pad_firmware_source.py::test_local_fault_controller_lease_expiry_resumes_discovery -q` | Failed before fixes as intended: 4 failed, 1 passed; the firmware assertion was then tightened to the exact timeout branch. |
+| `uv run pytest coordinator/tests/test_device_registry.py coordinator/tests/test_runtime.py coordinator/tests/test_runtime_activation.py coordinator/tests/test_output.py coordinator/tests/test_simulation_devices.py coordinator/tests/test_simulation_runtime.py coordinator/tests/test_button_pad_firmware_source.py coordinator/tests/test_config.py -q` | Passed; 148 tests. |
+| `uv run python scripts/generate_custom_protocol.py --check` | Passed; generated custom protocol artifacts current. |
+| `uv run python scripts/generate_live_contract.py --check` | Passed; generated live schema current. |
+| `uv run pytest coordinator/tests` | Passed; 537 tests, with one existing Starlette/httpx deprecation warning. |
+| `uv run ruff check coordinator scripts` | Passed after import-order cleanup. |
+| `uv run mypy coordinator/src` | Passed; no issues in 62 source files. |
+| `cd frontend && pnpm test` | Passed; 30 unit tests and 63 component tests across 18 component-test files. |
+| `cd frontend && pnpm lint` | Passed. |
+| `cd frontend && pnpm build` | Passed; TypeScript and Vite production build. |
+| `pio run --project-dir devices/button-pad -t clean && pio run --project-dir devices/button-pad` | Passed; clean default Arduino Micro build, 34.6% flash and 40.8% RAM. |
+| `pio run --project-dir devices/button-pad -t clean && PLATFORMIO_BUILD_FLAGS='-DDEVICE_ID=2' pio run --project-dir devices/button-pad 2>&1 \| tee /tmp/e87canbus-device-id-build.log && ! rg -n "redefined\|macro.*redefinition\|warning:.*DEVICE_ID" /tmp/e87canbus-device-id-build.log` | Passed; clean overridden-ID build, no `DEVICE_ID` macro-redefinition warning, 34.6% flash and 40.8% RAM. |
+| `git diff --check` | Passed. |
+
+#### Decisions and assumptions
+
+- Controller sessions are process-local protocol leases, not persisted registry state. A
+  cryptographically random nonzero seed changes the restart session without adding persistence;
+  subsequent kernels in the process advance modulo 65535.
+- An operational command remains accepted if its local Servotronic execution fails after the state
+  commit. The synchronous failure is published as a nonfatal adapter fault, disables subsequent
+  output, and does not claim physical application.
+- The fixed v1 catalogue is not a runtime/configuration extension point. Catalogue entry
+  dataclasses remain because they express the approved identity/version boundary, but callers
+  cannot substitute alternate catalogues.
+- Firmware-source tests cover state-machine source regressions that cannot be executed natively in
+  the current PlatformIO project; compilation and shared host protocol vectors remain the available
+  software evidence.
+
+#### Deviations from the phase documents
+
+- None. The audit removes implementation deviations from the approved design rather than changing
+  the protocol or product specification.
+
+#### Remaining limitations and physical evidence gates
+
+- Physical NeoTrellis scanning, rendering, mapping, brightness/current limits, EEPROM endurance and
+  persistence behavior, MCP2515 wiring, and transceiver behavior remain unverified.
+- Physical Servotronic output and firmware remain out of scope.
+- CAN ID collision capture, electrical compatibility, isolated 100 kbit/s bench evidence, explicit
+  live K-CAN TX grant, and in-car validation remain mandatory before physical transmission.
+- Random 16-bit controller sessions are not authentication and do not provide malicious-peer
+  protection; those properties remain explicit v1 non-goals.
+
+#### Final audit status
+
+Completed. All known defects are repaired, the additional findings above are covered, required
+repository checks and both clean firmware builds pass, and the implementation remains
+software/simulation-only pending the documented physical evidence gates.

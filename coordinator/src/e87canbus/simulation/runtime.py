@@ -656,7 +656,7 @@ class SimulatedControllerRuntime:
                 feedback_failures = self.executor.execute(failure_commit.effects)
                 for feedback_failure in feedback_failures:
                     self.kernel.dispatch(_effect_failure_input(feedback_failure, self._clock()))
-        if failures:
+        if failures and self.kernel.health.fatal:
             shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
             if shutdown is not None:
                 commits.append(shutdown)

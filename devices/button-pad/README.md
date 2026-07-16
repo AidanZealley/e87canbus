@@ -3,9 +3,10 @@
 This Arduino Micro project implements the button-pad side of the generated
 device-registry protocol v1 on MCP2515 K-CAN at 100 kbit/s.
 
-`DEVICE_ID` defaults to `1` in `platformio.ini` and is checked as an unsigned
-16-bit build-time value. An explicit compiler flag may override it for a
-separately provisioned bench build. The 16-bit device session is read from
+`DEVICE_ID` defaults to `1` in the checked-in firmware source and is checked as
+an unsigned 16-bit build-time value. An explicit compiler flag may override it
+without redefining a project build flag for a separately provisioned bench
+build. The 16-bit device session is read from
 EEPROM, incremented once per boot, written back, and verified. The counter
 wraps modulo 65536; zero is valid.
 

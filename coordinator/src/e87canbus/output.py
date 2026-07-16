@@ -144,16 +144,14 @@ class EffectExecutor:
 
     def execute(
         self,
-        effects: tuple[EffectRequest | OutputEffect, ...],
+        effects: tuple[EffectRequest, ...],
     ) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
         for request in effects:
-            if isinstance(request, EffectRequest):
-                effect = request.effect
-                origin_button_index = request.origin_button_index
-            else:
-                effect = request
-                origin_button_index = None
+            if not isinstance(request, EffectRequest):
+                raise TypeError("EffectExecutor accepts only EffectRequest values")
+            effect = request.effect
+            origin_button_index = request.origin_button_index
             match effect:
                 case SetSteeringAssistance():
                     steering_failure = self._execute_steering(effect, origin_button_index)

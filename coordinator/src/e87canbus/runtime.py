@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import assert_never
@@ -72,13 +73,14 @@ from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
 
-_controller_session_seed = 0
+_controller_session_seed = secrets.randbelow(0xFFFF) + 1
 
 
 def _new_controller_session_id() -> int:
     global _controller_session_seed
+    session_id = _controller_session_seed
     _controller_session_seed = (_controller_session_seed % 0xFFFF) + 1
-    return _controller_session_seed
+    return session_id
 
 
 @dataclass(frozen=True)
@@ -271,8 +273,7 @@ class RuntimeHealth:
     @property
     def fatal(self) -> bool:
         return (
-            self.steering_actuator_fault is not None
-            or self.inbox_overflow_fault is not None
+            self.inbox_overflow_fault is not None
             or any(item.fault is not None for item in self.networks)
         )
 
@@ -521,13 +522,25 @@ class CoordinatorKernel:
                         message,
                     )
                 )
-                return (
-                    self._transition(
+                if self._lifecycle is KernelLifecycle.STOPPED:
+                    return None
+                previous_snapshot = self.snapshot()
+                previous_button_leds = button_led_state(self._state)
+                cleared = clear_maximum_assistance(self._state)
+                self._state = cleared.state
+                if origin_button_index is not None:
+                    return self._transition(
                         ButtonCommandFailed(origin_button_index, failed_at),
                         previous_health=previous_health,
+                        previous_snapshot=previous_snapshot,
+                        previous_button_leds=previous_button_leds,
+                        extra_effects=cleared.effects,
                     )
-                    if origin_button_index is not None
-                    else None
+                return self._commit_application_result(
+                    Transition(self._state, cleared.effects),
+                    previous_snapshot,
+                    previous_button_leds,
+                    previous_health=previous_health,
                 )
             case ReceivedCanFrame():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
@@ -869,6 +882,7 @@ class CoordinatorKernel:
             and self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).status
             is DeviceLifecycleStatus.ACTIVE
             and self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is None
+            and self._health.steering_actuator_fault is None
         )
 
     def health_for_device(self, role: DeviceRole) -> DeviceRuntimeHealth:
@@ -881,6 +895,12 @@ class CoordinatorKernel:
                 DeviceRole.SERVOTRONIC_CONTROLLER,
                 entry.status,
                 "servotronic output adapter is unavailable",
+            )
+        if self._health.steering_actuator_fault is not None:
+            raise FeatureUnavailable(
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                entry.status,
+                "servotronic output adapter is faulted",
             )
         if self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is not None:
             raise FeatureUnavailable(

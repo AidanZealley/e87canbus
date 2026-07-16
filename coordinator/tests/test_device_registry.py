@@ -1,4 +1,8 @@
+import os
+import subprocess
+import sys
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from e87canbus.application.events import (
@@ -99,10 +103,12 @@ def register(
 
 def test_kernel_boot_creates_nonzero_session_and_two_not_found_entries() -> None:
     kernel = CoordinatorKernel()
+    next_kernel = CoordinatorKernel()
 
     startup = kernel.dispatch(KernelStarted(10.0))
 
     assert kernel.controller_session_id != 0
+    assert next_kernel.controller_session_id != kernel.controller_session_id
     assert startup is not None
     assert startup.changed_topics == {
         StateTopic.VEHICLE,
@@ -117,6 +123,37 @@ def test_kernel_boot_creates_nonzero_session_and_two_not_found_entries() -> None
         DeviceLifecycleStatus.NOT_FOUND,
         DeviceLifecycleStatus.NOT_FOUND,
     ]
+
+
+def test_controller_session_changes_across_process_restarts() -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(repository_root / "coordinator" / "src"),
+    }
+    command = [
+        sys.executable,
+        "-c",
+        "from e87canbus.runtime import CoordinatorKernel; "
+        "print(CoordinatorKernel().controller_session_id)",
+    ]
+
+    sessions = {
+        int(
+            subprocess.run(
+                command,
+                cwd=repository_root,
+                env=environment,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        for _ in range(4)
+    }
+
+    assert len(sessions) > 1
+    assert 0 not in sessions
 
 
 def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:

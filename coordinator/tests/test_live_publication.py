@@ -186,11 +186,7 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
     try:
         await wait_for_initial_publication(socket_server)
         socket_server.emissions.clear()
-        await asyncio.to_thread(activate_simulation_devices, service)
-        await wait_until(
-            lambda: "devices.state" in {event for event, *_ in socket_server.emissions}
-        )
-        socket_server.emissions.clear()
+        assert all(entry.status.value == "active" for entry in service.snapshot().adapter.registry)
         result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
         await wait_until(
             lambda: {event for event, *_ in socket_server.emissions}

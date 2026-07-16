@@ -5,8 +5,11 @@ from e87canbus.application.events import SetSteeringAssistance, SteeringCommandR
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     CanFrame,
+    DeviceWelcomeAckPayload,
     LedSnapshotPayload,
+    decode_hello,
     encode_led_snapshot,
+    encode_welcome_ack,
 )
 from e87canbus.protocol.generated import (
     BUTTON_PRESSED,
@@ -39,14 +42,46 @@ class MutableClock:
         return self.now
 
 
+def activate_neotrellis(
+    node: SimulatedNeoTrellisNode,
+    controller_bus,
+    clock: MutableClock,
+) -> None:
+    assert node.advance(clock()) == 1
+    hello_frame = controller_bus.receive(timeout_s=0)
+    assert hello_frame is not None
+    hello = decode_hello(hello_frame, node.ids.button_pad_hello)
+    assert hello is not None
+    controller_bus.send(
+        encode_welcome_ack(
+            DeviceWelcomeAckPayload(
+                controller_protocol_version=1,
+                response_code=0,
+                device_id=hello.device_id,
+                device_session_id=hello.device_session_id,
+                controller_session_id=0x1234,
+                device_sequence=hello.sequence,
+            ),
+            node.ids.button_pad_welcome_ack,
+        )
+    )
+    node.process_pending(clock())
+    assert node.advance(clock()) == 1
+
+
 def test_neotrellis_sends_explicit_press_and_release_events() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     observer_bus = network.create_bus("observer")
+    clock = MutableClock()
     node = SimulatedNeoTrellisNode(
         bus=network.create_bus("neotrellis"),
         ids=ids,
+        clock=clock,
     )
+    activate_neotrellis(node, observer_bus, clock)
+    heartbeat = observer_bus.receive(timeout_s=0)
+    assert heartbeat is not None
 
     first = node.send_button_event(3, pressed=True)
     second = node.send_button_event(3, pressed=False)
@@ -69,11 +104,44 @@ def test_neotrellis_rejects_buttons_outside_generated_device_positions() -> None
         node.send_button_event(LED_COUNT, pressed=True)
 
 
+def test_neotrellis_rejects_button_and_led_traffic_without_fresh_operational_lease() -> None:
+    ids = CustomCanIds()
+    network = InMemoryCanNetwork()
+    controller_bus = network.create_bus("pi")
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    requested = LedSnapshotPayload((LED_COLOUR_GREEN,) * LED_COUNT)
+
+    assert node.send_button_event(0, pressed=True) is None
+    controller_bus.send(encode_led_snapshot(requested, ids))
+    assert node.process_pending_led_snapshots() == []
+    assert node.led_colours == (LED_COLOUR_OFF,) * LED_COUNT
+
+    activate_neotrellis(node, controller_bus, clock)
+    assert controller_bus.receive(timeout_s=0) is not None
+    clock.now = 3.1
+    assert node.send_button_event(0, pressed=True) is None
+    controller_bus.send(encode_led_snapshot(requested, ids))
+    assert node.process_pending_led_snapshots() == []
+    assert node.led_colours == (LED_COLOUR_OFF,) * LED_COUNT
+
+
 def test_neotrellis_led_snapshot_replaces_all_colours() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
-    node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    activate_neotrellis(node, pi_bus, clock)
+    assert pi_bus.receive(timeout_s=0) is not None
 
     pi_bus.send(
         encode_led_snapshot(LedSnapshotPayload((LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8), ids)
@@ -89,7 +157,14 @@ def test_neotrellis_ignores_unknown_frame_id() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
-    node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    activate_neotrellis(node, pi_bus, clock)
+    assert pi_bus.receive(timeout_s=0) is not None
 
     pi_bus.send(CanFrame(0x123, b"\x00\x01"))
 
@@ -105,7 +180,14 @@ def test_neotrellis_logs_and_atomically_ignores_malformed_led_snapshot(
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     pi_bus = network.create_bus("pi")
-    node = SimulatedNeoTrellisNode(bus=network.create_bus("neotrellis"), ids=ids)
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    activate_neotrellis(node, pi_bus, clock)
+    assert pi_bus.receive(timeout_s=0) is not None
 
     prior = (LED_COLOUR_GREEN,) * 16
     pi_bus.send(encode_led_snapshot(LedSnapshotPayload(prior), ids))

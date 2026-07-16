@@ -144,9 +144,12 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert payload["protocol_version"] == 1
     topic_revisions = payload["data"]["topic_revisions"]
     assert topic_revisions["health"] == payload["revision"]
-    assert {
-        revision for topic, revision in topic_revisions.items() if topic != "health"
-    } == {1, 10}
+    assert topic_revisions["vehicle"] == 1
+    assert topic_revisions["engine"] == 1
+    assert topic_revisions["steering"] == 1
+    assert topic_revisions["buttons"] == 1
+    assert topic_revisions["lighting"] == 1
+    assert 1 < topic_revisions["devices"] < topic_revisions["health"]
     health = payload["data"]["health"]
     assert health["ready"] is True
     assert health["inbox"]["capacity"] == 64
@@ -192,7 +195,7 @@ def test_legacy_snapshot_and_raw_websocket_routes_are_removed(
     assert "/ws" not in {route.path for route in client.app.routes}
 
 
-def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
+def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app_for_config(
         config,
@@ -203,7 +206,9 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
         activate_simulation_devices(app.state.controller_service)
         snapshot = app.state.controller_service.snapshot()
 
-    assert snapshot.diagnostics.health.fatal is True
+    assert snapshot.diagnostics.health.fatal is False
+    assert snapshot.diagnostics.health.steering_actuator_fault is not None
+    assert snapshot.service.ready is True
     assert snapshot.adapter.servotronic is not None
     assert snapshot.adapter.servotronic.effective_assistance == 0.0
     assert snapshot.adapter.servotronic.last_command_reason is None
@@ -272,7 +277,7 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert snapshot.application.button_led_colours == (LedColour.BLUE,) + (LedColour.OFF,) * 15
 
 
-def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
+def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
@@ -292,7 +297,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
         "boot_id": app.state.controller_service.boot_id,
     }
     assert fatal is False
-    assert "reset replaced simulation session 1 with fatal diagnostics" in caplog.text
+    assert "fatal diagnostics" not in caplog.text
 
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
@@ -586,7 +591,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             )
 
 
-def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
+def test_nonfatal_actuator_timer_fault_is_published_and_scheduling_continues() -> None:
     session_count = 0
 
     def build_controller(
@@ -614,7 +619,18 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
     with TestClient(app) as client:
         activate_simulation_devices(app.state.controller_service)
         deadline = time.monotonic() + 1.0
-        while not app.state.controller_service.snapshot().diagnostics.health.fatal:
+        while (
+            app.state.controller_service.snapshot().diagnostics.health.steering_actuator_fault
+            is None
+        ):
+            assert time.monotonic() < deadline
+
+        faulted = app.state.controller_service.snapshot()
+        assert faulted.diagnostics.health.fatal is False
+        assert faulted.service.ready is True
+        initial_revision = faulted.revision
+        deadline = time.monotonic() + 1.0
+        while app.state.controller_service.snapshot().revision == initial_revision:
             assert time.monotonic() < deadline
 
         reset = client.post("/api/dev/simulation/reset")

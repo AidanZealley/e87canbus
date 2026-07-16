@@ -243,7 +243,7 @@ class SimulatedRegistryPeer:
         self._controller_lease_deadline = now + CONTACT_TIMEOUT_S
         self._next_hello_at = None
         if not was_operational:
-            self._next_heartbeat_at = now + HEARTBEAT_CADENCE_S
+            self._next_heartbeat_at = now
         self.state = (
             SimulatedDeviceState.LOCAL_FAULT
             if self.status_code != 0
@@ -381,9 +381,11 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self.led_colours = led_colours
         self.last_seen_monotonic_s: float | None = None
 
-    def send_button_event(self, button_index: int, pressed: bool) -> CanFrame:
+    def send_button_event(self, button_index: int, pressed: bool) -> CanFrame | None:
         if not 0 <= button_index < LED_COUNT:
             raise ValueError(f"button_index must be between 0 and {LED_COUNT - 1}")
+        if not self._operational_with_fresh_lease(self.clock()):
+            return None
         frame = encode_button_event(
             ArduinoButtonEventPayload(
                 button_index=button_index,
@@ -405,7 +407,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             if self._consume_registry_frame(frame, self.clock()):
                 continue
             snapshot = self._decode_led_snapshot(frame)
-            if snapshot is None:
+            if snapshot is None or not self._operational_with_fresh_lease(self.clock()):
                 continue
 
             self.led_colours = snapshot.colour_codes
@@ -422,10 +424,17 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             if self._consume_registry_frame(frame, now):
                 continue
             snapshot = self._decode_led_snapshot(frame)
-            if snapshot is not None:
+            if snapshot is not None and self._operational_with_fresh_lease(now):
                 self.led_colours = snapshot.colour_codes
                 self.last_seen_monotonic_s = now
         return processed
+
+    def _operational_with_fresh_lease(self, now: float) -> bool:
+        return (
+            self.state is SimulatedDeviceState.OPERATIONAL
+            and self._controller_lease_deadline is not None
+            and now < self._controller_lease_deadline
+        )
 
     def _decode_led_snapshot(self, frame: CanFrame) -> LedSnapshotPayload | None:
         try:

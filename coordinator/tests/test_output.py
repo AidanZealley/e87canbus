@@ -13,6 +13,7 @@ from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
+    EffectRequest,
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
@@ -60,7 +61,7 @@ def test_default_executor_has_no_transmit_capability(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        EffectExecutor().execute((SetButtonLeds(BLUE_LEDS),))
+        EffectExecutor().execute((EffectRequest(SetButtonLeds(BLUE_LEDS)),))
 
     assert "unavailable TX capability" in caplog.text
 
@@ -73,7 +74,7 @@ def test_high_beam_requires_its_own_explicit_actuator_capability() -> None:
         {CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())}
     )
 
-    assert executor.execute((SetHighBeam(True),)) == ()
+    assert executor.execute((EffectRequest(SetHighBeam(True)),)) == ()
     assert raw.sent == []
 
 
@@ -83,7 +84,7 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
         {CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())}
     )
 
-    executor.execute((SetButtonLeds(BLUE_LEDS),))
+    executor.execute((EffectRequest(SetButtonLeds(BLUE_LEDS)),))
 
     assert raw.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
 
@@ -100,7 +101,12 @@ def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
         }
     )
 
-    executor.execute((SetButtonLeds(WHITE_LEDS), SetButtonLeds(BLUE_LEDS)))
+    executor.execute(
+        (
+            EffectRequest(SetButtonLeds(WHITE_LEDS)),
+            EffectRequest(SetButtonLeds(BLUE_LEDS)),
+        )
+    )
 
     assert raw.sent == [CanFrame(0x701, b"\x55" * 8)]
 
@@ -109,7 +115,7 @@ def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
     actuator = FakeSteeringActuator()
     command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
 
-    EffectExecutor(steering_actuator=actuator).execute((command,))
+    EffectExecutor(steering_actuator=actuator).execute((EffectRequest(command),))
 
     assert actuator.commands == [command]
 
@@ -126,12 +132,22 @@ def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
         steering_actuator=FailingSteeringActuator(),
     )
 
-    failures = executor.execute((SetButtonLeds(BLUE_LEDS), command))
+    failures = executor.execute(
+        (
+            EffectRequest(SetButtonLeds(BLUE_LEDS)),
+            EffectRequest(command),
+        )
+    )
 
     assert failures == (
         CanEffectFailure(CanNetwork.KCAN, "failed 1793"),
         SteeringActuatorFailure("failed 0.5"),
     )
+
+
+def test_executor_rejects_raw_effects_outside_effect_request_boundary() -> None:
+    with pytest.raises(TypeError, match="EffectRequest"):
+        EffectExecutor().execute((SetButtonLeds(BLUE_LEDS),))  # type: ignore[arg-type]
 
 
 def test_alternating_payloads_on_one_id_share_network_window(
