@@ -9,10 +9,14 @@ from e87canbus.application.events import (
     SetButtonLeds,
 )
 from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.device import DeviceRole
+from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import (
     LedSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
+    decode_heartbeat,
+    decode_hello,
     encode_led_snapshot,
 )
 from e87canbus.protocol.generated import (
@@ -50,7 +54,10 @@ class ProtocolRouter:
         self,
         routed: RoutedCanFrame,
         observed_at: float,
-    ) -> ApplicationEvent | None:
+    ) -> ApplicationEvent | RegistryHelloObserved | RegistryHeartbeatObserved | None:
+        registry_observation = self._decode_registry(routed, observed_at)
+        if registry_observation is not None:
+            return registry_observation
         if (
             not self.button_input_enabled
             or routed.network is not CanNetwork.KCAN
@@ -62,6 +69,36 @@ class ProtocolRouter:
         if not payload.pressed:
             return None
         return ButtonPressed(payload.button_index, observed_at)
+
+    def _decode_registry(
+        self,
+        routed: RoutedCanFrame,
+        observed_at: float,
+    ) -> RegistryHelloObserved | RegistryHeartbeatObserved | None:
+        if routed.network is not CanNetwork.KCAN:
+            return None
+        frame_id = routed.frame.arbitration_id
+        for role, hello_id, heartbeat_id in (
+            (
+                DeviceRole.BUTTON_PAD,
+                self.ids.button_pad_hello,
+                self.ids.button_pad_heartbeat,
+            ),
+            (
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                self.ids.servotronic_controller_hello,
+                self.ids.servotronic_controller_heartbeat,
+            ),
+            ):
+            if frame_id == hello_id:
+                hello_payload = decode_hello(routed.frame, hello_id)
+                assert hello_payload is not None
+                return RegistryHelloObserved(role, hello_payload, observed_at)
+            if frame_id == heartbeat_id:
+                heartbeat_payload = decode_heartbeat(routed.frame, heartbeat_id)
+                assert heartbeat_payload is not None
+                return RegistryHeartbeatObserved(role, heartbeat_payload, observed_at)
+        return None
 
     def encode(self, effect: SetButtonLeds) -> RoutedCanFrame:
         return RoutedCanFrame(

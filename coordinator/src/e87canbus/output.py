@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from typing import Protocol, assert_never
 
 from e87canbus.application.events import (
+    BUTTON_LED_COUNT,
     ApplicationEffect,
     SetButtonLeds,
     SetHighBeam,
@@ -17,26 +19,63 @@ from e87canbus.application.events import (
 )
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class SendRegistryFrame:
+    """A typed raw CAN effect executed through the normal network TX policy."""
+
+    routed: RoutedCanFrame
+
+
+OutputEffect = ApplicationEffect | SendRegistryFrame
+
+
+@dataclass(frozen=True)
+class EffectRequest:
+    """An effect plus the optional originating button for synchronous failures."""
+
+    effect: OutputEffect
+    origin_button_index: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.effect,
+            (SetButtonLeds, SetSteeringAssistance, SetHighBeam, SendRegistryFrame),
+        ):
+            raise ValueError("effect request must contain an executable effect")
+        if self.origin_button_index is not None and (
+            type(self.origin_button_index) is not int
+            or not 0 <= self.origin_button_index < BUTTON_LED_COUNT
+        ):
+            raise ValueError("effect origin must identify a button LED")
+        if isinstance(self.effect, SetSteeringAssistance) and not math.isfinite(
+            self.effect.assistance
+        ):
+            raise ValueError("steering assistance must be finite")
+
+
+@dataclass(frozen=True)
 class CanEffectFailure:
     network: CanNetwork
     message: str
+    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
 class SteeringActuatorFailure:
     message: str
+    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
 class HighBeamActuatorFailure:
     message: str
+    origin_button_index: int | None = None
 
 
 EffectFailure = CanEffectFailure | SteeringActuatorFailure | HighBeamActuatorFailure
@@ -103,35 +142,67 @@ class EffectExecutor:
         self._steering_actuator = steering_actuator
         self._high_beam_actuator = high_beam_actuator
 
-    def execute(self, effects: tuple[ApplicationEffect, ...]) -> tuple[EffectFailure, ...]:
+    def execute(
+        self,
+        effects: tuple[EffectRequest | OutputEffect, ...],
+    ) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
-        for effect in effects:
+        for request in effects:
+            if isinstance(request, EffectRequest):
+                effect = request.effect
+                origin_button_index = request.origin_button_index
+            else:
+                effect = request
+                origin_button_index = None
             match effect:
                 case SetSteeringAssistance():
-                    steering_failure = self._execute_steering(effect)
+                    steering_failure = self._execute_steering(effect, origin_button_index)
                     if steering_failure is not None:
                         failures.append(steering_failure)
                 case SetButtonLeds():
-                    can_failure = self._execute_can(effect)
+                    can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
                 case SetHighBeam():
-                    high_beam_failure = self._execute_high_beam(effect)
+                    high_beam_failure = self._execute_high_beam(effect, origin_button_index)
                     if high_beam_failure is not None:
                         failures.append(high_beam_failure)
+                case SendRegistryFrame():
+                    can_failure = self._execute_routed_can(effect, origin_button_index)
+                    if can_failure is not None:
+                        failures.append(can_failure)
                 case _:
                     assert_never(effect)
         return tuple(failures)
 
-    def _execute_can(self, effect: SetButtonLeds) -> CanEffectFailure | None:
+    def _execute_can(
+        self,
+        effect: SetButtonLeds,
+        origin_button_index: int | None,
+    ) -> CanEffectFailure | None:
         routed = self._router.encode(effect)
+        return self._execute_routed_can(
+            SendRegistryFrame(routed),
+            origin_button_index,
+            log_as_led=True,
+        )
+
+    def _execute_routed_can(
+        self,
+        effect: SendRegistryFrame,
+        origin_button_index: int | None,
+        *,
+        log_as_led: bool = False,
+    ) -> CanEffectFailure | None:
+        routed = effect.routed
         transmitter = self._transmitters.get(routed.network)
         if transmitter is None:
-            LOGGER.warning(
-                "dropped effect for unavailable TX capability: network=%s id=0x%03x",
-                routed.network.value,
-                routed.frame.arbitration_id,
-            )
+            if log_as_led:
+                LOGGER.warning(
+                    "dropped effect for unavailable TX capability: network=%s id=0x%03x",
+                    routed.network.value,
+                    routed.frame.arbitration_id,
+                )
             return None
         try:
             transmitter.send(routed.frame)
@@ -142,12 +213,13 @@ class EffectExecutor:
                 routed.frame.arbitration_id,
                 exc,
             )
-            return CanEffectFailure(routed.network, str(exc))
+            return CanEffectFailure(routed.network, str(exc), origin_button_index)
         return None
 
     def _execute_steering(
         self,
         command: SetSteeringAssistance,
+        origin_button_index: int | None,
     ) -> SteeringActuatorFailure | None:
         if self._steering_actuator is None:
             return None
@@ -155,17 +227,21 @@ class EffectExecutor:
             self._steering_actuator.set_assistance(command)
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("failed to execute steering effect: error=%s", exc)
-            return SteeringActuatorFailure(str(exc))
+            return SteeringActuatorFailure(str(exc), origin_button_index)
         return None
 
-    def _execute_high_beam(self, command: SetHighBeam) -> HighBeamActuatorFailure | None:
+    def _execute_high_beam(
+        self,
+        command: SetHighBeam,
+        origin_button_index: int | None,
+    ) -> HighBeamActuatorFailure | None:
         if self._high_beam_actuator is None:
             return None
         try:
             self._high_beam_actuator.set_high_beam(command)
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("failed to execute high-beam effect: error=%s", exc)
-            return HighBeamActuatorFailure(str(exc))
+            return HighBeamActuatorFailure(str(exc), origin_button_index)
         return None
 
 

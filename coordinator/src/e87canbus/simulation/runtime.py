@@ -9,7 +9,10 @@ from dataclasses import dataclass, replace
 from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
-from e87canbus.application.events import HighBeamStrobeDeadlineReached
+from e87canbus.application.events import (
+    ButtonFeedbackDeadlineReached,
+    HighBeamStrobeDeadlineReached,
+)
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
@@ -246,6 +249,8 @@ class SimulatedControllerRuntime:
                 self.vehicle.set_coolant_temperature(temperature_c)
             case SilenceCoolantTemperature():
                 self.vehicle.silence_coolant_temperature()
+            case ReceivedCanFrame():
+                self._dispatch(command)
             case ResetSimulation():
                 replaced_session_id = self._session_id
                 self._dispatch(ShutdownRequested(self._clock()))
@@ -274,7 +279,7 @@ class SimulatedControllerRuntime:
         return self.execute(RunControlTimer(now))
 
     def next_deadline(self) -> float | None:
-        return self.kernel.state.high_beam_next_transition_at
+        return self.kernel.next_deadline()
 
     def deadline(self, now: float) -> RuntimeExecution | None:
         if self.kernel.health.fatal:
@@ -282,7 +287,21 @@ class SimulatedControllerRuntime:
         self._require_started()
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
-        self._dispatch(HighBeamStrobeDeadlineReached(now))
+        if any(
+            deadline is not None and deadline <= now
+            for deadline in self.kernel.state.button_feedback_deadlines
+        ):
+            self._dispatch(ButtonFeedbackDeadlineReached(now))
+        if (
+            self.kernel.state.high_beam_next_transition_at is not None
+            and self.kernel.state.high_beam_next_transition_at <= now
+        ):
+            self._dispatch(HighBeamStrobeDeadlineReached(now))
+        if any(
+            entry.next_deadline is not None and entry.next_deadline <= now
+            for entry in self.kernel.registry
+        ):
+            self._dispatch(TimerElapsed(now))
         return self._process_pending(before_sequence)
 
     def shutdown(self, now: float | None = None) -> RuntimeExecution:
@@ -309,13 +328,7 @@ class SimulatedControllerRuntime:
         for item in enabled:
             bus = self.topology.create_bus(item.network, "pi")
             self.pi_buses[item.network] = bus
-            if (
-                item.tx_enabled
-                and (
-                    item.network is not CanNetwork.KCAN
-                    or self.button_pad_source is DeviceSource.EMULATED
-                )
-            ):
+            if item.tx_enabled:
                 transmitters[item.network] = SafeCanTransmitter(
                     bus,
                     self.config.tx_policy,
@@ -350,6 +363,17 @@ class SimulatedControllerRuntime:
             engine_telemetry_config=self.config.engine_telemetry,
             high_beam_strobe_config=self.config.high_beam_strobe,
             router=router,
+            device_sources={
+                DeviceRole.BUTTON_PAD: self.button_pad_source,
+                DeviceRole.SERVOTRONIC_CONTROLLER: (
+                    DeviceSource.EMULATED
+                    if any(item.network is CanNetwork.KCAN for item in enabled)
+                    else DeviceSource.DISABLED
+                ),
+            },
+            servotronic_output_available=any(
+                item.network is CanNetwork.KCAN for item in enabled
+            ),
         )
         self.executor = EffectExecutor(
             transmitters,
@@ -494,25 +518,27 @@ class SimulatedControllerRuntime:
 
     def _dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         commit = self.kernel.dispatch(kernel_input)
-        if commit is None:
-            return None
-        self._execution_commits.append(commit)
-        failures = self.executor.execute(commit.effects)
-        if not failures:
-            return commit
-
+        commits = [] if commit is None else [commit]
+        failures = () if commit is None else self.executor.execute(commit.effects)
         for failure in failures:
-            self.kernel.dispatch(_effect_failure_input(failure, self._clock()))
-        shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
-        if shutdown is not None:
-            self._execution_commits.append(shutdown)
-            # The terminal fallback is attempted once. A second actuator failure is not fed
-            # back into the stopped kernel or retried, preserving the original fault.
-            for terminal_failure in self.executor.execute(shutdown.effects):
-                LOGGER.error(
-                    "simulation terminal shutdown effect failed and was discarded: %s",
-                    terminal_failure,
-                )
+            failure_commit = self.kernel.dispatch(_effect_failure_input(failure, self._clock()))
+            if failure_commit is not None:
+                commits.append(failure_commit)
+                feedback_failures = self.executor.execute(failure_commit.effects)
+                for feedback_failure in feedback_failures:
+                    self.kernel.dispatch(_effect_failure_input(feedback_failure, self._clock()))
+        if failures:
+            shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
+            if shutdown is not None:
+                commits.append(shutdown)
+                # The terminal fallback is attempted once. A second actuator failure is not fed
+                # back into the stopped kernel or retried, preserving the original fault.
+                for terminal_failure in self.executor.execute(shutdown.effects):
+                    LOGGER.error(
+                        "simulation terminal shutdown effect failed and was discarded: %s",
+                        terminal_failure,
+                    )
+        self._execution_commits.extend(commits)
         return commit
 
     def _adapter_projection(self) -> ControllerAdapterSnapshot:
@@ -609,11 +635,16 @@ def _effect_failure_input(
     failed_at: float,
 ) -> EffectFailureInput:
     match failure:
-        case CanEffectFailure(network, message):
-            return CanEffectExecutionFailed(network, failed_at, message)
-        case SteeringActuatorFailure(message):
-            return SteeringActuatorFailed(failed_at, message)
-        case HighBeamActuatorFailure(message):
-            return CanEffectExecutionFailed(CanNetwork.KCAN, failed_at, message)
+        case CanEffectFailure(network, message, origin_button_index):
+            return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
+        case SteeringActuatorFailure(message, origin_button_index):
+            return SteeringActuatorFailed(failed_at, message, origin_button_index)
+        case HighBeamActuatorFailure(message, origin_button_index):
+            return CanEffectExecutionFailed(
+                CanNetwork.KCAN,
+                failed_at,
+                message,
+                origin_button_index,
+            )
         case _:
             assert_never(failure)

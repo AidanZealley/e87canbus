@@ -18,6 +18,7 @@ from e87canbus.application.state import (
     SpeedSample,
 )
 from e87canbus.config import CanNetwork
+from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 
@@ -157,7 +158,7 @@ class SimulationProtocolRouter(ProtocolRouter):
         self,
         routed: RoutedCanFrame,
         observed_at: float,
-    ) -> ApplicationEvent | None:
+    ) -> ApplicationEvent | RegistryHelloObserved | RegistryHeartbeatObserved | None:
         event = super().decode(routed, observed_at)
         if event is not None:
             return event

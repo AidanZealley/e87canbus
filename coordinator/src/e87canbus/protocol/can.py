@@ -328,6 +328,8 @@ def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEven
     state = frame.data[BUTTON_EVENT_STATE_BYTE]
     if state not in (BUTTON_RELEASED, BUTTON_PRESSED):
         raise ValueError("button event state must be released or pressed")
+    if frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE] >= LED_COUNT:
+        raise ValueError(f"button event index must be between 0 and {LED_COUNT - 1}")
     return ArduinoButtonEventPayload(
         button_index=frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE],
         pressed=state == BUTTON_PRESSED,

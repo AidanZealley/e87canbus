@@ -25,6 +25,7 @@ class LedColour(StrEnum):
 
 
 BUTTON_LED_COUNT = 16
+BUTTON_FEEDBACK_DURATION_S = 0.5
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,27 @@ class ButtonPressed:
     def __post_init__(self) -> None:
         if not math.isfinite(self.observed_at):
             raise ValueError("button observation time must be finite")
+
+
+@dataclass(frozen=True)
+class ButtonCommandFailed:
+    button_index: int
+    occurred_at: float
+
+    def __post_init__(self) -> None:
+        if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
+            raise ValueError("button failure index must identify a button LED")
+        if not math.isfinite(self.occurred_at):
+            raise ValueError("button failure time must be finite")
+
+
+@dataclass(frozen=True)
+class ButtonFeedbackDeadlineReached:
+    now: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.now):
+            raise ValueError("button feedback deadline must be finite")
 
 
 @dataclass(frozen=True)
@@ -122,6 +144,8 @@ class SteeringFallbackRequested:
 
 ApplicationEvent = (
     ButtonPressed
+    | ButtonCommandFailed
+    | ButtonFeedbackDeadlineReached
     | SpeedObserved
     | EngineRpmObserved
     | OilTemperatureObserved

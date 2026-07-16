@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.models.commands import CommandAcknowledgement
+from e87canbus.device_registry import FeatureUnavailable
 from e87canbus.service import (
     ControllerInboxFull,
     ControllerServiceNotRunning,
@@ -40,6 +41,8 @@ async def submit_runtime_work(app: FastAPI, work: object) -> int:
         ) from exc
     except ControllerWorkUnavailable as exc:
         raise ApiProblem(503, "controller_failed", str(exc)) from exc
+    except FeatureUnavailable as exc:
+        raise ApiProblem(409, "feature_unavailable", str(exc)) from exc
     except ValueError as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
     except Exception as exc:

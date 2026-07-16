@@ -14,6 +14,7 @@ from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
+from registry_test_support import activate_simulation_devices
 
 
 def definition_json(
@@ -132,6 +133,7 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
 def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
     client: TestClient,
 ) -> None:
+    activate_simulation_devices(client.app.state.controller_service)
     smooth = definition_json()
 
     saved = client.post(
@@ -275,6 +277,7 @@ def test_stale_delete_preserves_the_newer_profile(client: TestClient) -> None:
 
 
 def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
+    activate_simulation_devices(client.app.state.controller_service)
     initial_curve = (
         client.app.state.controller_service.snapshot().application.active_steering_curve
     )
@@ -321,6 +324,7 @@ def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
 
 
 def test_matching_saved_profile_is_activated(client: TestClient) -> None:
+    activate_simulation_devices(client.app.state.controller_service)
     saved = create_profile(client)
 
     response = client.post(
@@ -422,32 +426,34 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         steering_controller_factory=build_controller,
     )
 
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=3) as pool:
-        first = pool.submit(
-            client.post,
-            "/api/dev/simulation/reset",
-        )
-        controller = controllers[0]
-        assert controller.entered.wait(timeout=1.0)
-        second = pool.submit(
-            client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
-        )
-        deadline = time.monotonic() + 1.0
-        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
-            pass
-        assert app.state.controller_service.inbox_depth == 1
-        overloaded = pool.submit(
-            client.put,
-            "/api/commands/steering-curve",
-            json={"definition": definition_json(second_assistance=850)},
-        )
-        try:
-            overloaded_response = overloaded.result(timeout=1.0)
-        finally:
-            controller.release.set()
-        assert first.result().status_code == 200
-        assert second.result().status_code == 503
+    with TestClient(app) as client:
+        activate_simulation_devices(app.state.controller_service)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            first = pool.submit(
+                client.post,
+                "/api/dev/simulation/reset",
+            )
+            controller = controllers[0]
+            assert controller.entered.wait(timeout=1.0)
+            second = pool.submit(
+                client.post,
+                "/api/dev/simulation/devices/button-pad/buttons/0/tap",
+            )
+            deadline = time.monotonic() + 1.0
+            while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
+                pass
+            assert app.state.controller_service.inbox_depth == 1
+            overloaded = pool.submit(
+                client.put,
+                "/api/commands/steering-curve",
+                json={"definition": definition_json(second_assistance=850)},
+            )
+            try:
+                overloaded_response = overloaded.result(timeout=1.0)
+            finally:
+                controller.release.set()
+            assert first.result().status_code == 200
+            assert second.result().status_code == 503
 
     assert overloaded_response.status_code == 503
     assert overloaded_response.json()["error"]["code"] == "runtime_queue_full"
@@ -475,6 +481,7 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     )
 
     with TestClient(app) as client:
+        activate_simulation_devices(app.state.controller_service)
         saved = create_profile(client)
         speed = client.put(
             "/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0}
@@ -513,6 +520,7 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
 def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     client: TestClient,
 ) -> None:
+    activate_simulation_devices(client.app.state.controller_service)
     applied_definition = definition_json(second_assistance=850)
     applied = client.put(
         "/api/commands/steering-curve",

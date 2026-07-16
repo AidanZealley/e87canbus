@@ -9,7 +9,7 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.config import CanNetwork
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.features.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveActivationStatus,
@@ -18,6 +18,13 @@ from e87canbus.features.steering import (
     initial_active_steering_curve,
     interpolate_steering_curve_definition,
     steering_curve_fingerprint,
+)
+from e87canbus.output import EffectRequest
+from e87canbus.protocol.can import (
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    encode_heartbeat,
+    encode_hello,
 )
 from e87canbus.runtime import (
     ActivateSteeringCurve,
@@ -48,6 +55,60 @@ def constant_curve(assistance_per_mille: int) -> SteeringCurveDefinition:
     )
 
 
+def activate_servotronic(kernel: CoordinatorKernel) -> None:
+    ids = CustomCanIds()
+    kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            encode_hello(DeviceHelloPayload(1, 1, 1, 0), ids.servotronic_controller_hello),
+            0.1,
+        )
+    )
+    kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            encode_heartbeat(
+                DeviceHeartbeatPayload(1, 1, kernel.controller_session_id, 0, 0),
+                ids.servotronic_controller_heartbeat,
+            ),
+            0.2,
+        )
+    )
+
+
+def activate_simulation_devices(engine: SimulatedControllerRuntime) -> None:
+    ids = engine.config.custom_can_ids
+    now = engine._clock()
+    for hello_id, heartbeat_id in (
+        (ids.button_pad_hello, ids.button_pad_heartbeat),
+        (ids.servotronic_controller_hello, ids.servotronic_controller_heartbeat),
+    ):
+        engine.execute(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_hello(DeviceHelloPayload(1, 1, 1, 0), hello_id),
+                now,
+            )
+        )
+        engine.execute(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_heartbeat(
+                    DeviceHeartbeatPayload(
+                        1,
+                        1,
+                        engine.kernel.controller_session_id,
+                        0,
+                        0,
+                    ),
+                    heartbeat_id,
+                ),
+                now,
+            )
+        )
+    engine.topology.clear_trace()
+
+
 def started_kernel(
     *,
     state: ApplicationState | None = None,
@@ -55,6 +116,7 @@ def started_kernel(
 ) -> CoordinatorKernel:
     kernel = CoordinatorKernel(state=state, active_steering_curve=active_curve)
     assert kernel.dispatch(KernelStarted(0.0)) is not None
+    activate_servotronic(kernel)
     return kernel
 
 
@@ -81,10 +143,12 @@ def test_activation_recalculates_fresh_auto_output_immediately() -> None:
     commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500), requested_at=1.0))
 
     assert commit is not None
-    assert commit.revision == 2
+    assert commit.revision == 4
     assert commit.changed_topics == {StateTopic.STEERING}
     assert commit.snapshot.active_steering_curve.activation_revision == 2
-    assert commit.effects == (SetSteeringAssistance(0.5, SteeringCommandReason.AUTO),)
+    assert commit.effects == (
+        EffectRequest(SetSteeringAssistance(0.5, SteeringCommandReason.AUTO)),
+    )
     timer = kernel.dispatch(TimerElapsed(1.1))
     assert timer is not None
     assert timer.effects == commit.effects
@@ -93,6 +157,7 @@ def test_activation_recalculates_fresh_auto_output_immediately() -> None:
 def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -> None:
     engine = SimulatedControllerRuntime()
     engine.start()
+    activate_simulation_devices(engine)
     smooth = replace(
         BUILT_IN_STEERING_CURVE,
     )
@@ -144,7 +209,7 @@ def test_identical_activation_is_idempotent_but_can_publish_saved_provenance() -
     )
 
     assert commit is not None
-    assert commit.revision == 2
+    assert commit.revision == 4
     assert commit.snapshot.active_steering_curve.activation_revision == 1
     assert commit.snapshot.active_steering_curve.saved_profile_id == SAVED_PROFILE_ID
     assert commit.snapshot.active_steering_curve.saved_profile_revision == 7
@@ -158,7 +223,7 @@ def test_identical_activation_is_idempotent_but_can_publish_saved_provenance() -
         )
     )
     assert repeated is not None
-    assert repeated.revision == 3
+    assert repeated.revision == 5
     assert repeated.state_changed is False
     assert repeated.effects == ()
 
@@ -173,7 +238,7 @@ def test_invalid_activation_leaves_active_state_and_revision_unchanged() -> None
         kernel.dispatch(ActivateSteeringCurve(invalid, requested_at=1.0))
 
     assert kernel.snapshot() == before
-    assert kernel.diagnostics().revision == 1
+    assert kernel.diagnostics().revision == 3
 
 
 def test_invalid_saved_provenance_leaves_active_state_unchanged() -> None:
@@ -190,14 +255,16 @@ def test_invalid_saved_provenance_leaves_active_state_unchanged() -> None:
         )
 
     assert kernel.snapshot() == before
-    assert kernel.diagnostics().revision == 1
+    assert kernel.diagnostics().revision == 3
 
 
 def test_activation_order_is_deterministic_relative_to_timer() -> None:
     first = CoordinatorKernel(router=SimulationProtocolRouter())
     second = CoordinatorKernel(router=SimulationProtocolRouter())
+    for kernel in (first, second):
+        assert kernel.dispatch(KernelStarted(0.0)) is not None
+        activate_servotronic(kernel)
     inputs = (
-        KernelStarted(0.0),
         ReceivedCanFrame(CanNetwork.FCAN, encode_simulated_speed(50.0), 1.0),
         ActivateSteeringCurve(constant_curve(500), requested_at=1.05),
         TimerElapsed(1.1),
@@ -207,10 +274,10 @@ def test_activation_order_is_deterministic_relative_to_timer() -> None:
     second_commits = tuple(second.dispatch(item) for item in inputs)
 
     assert first_commits == second_commits
-    assert [commit.revision for commit in first_commits if commit is not None] == [1, 2, 3, 4]
-    assert first_commits[2] is not None
-    assert first_commits[2].effects == (
-        SetSteeringAssistance(0.5, SteeringCommandReason.AUTO),
+    assert [commit.revision for commit in first_commits if commit is not None] == [4, 5, 6]
+    assert first_commits[1] is not None
+    assert first_commits[1].effects == (
+        EffectRequest(SetSteeringAssistance(0.5, SteeringCommandReason.AUTO)),
     )
 
 
@@ -253,6 +320,7 @@ def test_post_activation_output_failure_uses_existing_fatal_health_path() -> Non
 def test_runtime_snapshot_contains_complete_authoritative_active_projection() -> None:
     engine = SimulatedControllerRuntime()
     engine.start()
+    activate_simulation_devices(engine)
     custom = constant_curve(500)
     commit = engine.kernel.dispatch(
         ActivateSteeringCurve(custom, SAVED_PROFILE_ID, 4, requested_at=1.0)

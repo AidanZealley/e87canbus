@@ -13,7 +13,12 @@ from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.runtime import SetMaximumAssistance, StateTopic
 from e87canbus.service import ControllerService, RuntimeExecution
-from e87canbus.simulation.runtime import ResetSimulation, SetVehicleSpeed, TapButton
+from e87canbus.simulation.runtime import (
+    ResetSimulation,
+    SetVehicleSpeed,
+    TapButton,
+)
+from registry_test_support import activate_simulation_devices
 
 
 class RecordingSocketServer:
@@ -55,6 +60,19 @@ class RecordingSocketServer:
             await self.shutdown_release.wait()
 
 
+INITIAL_PUBLICATION_EVENTS = frozenset(
+    {
+        "engine.state",
+        "steering.state",
+        "vehicle.state",
+        "devices.state",
+        "lighting.state",
+        "buttons.state",
+        "controller.health",
+    }
+)
+
+
 def controller_service(
     *,
     trace_batch_size: int = 4,
@@ -93,6 +111,13 @@ async def wait_until(predicate: Callable[[], bool], timeout_s: float = 1.0) -> N
             await asyncio.sleep(0.005)
 
     await asyncio.wait_for(poll(), timeout=timeout_s)
+
+
+async def wait_for_initial_publication(socket_server: RecordingSocketServer) -> None:
+    await wait_until(
+        lambda: {event for event, *_ in socket_server.emissions}
+        >= INITIAL_PUBLICATION_EVENTS
+    )
 
 
 @pytest.mark.asyncio
@@ -156,7 +181,8 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
     await asyncio.to_thread(service.start, publisher.offer)
     await publisher.start()
     try:
-        await wait_until(lambda: len(socket_server.emissions) >= 6)
+        await wait_for_initial_publication(socket_server)
+        await asyncio.to_thread(activate_simulation_devices, service)
         socket_server.emissions.clear()
         result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
         await wait_until(
@@ -187,7 +213,8 @@ async def test_lighting_topic_publishes_requested_and_observed_high_beam_state()
     await asyncio.to_thread(service.start, publisher.offer)
     await publisher.start()
     try:
-        await wait_until(lambda: len(socket_server.emissions) >= 7)
+        await wait_for_initial_publication(socket_server)
+        await asyncio.to_thread(activate_simulation_devices, service)
         socket_server.emissions.clear()
         await asyncio.wrap_future(service.submit(TapButton(4)))
         await wait_until(
