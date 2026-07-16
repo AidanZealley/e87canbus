@@ -1,7 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 
-import { setMaximumAssistance } from "@/api/commands"
 import { tapButton } from "@/api/simulator"
 import { useLiveStore } from "@/live/live-store"
 import {
@@ -15,13 +14,6 @@ const unavailableLedColours = Array<number>(LED_COUNT).fill(0)
 export const SimulatorNeoTrellis = () => {
   const { mutate: tapButtonMutation } = useMutation({
     mutationFn: (index: number) => tapButton(index),
-    onError: notifySimulatorError,
-  })
-  const {
-    mutate: maximumAssistanceMutation,
-    isPending: maximumAssistancePending,
-  } = useMutation({
-    mutationFn: setMaximumAssistance,
     onError: notifySimulatorError,
   })
   const desiredLedColours = useLiveStore(
@@ -41,20 +33,11 @@ export const SimulatorNeoTrellis = () => {
     })
   )
   const synchronized = useLiveStore((state) => state.connection.synchronized)
-  const maximumAssistanceActive = useLiveStore(
-    (state) => state.steering?.maximum_assistance_active ?? false
-  )
-  const displayedSourceMode: NonNullable<
-    Parameters<typeof NeoTrellisPanel>[0]["sourceMode"]
-  > = synchronized ? sourceMode : "unavailable"
+  const displayedSourceMode = synchronized ? sourceMode : "unavailable"
   const emulatorControlsAvailable = displayedSourceMode === "emulated"
   const displayedColours = synchronized
     ? (observedLedColours ?? desiredLedColours)
     : unavailableLedColours
-  const observationLabel =
-    observedLedColours === null
-      ? "Observed LEDs unknown; showing controller desired LEDs."
-      : "Showing LEDs decoded by the emulator from the output frame."
   const buttons: NeoTrellisButtonState[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
@@ -66,13 +49,7 @@ export const SimulatorNeoTrellis = () => {
   return (
     <NeoTrellisPanel
       buttons={buttons}
-      sourceMode={displayedSourceMode}
-      observationLabel={observationLabel}
       emulatorControlsAvailable={emulatorControlsAvailable}
-      controllerControlsAvailable={synchronized}
-      maximumAssistanceActive={maximumAssistanceActive}
-      semanticCommandPending={maximumAssistancePending}
-      onMaximumAssistanceChange={maximumAssistanceMutation}
       onClick={tapButtonMutation}
     />
   )

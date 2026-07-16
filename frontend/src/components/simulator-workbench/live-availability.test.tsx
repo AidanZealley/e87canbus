@@ -12,13 +12,11 @@ import type { ReactNode } from "react"
 import { afterEach, expect, it, vi } from "vitest"
 
 import { tapButton } from "@/api/simulator"
-import { setMaximumAssistance } from "@/api/commands"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 
 vi.mock("@/api/simulator", () => ({ tapButton: vi.fn() }))
-vi.mock("@/api/commands", () => ({ setMaximumAssistance: vi.fn() }))
 
 const renderWithQueryClient = (ui: ReactNode) =>
   render(
@@ -62,16 +60,9 @@ it("clears retained LED observations and disables controls when unsynchronized",
   act(() => useLiveStore.getState().transportDisconnected())
 
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 0 0")
-  expect(
-    (
-      screen.getByRole("button", {
-        name: "Enable maximum",
-      }) as HTMLButtonElement
-    ).disabled
-  ).toBe(true)
 })
 
-it("sends emulator taps separately from semantic controller commands", async () => {
+it("sends emulator taps when the emulated source is selected", async () => {
   const value = snapshot("dev-boot", 5)
   value.data.devices.devices = [
     {
@@ -92,15 +83,9 @@ it("sends emulator taps separately from semantic controller commands", async () 
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 255 0")
   fireEvent.click(firstButton)
   await waitFor(() => expect(tapButton).toHaveBeenCalledWith(0))
-  expect(setMaximumAssistance).not.toHaveBeenCalled()
-
-  fireEvent.click(screen.getByRole("button", { name: "Enable maximum" }))
-  await waitFor(() => expect(setMaximumAssistance).toHaveBeenCalled())
-  expect(setMaximumAssistance).toHaveBeenLastCalledWith(true, expect.anything())
-  expect(tapButton).toHaveBeenCalledTimes(1)
 })
 
-it("keeps semantic control available while observer wire controls stay unavailable", async () => {
+it("disables wire controls when the observer source is selected", async () => {
   const value = snapshot("observer-boot", 6)
   value.data.devices.devices = [
     {
@@ -121,10 +106,4 @@ it("keeps semantic control available while observer wire controls stay unavailab
   expect((wireButton as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(wireButton)
   expect(tapButton).not.toHaveBeenCalled()
-
-  const semanticButton = screen.getByRole("button", { name: "Enable maximum" })
-  expect((semanticButton as HTMLButtonElement).disabled).toBe(false)
-  fireEvent.click(semanticButton)
-  await waitFor(() => expect(setMaximumAssistance).toHaveBeenCalled())
-  expect(setMaximumAssistance).toHaveBeenLastCalledWith(true, expect.anything())
 })
