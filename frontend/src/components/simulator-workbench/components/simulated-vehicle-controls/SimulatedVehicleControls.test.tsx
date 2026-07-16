@@ -20,14 +20,18 @@ vi.mock("@/api/simulator", () => api)
 
 vi.mock("@/components/ui/slider", () => ({
   Slider: ({
-    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledBy,
     onValueCommitted,
   }: {
-    "aria-label": string
+    "aria-labelledby": string
     onValueCommitted?: (value: number[]) => void
   }) => (
-    <button type="button" onClick={() => onValueCommitted?.([1])}>
-      Commit {ariaLabel}
+    <button
+      type="button"
+      aria-labelledby={ariaLabelledBy}
+      onClick={() => onValueCommitted?.([1])}
+    >
+      Commit
     </button>
   ),
 }))
@@ -93,7 +97,7 @@ it("commits a slider value without a separate set action", async () => {
   renderControls(0)
 
   fireEvent.click(
-    screen.getByRole("button", { name: "Commit Simulated vehicle speed" })
+    screen.getByRole("button", { name: "Vehicle speed" })
   )
 
   await waitFor(() => expect(api.setVehicleSpeed.mock.calls[0]?.[0]).toBe(1))

@@ -26,6 +26,8 @@ export const TelemetrySlider = ({
   onValueChange,
   onCommit,
 }: TelemetrySliderProps) => {
+  const labelId = `${id}-label`
+
   const toBoundedValue = (nextValue: number) => {
     if (Number.isFinite(nextValue)) {
       return Math.min(maximum, Math.max(minimum, nextValue))
@@ -36,19 +38,18 @@ export const TelemetrySlider = ({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id}>{label}</Label>
+        <Label id={labelId}>{label}</Label>
         <output className="text-sm tabular-nums text-muted-foreground">
           {controlledValue} {unit}
         </output>
       </div>
       <Slider
-        id={id}
         min={minimum}
         max={maximum}
         step={step}
         value={[controlledValue]}
         disabled={disabled}
-        aria-label={`Simulated ${label.toLowerCase()}`}
+        aria-labelledby={labelId}
         onValueChange={(nextValue) =>
           onValueChange(
             toBoundedValue(Array.isArray(nextValue) ? nextValue[0] : nextValue)
