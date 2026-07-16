@@ -14,7 +14,12 @@ from e87canbus.features.steering import (
     interpolate_steering_curve_definition,
 )
 
-VECTOR_PATH = Path(__file__).parents[2] / "docs" / "assist-curve" / "monotone-cubic-v1-vectors.json"
+VECTOR_PATH = (
+    Path(__file__).parents[2]
+    / "test-fixtures"
+    / "steering"
+    / "monotone-cubic-v1-vectors.json"
+)
 
 
 def _definition(values: list[int]) -> SteeringCurveDefinition:

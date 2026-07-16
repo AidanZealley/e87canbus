@@ -124,7 +124,7 @@ test("monotone cubic matches the shared language-neutral golden vectors", () => 
   const vectors = JSON.parse(
     readFileSync(
       new URL(
-        "../../../../docs/assist-curve/monotone-cubic-v1-vectors.json",
+        "../../../../test-fixtures/steering/monotone-cubic-v1-vectors.json",
         import.meta.url
       ),
       "utf8"

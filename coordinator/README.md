@@ -28,11 +28,11 @@ This is why code imports `e87canbus.application` even though it is deployed as t
 values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
 160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
 per-mille assistance (`assistance_per_mille`, `0..1000`) and requires assistance to be
-non-increasing as speed rises. Curve definitions contain points only; the smooth evaluator
-implements the checked-in Steffen/Hermite
-[numerical contract](../docs/assist-curve/monotone-cubic-v1.md), including endpoint hold, exact
-control-point values, binary64 tolerance and final `0..1` clamping. Python and TypeScript load the
-same language-neutral golden vectors.
+non-increasing as speed rises. Curve definitions contain points only; the smooth evaluator uses
+the checked-in Steffen/Hermite contract in the shared
+[golden conformance vectors](../test-fixtures/steering/monotone-cubic-v1-vectors.json), including
+endpoint hold, exact control-point values, binary64 tolerance and final `0..1` clamping. Python
+and TypeScript load the same fixture.
 
 Definition identity is the lowercase SHA-256 digest of compact, key-sorted UTF-8 JSON containing
 only `schema_version`, `interpolation`, and the ordered integer point fields. Profile IDs, names,
