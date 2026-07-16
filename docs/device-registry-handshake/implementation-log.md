@@ -19,7 +19,7 @@ to them.
 | 2 | Completed | Codex | 2026-07-16 | Focused Phase 2 suites (225 passed); full coordinator suite (524 passed); generated check, Ruff, mypy, compileall, and diff check passed |
 | 3 | Completed | Codex lead after Tesla worker | 2026-07-16 | Required coordinator suites (41 passed); full coordinator suite (524 passed); frontend tests (30 unit + 60 component) and build passed; generated contract check, Ruff, mypy, and diff check passed |
 | 4 | Completed | Codex lead after Sagan worker | 2026-07-16 | Phase 4 coordinator suites (119 passed); full coordinator suite (532 passed); frontend tests (30 unit + 63 component), build, lint, Ruff, mypy, compileall, and diff check passed |
-| 5 | Not started | — | — | — |
+| 5 | Completed | Codex lead after stalled Copernicus/Kuhn workers | 2026-07-16 | Default and overridden-ID PlatformIO builds passed; full coordinator suite (532 passed); frontend tests (30 unit + 63 component), build, lint, generated checks, Ruff, mypy, compileall, and diff check passed |
 
 Allowed statuses are:
 
@@ -431,12 +431,99 @@ peer actions, and surface pending/error state without creating a browser-side li
 
 #### Known limitations
 
-- The Arduino firmware still does not implement the virtual-peer behavior; Phase 5 must mirror the
-  vectors, role IDs, session/sequence rules, status handling, and timing in the real device.
+- The button-pad firmware now mirrors the generated vectors, role IDs, session/sequence rules,
+  status handling, and timing in the real device; actual EEPROM and CAN behavior remain untested
+  on hardware.
 - Physical Servotronic output, compiled Arduino execution in simulation, CAN collision validation,
   live TX authorization, bench/in-car evidence, and physical hardware validation remain deferred.
 
 #### Follow-up work
 
-- Phase 5 must implement the button-pad firmware against the same generated protocol vectors and
-  timing without copying the simulator scheduler or claiming physical output readiness.
+- Future hardware work must validate the button-pad firmware against the physical NeoTrellis and
+  the same generated protocol vectors without claiming physical output readiness from compilation.
+
+### Phase 5 — Button-pad firmware — 2026-07-16
+
+- **Agent:** Copernicus and Kuhn workers stalled before making changes; Codex lead implemented and
+  audited the phase fallback
+- **Final status:** Completed
+
+#### Summary
+
+Implemented the button-pad side of the generated v1 registry handshake in the existing Arduino
+Micro/MCP2515 project. The build fixes the role-specific stable ID to `DEVICE_ID=1` by default,
+checks the unsigned 16-bit range at compile time, and allows a separately supplied build flag to
+override the identity. EEPROM stores a 16-bit boot counter; startup reads it twice, increments it
+with intentional modulo-65536 wrap, writes it, and verifies the stored result before discovery.
+
+The firmware now uses explicit BOOTING, DISCOVERING, OPERATIONAL, CONTROLLER_LOST, INCOMPATIBLE,
+and LOCAL_FAULT states with separate logical DISCOVERING, NORMAL, and ERROR display modes. HELLO
+and heartbeat frames are assembled from generated offsets, use wrap-safe `millis()` scheduling
+with bounded jitter, validate role-specific WELCOME_ACK identity/session/sequence/version/response,
+and renew the controller lease only from matching acknowledgements. LED snapshots and future
+button events are both gated by operational state and a fresh controller lease; validate-then-commit
+LED decoding is retained and the old fake periodic press/release loop is removed.
+
+#### Important files changed
+
+- `devices/button-pad/platformio.ini` — Arduino EEPROM dependency and default `DEVICE_ID=1` build
+  flag.
+- `devices/button-pad/src/main.cpp` — EEPROM session persistence, generated CAN codecs, nonblocking
+  device state machine, controller lease, logical display modes, gated LED/button behavior, and
+  bounded diagnostics.
+- `devices/button-pad/README.md` and `devices/README.md` — firmware behavior and explicit
+  bench/physical-readiness boundaries.
+
+#### Public contract or schema changes
+
+- No protocol schema or generated artifact changed; `devices/button-pad/include/can_ids.h` remains
+  generated from `protocol/custom.toml`.
+- The firmware now implements the existing button-pad HELLO (`0x702`), WELCOME_ACK (`0x703`),
+  HEARTBEAT (`0x704`), button event (`0x700`), and LED snapshot (`0x701`) contract.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `pio run --project-dir devices/button-pad` | Passed; Arduino Micro firmware compiled and linked with generated v1 constants. |
+| `PLATFORMIO_BUILD_FLAGS='-DDEVICE_ID=2' pio run --project-dir devices/button-pad` | Passed; explicit alternate stable-ID build compiled and linked. PlatformIO reports the expected duplicate-definition warning because the checked-in default flag remains present. |
+| `uv run python scripts/generate_custom_protocol.py --check` | Passed. |
+| `uv run python scripts/generate_live_contract.py --check` | Passed. |
+| `uv run pytest coordinator/tests` | Passed; 532 tests, 1 existing Starlette deprecation warning. |
+| `cd frontend && pnpm test -- --run` | Passed; 30 unit tests and 63 component tests across 18 files. |
+| `cd frontend && pnpm build` | Passed; TypeScript project and Vite production build. |
+| `cd frontend && pnpm lint` | Passed. |
+| `uv run ruff check .` | Passed. |
+| `uv run mypy coordinator/src/e87canbus` | Passed; no issues in 62 source files. |
+| `uv run python -m compileall -q coordinator/src/e87canbus` | Passed. |
+| `git diff --check` | Passed. |
+
+#### Decisions and assumptions
+
+- The AVR EEPROM API does not expose a read/write error result, so the firmware performs repeated
+  reads and a post-write readback verification; any detected inconsistency enters LOCAL_FAULT.
+- `uint16_t` session wrap is valid, including zero; no sentinel value is reserved by the protocol.
+- CAN send failures are logged and retried at the next scheduled cadence. A failure during normal
+  operation reports a nonzero local status through subsequent heartbeats.
+- No physical rendering, topology, brightness, current-limit, collision, or readiness behavior was
+  added; logical display modes are the only display interface in this phase.
+
+#### Deviations from the phase document
+
+- The delegated Copernicus and replacement Kuhn workers stalled without changing the worktree;
+  the lead implemented the documented fallback after closing both workers. No scope or protocol
+  deviation resulted.
+
+#### Known limitations and remaining physical evidence gates
+
+- Physical NeoTrellis scanning, logical-to-physical mapping, rendering, brightness, current limits,
+  EEPROM wear/persistence, MCP2515 wiring, transceiver behavior, and bench execution remain
+  unverified.
+- CAN collision capture, live K-CAN TX authorization, vehicle/in-car testing, and physical
+  button-pad integration remain prohibited/deferred.
+- Servotronic firmware and physical Servotronic output remain out of scope.
+
+#### Follow-up work
+
+- Run isolated hardware bench validation, then record NeoTrellis rendering and K-CAN collision
+  evidence before any live or in-car transmission is authorized.
