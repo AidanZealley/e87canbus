@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from e87canbus.protocol.generated import CUSTOM_DEVICE_PROTOCOL_VERSION
+
 
 class DeviceRole(StrEnum):
     BUTTON_PAD = "button_pad"
@@ -60,35 +62,15 @@ class DeviceCatalogueEntry:
             raise ValueError("device catalogue instance_limit must be positive")
 
 
-def validate_device_catalogue(
-    catalogue: tuple[DeviceCatalogueEntry, ...],
-) -> tuple[DeviceCatalogueEntry, ...]:
-    """Validate the single-instance static role catalogue and return it unchanged."""
-
-    if not isinstance(catalogue, tuple) or not catalogue:
-        raise ValueError("device catalogue must be a non-empty tuple")
-    if any(not isinstance(entry, DeviceCatalogueEntry) for entry in catalogue):
-        raise ValueError("device catalogue entries must be DeviceCatalogueEntry values")
-    identities = [entry.identity for entry in catalogue]
-    roles = [identity.role for identity in identities]
-    if len(set(identities)) != len(identities):
-        raise ValueError("device catalogue identities must be unique")
-    if len(set(roles)) != len(roles):
-        raise ValueError("device catalogue may contain only one instance per role")
-    return catalogue
-
-
-DEFAULT_DEVICE_CATALOGUE = validate_device_catalogue(
-    (
-        DeviceCatalogueEntry(
-            identity=DeviceIdentity(DeviceRole.BUTTON_PAD, 1),
-            enabled=True,
-            supported_protocol_version=1,
-        ),
-        DeviceCatalogueEntry(
-            identity=DeviceIdentity(DeviceRole.SERVOTRONIC_CONTROLLER, 1),
-            enabled=True,
-            supported_protocol_version=1,
-        ),
-    )
+DEFAULT_DEVICE_CATALOGUE = (
+    DeviceCatalogueEntry(
+        identity=DeviceIdentity(DeviceRole.BUTTON_PAD, 1),
+        enabled=True,
+        supported_protocol_version=CUSTOM_DEVICE_PROTOCOL_VERSION,
+    ),
+    DeviceCatalogueEntry(
+        identity=DeviceIdentity(DeviceRole.SERVOTRONIC_CONTROLLER, 1),
+        enabled=True,
+        supported_protocol_version=CUSTOM_DEVICE_PROTOCOL_VERSION,
+    ),
 )

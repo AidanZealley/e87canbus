@@ -472,7 +472,7 @@ class RejectingActivationPeer(SimulatedServotronicPeer):
         super().set_assistance(command)
 
 
-def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> None:
+def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Path) -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app(
         tmp_path / "profiles.sqlite3",
@@ -499,14 +499,11 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
         runtime_snapshot = app.state.controller_service.snapshot()
 
     assert before.diagnostics.health.fatal is False
-    assert activation.status_code == 503
-    assert activation.json()["error"] == {
-        "code": "controller_failed",
-        "message": "controller entered a failed state while processing the command",
-    }
+    assert activation.status_code == 200
     assert fetched.status_code == 200
     assert fetched.json() == saved
-    assert runtime_snapshot.diagnostics.health.fatal is True
+    assert runtime_snapshot.diagnostics.health.fatal is False
+    assert runtime_snapshot.diagnostics.health.steering_actuator_fault is not None
     assert (
         definition_primitive(runtime_snapshot.application.active_steering_curve.definition)
         == saved["definition"]

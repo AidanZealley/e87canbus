@@ -154,7 +154,6 @@ bool incrementSession() {
 
 void enterLocalFault(uint8_t statusCode, const char *reason) {
     deviceStatusCode = statusCode == 0 ? STATUS_LOCAL_FAULT : statusCode;
-    controllerLease = false;
     transitionTo(DeviceState::LOCAL_FAULT);
     selectDisplay(DisplayMode::ERROR);
     Serial.print("local fault reason=");
@@ -297,8 +296,13 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
     controllerLease = true;
     if (state == DeviceState::DISCOVERING || state == DeviceState::CONTROLLER_LOST ||
         state == DeviceState::INCOMPATIBLE) {
-        transitionTo(DeviceState::OPERATIONAL);
-        selectDisplay(DisplayMode::NORMAL);
+        if (deviceStatusCode == 0) {
+            transitionTo(DeviceState::OPERATIONAL);
+            selectDisplay(DisplayMode::NORMAL);
+        } else {
+            transitionTo(DeviceState::LOCAL_FAULT);
+            selectDisplay(DisplayMode::ERROR);
+        }
         // The first heartbeat proves the accepted session without waiting a full cadence.
         sendHeartbeat(now);
     }
@@ -425,7 +429,7 @@ void loop() {
         return;
     }
 
-    if (state == DeviceState::OPERATIONAL &&
+    if ((state == DeviceState::OPERATIONAL || state == DeviceState::LOCAL_FAULT) &&
         (!freshControllerLease(now) || due(now, lastControllerAckMs + CONTROLLER_TIMEOUT_MS))) {
         beginDiscovery(now, DeviceState::CONTROLLER_LOST);
         return;

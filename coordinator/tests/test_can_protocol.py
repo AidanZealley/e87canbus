@@ -153,3 +153,12 @@ def test_registry_codecs_reject_invalid_fields_and_frame_boundaries() -> None:
     with pytest.raises(ValueError, match="standard"):
         decode_hello(CanFrame(0x702, b"\x00" * 8, is_extended_id=True), 0x702)
     assert decode_hello(CanFrame(0x123, b"\x00" * 8), 0x702) is None
+
+
+def test_button_and_led_codecs_reject_extended_frames_on_standard_ids() -> None:
+    ids = CustomCanIds()
+
+    with pytest.raises(ValueError, match="standard"):
+        decode_button_event(CanFrame(ids.button_event, b"\x00\x01", True), ids)
+    with pytest.raises(ValueError, match="standard"):
+        decode_led_snapshot(CanFrame(ids.led_snapshot, b"\x00" * 8, True), ids)

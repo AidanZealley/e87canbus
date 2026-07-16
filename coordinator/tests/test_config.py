@@ -14,12 +14,9 @@ from e87canbus.config import (
 )
 from e87canbus.device import (
     DEFAULT_DEVICE_CATALOGUE,
-    DeviceCatalogueEntry,
-    DeviceIdentity,
     DeviceLifecycleStatus,
     DeviceRole,
     DeviceSource,
-    validate_device_catalogue,
 )
 
 
@@ -255,24 +252,6 @@ def test_custom_can_ids_reject_invalid_or_duplicate_standard_ids(
 ) -> None:
     with pytest.raises(ValueError, match="CAN IDs"):
         CustomCanIds(**changes)
-
-
-def test_device_catalogue_rejects_duplicate_identity_or_role() -> None:
-    duplicate_identity = DeviceIdentity(DeviceRole.BUTTON_PAD, 1)
-    with pytest.raises(ValueError, match="identities"):
-        validate_device_catalogue(
-            (
-                DeviceCatalogueEntry(duplicate_identity, True, 1),
-                DeviceCatalogueEntry(duplicate_identity, True, 1),
-            )
-        )
-    with pytest.raises(ValueError, match="one instance"):
-        validate_device_catalogue(
-            (
-                DeviceCatalogueEntry(DeviceIdentity(DeviceRole.BUTTON_PAD, 1), True, 1),
-                DeviceCatalogueEntry(DeviceIdentity(DeviceRole.BUTTON_PAD, 2), True, 1),
-            )
-        )
 
 
 @pytest.mark.parametrize(

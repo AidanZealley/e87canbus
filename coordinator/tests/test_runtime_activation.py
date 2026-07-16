@@ -301,7 +301,7 @@ def test_restart_discards_unsaved_activation_but_can_restore_selected_saved_curv
     assert saved_restart.snapshot().active_steering_curve.saved_profile_revision == 4
 
 
-def test_post_activation_output_failure_uses_existing_fatal_health_path() -> None:
+def test_post_activation_output_failure_uses_nonfatal_optional_adapter_health_path() -> None:
     state = ApplicationState(
         speed_sample=SpeedSample(50.0, 1.0, CanNetwork.FCAN),
         speed_evaluated_at=1.0,
@@ -310,9 +310,11 @@ def test_post_activation_output_failure_uses_existing_fatal_health_path() -> Non
     commit = kernel.dispatch(ActivateSteeringCurve(constant_curve(500), requested_at=1.0))
     assert commit is not None and commit.effects
 
-    assert kernel.dispatch(SteeringActuatorFailed(1.1, "activation output failed")) is None
+    failure = kernel.dispatch(SteeringActuatorFailed(1.1, "activation output failed"))
 
-    assert kernel.health.fatal is True
+    assert failure is not None
+    assert failure.changed_topics == {StateTopic.HEALTH}
+    assert kernel.health.fatal is False
     assert kernel.health.steering_actuator_fault is not None
     assert kernel.health.steering_actuator_fault.message == "activation output failed"
 

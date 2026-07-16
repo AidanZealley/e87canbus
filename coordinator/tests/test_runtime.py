@@ -14,6 +14,7 @@ from e87canbus.application.events import (
 from e87canbus.application.state import SpeedSample, SteeringMode
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
+from e87canbus.device_registry import FeatureUnavailable
 from e87canbus.output import EffectRequest
 from e87canbus.protocol.can import (
     CanFrame,
@@ -280,17 +281,21 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
         assert commit.effects == (EffectRequest(SetSteeringAssistance(0.0, fallback_reason)),)
 
 
-def test_steering_actuator_failure_has_explicit_fatal_health() -> None:
+def test_steering_actuator_failure_is_nonfatal_and_disables_servotronic_output() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
 
     commit = kernel.dispatch(SteeringActuatorFailed(2.0, "actuator"))
 
-    assert commit is None
+    assert commit is not None
+    assert commit.changed_topics == {StateTopic.HEALTH}
     assert kernel.health.steering_actuator_fault is not None
     assert kernel.health.steering_actuator_fault.kind is RuntimeFaultKind.STEERING_ACTUATOR
     assert kernel.health.steering_actuator_fault.message == "actuator"
-    assert kernel.health.fatal is True
+    assert kernel.health.fatal is False
+    with pytest.raises(FeatureUnavailable, match="servotronic output adapter is faulted"):
+        kernel.dispatch(SetMaximumAssistance(True))
 
 
 def test_speed_staleness_uses_explicit_input_times() -> None:
@@ -356,14 +361,15 @@ def test_startup_and_shutdown_are_idempotent() -> None:
 
 
 @pytest.mark.parametrize(
-    "failure",
+    ("failure", "fatal"),
     [
-        CanEffectExecutionFailed(CanNetwork.KCAN, 4.0, "CAN shutdown failed"),
-        SteeringActuatorFailed(4.0, "actuator shutdown failed"),
+        (CanEffectExecutionFailed(CanNetwork.KCAN, 4.0, "CAN shutdown failed"), True),
+        (SteeringActuatorFailed(4.0, "actuator shutdown failed"), False),
     ],
 )
 def test_typed_effect_failure_updates_health_after_stop_without_commit(
     failure: CanEffectExecutionFailed | SteeringActuatorFailed,
+    fatal: bool,
 ) -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(1.0))
@@ -373,6 +379,6 @@ def test_typed_effect_failure_updates_health_after_stop_without_commit(
     commit = kernel.dispatch(failure)
 
     assert commit is None
-    assert kernel.health.fatal is True
+    assert kernel.health.fatal is fatal
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
     assert kernel.diagnostics().revision == revision

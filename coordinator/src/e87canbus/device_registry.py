@@ -81,6 +81,7 @@ class DeviceRegistryEntry:
     _lease_deadline: float | None = field(default=None, repr=False, compare=False)
     _incompatible_deadline: float | None = field(default=None, repr=False, compare=False)
     _controller_session_id: int | None = field(default=None, repr=False, compare=False)
+    _supported_protocol_version: int = field(default=0, repr=False, compare=False)
     _registered: bool = field(default=False, repr=False, compare=False)
     _last_contact_monotonic_s: float | None = field(default=None, repr=False, compare=False)
 
@@ -113,12 +114,11 @@ class RegistryTransition:
 
 def initial_registry(
     sources: Mapping[DeviceRole, DeviceSource] | None = None,
-    catalogue: tuple[DeviceCatalogueEntry, ...] = DEFAULT_DEVICE_CATALOGUE,
 ) -> tuple[DeviceRegistryEntry, ...]:
     selected_sources = sources or {}
     return tuple(
         _initial_entry(entry, selected_sources.get(entry.identity.role, DeviceSource.PHYSICAL))
-        for entry in catalogue
+        for entry in DEFAULT_DEVICE_CATALOGUE
     )
 
 
@@ -300,10 +300,7 @@ def expire_entry(entry: DeviceRegistryEntry, now: float) -> DeviceRegistryEntry:
 
 
 def entry_protocol_version(entry: DeviceRegistryEntry) -> int:
-    catalogue_entry = next(
-        item for item in DEFAULT_DEVICE_CATALOGUE if item.identity.role is entry.role
-    )
-    return catalogue_entry.supported_protocol_version
+    return entry._supported_protocol_version
 
 
 def _initial_entry(entry: DeviceCatalogueEntry, source: DeviceSource) -> DeviceRegistryEntry:
@@ -318,6 +315,7 @@ def _initial_entry(entry: DeviceCatalogueEntry, source: DeviceSource) -> DeviceR
         device_id=entry.identity.device_id,
         source_mode=source,
         status=status,
+        _supported_protocol_version=entry.supported_protocol_version,
     )
 
 
