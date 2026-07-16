@@ -1,8 +1,8 @@
 """Request models for simulation controls."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 
 class SimulationCommandAcknowledgement(BaseModel):
@@ -28,3 +28,18 @@ class EngineRpmRequest(EngineTelemetryRequest):
 
 class TemperatureRequest(EngineTelemetryRequest):
     temperature_c: StrictFloat
+
+
+ByteRequest = Annotated[StrictInt, Field(ge=0, le=255)]
+
+
+class SimulationDeviceProtocolVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    protocol_version: ByteRequest
+
+
+class SimulationDeviceStatusCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    status_code: ByteRequest

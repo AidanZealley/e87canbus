@@ -6,14 +6,22 @@ from e87canbus.api.internal.simulation import run_command
 from e87canbus.api.models.simulation import (
     EngineRpmRequest,
     SimulationCommandAcknowledgement,
+    SimulationDeviceProtocolVersionRequest,
+    SimulationDeviceStatusCodeRequest,
     SpeedRequest,
     TemperatureRequest,
 )
+from e87canbus.device import DeviceRole
 from e87canbus.simulation.runtime import (
+    ConnectSimulatedDevice,
+    DisconnectSimulatedDevice,
+    RebootSimulatedDevice,
     ResetSimulation,
     SetCoolantTemperature,
     SetEngineRpm,
     SetOilTemperature,
+    SetSimulatedDeviceProtocolVersion,
+    SetSimulatedDeviceStatusCode,
     SetVehicleSpeed,
     SilenceCoolantTemperature,
     SilenceEngineRpm,
@@ -28,6 +36,54 @@ router = APIRouter(prefix="/api/dev/simulation", tags=["development simulation"]
 @router.post("/reset")
 async def reset(request: Request) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, ResetSimulation())
+
+
+@router.post("/devices/{role}/connect")
+async def connect_device(
+    request: Request,
+    role: DeviceRole,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(request.app, ConnectSimulatedDevice(role))
+
+
+@router.post("/devices/{role}/disconnect")
+async def disconnect_device(
+    request: Request,
+    role: DeviceRole,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(request.app, DisconnectSimulatedDevice(role))
+
+
+@router.post("/devices/{role}/reboot")
+async def reboot_device(
+    request: Request,
+    role: DeviceRole,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(request.app, RebootSimulatedDevice(role))
+
+
+@router.put("/devices/{role}/protocol-version")
+async def set_device_protocol_version(
+    request: Request,
+    role: DeviceRole,
+    body: SimulationDeviceProtocolVersionRequest,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(
+        request.app,
+        SetSimulatedDeviceProtocolVersion(role, body.protocol_version),
+    )
+
+
+@router.put("/devices/{role}/status-code")
+async def set_device_status_code(
+    request: Request,
+    role: DeviceRole,
+    body: SimulationDeviceStatusCodeRequest,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(
+        request.app,
+        SetSimulatedDeviceStatusCode(role, body.status_code),
+    )
 
 
 @router.post("/devices/button-pad/buttons/{button_index}/tap")

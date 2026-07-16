@@ -25,13 +25,16 @@ from e87canbus.protocol.can import (
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
+    decode_heartbeat,
+    decode_hello,
+    decode_welcome_ack,
     encode_heartbeat,
     encode_hello,
 )
 from e87canbus.protocol.generated import LED_COUNT
 from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance
 from e87canbus.service import ControllerWorkUnavailable
-from e87canbus.simulation.devices import SimulatedSteeringController
+from e87canbus.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
     SIMULATION_ONLY_ENGINE_RPM_ID,
@@ -39,13 +42,18 @@ from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
 from e87canbus.simulation.runtime import (
+    ConnectSimulatedDevice,
+    DisconnectSimulatedDevice,
     PressButton,
+    RebootSimulatedDevice,
     ReleaseButton,
     ResetSimulation,
     RunControlTimer,
     SetCoolantTemperature,
     SetEngineRpm,
     SetOilTemperature,
+    SetSimulatedDeviceProtocolVersion,
+    SetSimulatedDeviceStatusCode,
     SetVehicleSpeed,
     SilenceOilTemperature,
     SilenceVehicleSpeed,
@@ -144,7 +152,18 @@ class MutableClock:
         return self.now
 
 
-class FailingSteeringController(SimulatedSteeringController):
+def build_handshake_engine() -> tuple[SimulatedControllerRuntime, MutableClock]:
+    clock = MutableClock()
+    runtime = SimulatedControllerRuntime(config=TEST_SIMULATOR_CONFIG, clock=clock)
+    runtime.start()
+    return runtime, clock
+
+
+def registry_status(runtime: SimulatedControllerRuntime, role: DeviceRole) -> str:
+    return runtime.kernel.registry_for(role).status.value
+
+
+class FailingServotronicPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -160,7 +179,7 @@ class FailingSteeringController(SimulatedSteeringController):
         super().set_assistance(command)
 
 
-class RejectingSteeringController(SimulatedSteeringController):
+class RejectingServotronicPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -174,7 +193,7 @@ class RejectingSteeringController(SimulatedSteeringController):
         raise OSError(f"actuator rejected attempt {self.attempts}")
 
 
-class RejectingShutdownController(SimulatedSteeringController):
+class RejectingShutdownPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -188,6 +207,207 @@ class RejectingShutdownController(SimulatedSteeringController):
         if command.reason is SteeringCommandReason.SHUTDOWN:
             raise OSError("actuator rejected shutdown")
         super().set_assistance(command)
+
+
+def test_virtual_peers_publish_pending_then_active_through_encoded_registry_frames() -> None:
+    runtime, clock = build_handshake_engine()
+    ids = runtime.config.custom_can_ids
+
+    first = runtime.deadline(clock())
+
+    assert {registry_status(runtime, role) for role in DeviceRole} == {"pending"}
+    assert {event["arbitration_id"] for event in first.events} == {
+        ids.button_pad_hello,
+        ids.button_pad_welcome_ack,
+        ids.servotronic_controller_hello,
+        ids.servotronic_controller_welcome_ack,
+    }
+    for role, hello_id, acknowledgement_id in (
+        (DeviceRole.BUTTON_PAD, ids.button_pad_hello, ids.button_pad_welcome_ack),
+        (
+            DeviceRole.SERVOTRONIC_CONTROLLER,
+            ids.servotronic_controller_hello,
+            ids.servotronic_controller_welcome_ack,
+        ),
+    ):
+        del role
+        hello_frame = next(
+            entry.frame
+            for entry in runtime.topology.trace()
+            if entry.frame.arbitration_id == hello_id
+        )
+        acknowledgement_frame = next(
+            entry.frame
+            for entry in runtime.topology.trace()
+            if entry.frame.arbitration_id == acknowledgement_id
+        )
+        hello = decode_hello(hello_frame, hello_id)
+        acknowledgement = decode_welcome_ack(acknowledgement_frame, acknowledgement_id)
+        assert hello is not None
+        assert acknowledgement is not None
+        assert hello.device_id == 1
+        assert acknowledgement.device_session_id == hello.device_session_id
+        assert acknowledgement.device_sequence == hello.sequence
+
+    clock.now = 1.0
+    second = runtime.deadline(clock())
+
+    assert {registry_status(runtime, role) for role in DeviceRole} == {"active"}
+    assert {event["arbitration_id"] for event in second.events} >= {
+        ids.button_pad_heartbeat,
+        ids.button_pad_welcome_ack,
+        ids.servotronic_controller_heartbeat,
+        ids.servotronic_controller_welcome_ack,
+    }
+    for role, heartbeat_id, acknowledgement_id in (
+        (DeviceRole.BUTTON_PAD, ids.button_pad_heartbeat, ids.button_pad_welcome_ack),
+        (
+            DeviceRole.SERVOTRONIC_CONTROLLER,
+            ids.servotronic_controller_heartbeat,
+            ids.servotronic_controller_welcome_ack,
+        ),
+    ):
+        del role
+        heartbeat_frame = next(
+            entry.frame
+            for entry in runtime.topology.trace()
+            if entry.frame.arbitration_id == heartbeat_id
+        )
+        acknowledgement_frame = [
+            entry.frame
+            for entry in runtime.topology.trace()
+            if entry.frame.arbitration_id == acknowledgement_id
+        ][-1]
+        heartbeat = decode_heartbeat(heartbeat_frame, heartbeat_id)
+        acknowledgement = decode_welcome_ack(acknowledgement_frame, acknowledgement_id)
+        assert heartbeat is not None
+        assert acknowledgement is not None
+        assert heartbeat.status == 0
+        assert acknowledgement.device_sequence == heartbeat.sequence
+
+
+def test_disconnect_expires_lease_reconnects_and_reboots_with_new_sessions() -> None:
+    runtime, clock = build_handshake_engine()
+    runtime.deadline(clock())
+    clock.now = 1.0
+    runtime.deadline(clock())
+    peer = runtime.neotrellis
+    assert peer is not None
+    original_session = peer.session_id
+
+    runtime.execute(DisconnectSimulatedDevice(DeviceRole.BUTTON_PAD))
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
+
+    clock.now = 4.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "stale"
+
+    runtime.execute(ConnectSimulatedDevice(DeviceRole.BUTTON_PAD))
+    assert peer.session_id != original_session
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "pending"
+    clock.now = 5.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
+
+    connected_session = peer.session_id
+    runtime.execute(RebootSimulatedDevice(DeviceRole.BUTTON_PAD))
+    assert peer.session_id != connected_session
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "pending"
+    clock.now = 6.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
+
+
+def test_ack_loss_enters_controller_lost_and_connect_restarts_a_connected_peer() -> None:
+    runtime, clock = build_handshake_engine()
+    runtime.deadline(clock())
+    clock.now = 1.0
+    runtime.deadline(clock())
+    peer = runtime.servotronic
+    assert peer.bus is not None
+    original_process_pending = peer.process_pending
+
+    def discard_acknowledgements(now: float, *, limit: int = 64) -> int:
+        del now
+        processed = 0
+        while processed < limit and peer.bus.receive(timeout_s=0) is not None:
+            processed += 1
+        return processed
+
+    peer.process_pending = discard_acknowledgements  # type: ignore[method-assign]
+    clock.now = 4.0
+    runtime.deadline(clock())
+
+    assert peer.connected is True
+    assert peer.state is SimulatedDeviceState.CONTROLLER_LOST
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
+    lost_session = peer.session_id
+
+    runtime.execute(ConnectSimulatedDevice(DeviceRole.SERVOTRONIC_CONTROLLER))
+    assert peer.session_id != lost_session
+    assert peer.state is SimulatedDeviceState.DISCOVERING
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
+
+    peer.process_pending = original_process_pending  # type: ignore[method-assign]
+    clock.now = 5.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
+    clock.now = 6.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
+
+
+def test_incompatible_retry_fault_recovery_and_reset_restore_healthy_peers() -> None:
+    runtime, clock = build_handshake_engine()
+    runtime.deadline(clock())
+    clock.now = 1.0
+    runtime.deadline(clock())
+    peer = runtime.servotronic
+    session_before_incompatible = peer.session_id
+
+    runtime.execute(
+        SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 2)
+    )
+    assert peer.session_id != session_before_incompatible
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "incompatible"
+    retry_trace_before = len(runtime.topology.trace())
+    clock.now = 6.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "incompatible"
+    assert len(runtime.topology.trace()) > retry_trace_before
+
+    runtime.execute(
+        SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 1)
+    )
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
+    clock.now = 7.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
+
+    runtime.execute(SetSimulatedDeviceStatusCode(DeviceRole.SERVOTRONIC_CONTROLLER, 7))
+    clock.now = 8.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "fault"
+    assert runtime.kernel.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).last_status_code == 7
+
+    runtime.execute(SetSimulatedDeviceStatusCode(DeviceRole.SERVOTRONIC_CONTROLLER, 0))
+    clock.now = 9.0
+    runtime.deadline(clock())
+    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
+    assert runtime.kernel.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).last_status_code == 0
+
+    runtime.execute(ResetSimulation())
+    assert runtime.neotrellis is not None
+    assert all(peer.connected for peer in (runtime.neotrellis, runtime.servotronic))
+    assert all(
+        peer.protocol_version == 1 and peer.status_code == 0
+        for peer in (runtime.neotrellis, runtime.servotronic)
+    )
+    assert all(
+        peer.state is SimulatedDeviceState.DISCOVERING
+        for peer in (runtime.neotrellis, runtime.servotronic)
+    )
+    assert {registry_status(runtime, role) for role in DeviceRole} == {"not_found"}
 
 
 def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None:
@@ -286,16 +506,16 @@ def test_reset_releases_old_session_topology_devices_and_endpoints() -> None:
 
 
 def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
-    engine = build_test_engine(steering_controller_factory=RejectingSteeringController)
+    engine = build_test_engine(servotronic_factory=RejectingServotronicPeer)
 
     current_diagnostics = diagnostics(engine)
     steering = adapter(engine).servotronic
     assert steering is not None
-    assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (6, True)
+    assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (8, True)
     assert steering.effective_assistance == 0.0
     assert steering.last_command_reason is None
     assert steering.watchdog_timed_out is True
-    assert engine.steering_controller.attempts == 2
+    assert engine.servotronic.attempts == 2
 
 
 def test_pressing_button_creates_button_event_frame() -> None:
@@ -389,26 +609,26 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     clock = MutableClock()
-    controllers: list[FailingSteeringController] = []
+    controllers: list[FailingServotronicPeer] = []
 
     def build_controller(
         watchdog_timeout_s: float,
         controller_clock: Callable[[], float],
-    ) -> SimulatedSteeringController:
-        controller = FailingSteeringController(watchdog_timeout_s, controller_clock)
+    ) -> SimulatedServotronicPeer:
+        controller = FailingServotronicPeer(watchdog_timeout_s, controller_clock)
         controllers.append(controller)
         return controller
 
     engine = build_test_engine(
         clock=clock,
-        steering_controller_factory=build_controller,
+        servotronic_factory=build_controller,
     )
 
     with caplog.at_level("ERROR"):
         failure_result = engine.execute(RunControlTimer(1.0))
 
     assert diagnostics(engine).health.fatal is True
-    assert diagnostics(engine).revision == engine.kernel.diagnostics().revision == 7
+    assert diagnostics(engine).revision == engine.kernel.diagnostics().revision == 9
     assert failure_result.events == ()
     assert engine.kernel.health.steering_actuator_fault is not None
     assert engine.kernel.health.steering_actuator_fault.message == ("actuator failed on attempt 2")
@@ -428,17 +648,17 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
 def test_reset_logs_shutdown_failure_and_returns_new_healthy_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    controllers: list[RejectingShutdownController] = []
+    controllers: list[RejectingShutdownPeer] = []
 
     def build_controller(
         watchdog_timeout_s: float,
         clock: Callable[[], float],
-    ) -> SimulatedSteeringController:
-        controller = RejectingShutdownController(watchdog_timeout_s, clock)
+    ) -> SimulatedServotronicPeer:
+        controller = RejectingShutdownPeer(watchdog_timeout_s, clock)
         controllers.append(controller)
         return controller
 
-    engine = build_test_engine(steering_controller_factory=build_controller)
+    engine = build_test_engine(servotronic_factory=build_controller)
 
     with caplog.at_level("ERROR"):
         engine.execute(ResetSimulation())
@@ -458,6 +678,7 @@ def test_snapshot_exposes_default_node_membership_on_all_networks() -> None:
         "pi",
         "simulated-vehicle",
         "button-pad-emulator",
+        "servotronic-emulator",
     )
     assert statuses[CanNetwork.PTCAN].nodes == ("pi", "simulated-vehicle")
     assert statuses[CanNetwork.FCAN].nodes == ("pi", "simulated-vehicle")
@@ -539,7 +760,11 @@ def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> Non
     result = controller.execute(RunControlTimer(clock()))
 
     assert application(controller).speed_valid is False
-    assert result.events == ()
+    assert all(
+        event["arbitration_id"]
+        in {0x701, 0x703, 0x704, 0x706, 0x707}
+        for event in result.events
+    )
     assert adapter(controller).servotronic is not None
     assert adapter(controller).servotronic.watchdog_timed_out is False
 

@@ -18,7 +18,7 @@ from e87canbus.protocol.generated import (
 from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 from e87canbus.simulation.devices import (
     SimulatedNeoTrellisNode,
-    SimulatedSteeringController,
+    SimulatedServotronicPeer,
     SimulatedVehicleNode,
 )
 from e87canbus.simulation.protocol import (
@@ -211,7 +211,7 @@ def test_simulated_vehicle_ignores_malformed_private_high_beam_command(
 
 def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:
     clock = MutableClock()
-    controller = SimulatedSteeringController(0.25, clock)
+    controller = SimulatedServotronicPeer(0.25, clock)
     command = SetSteeringAssistance(0.75, SteeringCommandReason.AUTO)
 
     controller.set_assistance(command)

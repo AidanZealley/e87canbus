@@ -147,7 +147,8 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
     assert first_to == "first-client"
     assert first_payload["protocol_version"] == 1
     assert first_payload["boot_id"] != second_payload["boot_id"]
-    assert first_payload["revision"] == 2
+    snapshot_revision = first_payload["revision"]
+    assert snapshot_revision >= 2
     assert set(first_payload["data"]) == {
         "topic_revisions",
         "simulation_session_id",
@@ -159,12 +160,14 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         "devices",
         "health",
     }
-    assert first_payload["data"]["topic_revisions"]["health"] == 2
-    assert {
-        revision
-        for topic, revision in first_payload["data"]["topic_revisions"].items()
-        if topic != "health"
-    } == {1}
+    topic_revisions = first_payload["data"]["topic_revisions"]
+    assert topic_revisions["health"] == snapshot_revision
+    assert topic_revisions["vehicle"] == 1
+    assert topic_revisions["engine"] == 1
+    assert topic_revisions["steering"] == 1
+    assert topic_revisions["buttons"] == 1
+    assert topic_revisions["lighting"] == 1
+    assert 2 <= topic_revisions["devices"] <= snapshot_revision
     assert first_payload["data"]["lighting"] == {
         "high_beam_enabled": False,
         "high_beam_strobe_active": False,

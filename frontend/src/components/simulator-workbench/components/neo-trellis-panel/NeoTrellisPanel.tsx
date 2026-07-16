@@ -1,13 +1,3 @@
-import { MousePointerClickIcon } from "lucide-react"
-
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { NeoTrellisButton } from "./components/neo-trellis-button"
 
 export type NeoTrellisButtonState = {
@@ -26,38 +16,23 @@ export const NeoTrellisPanel = ({
   emulatorControlsAvailable,
   onClick,
 }: NeoTrellisPanelProps) => (
-  <Card className="min-w-0">
-    <CardHeader>
-      <CardTitle>Button pad</CardTitle>
-      <CardDescription>
-        Controller output and device wire-path exercise
-      </CardDescription>
-      <CardAction>
-        <MousePointerClickIcon aria-hidden="true" />
-      </CardAction>
-    </CardHeader>
-
-    <CardContent className="grid gap-4">
-      <section className="grid gap-3" aria-label="Button-pad emulator exercise">
-        {!emulatorControlsAvailable ? (
-          <p className="text-xs text-muted-foreground">
-            Wire-level button controls are available only for the emulated role.
-          </p>
-        ) : null}
-        <div className="grid grid-cols-4 gap-2">
-          {buttons.map(({ index, rgb }) => (
-            <div key={index} className="flex min-w-0 flex-col gap-1">
-              <NeoTrellisButton
-                index={index}
-                rgb={rgb}
-                disabled={!emulatorControlsAvailable}
-                onClick={onClick}
-              />
-            </div>
-          ))}
+  <section className="grid gap-4" aria-label="Button-pad emulator exercise">
+    {!emulatorControlsAvailable ? (
+      <p className="text-xs text-muted-foreground">
+        Wire-level button controls are available only for the active emulated role.
+      </p>
+    ) : null}
+    <div className="grid grid-cols-4 gap-2">
+      {buttons.map(({ index, rgb }) => (
+        <div key={index} className="flex min-w-0 flex-col gap-1">
+          <NeoTrellisButton
+            index={index}
+            rgb={rgb}
+            disabled={!emulatorControlsAvailable}
+            onClick={onClick}
+          />
         </div>
-      </section>
-    </CardContent>
-
-  </Card>
+      ))}
+    </div>
+  </section>
 )

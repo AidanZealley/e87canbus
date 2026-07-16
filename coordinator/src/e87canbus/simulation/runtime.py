@@ -50,17 +50,23 @@ from e87canbus.service import (
     ObservedServotronicSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
+    SimulationDeviceUnavailable,
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.simulation.devices import (
     SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
-    SimulatedSteeringController,
+    SimulatedRegistryPeer,
+    SimulatedServotronicPeer,
     SimulatedVehicleNode,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
+
+MAX_VIRTUAL_DRAIN_ITERATIONS = 32
+MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION = 256
+MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION = 128
 
 
 @dataclass(frozen=True)
@@ -128,6 +134,41 @@ class ResetSimulation:
     pass
 
 
+@dataclass(frozen=True)
+class ConnectSimulatedDevice:
+    role: DeviceRole
+
+
+@dataclass(frozen=True)
+class DisconnectSimulatedDevice:
+    role: DeviceRole
+
+
+@dataclass(frozen=True)
+class RebootSimulatedDevice:
+    role: DeviceRole
+
+
+@dataclass(frozen=True)
+class SetSimulatedDeviceProtocolVersion:
+    role: DeviceRole
+    protocol_version: int
+
+    def __post_init__(self) -> None:
+        _require_device_role(self.role)
+        _require_byte(self.protocol_version, "protocol_version")
+
+
+@dataclass(frozen=True)
+class SetSimulatedDeviceStatusCode:
+    role: DeviceRole
+    status_code: int
+
+    def __post_init__(self) -> None:
+        _require_device_role(self.role)
+        _require_byte(self.status_code, "status_code")
+
+
 SimulationCommand = (
     PressButton
     | ReleaseButton
@@ -142,6 +183,11 @@ SimulationCommand = (
     | SetCoolantTemperature
     | SilenceCoolantTemperature
     | ResetSimulation
+    | ConnectSimulatedDevice
+    | DisconnectSimulatedDevice
+    | RebootSimulatedDevice
+    | SetSimulatedDeviceProtocolVersion
+    | SetSimulatedDeviceStatusCode
 )
 
 EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
@@ -172,9 +218,9 @@ class SimulatedControllerRuntime:
         config: AppConfig | None = None,
         button_pad_source: DeviceSource = DeviceSource.EMULATED,
         clock: Callable[[], float] = time.monotonic,
-        steering_controller_factory: Callable[
-            [float, Callable[[], float]], SimulatedSteeringController
-        ] = SimulatedSteeringController,
+        servotronic_factory: Callable[
+            [float, Callable[[], float]], SimulatedServotronicPeer
+        ] = SimulatedServotronicPeer,
     ) -> None:
         self.config = config or simulator_config()
         if ids is not None:
@@ -183,7 +229,7 @@ class SimulatedControllerRuntime:
             raise ValueError("physical button pad cannot use the in-memory simulation runtime")
         self.button_pad_source = button_pad_source
         self._clock = clock
-        self._steering_controller_factory = steering_controller_factory
+        self._servotronic_factory = servotronic_factory
         self._session_id = 0
         self._started = False
         self._execution_commits: list[Commit] = []
@@ -193,9 +239,8 @@ class SimulatedControllerRuntime:
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
         self.pi_buses: dict[CanNetwork, CanReceiver]
-        self.vehicle: SimulatedVehicleNode
         self.neotrellis: SimulatedNeoTrellisNode | None
-        self.steering_controller: SimulatedSteeringController
+        self.servotronic: SimulatedServotronicPeer
         self.kernel: CoordinatorKernel
         self.executor: EffectExecutor
 
@@ -217,6 +262,8 @@ class SimulatedControllerRuntime:
 
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
+        initial = False
+        drain = True
         match command:
             case PressButton(index):
                 self._send_button(index, pressed=True)
@@ -261,6 +308,21 @@ class SimulatedControllerRuntime:
                     )
                 self._build_session()
                 before_sequence = 0
+                initial = True
+                drain = False
+            case ConnectSimulatedDevice(role):
+                self._peer_for(role).connect()
+            case DisconnectSimulatedDevice(role):
+                self._peer_for(role).disconnect()
+            case RebootSimulatedDevice(role):
+                peer = self._peer_for(role)
+                if not peer.connected:
+                    raise SimulationDeviceUnavailable(role)
+                peer.reboot()
+            case SetSimulatedDeviceProtocolVersion(role, protocol_version):
+                self._peer_for(role).set_protocol_version(protocol_version)
+            case SetSimulatedDeviceStatusCode(role, status_code):
+                self._peer_for(role).set_status_code(status_code)
             case ActivateSteeringCurve() | SetMaximumAssistance() | SetSteeringMode():
                 self._dispatch(command)
             case InboxOverflowed() | DeviceAdapterFailed():
@@ -270,7 +332,9 @@ class SimulatedControllerRuntime:
             case _:
                 raise TypeError(f"unsupported simulation command: {command!r}")
 
-        return self._process_pending(before_sequence)
+        if not drain:
+            return self._complete((), initial=True)
+        return self._process_pending(before_sequence, initial=initial)
 
     def timer(self, now: float) -> RuntimeExecution | None:
         if self.kernel.health.fatal:
@@ -278,7 +342,15 @@ class SimulatedControllerRuntime:
         return self.execute(RunControlTimer(now))
 
     def next_deadline(self) -> float | None:
-        return self.kernel.next_deadline()
+        deadlines = [
+            deadline
+            for deadline in (
+                self.kernel.next_deadline(),
+                *(peer.next_deadline for peer in self._virtual_peers()),
+            )
+            if deadline is not None
+        ]
+        return min(deadlines) if deadlines else None
 
     def deadline(self, now: float) -> RuntimeExecution | None:
         if self.kernel.health.fatal:
@@ -301,7 +373,7 @@ class SimulatedControllerRuntime:
             for entry in self.kernel.registry
         ):
             self._dispatch(TimerElapsed(now))
-        return self._process_pending(before_sequence)
+        return self._process_pending(before_sequence, now=now)
 
     def shutdown(self, now: float | None = None) -> RuntimeExecution:
         del now
@@ -339,19 +411,26 @@ class SimulatedControllerRuntime:
         }
         self.vehicle = SimulatedVehicleNode(vehicle_buses)
 
+        kcan_enabled = CanNetwork.KCAN in self.pi_buses
+
         self.neotrellis = (
             SimulatedNeoTrellisNode(
                 bus=self.topology.create_bus(CanNetwork.KCAN, "button-pad-emulator"),
                 ids=self.config.custom_can_ids,
                 clock=self._clock,
             )
-            if self.button_pad_source is DeviceSource.EMULATED
+            if self.button_pad_source is DeviceSource.EMULATED and kcan_enabled
             else None
         )
-        self.steering_controller = self._steering_controller_factory(
+        self.servotronic = self._servotronic_factory(
             self.config.simulation.steering_watchdog_timeout_s,
             self._clock,
         )
+        if kcan_enabled:
+            self.servotronic.configure_registry(
+                self.topology.create_bus(CanNetwork.KCAN, "servotronic-emulator"),
+                self.config.custom_can_ids,
+            )
 
         router = SimulationProtocolRouter(
             self.config.custom_can_ids,
@@ -366,18 +445,16 @@ class SimulatedControllerRuntime:
                 DeviceRole.BUTTON_PAD: self.button_pad_source,
                 DeviceRole.SERVOTRONIC_CONTROLLER: (
                     DeviceSource.EMULATED
-                    if any(item.network is CanNetwork.KCAN for item in enabled)
+                    if kcan_enabled
                     else DeviceSource.DISABLED
                 ),
             },
-            servotronic_output_available=any(
-                item.network is CanNetwork.KCAN for item in enabled
-            ),
+            servotronic_output_available=kcan_enabled,
         )
         self.executor = EffectExecutor(
             transmitters,
             router,
-            steering_actuator=self.steering_controller,
+            steering_actuator=self.servotronic,
             high_beam_actuator=(
                 None
                 if (transmitter := transmitters.get(CanNetwork.KCAN)) is None
@@ -399,8 +476,11 @@ class SimulatedControllerRuntime:
     def _process_pending(
         self,
         before_sequence: int,
+        *,
+        initial: bool = False,
+        now: float | None = None,
     ) -> RuntimeExecution:
-        self._drain_kernel_inputs()
+        self._drain_virtual_devices(now=now)
         self._process_button_output()
         self.vehicle.drain_pending()
 
@@ -409,7 +489,8 @@ class SimulatedControllerRuntime:
                 trace_entry_to_event(entry, self._session_id)
                 for entry in self.topology.trace()
                 if entry.sequence > before_sequence
-            )
+            ),
+            initial=initial,
         )
 
     def projection(
@@ -505,7 +586,7 @@ class SimulatedControllerRuntime:
             commit_count = 1
         return RuntimeExecution(events, frozenset(changed_topics), commit_count)
 
-    def _drain_kernel_inputs(self) -> int:
+    def _drain_kernel_inputs(self, *, limit: int | None = None) -> int:
         processed = 0
         ordered_networks = tuple(network for network in CanNetwork if network in self.pi_buses)
         while True:
@@ -516,10 +597,53 @@ class SimulatedControllerRuntime:
                     continue
                 found_frame = True
                 processed += 1
+                if limit is not None and processed > limit:
+                    raise RuntimeError("simulated CAN processing frame bound exceeded")
                 observed_at = self._clock()
                 self._dispatch(ReceivedCanFrame(network, frame, observed_at))
             if not found_frame:
                 return processed
+
+    def _drain_virtual_devices(self, *, now: float | None = None) -> None:
+        processed_frames = 0
+        processing_time = self._clock() if now is None else now
+        for _ in range(MAX_VIRTUAL_DRAIN_ITERATIONS):
+            progress = 0
+            for peer in self._virtual_peers():
+                progress += peer.advance(processing_time)
+            remaining = MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION - processed_frames
+            if remaining < 1:
+                raise RuntimeError("simulated CAN processing frame bound exceeded")
+            kernel_frames = self._drain_kernel_inputs(limit=remaining)
+            processed_frames += kernel_frames
+            progress += kernel_frames
+            for peer in self._virtual_peers():
+                remaining = MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION - processed_frames
+                if remaining < 1:
+                    raise RuntimeError("simulated virtual-device frame bound exceeded")
+                peer_frames = peer.process_pending(processing_time, limit=remaining)
+                processed_frames += peer_frames
+                progress += peer_frames
+            if progress == 0:
+                return
+        raise RuntimeError("simulated virtual-device fixed-point bound exceeded")
+
+    def _virtual_peers(self) -> tuple[SimulatedRegistryPeer, ...]:
+        return tuple(
+            peer
+            for peer in (self.neotrellis, self.servotronic)
+            if peer is not None and peer.bus is not None
+        )
+
+    def _peer_for(self, role: DeviceRole) -> SimulatedRegistryPeer:
+        _require_device_role(role)
+        peer = {
+            DeviceRole.BUTTON_PAD: self.neotrellis,
+            DeviceRole.SERVOTRONIC_CONTROLLER: self.servotronic,
+        }[role]
+        if peer is None or peer.bus is None:
+            raise SimulationDeviceUnavailable(role)
+        return peer
 
     def _dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         commit = self.kernel.dispatch(kernel_input)
@@ -562,13 +686,13 @@ class SimulatedControllerRuntime:
                 for item in self.config.can_networks
             ),
             servotronic=ObservedServotronicSnapshot(
-                effective_assistance=self.steering_controller.effective_assistance,
+                effective_assistance=self.servotronic.effective_assistance,
                 last_command_reason=(
                     None
-                    if self.steering_controller.last_command_reason is None
-                    else self.steering_controller.last_command_reason.value
+                    if self.servotronic.last_command_reason is None
+                    else self.servotronic.last_command_reason.value
                 ),
-                watchdog_timed_out=self.steering_controller.watchdog_timed_out,
+                watchdog_timed_out=self.servotronic.watchdog_timed_out,
             ),
             lighting=ObservedLightingSnapshot(
                 high_beam_enabled=self.vehicle.high_beam_enabled,
@@ -598,6 +722,16 @@ class SimulatedControllerRuntime:
     def _require_started(self) -> None:
         if not self._started:
             raise RuntimeError("simulated controller runtime has not started")
+
+
+def _require_device_role(role: DeviceRole) -> None:
+    if not isinstance(role, DeviceRole):
+        raise ValueError("simulation device role must be a supported DeviceRole")
+
+
+def _require_byte(value: int, name: str) -> None:
+    if type(value) is not int or not 0 <= value <= 0xFF:
+        raise ValueError(f"{name} must fit in an unsigned byte")
 
 
 def _effect_failure_input(

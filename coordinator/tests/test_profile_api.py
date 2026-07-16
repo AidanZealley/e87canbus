@@ -12,7 +12,7 @@ from e87canbus.application.events import SetSteeringAssistance, SteeringCommandR
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.features.steering import BUILT_IN_STEERING_CURVE
-from e87canbus.simulation.devices import SimulatedSteeringController
+from e87canbus.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 
@@ -56,14 +56,14 @@ def make_app(
     path: Path,
     *,
     config=None,
-    steering_controller_factory=SimulatedSteeringController,
+    servotronic_factory=SimulatedServotronicPeer,
 ):
     config = config or replace(
         simulator_config(), tick_interval_s=60.0
     )
     service = build_simulated_controller_service(
         config=config,
-        steering_controller_factory=steering_controller_factory,
+        servotronic_factory=servotronic_factory,
     )
     return create_app(
         controller_service=service,
@@ -379,7 +379,7 @@ def test_concurrent_updates_allow_one_expected_revision_to_win(client: TestClien
     assert client.get(path).json()["revision"] == 2
 
 
-class BlockingShutdownController(SimulatedSteeringController):
+class BlockingShutdownPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -406,13 +406,13 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
         tick_interval_s=60.0,
         runtime_inbox_capacity=1,
     )
-    controllers: list[BlockingShutdownController] = []
+    controllers: list[BlockingShutdownPeer] = []
 
     def build_controller(
         watchdog_timeout_s: float,
         clock: Callable[[], float],
-    ) -> BlockingShutdownController:
-        controller = BlockingShutdownController(
+    ) -> BlockingShutdownPeer:
+        controller = BlockingShutdownPeer(
             watchdog_timeout_s,
             clock,
             block_shutdown=not controllers,
@@ -423,7 +423,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     app = make_app(
         tmp_path / "profiles.sqlite3",
         config=config,
-        steering_controller_factory=build_controller,
+        servotronic_factory=build_controller,
     )
 
     with TestClient(app) as client:
@@ -459,7 +459,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     assert overloaded_response.json()["error"]["code"] == "runtime_queue_full"
 
 
-class RejectingActivationController(SimulatedSteeringController):
+class RejectingActivationPeer(SimulatedServotronicPeer):
     def __init__(self, watchdog_timeout_s: float, clock: Callable[[], float]) -> None:
         super().__init__(watchdog_timeout_s, clock)
         self.auto_commands = 0
@@ -477,7 +477,7 @@ def test_save_then_failed_activation_reports_split_result(tmp_path: Path) -> Non
     app = make_app(
         tmp_path / "profiles.sqlite3",
         config=config,
-        steering_controller_factory=RejectingActivationController,
+        servotronic_factory=RejectingActivationPeer,
     )
 
     with TestClient(app) as client:
