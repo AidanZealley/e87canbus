@@ -48,6 +48,7 @@ from e87canbus.features.steering import (
 
 STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
+SERVOTRONIC_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
 
 
 class EngineTelemetryStatus(StrEnum):

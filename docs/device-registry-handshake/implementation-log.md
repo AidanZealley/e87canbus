@@ -640,9 +640,8 @@ project build flag.
 - The fixed v1 catalogue is not a runtime/configuration extension point. Catalogue entry
   dataclasses remain because they express the approved identity/version boundary, but callers
   cannot substitute alternate catalogues.
-- Firmware-source tests cover state-machine source regressions that cannot be executed natively in
-  the current PlatformIO project; compilation and shared host protocol vectors remain the available
-  software evidence.
+- Firmware protocol/state behavior now lives in a header used by the Arduino build and a host C++
+  executable test. The former source-text regex tests have been removed.
 
 #### Deviations from the phase documents
 
@@ -664,3 +663,159 @@ project build flag.
 Completed. All known defects are repaired, the additional findings above are covered, required
 repository checks and both clean firmware builds pass, and the implementation remains
 software/simulation-only pending the documented physical evidence gates.
+
+### Adversarial review follow-up
+
+The post-implementation review found recovery and ownership defects not exercised by the original
+suite. The corrective pass made stale same-session HELLO acceptance independent of old sequence
+ordering, aligned firmware with the simulator's independent HELLO/HEARTBEAT counters, and added
+same-session and 255-to-0 regression coverage. Firmware transient heartbeat-send faults now clear
+after a successful retry, while EEPROM/MCP2515 boot faults remain local faults without a lease.
+
+Health-only inputs now produce kernel commits, so live and simulated adapters no longer synthesize
+health topics or fake commit counts. Registry ACK routing moved behind `ProtocolRouter`; kernel state
+machine parameters use their concrete types; and the application exports the Servotronic-dependent
+button set. Simulation command history and frame drains are bounded, lifecycle actions no longer
+surface the registry-lag reboot 409, and test activation drives the actual encoded simulated peers.
+The frontend now shares device actions and a discriminated steering dependency helper. Generated
+protocol validation also requires both role layouts to remain identical while the Python codec is
+role-generic.
+
+### Re-review corrective pass — 2026-07-16
+
+- **Agent:** Codex repair agent
+- **Final status:** Blocked
+
+#### Summary
+
+Repaired the five issues identified by the post-repair review. Simulation Connect is once again
+idempotent for every connected peer state, while Disconnect remains idempotent and Reboot now
+raises `SimulationDeviceUnavailable` for a disconnected peer, producing the specified HTTP 409.
+Older incompatible same-session HELLO frames are ignored without renewing the observation lease;
+stale same-session recovery uses the independent HELLO sequence rather than incorrectly coupling it
+to the heartbeat counter. Button-pad emulator failures now travel through the simulation runtime's
+canonical dispatch path, retaining the health commit and its topic/count metadata.
+
+The firmware host test now probes compiler availability separately, uses GNU C++11 to match the
+firmware language level, and allows source compilation failures to fail the test. Frontend steering
+availability is derived by one discriminated helper shared by the overview and editor; simulated
+device action dispatch is shared by both workbench panels, primitive store selection no longer uses
+`useShallow`, and the registry badge uses an explicit status switch instead of nested ternaries.
+
+#### Important files changed
+
+- `coordinator/src/e87canbus/device_registry.py` — same-session HELLO ordering independent of
+  registration state.
+- `coordinator/src/e87canbus/simulation/devices.py` and `simulation/runtime.py` — idempotent Connect,
+  absent-Reboot conflict, and retained adapter-failure commits.
+- `coordinator/tests/test_device_registry.py`, `test_simulation_devices.py`,
+  `test_simulation_runtime.py`, and `test_simulator_api.py` — focused lifecycle, ordering, commit,
+  and HTTP regressions.
+- `coordinator/tests/test_button_pad_firmware_host.py` — honest GNU C++11 compiler probing and
+  compilation behavior.
+- `frontend/src/components/car-layout/car-ui.ts` and `.test.ts` — shared typed steering dependency
+  and exact reason coverage.
+- `frontend/src/components/car-overview/CarOverview.tsx` and
+  `car-steering-editor/CarSteeringEditor.tsx` — canonical dependency use and removal of duplicate
+  checks/non-null assertions.
+- `frontend/src/components/simulator-workbench/` — shared device-action dispatch, simpler store
+  selection, and readable status presentation.
+
+#### Public contract or schema changes
+
+- No wire, live, or persisted schema changed.
+- The existing simulation API contract is restored: absent device Reboot returns HTTP 409 with
+  `simulation_device_unavailable`; repeated Connect and Disconnect remain successful no-ops.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `uv run pytest coordinator/tests/test_device_registry.py coordinator/tests/test_simulation_devices.py coordinator/tests/test_simulation_runtime.py coordinator/tests/test_simulator_api.py coordinator/tests/test_button_pad_firmware_host.py -q` | 104 passed, 1 skipped. The skip is the host-toolchain blocker described below. |
+| `uv run python scripts/generate_custom_protocol.py --check` | Passed. |
+| `uv run python scripts/generate_live_contract.py --check` | Passed. |
+| `uv run pytest coordinator/tests` | 540 passed, 1 skipped, with the existing Starlette/httpx deprecation warning. |
+| `uv run ruff check coordinator scripts` | Passed. |
+| `uv run mypy coordinator/src` | Passed; no issues in 62 source files. |
+| `uv run python -m compileall -q coordinator/src/e87canbus` | Passed. |
+| `cd frontend && pnpm test -- --run` | Passed before the added helper unit case: 30 unit and 63 component tests. |
+| `cd frontend && pnpm test:unit` | Passed after the helper case was added: 31 unit tests. |
+| `cd frontend && pnpm lint` | Passed. |
+| `cd frontend && pnpm build` | Passed; TypeScript and Vite production build. |
+| `pio run --project-dir devices/button-pad -t clean && pio run --project-dir devices/button-pad` | Passed; clean default Arduino Micro build, 34.9% flash and 43.0% RAM. |
+| `pio run --project-dir devices/button-pad -t clean && PLATFORMIO_BUILD_FLAGS='-DDEVICE_ID=2' pio run --project-dir devices/button-pad` plus warning scan | Passed; clean override build with no `DEVICE_ID` redefinition warning. |
+| `git diff --check` | Passed. |
+
+#### Decisions, deviations, and remaining blocker
+
+- Connect does not mutate an already-connected peer, including one in `controller_lost`; normal
+  scheduled HELLO retry performs recovery without an artificial session change.
+- HELLO and heartbeat sequences remain independent. A stale same-session device resumes with the
+  next HELLO sequence, regardless of how far its heartbeat sequence advanced.
+- No design or interface deviation was introduced.
+- The host behavior test could not execute because all discovered host C++ commands resolve through
+  the local Xcode toolchain, whose `clang++` lookup currently fails while loading Apple developer
+  frameworks. The test reports this concrete environment failure as a skip; actual test-source
+  compilation is no longer caught or converted into a skip. PlatformIO's independent AVR compiler
+  successfully builds the same firmware header in both configurations, but it cannot execute the
+  host assertion binary. Per the review acceptance rule, this corrective pass is not marked
+  completed until the host compiler is repaired and the unskipped test passes.
+
+#### Follow-up
+
+- Repair or reinstall the Xcode command-line C++ toolchain, then run
+  `uv run pytest coordinator/tests/test_button_pad_firmware_host.py -q` and record the unskipped
+  result before changing this audit's status in a new append-only entry.
+- All physical NeoTrellis, CAN collision, electrical, bench, live-TX, and in-car evidence gates
+  remain unchanged.
+
+### Phase 3 availability follow-up — 2026-07-16
+
+- **Agent:** Codex repair agent
+- **Final status:** Completed
+
+#### Summary
+
+Closed the remaining `/car` Servotronic availability gap. The shared steering dependency now
+combines synchronized steering state, output-adapter presence, both public adapter-fault sources,
+and registry status in the same order as the server availability boundary. Either
+`health.steering.fault` or the `servotronic_controller` entry in `health.devices` makes overview
+assistance and the steering editor unavailable with the exact reason
+`servotronic output adapter is faulted`.
+
+`CarOverview` and `CarSteeringEditor` select only the two relevant fault values from the live store;
+they do not retain derived health state or subscribe to the whole health document. The canonical
+helper remains the sole owner of the dependency decision and its reason strings.
+
+#### Files changed
+
+- `frontend/src/components/car-layout/car-ui.ts` — fault-aware discriminated steering dependency.
+- `frontend/src/components/car-layout/car-ui.test.ts` — focused coverage for steering-actuator and
+  device-adapter fault inputs as well as the existing dependency cases.
+- `frontend/src/components/car-overview/CarOverview.tsx` and
+  `car-steering-editor/CarSteeringEditor.tsx` — narrow public-health selectors and canonical helper
+  inputs.
+- `frontend/src/components/car-screens.test.tsx` — live health-update coverage proving both screens
+  become unavailable for each public fault source.
+
+#### Public contract or schema changes
+
+- None. This uses the existing `ControllerHealthState` fields and aligns presentation with the
+  existing server-side `FeatureUnavailable` semantics.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `cd frontend && pnpm test:unit` | Passed; 31 unit tests. |
+| `cd frontend && pnpm exec vitest run src/components/car-screens.test.tsx` | Passed; 7 focused component tests. |
+| `cd frontend && pnpm test -- --run` | Passed; 31 unit tests and 65 component tests across 18 files. |
+| `cd frontend && pnpm lint` | Passed. |
+| `cd frontend && pnpm build` | Passed; TypeScript and Vite production build. |
+| `git diff --check` | Passed. |
+
+#### Remaining limitations
+
+- The preceding corrective pass remains blocked only on the documented broken local Xcode host C++
+  toolchain; this frontend follow-up does not change that environment blocker.
+- All physical evidence gates remain unchanged.

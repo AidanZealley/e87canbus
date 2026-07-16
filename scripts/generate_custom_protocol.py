@@ -48,8 +48,8 @@ def load_definition(path: Path) -> ProtocolDefinition:
         raw = tomllib.load(source)
 
     protocol_version = raw.get("protocol_version")
-    if not isinstance(protocol_version, int) or not 0 <= protocol_version <= 0xFF:
-        raise ValueError("protocol_version must fit in one byte")
+    if not isinstance(protocol_version, int) or not 0 <= protocol_version <= 0x0F:
+        raise ValueError("protocol_version must fit in the WELCOME_ACK version nibble")
 
     messages = tuple(
         _parse_message(name, table)
@@ -61,7 +61,22 @@ def load_definition(path: Path) -> ProtocolDefinition:
     can_ids = [message.can_id for message in messages]
     if len(set(can_ids)) != len(can_ids):
         raise ValueError("custom protocol arbitration IDs must be unique")
-    return ProtocolDefinition(protocol_version, messages)
+    definition = ProtocolDefinition(protocol_version, messages)
+    _validate_shared_registry_layouts(definition)
+    return definition
+
+
+def _validate_shared_registry_layouts(definition: ProtocolDefinition) -> None:
+    """Keep the role-generic Python codecs safe when generated layouts evolve."""
+
+    for suffix in ("hello", "welcome_ack", "heartbeat"):
+        button_pad = definition.message(f"button_pad_{suffix}")
+        servotronic = definition.message(f"servotronic_controller_{suffix}")
+        if (
+            button_pad.length != servotronic.length
+            or button_pad.byte_positions != servotronic.byte_positions
+        ):
+            raise ValueError(f"button-pad and Servotronic {suffix} layouts must remain identical")
 
 
 def _parse_message(name: str, table: Mapping[str, Any]) -> MessageDefinition:
@@ -188,9 +203,7 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
         )
         constants.append((f"{prefix}_LENGTH", message.length))
         if message.name == "button_event":
-            constants.extend(
-                (f"BUTTON_{name.upper()}", value) for name, value in message.values
-            )
+            constants.extend((f"BUTTON_{name.upper()}", value) for name, value in message.values)
         elif message.name == "led_snapshot":
             constants.extend(
                 [
@@ -234,9 +247,7 @@ def render_header(definition: ProtocolDefinition) -> str:
     declarations: list[str] = []
     for name, value in _constants(definition):
         value_type = "unsigned long" if name.startswith("CAN_ID_") else "uint8_t"
-        declarations.append(
-            f"static const {value_type} {name} = {_render_value(name, value)};"
-        )
+        declarations.append(f"static const {value_type} {name} = {_render_value(name, value)};")
     return "\n".join(
         [
             "#ifndef E87CANBUS_CAN_IDS_H",
@@ -305,7 +316,8 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
 def stale_artifacts(root: Path) -> tuple[Path, ...]:
     definition = load_definition(root / "protocol" / "custom.toml")
     return tuple(
-        path for path, expected in expected_artifacts(root, definition).items()
+        path
+        for path, expected in expected_artifacts(root, definition).items()
         if not path.exists() or path.read_text() != expected
     )
 

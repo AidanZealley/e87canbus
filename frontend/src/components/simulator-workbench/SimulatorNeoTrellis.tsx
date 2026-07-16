@@ -1,16 +1,9 @@
 import { useMutation } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 
+import { tapButton } from "@/api/simulator"
 import {
-  connectSimulatedDevice,
-  disconnectSimulatedDevice,
-  rebootSimulatedDevice,
-  setSimulatedDeviceProtocolVersion,
-  setSimulatedDeviceStatusCode,
-  tapButton,
-} from "@/api/simulator"
-import type { DeviceRegistryEntry } from "@/api/live-events"
-import {
+  runSimulatedDeviceAction,
   SimulatedDeviceCard,
   simulatedDeviceActions,
   type SimulatedDeviceAction,
@@ -33,16 +26,14 @@ export const SimulatorNeoTrellis = () => {
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const deviceMutation = useMutation({
     mutationFn: ({ action }: { action: SimulatedDeviceAction }) =>
-      runDeviceAction(deviceEntry.role, action),
+      runSimulatedDeviceAction(deviceEntry.role, action),
     onError: notifySimulatorError,
   })
   const desiredLedColours = useLiveStore(
     useShallow((state) => state.buttons.led_colours)
   )
   const sourceMode = useLiveStore(
-    useShallow((state) => {
-      return state.devices.registry.button_pad.source_mode
-    })
+    (state) => state.devices.registry.button_pad.source_mode
   )
   const buttonPadStatus = useLiveStore(
     (state) => state.devices.registry.button_pad.status
@@ -50,7 +41,9 @@ export const SimulatorNeoTrellis = () => {
   const displayedSourceMode = synchronized ? sourceMode : "unavailable"
   const emulatorControlsAvailable =
     displayedSourceMode === "emulated" && buttonPadStatus === "active"
-  const displayedColours = synchronized ? desiredLedColours : unavailableLedColours
+  const displayedColours = synchronized
+    ? desiredLedColours
+    : unavailableLedColours
   const buttons: NeoTrellisButtonState[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
@@ -72,10 +65,14 @@ export const SimulatorNeoTrellis = () => {
         ])
       )}
       pendingAction={
-        deviceMutation.isPending ? deviceMutation.variables?.action ?? null : null
+        deviceMutation.isPending
+          ? (deviceMutation.variables?.action ?? null)
+          : null
       }
       errorMessage={
-        deviceMutation.error instanceof Error ? deviceMutation.error.message : null
+        deviceMutation.error instanceof Error
+          ? deviceMutation.error.message
+          : null
       }
     >
       <NeoTrellisPanel
@@ -85,28 +82,6 @@ export const SimulatorNeoTrellis = () => {
       />
     </SimulatedDeviceCard>
   )
-}
-
-const runDeviceAction = (
-  role: DeviceRegistryEntry["role"],
-  action: SimulatedDeviceAction
-) => {
-  switch (action) {
-    case "connect":
-      return connectSimulatedDevice(role)
-    case "disconnect":
-      return disconnectSimulatedDevice(role)
-    case "reboot":
-      return rebootSimulatedDevice(role)
-    case "incompatible":
-      return setSimulatedDeviceProtocolVersion(role, 2)
-    case "restore-compatible":
-      return setSimulatedDeviceProtocolVersion(role, 1)
-    case "fault":
-      return setSimulatedDeviceStatusCode(role, 1)
-    case "clear-fault":
-      return setSimulatedDeviceStatusCode(role, 0)
-  }
 }
 
 const rgbForColourCode = (colourCode: number): NeoTrellisButtonState["rgb"] => {

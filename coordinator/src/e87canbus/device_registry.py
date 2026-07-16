@@ -143,9 +143,7 @@ def transition_hello(
 
     acknowledgement = DeviceWelcomeAckPayload(
         controller_protocol_version=entry_protocol_version(entry),
-        response_code=(
-            0 if payload.protocol_version == entry_protocol_version(entry) else 1
-        ),
+        response_code=(0 if payload.protocol_version == entry_protocol_version(entry) else 1),
         device_id=payload.device_id,
         device_session_id=payload.device_session_id,
         controller_session_id=controller_session_id,
@@ -236,9 +234,7 @@ def transition_heartbeat(
         return RegistryTransition(entry)
 
     next_status = (
-        DeviceLifecycleStatus.ACTIVE
-        if payload.status == 0
-        else DeviceLifecycleStatus.FAULT
+        DeviceLifecycleStatus.ACTIVE if payload.status == 0 else DeviceLifecycleStatus.FAULT
     )
     next_entry = replace(
         entry,
@@ -281,7 +277,8 @@ def expire_entry(entry: DeviceRegistryEntry, now: float) -> DeviceRegistryEntry:
         return entry
     deadline = entry._lease_deadline
     if (
-        entry.status in {
+        entry.status
+        in {
             DeviceLifecycleStatus.PENDING,
             DeviceLifecycleStatus.ACTIVE,
             DeviceLifecycleStatus.FAULT,

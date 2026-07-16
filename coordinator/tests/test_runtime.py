@@ -228,9 +228,7 @@ def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> No
 
     assert commit is not None
     led_effects = tuple(
-        effect.effect
-        for effect in commit.effects
-        if isinstance(effect.effect, SetButtonLeds)
+        effect.effect for effect in commit.effects if isinstance(effect.effect, SetButtonLeds)
     )
     assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
     assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
@@ -273,12 +271,12 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     assert fault is not None
     assert fault.kind is kind
     assert kernel.health.fatal is True
-    if fallback_reason is None:
-        assert commit is None
-    else:
-        assert commit is not None
-        assert commit.changed_topics == {StateTopic.HEALTH}
+    assert commit is not None
+    assert commit.changed_topics == {StateTopic.HEALTH}
+    if fallback_reason is not None:
         assert commit.effects == (EffectRequest(SetSteeringAssistance(0.0, fallback_reason)),)
+    else:
+        assert commit.effects == ()
 
 
 def test_steering_actuator_failure_is_nonfatal_and_disables_servotronic_output() -> None:
@@ -367,7 +365,7 @@ def test_startup_and_shutdown_are_idempotent() -> None:
         (SteeringActuatorFailed(4.0, "actuator shutdown failed"), False),
     ],
 )
-def test_typed_effect_failure_updates_health_after_stop_without_commit(
+def test_typed_effect_failure_updates_health_after_stop(
     failure: CanEffectExecutionFailed | SteeringActuatorFailed,
     fatal: bool,
 ) -> None:
@@ -378,7 +376,8 @@ def test_typed_effect_failure_updates_health_after_stop_without_commit(
 
     commit = kernel.dispatch(failure)
 
-    assert commit is None
+    assert commit is not None
+    assert commit.changed_topics == {StateTopic.HEALTH}
+    assert kernel.diagnostics().revision == revision + 1
     assert kernel.health.fatal is fatal
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED
-    assert kernel.diagnostics().revision == revision

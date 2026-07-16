@@ -47,9 +47,7 @@ def hello(
     sequence: int = 0,
 ) -> CanFrame:
     arbitration_id = (
-        IDS.button_pad_hello
-        if role is DeviceRole.BUTTON_PAD
-        else IDS.servotronic_controller_hello
+        IDS.button_pad_hello if role is DeviceRole.BUTTON_PAD else IDS.servotronic_controller_hello
     )
     return encode_hello(DeviceHelloPayload(version, device_id, session, sequence), arbitration_id)
 
@@ -218,6 +216,41 @@ def test_timeout_marks_stale_and_a_new_session_reenters_pending() -> None:
     assert kernel.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.PENDING
 
 
+def test_stale_same_session_recovery_uses_independent_hello_sequence() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+    register(kernel, DeviceRole.BUTTON_PAD)
+    for sequence in range(1, 201):
+        receive(
+            kernel,
+            heartbeat(kernel, DeviceRole.BUTTON_PAD, sequence=sequence),
+            2.0,
+        )
+
+    kernel.dispatch(TimerElapsed(5.1))
+    assert kernel.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.STALE
+
+    recovered = receive(
+        kernel,
+        hello(DeviceRole.BUTTON_PAD, sequence=1),
+        5.2,
+    )
+
+    assert recovered.changed_topics == {StateTopic.DEVICES}
+    assert kernel.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.PENDING
+
+
+def test_hello_sequence_wrap_from_255_to_zero_is_accepted() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+
+    receive(kernel, hello(DeviceRole.BUTTON_PAD, sequence=255), 1.0)
+    wrapped = receive(kernel, hello(DeviceRole.BUTTON_PAD, sequence=0), 2.0)
+
+    assert wrapped.changed_topics == frozenset()
+    assert wrapped.effects[0].effect.routed.frame.arbitration_id == IDS.button_pad_welcome_ack
+
+
 def test_incompatible_observation_expires_to_stale() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
@@ -227,6 +260,26 @@ def test_incompatible_observation_expires_to_stale() -> None:
     assert incompatible.effects[0].effect.routed.frame.data[0] & 0x0F == 1
 
     kernel.dispatch(TimerElapsed(16.0))
+    assert kernel.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.STALE
+
+
+def test_older_incompatible_hello_does_not_renew_observation_deadline() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+
+    receive(kernel, hello(DeviceRole.BUTTON_PAD, version=2, sequence=10), 1.0)
+    ignored = kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            hello(DeviceRole.BUTTON_PAD, version=2, sequence=9),
+            10.0,
+        )
+    )
+
+    assert ignored is None
+    expired = kernel.dispatch(TimerElapsed(16.0))
+    assert expired is not None
+    assert expired.changed_topics == {StateTopic.DEVICES}
     assert kernel.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.STALE
 
 
@@ -264,6 +317,12 @@ def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfata
 
     with pytest.raises(FeatureUnavailable, match="servotronic controller is not_found"):
         kernel.dispatch(SetMaximumAssistance(True))
+
+    button_failure = kernel.dispatch(
+        DeviceAdapterFailed(DeviceRole.BUTTON_PAD, 1.0, "adapter")
+    )
+    assert button_failure is not None
+    assert button_failure.changed_topics == {StateTopic.HEALTH}
     with pytest.raises(FeatureUnavailable):
         kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 2))
 
@@ -289,13 +348,10 @@ def test_servotronic_fault_clears_maximum_and_healthy_recovery_syncs_normal_outp
         2.0,
     )
     assert (
-        kernel.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).status
-        is DeviceLifecycleStatus.FAULT
+        kernel.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).status is DeviceLifecycleStatus.FAULT
     )
     assert kernel.snapshot().maximum_assistance_active is False
-    assert all(
-        not isinstance(request.effect, SetSteeringAssistance) for request in fault.effects
-    )
+    assert all(not isinstance(request.effect, SetSteeringAssistance) for request in fault.effects)
 
     recovery = receive(
         kernel,

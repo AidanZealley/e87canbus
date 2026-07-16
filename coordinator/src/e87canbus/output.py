@@ -182,7 +182,7 @@ class EffectExecutor:
         return self._execute_routed_can(
             SendRegistryFrame(routed),
             origin_button_index,
-            log_as_led=True,
+            log_unavailable_tx=True,
         )
 
     def _execute_routed_can(
@@ -190,12 +190,12 @@ class EffectExecutor:
         effect: SendRegistryFrame,
         origin_button_index: int | None,
         *,
-        log_as_led: bool = False,
+        log_unavailable_tx: bool = False,
     ) -> CanEffectFailure | None:
         routed = effect.routed
         transmitter = self._transmitters.get(routed.network)
         if transmitter is None:
-            if log_as_led:
+            if log_unavailable_tx:
                 LOGGER.warning(
                     "dropped effect for unavailable TX capability: network=%s id=0x%03x",
                     routed.network.value,

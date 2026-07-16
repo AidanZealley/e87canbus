@@ -113,9 +113,6 @@ class SimulatedRegistryPeer:
 
     def connect(self) -> bool:
         if self.connected:
-            if self.state is SimulatedDeviceState.CONTROLLER_LOST:
-                self._start_session()
-                return True
             return False
         self.connected = True
         self._start_session()
@@ -190,10 +187,15 @@ class SimulatedRegistryPeer:
                 return 1
             return 0
 
-        if self.state in {
-            SimulatedDeviceState.OPERATIONAL,
-            SimulatedDeviceState.LOCAL_FAULT,
-        } and self._next_heartbeat_at is not None and now >= self._next_heartbeat_at:
+        if (
+            self.state
+            in {
+                SimulatedDeviceState.OPERATIONAL,
+                SimulatedDeviceState.LOCAL_FAULT,
+            }
+            and self._next_heartbeat_at is not None
+            and now >= self._next_heartbeat_at
+        ):
             self._send_heartbeat()
             self._next_heartbeat_at = now + HEARTBEAT_CADENCE_S
             return 1
@@ -396,25 +398,21 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self._require_bus().send(frame)
         return frame
 
-    def process_pending_led_snapshots(self) -> list[LedSnapshotPayload]:
-        bus = self._require_bus()
+    def process_pending_led_snapshots(self, *, limit: int = 64) -> list[LedSnapshotPayload]:
         snapshots: list[LedSnapshotPayload] = []
-        while True:
-            frame = bus.receive(timeout_s=0)
-            if frame is None:
-                return snapshots
-
-            if self._consume_registry_frame(frame, self.clock()):
-                continue
-            snapshot = self._decode_led_snapshot(frame)
-            if snapshot is None or not self._operational_with_fresh_lease(self.clock()):
-                continue
-
-            self.led_colours = snapshot.colour_codes
-            self.last_seen_monotonic_s = self.clock()
-            snapshots.append(snapshot)
+        self._process_pending(self.clock(), limit=limit, snapshots=snapshots)
+        return snapshots
 
     def process_pending(self, now: float, *, limit: int = 64) -> int:
+        return self._process_pending(now, limit=limit)
+
+    def _process_pending(
+        self,
+        now: float,
+        *,
+        limit: int,
+        snapshots: list[LedSnapshotPayload] | None = None,
+    ) -> int:
         if limit < 1:
             raise ValueError("simulated device frame limit must be positive")
         bus = self._require_bus()
@@ -427,6 +425,8 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             if snapshot is not None and self._operational_with_fresh_lease(now):
                 self.led_colours = snapshot.colour_codes
                 self.last_seen_monotonic_s = now
+                if snapshots is not None:
+                    snapshots.append(snapshot)
         return processed
 
     def _operational_with_fresh_lease(self, now: float) -> bool:
@@ -572,12 +572,10 @@ class SimulatedServotronicPeer(SimulatedRegistryPeer):
         self.watchdog_timeout_s = watchdog_timeout_s
         self.last_command: SetSteeringAssistance | None = None
         self.last_command_at: float | None = None
-        self.commands: list[SetSteeringAssistance] = []
 
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         self.last_command = command
         self.last_command_at = self.clock()
-        self.commands.append(command)
 
     @property
     def watchdog_timed_out(self) -> bool:

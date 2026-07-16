@@ -66,6 +66,13 @@ def test_registry_messages_have_fixed_ids_and_layouts() -> None:
         "reserved_6": 6,
         "reserved_7": 7,
     }
+    for suffix in ("hello", "welcome_ack", "heartbeat"):
+        button_pad = definition.message(f"button_pad_{suffix}")
+        servotronic = definition.message(f"servotronic_controller_{suffix}")
+        assert (button_pad.length, button_pad.byte_positions) == (
+            servotronic.length,
+            servotronic.byte_positions,
+        )
 
 
 def test_markdown_generation_preserves_surrounding_prose() -> None:
@@ -85,9 +92,7 @@ def test_markdown_generation_preserves_surrounding_prose() -> None:
         Path("protocol/custom_ids.md"),
     ],
 )
-def test_changing_one_generated_artifact_is_detected(
-    tmp_path: Path, relative_path: Path
-) -> None:
+def test_changing_one_generated_artifact_is_detected(tmp_path: Path, relative_path: Path) -> None:
     definition = load_definition(ROOT / "protocol" / "custom.toml")
     (tmp_path / "protocol").mkdir(parents=True)
     (tmp_path / "protocol" / "custom.toml").write_bytes(
