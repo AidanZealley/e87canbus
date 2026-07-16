@@ -59,7 +59,7 @@ def test_dry_run_reports_selected_mode_without_starting_server(
     assert cli.CONTROLLER_MODE_ENVIRONMENT_VARIABLE not in cli.os.environ
 
 
-def test_cli_reports_explicit_observer_role_in_dry_run(
+def test_cli_reports_explicit_disabled_role_in_dry_run(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -76,7 +76,7 @@ def test_cli_reports_explicit_observer_role_in_dry_run(
                 "--mode",
                 "simulated",
                 "--button-pad-source",
-                "observer",
+                "disabled",
                 "--dry-run",
             )
         )
@@ -85,7 +85,7 @@ def test_cli_reports_explicit_observer_role_in_dry_run(
     output = json.loads(capsys.readouterr().out)
 
     assert output["device_adapters"] == [
-        {"role": "button_pad", "source": "observer"}
+        {"role": "button_pad", "source": "disabled"}
     ]
 
 

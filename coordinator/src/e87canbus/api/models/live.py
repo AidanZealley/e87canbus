@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from e87canbus.device import DeviceRole
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
@@ -341,10 +342,11 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
         inbox=InboxHealthState.model_validate(snapshot.service.inbox, from_attributes=True),
         devices=tuple(
             DeviceHealthState(
-                id=device.id.value,
+                id=cast(Literal["button_pad"], device.id.value),
                 fault=_fault_state(device_faults.get(device.id)),
             )
             for device in snapshot.adapter.devices
+            if device.id is DeviceRole.BUTTON_PAD
         ),
         steering=SteeringCapabilityHealthState(
             fault=_fault_state(health.steering_actuator_fault),

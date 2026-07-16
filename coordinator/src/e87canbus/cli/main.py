@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--button-pad-source",
         choices=tuple(DeviceSource),
         help=(
-            "Select physical, emulated, observer, or disabled button-pad composition; "
+            "Select physical, emulated, or disabled button-pad composition; "
             "physical/emulated availability is validated against mode."
         ),
     )

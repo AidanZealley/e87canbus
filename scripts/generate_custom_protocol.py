@@ -1,4 +1,4 @@
-"""Generate the provisional project protocol artifacts from protocol/custom.toml."""
+"""Generate repository-owned project protocol artifacts from custom.toml."""
 
 from __future__ import annotations
 
@@ -16,12 +16,15 @@ MARKDOWN_END = "<!-- END GENERATED CUSTOM PROTOCOL -->"
 
 @dataclass(frozen=True)
 class MessageDefinition:
+    name: str
     can_id: int
     length: int
     direction: str
     purpose: str
+    payload: str
     byte_positions: tuple[tuple[str, int], ...]
     values: tuple[tuple[str, int], ...]
+    values_title: str | None = None
     led_count: int | None = None
     even_index_shift: int | None = None
     odd_index_shift: int | None = None
@@ -30,89 +33,130 @@ class MessageDefinition:
 
 @dataclass(frozen=True)
 class ProtocolDefinition:
-    button_event: MessageDefinition
-    led_snapshot: MessageDefinition
+    protocol_version: int
+    messages: tuple[MessageDefinition, ...]
+
+    def message(self, name: str) -> MessageDefinition:
+        for message in self.messages:
+            if message.name == name:
+                return message
+        raise KeyError(name)
 
 
 def load_definition(path: Path) -> ProtocolDefinition:
     with path.open("rb") as source:
         raw = tomllib.load(source)
-    return ProtocolDefinition(
-        button_event=_parse_message(raw, "button_event"),
-        led_snapshot=_parse_led_snapshot(raw),
+
+    protocol_version = raw.get("protocol_version")
+    if not isinstance(protocol_version, int) or not 0 <= protocol_version <= 0xFF:
+        raise ValueError("protocol_version must fit in one byte")
+
+    messages = tuple(
+        _parse_message(name, table)
+        for name, table in raw.items()
+        if isinstance(table, dict) and "can_id" in table
     )
+    if not messages:
+        raise ValueError("custom protocol must define at least one message")
+    can_ids = [message.can_id for message in messages]
+    if len(set(can_ids)) != len(can_ids):
+        raise ValueError("custom protocol arbitration IDs must be unique")
+    return ProtocolDefinition(protocol_version, messages)
 
 
-def _parse_message(raw: Mapping[str, Any], name: str) -> MessageDefinition:
-    table = raw.get(name)
-    if not isinstance(table, dict):
-        raise ValueError(f"missing [{name}] table")
-    byte_positions = _integer_items(table, "bytes", name)
-    values = _integer_items(table, "values", name)
+def _parse_message(name: str, table: Mapping[str, Any]) -> MessageDefinition:
     can_id = table.get("can_id")
     length = table.get("length")
     direction = table.get("direction")
     purpose = table.get("purpose")
+    payload = table.get("payload")
     if not isinstance(can_id, int) or not 0 <= can_id <= 0x7FF:
         raise ValueError(f"{name}.can_id must be a standard CAN ID")
     if not isinstance(length, int) or not 1 <= length <= 8:
         raise ValueError(f"{name}.length must be between 1 and 8")
-    if not isinstance(direction, str) or not isinstance(purpose, str):
-        raise ValueError(f"{name} direction and purpose must be strings")
+    if not all(isinstance(value, str) for value in (direction, purpose, payload)):
+        raise ValueError(f"{name} direction, purpose, and payload must be strings")
+
+    byte_positions = _integer_items(
+        table,
+        "bytes",
+        name,
+        required="led_count" not in table,
+    )
+    values = _integer_items(table, "values", name, required=False)
     if len({position for _, position in byte_positions}) != len(byte_positions):
         raise ValueError(f"{name} byte positions must be unique")
     if any(not 0 <= position < length for _, position in byte_positions):
         raise ValueError(f"{name} byte position exceeds payload length")
     if any(not 0 <= value <= 0xFF for _, value in values):
         raise ValueError(f"{name} values must fit in one byte")
-    return MessageDefinition(can_id, length, direction, purpose, byte_positions, values)
 
-
-def _parse_led_snapshot(raw: Mapping[str, Any]) -> MessageDefinition:
-    name = "led_snapshot"
-    table = raw.get(name)
-    if not isinstance(table, dict):
-        raise ValueError(f"missing [{name}] table")
-    values = _integer_items(table, "values", name)
-    can_id = table.get("can_id")
-    length = table.get("length")
-    direction = table.get("direction")
-    purpose = table.get("purpose")
-    led_count = table.get("led_count")
-    even_index_shift = table.get("even_index_shift")
-    odd_index_shift = table.get("odd_index_shift")
-    nibble_mask = table.get("nibble_mask")
-    if not isinstance(can_id, int) or not 0 <= can_id <= 0x7FF:
-        raise ValueError(f"{name}.can_id must be a standard CAN ID")
-    if length != 8 or led_count != 16:
-        raise ValueError("led_snapshot must contain 16 LEDs in 8 bytes")
-    if (even_index_shift, odd_index_shift, nibble_mask) != (0, 4, 0x0F):
-        raise ValueError("led_snapshot must use even/low and odd/high nibble ordering")
-    if not isinstance(direction, str) or not isinstance(purpose, str):
-        raise ValueError(f"{name} direction and purpose must be strings")
-    if tuple(value for _, value in values) != tuple(range(len(values))):
-        raise ValueError("led_snapshot colour codes must be contiguous from zero")
-    if max(value for _, value in values) > nibble_mask:
-        raise ValueError("led_snapshot colour codes must fit in one nibble")
+    led_metadata = _parse_led_metadata(name, table, values)
+    values_title = table.get("values_title")
+    if values_title is not None and not isinstance(values_title, str):
+        raise ValueError(f"{name}.values_title must be a string")
     return MessageDefinition(
-        can_id,
-        length,
-        direction,
-        purpose,
-        (),
-        values,
-        led_count,
-        even_index_shift,
-        odd_index_shift,
-        nibble_mask,
+        name=name,
+        can_id=can_id,
+        length=length,
+        direction=direction,
+        purpose=purpose,
+        payload=payload,
+        byte_positions=byte_positions,
+        values=values,
+        values_title=values_title,
+        **led_metadata,
     )
 
 
+def _parse_led_metadata(
+    name: str,
+    table: Mapping[str, Any],
+    values: tuple[tuple[str, int], ...],
+) -> dict[str, int | None]:
+    metadata = tuple(
+        table.get(key)
+        for key in ("led_count", "even_index_shift", "odd_index_shift", "nibble_mask")
+    )
+    if all(value is None for value in metadata):
+        return {
+            "led_count": None,
+            "even_index_shift": None,
+            "odd_index_shift": None,
+            "nibble_mask": None,
+        }
+    led_count, even_index_shift, odd_index_shift, nibble_mask = metadata
+    if not all(isinstance(value, int) for value in metadata):
+        raise ValueError(f"{name} LED packing metadata must be integers")
+    if (table.get("length"), led_count, even_index_shift, odd_index_shift) != (8, 16, 0, 4):
+        raise ValueError("LED snapshot must contain 16 LEDs in 8 bytes with low/high nibbles")
+    if nibble_mask != 0x0F:
+        raise ValueError("LED snapshot must use a 0x0F nibble mask")
+    if not values or tuple(value for _, value in values) != tuple(range(len(values))):
+        raise ValueError("LED snapshot colour codes must be contiguous from zero")
+    if max(value for _, value in values) > nibble_mask:
+        raise ValueError("LED snapshot colour codes must fit in one nibble")
+    if table.get("bytes"):
+        raise ValueError("LED snapshot packing owns its byte layout")
+    return {
+        "led_count": led_count,
+        "even_index_shift": even_index_shift,
+        "odd_index_shift": odd_index_shift,
+        "nibble_mask": nibble_mask,
+    }
+
+
 def _integer_items(
-    table: Mapping[str, Any], section: str, message_name: str
+    table: Mapping[str, Any],
+    section: str,
+    message_name: str,
+    *,
+    required: bool,
 ) -> tuple[tuple[str, int], ...]:
     values = table.get(section)
-    if not isinstance(values, dict) or not values:
+    if values is None and not required:
+        return ()
+    if not isinstance(values, dict) or (required and not values):
         raise ValueError(f"missing [{message_name}.{section}] table")
     if not all(isinstance(name, str) and isinstance(value, int) for name, value in values.items()):
         raise ValueError(f"{message_name}.{section} values must be integers")
@@ -127,24 +171,40 @@ def render_python(definition: ProtocolDefinition) -> str:
         "",
     ]
     for name, value in _constants(definition):
-        if name == "CAN_ID_LED_SNAPSHOT":
-            lines.append("")
         lines.append(f"{name} = {_render_value(name, value)}")
     return "\n".join(lines) + "\n"
 
 
 def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
-    return (
-        *_message_constants("BUTTON_EVENT", definition.button_event, "BUTTON"),
-        ("CAN_ID_LED_SNAPSHOT", definition.led_snapshot.can_id),
-        ("LED_SNAPSHOT_LENGTH", definition.led_snapshot.length),
-        ("LED_COUNT", _required(definition.led_snapshot.led_count)),
-        ("LED_EVEN_INDEX_SHIFT", _required(definition.led_snapshot.even_index_shift)),
-        ("LED_ODD_INDEX_SHIFT", _required(definition.led_snapshot.odd_index_shift)),
-        ("LED_NIBBLE_MASK", _required(definition.led_snapshot.nibble_mask)),
-        *((f"LED_COLOUR_{name.upper()}", value) for name, value in definition.led_snapshot.values),
-        ("LED_COLOUR_MAX", max(value for _, value in definition.led_snapshot.values)),
-    )
+    constants: list[tuple[str, int]] = [
+        ("CUSTOM_DEVICE_PROTOCOL_VERSION", definition.protocol_version)
+    ]
+    for message in definition.messages:
+        prefix = _constant_prefix(message.name)
+        constants.append((f"CAN_ID_{prefix}", message.can_id))
+        constants.extend(
+            (f"{prefix}_{_constant_fragment(name)}_BYTE", position)
+            for name, position in message.byte_positions
+        )
+        constants.append((f"{prefix}_LENGTH", message.length))
+        if message.name == "button_event":
+            constants.extend(
+                (f"BUTTON_{name.upper()}", value) for name, value in message.values
+            )
+        elif message.name == "led_snapshot":
+            constants.extend(
+                [
+                    ("LED_COUNT", _required(message.led_count)),
+                    ("LED_EVEN_INDEX_SHIFT", _required(message.even_index_shift)),
+                    ("LED_ODD_INDEX_SHIFT", _required(message.odd_index_shift)),
+                    ("LED_NIBBLE_MASK", _required(message.nibble_mask)),
+                ]
+            )
+            constants.extend(
+                (f"LED_COLOUR_{name.upper()}", value) for name, value in message.values
+            )
+            constants.append(("LED_COLOUR_MAX", max(value for _, value in message.values)))
+    return tuple(constants)
 
 
 def _required(value: int | None) -> int:
@@ -153,19 +213,18 @@ def _required(value: int | None) -> int:
     return value
 
 
-def _message_constants(
-    prefix: str, message: MessageDefinition, value_prefix: str
-) -> tuple[tuple[str, int], ...]:
-    return (
-        (f"CAN_ID_{prefix}", message.can_id),
-        *((f"{prefix}_{name.upper()}_BYTE", position) for name, position in message.byte_positions),
-        (f"{prefix}_LENGTH", message.length),
-        *((f"{value_prefix}_{name.upper()}", value) for name, value in message.values),
-    )
+def _constant_prefix(name: str) -> str:
+    return name.upper()
+
+
+def _constant_fragment(name: str) -> str:
+    return name.upper()
 
 
 def _render_value(name: str, value: int) -> str:
-    if name.endswith(("_BYTE", "_LENGTH", "_COUNT", "_SHIFT")):
+    if name == "CUSTOM_DEVICE_PROTOCOL_VERSION" or name.endswith(
+        ("_BYTE", "_LENGTH", "_COUNT", "_SHIFT")
+    ):
         return str(value)
     width = 3 if name.startswith("CAN_ID_") else 2
     return f"0x{value:0{width}X}"
@@ -174,8 +233,6 @@ def _render_value(name: str, value: int) -> str:
 def render_header(definition: ProtocolDefinition) -> str:
     declarations: list[str] = []
     for name, value in _constants(definition):
-        if name == "CAN_ID_LED_SNAPSHOT":
-            declarations.append("")
         value_type = "unsigned long" if name.startswith("CAN_ID_") else "uint8_t"
         declarations.append(
             f"static const {value_type} {name} = {_render_value(name, value)};"
@@ -197,28 +254,21 @@ def render_header(definition: ProtocolDefinition) -> str:
 
 
 def render_markdown_section(definition: ProtocolDefinition) -> str:
-    messages = (definition.button_event, definition.led_snapshot)
     lines = [
         MARKDOWN_START,
         f"<!-- {GENERATED_NOTICE} -->",
         "| ID | Direction | Purpose | Length | Payload |",
         "|---|---|---|---:|---|",
     ]
-    for message in messages:
-        payload = (
-            ", ".join(
-                f"byte {position} = {name.replace('_', ' ')}"
-                for name, position in message.byte_positions
-            )
-            if message.byte_positions
-            else "two LED colour nibbles per byte, even index low"
-        )
+    for message in definition.messages:
         lines.append(
             f"| `0x{message.can_id:03X}` | {message.direction} | {message.purpose} "
-            f"| {message.length} | {payload} |"
+            f"| {message.length} | {message.payload} |"
         )
-    lines.extend(_markdown_values("Button State Constants", definition.button_event.values))
-    lines.extend(_markdown_values("LED Colour Codes", definition.led_snapshot.values))
+    for message in definition.messages:
+        if message.values:
+            title = message.values_title or f"{message.name.replace('_', ' ').title()} Values"
+            lines.extend(_markdown_values(title, message.values))
     lines.append(MARKDOWN_END)
     return "\n".join(lines)
 

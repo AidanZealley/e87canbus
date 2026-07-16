@@ -12,7 +12,7 @@ out of scope.
 
 The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
 PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated vehicle have an
-endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated steering
+endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated Servotronic
 controller is a direct actuator capability because no physical wire protocol is verified. The
 simulator does not forward traffic between networks.
 
@@ -38,11 +38,11 @@ The simulator operates external nodes and follows that same path rather than inj
 events or state. A button-pad LED decision is one complete 16-colour state, one effect, and one
 provisional `0x701` DLC-8 frame; accepted frames replace the simulated device state atomically.
 
-Each repository-owned button-pad composition selects exactly one `physical`, `emulated`,
-`observer`, or `disabled` source. The workbench's emulator controls emit the generated `0x700` wire
-message and are unavailable outside the emulated role. Dashboard operational controls use semantic
-HTTP commands instead. Desired LEDs and observed emulator LEDs remain distinct; physical
-observation is unknown because the protocol has no acknowledgement or heartbeat.
+Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
+`disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
+are unavailable outside the emulated role. Dashboard operational controls use semantic HTTP
+commands instead. `buttons.led_colours` is the canonical controller-requested LED state; physical
+application observation is not implied by local send success.
 
 ## Local Setup
 
@@ -144,7 +144,7 @@ The bench-only `0x700`/`0x701` IDs are provisional and require collision checks 
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
 the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
 The current button-pad firmware transmits automatically and must not be connected to the car.
-The simulated steering controller proves dimensionless target selection, stale/fault/shutdown
+The simulated Servotronic controller proves dimensionless target selection, stale/fault/shutdown
 fallback, watchdog timeout behavior, and terminal handling of output faults. It does not establish
 a physical command or electrical safe state. Command transport, range and polarity, valve response,
 feedback, controller topology, and physical watchdog behavior remain unknown. Real steering
