@@ -11,7 +11,10 @@ from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.application.controller import ApplicationSnapshot, button_led_state
-from e87canbus.application.events import HighBeamStrobeDeadlineReached
+from e87canbus.application.events import (
+    ButtonFeedbackDeadlineReached,
+    HighBeamStrobeDeadlineReached,
+)
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
@@ -63,6 +66,7 @@ CONTROLLER_INPUT_TYPES = (
     KernelStarted,
     ReceivedCanFrame,
     TimerElapsed,
+    ButtonFeedbackDeadlineReached,
     CanReaderFailed,
     CanEffectExecutionFailed,
     SteeringActuatorFailed,
@@ -160,14 +164,19 @@ def _effect_failure_input(
     failed_at: float,
 ) -> EffectFailureInput:
     match failure:
-        case CanEffectFailure(network, message):
-            return CanEffectExecutionFailed(network, failed_at, message)
-        case SteeringActuatorFailure(message):
-            return SteeringActuatorFailed(failed_at, message)
-        case HighBeamActuatorFailure(message):
+        case CanEffectFailure(network, message, origin_button_index):
+            return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
+        case SteeringActuatorFailure(message, origin_button_index):
+            return SteeringActuatorFailed(failed_at, message, origin_button_index)
+        case HighBeamActuatorFailure(message, origin_button_index):
             # Live composition never grants this capability.  Retain a conservative
             # failure mapping should a future adapter violate that boundary.
-            return CanEffectExecutionFailed(CanNetwork.KCAN, failed_at, message)
+            return CanEffectExecutionFailed(
+                CanNetwork.KCAN,
+                failed_at,
+                message,
+                origin_button_index,
+            )
         case _:
             assert_never(failure)
 
@@ -206,13 +215,24 @@ class LiveControllerRuntime:
             engine_telemetry_config=config.engine_telemetry,
             high_beam_strobe_config=config.high_beam_strobe,
             router=self._router,
+            device_sources={
+                DeviceRole.BUTTON_PAD: button_pad_source,
+                DeviceRole.SERVOTRONIC_CONTROLLER: (
+                    DeviceSource.PHYSICAL
+                    if any(
+                        item.network is CanNetwork.KCAN and item.enabled
+                        for item in config.can_networks
+                    )
+                    else DeviceSource.DISABLED
+                ),
+            },
+            servotronic_output_available=False,
         )
         self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
         self._started = False
-        self._button_last_seen_monotonic_s: float | None = None
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
         if self._started:
@@ -272,32 +292,39 @@ class LiveControllerRuntime:
         if not isinstance(work, CONTROLLER_INPUT_TYPES):
             raise TypeError(f"unsupported live controller work: {work!r}")
         execution = self._dispatch(work)
-        button_observed = (
-            isinstance(work, ReceivedCanFrame)
-            and self._button_pad_source is DeviceSource.PHYSICAL
-            and work.network is CanNetwork.KCAN
-            and work.frame.arbitration_id == self.config.custom_can_ids.button_event
-        )
-        if button_observed:
-            assert isinstance(work, ReceivedCanFrame)
-            self._button_last_seen_monotonic_s = work.received_at
         completed = execution or self._current_execution(None)
-        if button_observed:
-            completed = replace(
-                completed,
-                changed_topics=completed.changed_topics | {StateTopic.DEVICES},
-            )
         return completed
 
     def timer(self, now: float) -> RuntimeExecution | None:
         return self._dispatch(TimerElapsed(now))
 
     def next_deadline(self) -> float | None:
-        """Return the application-owned strobe phase deadline, if armed."""
-        return self._kernel.state.high_beam_next_transition_at
+        return self._kernel.next_deadline()
 
     def deadline(self, now: float) -> RuntimeExecution | None:
-        return self._dispatch(HighBeamStrobeDeadlineReached(now))
+        executions: list[RuntimeExecution] = []
+        if any(
+            deadline is not None and deadline <= now
+            for deadline in self._kernel.state.button_feedback_deadlines
+        ):
+            execution = self._dispatch(ButtonFeedbackDeadlineReached(now))
+            if execution is not None:
+                executions.append(execution)
+        if (
+            self._kernel.state.high_beam_next_transition_at is not None
+            and self._kernel.state.high_beam_next_transition_at <= now
+        ):
+            execution = self._dispatch(HighBeamStrobeDeadlineReached(now))
+            if execution is not None:
+                executions.append(execution)
+        if any(
+            entry.next_deadline is not None and entry.next_deadline <= now
+            for entry in self._kernel.registry
+        ):
+            execution = self._dispatch(TimerElapsed(now))
+            if execution is not None:
+                executions.append(execution)
+        return _merge_executions(executions)
 
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self._reader_stop.set()
@@ -340,7 +367,9 @@ class LiveControllerRuntime:
                             label="Button pad",
                             source_mode=self._button_pad_source,
                             connected=None,
-                            last_seen_monotonic_s=self._button_last_seen_monotonic_s,
+                            last_seen_monotonic_s=self._kernel.registry_for(
+                                DeviceRole.BUTTON_PAD
+                            ).last_contact_monotonic_s,
                             desired_led_colours=desired_led_colours,
                             observed_led_colours=None,
                             last_output_fault=self._button_output_fault(diagnostics),
@@ -370,13 +399,24 @@ class LiveControllerRuntime:
     def _dispatch(self, work: ControllerInput) -> RuntimeExecution | None:
         before_health = self._kernel.health
         commit = self._kernel.dispatch(work)
+        commits = [] if commit is None else [commit]
         failures = _execute(commit, self._executor, self._clock)
         for failure in failures:
-            self._kernel.dispatch(failure)
+            failure_commit = self._kernel.dispatch(failure)
+            if failure_commit is not None:
+                commits.append(failure_commit)
+                feedback_failures = _execute(failure_commit, self._executor, self._clock)
+                for feedback_failure in feedback_failures:
+                    self._kernel.dispatch(feedback_failure)
         health_changed = self._kernel.health != before_health
-        if commit is None and not health_changed:
+        if not commits and not health_changed:
             return None
-        execution = self._current_execution(commit)
+        execution = RuntimeExecution(
+            changed_topics=frozenset(
+                topic for item in commits for topic in item.changed_topics
+            ),
+            commit_count=len(commits),
+        )
         if health_changed:
             topics = execution.changed_topics | {StateTopic.HEALTH}
             if any(isinstance(failure, CanEffectExecutionFailed) for failure in failures):
@@ -411,3 +451,15 @@ class LiveControllerRuntime:
         ):
             return None
         return network.fault.message
+
+
+def _merge_executions(executions: list[RuntimeExecution]) -> RuntimeExecution | None:
+    if not executions:
+        return None
+    return RuntimeExecution(
+        events=tuple(event for execution in executions for event in execution.events),
+        changed_topics=frozenset(
+            topic for execution in executions for topic in execution.changed_topics
+        ),
+        commit_count=sum(execution.commit_count for execution in executions),
+    )

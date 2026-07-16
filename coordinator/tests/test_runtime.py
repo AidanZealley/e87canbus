@@ -13,7 +13,16 @@ from e87canbus.application.events import (
 )
 from e87canbus.application.state import SpeedSample, SteeringMode
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.protocol.can import CanFrame, RoutedCanFrame
+from e87canbus.device import DeviceRole
+from e87canbus.output import EffectRequest
+from e87canbus.protocol.can import (
+    CanFrame,
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    RoutedCanFrame,
+    encode_heartbeat,
+    encode_hello,
+)
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     INITIAL_KERNEL_TOPICS,
@@ -41,6 +50,36 @@ MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
 MAXIMUM_LEDS = ButtonLedState(
     (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE) + (LedColour.OFF,) * 12
 )
+
+
+def activate_devices(kernel: CoordinatorKernel) -> None:
+    ids = CustomCanIds()
+    for role, hello_id, heartbeat_id in (
+        (DeviceRole.BUTTON_PAD, ids.button_pad_hello, ids.button_pad_heartbeat),
+        (
+            DeviceRole.SERVOTRONIC_CONTROLLER,
+            ids.servotronic_controller_hello,
+            ids.servotronic_controller_heartbeat,
+        ),
+    ):
+        del role
+        kernel.dispatch(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_hello(DeviceHelloPayload(1, 1, 1, 0), hello_id),
+                1.0,
+            )
+        )
+        kernel.dispatch(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_heartbeat(
+                    DeviceHeartbeatPayload(1, 1, kernel.controller_session_id, 0, 0),
+                    heartbeat_id,
+                ),
+                1.1,
+            )
+        )
 
 
 def test_non_network_inbox_overflow_is_fatal() -> None:
@@ -91,22 +130,13 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     second_commits = tuple(second.dispatch(kernel_input) for kernel_input in inputs)
 
     assert first_commits == second_commits
-    assert [commit.revision for commit in first_commits if commit is not None] == [1, 2, 3]
+    assert [commit.revision for commit in first_commits if commit is not None] == [1, 2]
     assert first_commits[0] is not None
     assert first_commits[0].changed_topics == INITIAL_KERNEL_TOPICS
-    assert first_commits[0].effects == (
-        SetButtonLeds(AUTO_LEDS),
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
-    )
-    assert first_commits[1] is not None
-    assert first_commits[1].changed_topics == {
-        StateTopic.STEERING,
-        StateTopic.BUTTONS,
-    }
-    assert first_commits[1].snapshot.steering_mode is SteeringMode.MANUAL
-    assert first_commits[1].effects == (SetButtonLeds(MANUAL_LEDS),)
+    assert first_commits[0].effects == ()
+    assert first_commits[1] is None
     assert first_commits[2] is not None
-    assert first_commits[2].effects == (SetSteeringAssistance(0.0, SteeringCommandReason.MANUAL),)
+    assert first_commits[2].effects == ()
     assert first_commits[2].changed_topics == frozenset()
     assert first_commits[2].state_changed is False
 
@@ -114,6 +144,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
 def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> None:
     kernel = CoordinatorKernel()
     assert kernel.dispatch(KernelStarted(0.0)) is not None
+    activate_devices(kernel)
 
     maximum = kernel.dispatch(SetMaximumAssistance(True))
     repeated_maximum = kernel.dispatch(SetMaximumAssistance(True))
@@ -126,7 +157,7 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert maximum is not None
     assert maximum.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert maximum.effects == (SetButtonLeds(MAXIMUM_LEDS),)
+    assert maximum.effects == (EffectRequest(SetButtonLeds(MAXIMUM_LEDS)),)
     assert maximum.snapshot.maximum_assistance_active is True
 
     for repeated in (
@@ -143,14 +174,14 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert normal is not None
     assert normal.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert normal.effects == (SetButtonLeds(MANUAL_LEDS),)
+    assert normal.effects == (EffectRequest(SetButtonLeds(MANUAL_LEDS)),)
     assert normal.snapshot.steering_mode is SteeringMode.MANUAL
     assert normal.snapshot.manual_assistance_level == 4
     assert normal.snapshot.maximum_assistance_active is False
 
     assert auto is not None
     assert auto.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert auto.effects == (SetButtonLeds(AUTO_LEDS),)
+    assert auto.effects == (EffectRequest(SetButtonLeds(AUTO_LEDS)),)
     assert auto.snapshot.steering_mode is SteeringMode.AUTO
     assert auto.snapshot.manual_assistance_level == 4
 
@@ -184,6 +215,7 @@ def test_unknown_and_malformed_frames_create_no_commits(
 def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
 
     commit = kernel.dispatch(
         ReceivedCanFrame(
@@ -194,7 +226,11 @@ def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> No
     )
 
     assert commit is not None
-    led_effects = tuple(effect for effect in commit.effects if isinstance(effect, SetButtonLeds))
+    led_effects = tuple(
+        effect.effect
+        for effect in commit.effects
+        if isinstance(effect.effect, SetButtonLeds)
+    )
     assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
     assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
     assert len(led_effects[0].colours.colours) == 16
@@ -227,6 +263,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
 ) -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
 
     commit = kernel.dispatch(kernel_input)
 
@@ -240,7 +277,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     else:
         assert commit is not None
         assert commit.changed_topics == {StateTopic.HEALTH}
-        assert commit.effects == (SetSteeringAssistance(0.0, fallback_reason),)
+        assert commit.effects == (EffectRequest(SetSteeringAssistance(0.0, fallback_reason)),)
 
 
 def test_steering_actuator_failure_has_explicit_fatal_health() -> None:
@@ -311,7 +348,7 @@ def test_startup_and_shutdown_are_idempotent() -> None:
     assert kernel.dispatch(KernelStarted(2.0)) is None
     shutdown = kernel.dispatch(ShutdownRequested(3.0))
     assert shutdown is not None
-    assert shutdown.effects == (SetSteeringAssistance(0.0, SteeringCommandReason.SHUTDOWN),)
+    assert shutdown.effects == ()
     assert kernel.dispatch(ShutdownRequested(4.0)) is None
     assert kernel.dispatch(TimerElapsed(5.0)) is None
     assert kernel.diagnostics().lifecycle is KernelLifecycle.STOPPED

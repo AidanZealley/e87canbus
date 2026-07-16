@@ -20,7 +20,13 @@ from e87canbus.config import (
 )
 from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
-from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.can import (
+    CanFrame,
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    encode_heartbeat,
+    encode_hello,
+)
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
     LED_COLOUR_BLUE,
@@ -28,7 +34,7 @@ from e87canbus.protocol.generated import (
     LED_COLOUR_WHITE,
     LED_COUNT,
 )
-from e87canbus.runtime import SetMaximumAssistance
+from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance
 from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedSteeringController
 from e87canbus.simulation.protocol import (
@@ -58,7 +64,6 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
-OFF_LEDS = (LED_COLOUR_OFF,) * LED_COUNT
 AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
 MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
 MAXIMUM_LEDS = (
@@ -72,7 +77,56 @@ MAXIMUM_LEDS = (
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
     runtime = SimulatedControllerRuntime(config=TEST_SIMULATOR_CONFIG, **kwargs)
     runtime.start()
+    inject_registry_frames(runtime)
     return runtime
+
+
+def inject_registry_frames(runtime: SimulatedControllerRuntime) -> None:
+    ids = runtime.config.custom_can_ids
+    now = runtime._clock()
+    roles = (
+        (
+            DeviceRole.BUTTON_PAD,
+            ids.button_pad_hello,
+            ids.button_pad_heartbeat,
+        ),
+        (
+            DeviceRole.SERVOTRONIC_CONTROLLER,
+            ids.servotronic_controller_hello,
+            ids.servotronic_controller_heartbeat,
+        ),
+    )
+    for role, hello_id, heartbeat_id in roles:
+        if role is DeviceRole.BUTTON_PAD and runtime.button_pad_source is DeviceSource.DISABLED:
+            continue
+        runtime.execute(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_hello(DeviceHelloPayload(1, 1, 1, 0), hello_id),
+                now,
+            )
+        )
+        if runtime.kernel.health.fatal:
+            break
+        runtime.execute(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_heartbeat(
+                    DeviceHeartbeatPayload(
+                        1,
+                        1,
+                        runtime.kernel.controller_session_id,
+                        0,
+                        0,
+                    ),
+                    heartbeat_id,
+                ),
+                now,
+            )
+        )
+        if runtime.kernel.health.fatal:
+            break
+    runtime.topology.clear_trace()
 
 
 def application(runtime: SimulatedControllerRuntime):
@@ -236,7 +290,7 @@ def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
     current_diagnostics = diagnostics(engine)
     steering = adapter(engine).steering
     assert steering is not None
-    assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (2, True)
+    assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (6, True)
     assert steering.effective_assistance == 0.0
     assert steering.last_command_reason is None
     assert steering.watchdog_timed_out is True
@@ -319,9 +373,10 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
     assert current_adapter.led_colours == AUTO_LEDS
-    assert current_adapter.devices[0].observed_led_colours == AUTO_LEDS
+    assert current_adapter.devices[0].observed_led_colours == (LED_COLOUR_OFF,) * LED_COUNT
     assert controller.topology.trace() == ()
 
+    inject_registry_frames(controller)
     controller.execute(PressButton(0))
     assert controller.topology.trace()[0].sequence == 1
 
@@ -349,7 +404,7 @@ def test_fatal_actuator_failure_stops_session_and_reset_starts_healthy(
         failure_result = engine.execute(RunControlTimer(1.0))
 
     assert diagnostics(engine).health.fatal is True
-    assert diagnostics(engine).revision == engine.kernel.diagnostics().revision == 3
+    assert diagnostics(engine).revision == engine.kernel.diagnostics().revision == 7
     assert failure_result.events == ()
     assert engine.kernel.health.steering_actuator_fault is not None
     assert engine.kernel.health.steering_actuator_fault.message == ("actuator failed on attempt 2")
@@ -522,6 +577,7 @@ def test_high_beam_strobe_emits_all_pulses_to_virtual_vehicle_without_control_ti
     )
     controller = SimulatedControllerRuntime(config=config, clock=clock)
     controller.start()
+    inject_registry_frames(controller)
 
     controller.execute(TapButton(4))
     for _ in range(10):
@@ -547,12 +603,13 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     clock = MutableClock()
     config = replace(
         simulator_config(),
-        tx_policy=TxPolicyConfig(
-            max_frames_per_network_window=2,
-        ),
+        tx_policy=TxPolicyConfig(max_frames_per_network_window=1),
     )
     controller = SimulatedControllerRuntime(config=config, clock=clock)
     controller.start()
+    inject_registry_frames(controller)
+    clock.now = 1.0
+    controller.topology.clear_trace()
 
     controller.execute(PressButton(0))
     accepted_application = application(controller)
@@ -571,7 +628,7 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     assert dropped_adapter.devices[0].observed_led_colours == MANUAL_LEDS
     assert [entry.source for entry in dropped_trace].count("pi") == 1
 
-    clock.now = 1.0
+    clock.now = 2.0
     before_next_decision = adapter(controller)
     before_next_decision_trace = controller.topology.trace()
 
@@ -591,40 +648,6 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
         CanFrame(0x701, b"\x04\x00\x00\x00\x00\x00\x00\x00"),
         CanFrame(0x701, b"\x04\x50\x00\x00\x00\x00\x00\x00"),
     ]
-
-
-def test_startup_and_reset_session_synchronization_each_use_network_budget() -> None:
-    config = replace(
-        simulator_config(),
-        tx_policy=TxPolicyConfig(max_frames_per_network_window=1),
-    )
-    controller = SimulatedControllerRuntime(config=config, clock=MutableClock())
-    controller.start()
-
-    initial = adapter(controller)
-    controller.execute(PressButton(0))
-    after_initial_application = application(controller)
-    after_initial_adapter = adapter(controller)
-    after_initial_trace = controller.topology.trace()
-
-    assert initial.led_colours == AUTO_LEDS
-    assert after_initial_application.steering_mode is SteeringMode.MANUAL
-    assert after_initial_adapter.led_colours == MANUAL_LEDS
-    assert after_initial_adapter.devices[0].observed_led_colours == AUTO_LEDS
-    assert all(entry.source != "pi" for entry in after_initial_trace)
-
-    controller.execute(ResetSimulation())
-    reset = adapter(controller)
-    controller.execute(PressButton(0))
-    after_reset_application = application(controller)
-    after_reset_adapter = adapter(controller)
-    after_reset_trace = controller.topology.trace()
-
-    assert reset.led_colours == AUTO_LEDS
-    assert after_reset_application.steering_mode is SteeringMode.MANUAL
-    assert after_reset_adapter.led_colours == MANUAL_LEDS
-    assert after_reset_adapter.devices[0].observed_led_colours == AUTO_LEDS
-    assert all(entry.source != "pi" for entry in after_reset_trace)
 
 
 def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:

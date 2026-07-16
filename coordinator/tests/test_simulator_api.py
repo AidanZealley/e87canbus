@@ -16,6 +16,7 @@ from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.device import DeviceSource
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
+from registry_test_support import activate_simulation_devices
 
 
 def make_app(*, inbox_capacity: int = 64):
@@ -52,6 +53,7 @@ def make_app_for_config(
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     with TestClient(make_app()) as test_client:
+        activate_simulation_devices(test_client.app.state.controller_service)
         yield test_client
 
 
@@ -142,7 +144,9 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert payload["protocol_version"] == 1
     topic_revisions = payload["data"]["topic_revisions"]
     assert topic_revisions["health"] == payload["revision"]
-    assert {revision for topic, revision in topic_revisions.items() if topic != "health"} == {1}
+    assert {
+        revision for topic, revision in topic_revisions.items() if topic != "health"
+    } == {1, 8}
     health = payload["data"]["health"]
     assert health["ready"] is True
     assert health["inbox"]["capacity"] == 64
@@ -196,6 +200,7 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
     )
 
     with TestClient(app):
+        activate_simulation_devices(app.state.controller_service)
         snapshot = app.state.controller_service.snapshot()
 
     assert snapshot.diagnostics.health.fatal is True
@@ -254,7 +259,7 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert snapshot.adapter.simulation_session_id == 2
     assert snapshot.application.steering_mode.value == "auto"
     assert snapshot.adapter.devices[0].source_mode is DeviceSource.EMULATED
-    assert snapshot.adapter.devices[0].observed_led_colours == (3,) + (0,) * 15
+    assert snapshot.adapter.devices[0].observed_led_colours == (0,) * 16
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
@@ -267,6 +272,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
+        activate_simulation_devices(app.state.controller_service)
         response = client.post("/api/dev/simulation/reset")
         fatal = app.state.controller_service.snapshot().diagnostics.health.fatal
 
@@ -468,54 +474,56 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
 
     app = make_app_for_config(config, steering_controller_factory=build_controller)
 
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=3) as pool:
-        first = pool.submit(
-            client.post,
-            "/api/dev/simulation/reset",
-        )
-        controller = controllers[0]
-        assert controller.entered.wait(timeout=1.0)
-        second = pool.submit(
-            client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
-        )
-        deadline = time.monotonic() + 1.0
-        while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
-            pass
+    with TestClient(app) as client:
+        activate_simulation_devices(app.state.controller_service)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            first = pool.submit(
+                client.post,
+                "/api/dev/simulation/reset",
+            )
+            controller = controllers[0]
+            assert controller.entered.wait(timeout=1.0)
+            second = pool.submit(
+                client.post,
+                "/api/dev/simulation/devices/button-pad/buttons/0/tap",
+            )
+            deadline = time.monotonic() + 1.0
+            while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
+                pass
 
-        overloaded = pool.submit(
-            client.put,
-            "/api/dev/simulation/vehicle/speed",
-            json={"speed_kph": 42.5},
-        )
-        try:
-            overloaded_response = overloaded.result(timeout=1.0)
-        finally:
-            controller.release.set()
+            overloaded = pool.submit(
+                client.put,
+                "/api/dev/simulation/vehicle/speed",
+                json={"speed_kph": 42.5},
+            )
+            try:
+                overloaded_response = overloaded.result(timeout=1.0)
+            finally:
+                controller.release.set()
 
-        assert overloaded_response.status_code == 503
-        assert first.result().status_code == 200
-        assert second.result().status_code == 503
-        deadline = time.monotonic() + 1.0
-        while app.state.controller_service.ready and time.monotonic() < deadline:
-            pass
-        service = app.state.controller_service
-        assert service.stopped_event.wait(timeout=1.0)
-        snapshot = service.snapshot()
-        projected_health = health_state(snapshot)
-        assert service.ready is False
-        assert snapshot.service.inbox.overflow_latched is True
-        assert snapshot.diagnostics.health.fatal is True
-        assert snapshot.diagnostics.health.inbox_overflow_fault is not None
-        assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
-        assert projected_health.fatal is True
-        assert projected_health.inbox.overflow_latched is True
-        assert (
-            client.post(
-                "/api/dev/simulation/devices/button-pad/buttons/0/tap"
-            ).status_code
-            == 503
-        )
+            assert overloaded_response.status_code == 503
+            assert first.result().status_code == 200
+            assert second.result().status_code == 503
+            deadline = time.monotonic() + 1.0
+            while app.state.controller_service.ready and time.monotonic() < deadline:
+                pass
+            service = app.state.controller_service
+            assert service.stopped_event.wait(timeout=1.0)
+            snapshot = service.snapshot()
+            projected_health = health_state(snapshot)
+            assert service.ready is False
+            assert snapshot.service.inbox.overflow_latched is True
+            assert snapshot.diagnostics.health.fatal is True
+            assert snapshot.diagnostics.health.inbox_overflow_fault is not None
+            assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
+            assert projected_health.fatal is True
+            assert projected_health.inbox.overflow_latched is True
+            assert (
+                client.post(
+                    "/api/dev/simulation/devices/button-pad/buttons/0/tap"
+                ).status_code
+                == 503
+            )
 
 
 def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
@@ -544,6 +552,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
     )
 
     with TestClient(app) as client:
+        activate_simulation_devices(app.state.controller_service)
         deadline = time.monotonic() + 1.0
         while not app.state.controller_service.snapshot().diagnostics.health.fatal:
             assert time.monotonic() < deadline

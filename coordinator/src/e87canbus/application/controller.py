@@ -7,9 +7,12 @@ from enum import StrEnum
 from typing import assert_never
 
 from e87canbus.application.events import (
+    BUTTON_FEEDBACK_DURATION_S,
     BUTTON_LED_COUNT,
     ApplicationEffect,
     ApplicationEvent,
+    ButtonCommandFailed,
+    ButtonFeedbackDeadlineReached,
     ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
@@ -145,6 +148,20 @@ def transition(
                     ),
                 ),
             )
+        case ButtonCommandFailed(button_index, occurred_at):
+            deadlines: list[float | None] = list(state.button_feedback_deadlines)
+            deadlines[button_index] = occurred_at + BUTTON_FEEDBACK_DURATION_S
+            next_state = replace(state, button_feedback_deadlines=tuple(deadlines))
+            return Transition(next_state, (SetButtonLeds(button_led_state(next_state)),))
+        case ButtonFeedbackDeadlineReached(now):
+            next_deadlines: tuple[float | None, ...] = tuple(
+                None if deadline is not None and deadline <= now else deadline
+                for deadline in state.button_feedback_deadlines
+            )
+            if next_deadlines == state.button_feedback_deadlines:
+                return Transition(state)
+            next_state = replace(state, button_feedback_deadlines=next_deadlines)
+            return Transition(next_state, (SetButtonLeds(button_led_state(next_state)),))
         case ButtonPressed(button_index, observed_at):
             strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
             new_state = _button_transition(
@@ -371,6 +388,15 @@ def _toggle_maximum_assistance(
     return new_state
 
 
+def clear_maximum_assistance(state: ApplicationState) -> Transition:
+    """Remove only the temporary maximum override when its device is lost."""
+
+    if not isinstance(state.steering, MaximumAssistance):
+        return Transition(state)
+    next_state = replace(state, steering=state.steering.previous)
+    return Transition(next_state, _steering_state_effects(state, next_state))
+
+
 def _set_maximum_assistance(
     state: ApplicationState,
     enabled: bool,
@@ -448,14 +474,18 @@ def button_led_state(state: ApplicationState) -> ButtonLedState:
     maximum_colour = (
         LedColour.WHITE if isinstance(state.steering, MaximumAssistance) else LedColour.OFF
     )
+    normal = tuple(
+        mode_colour
+        if index == STEERING_MODE_BUTTON_INDEX
+        else maximum_colour
+        if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX
+        else LedColour.OFF
+        for index in range(BUTTON_LED_COUNT)
+    )
     return ButtonLedState(
         tuple(
-            mode_colour
-            if index == STEERING_MODE_BUTTON_INDEX
-            else maximum_colour
-            if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX
-            else LedColour.OFF
-            for index in range(BUTTON_LED_COUNT)
+            LedColour.RED if deadline is not None else normal[index]
+            for index, deadline in enumerate(state.button_feedback_deadlines)
         )
     )
 
@@ -505,6 +535,16 @@ def steering_command_for_active_curve(
         return None
     if not _speed_is_valid(state, config):
         return None
+    return _steering_command(state, config, active_definition)
+
+
+def steering_command_for_current_state(
+    state: ApplicationState,
+    config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
+) -> SetSteeringAssistance:
+    """Build the complete retained command for Servotronic activation sync."""
+
     return _steering_command(state, config, active_definition)
 
 

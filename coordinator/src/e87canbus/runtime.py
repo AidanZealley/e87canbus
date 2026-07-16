@@ -9,19 +9,27 @@ from typing import assert_never
 
 from e87canbus.application.controller import (
     ApplicationSnapshot,
+    Transition,
     button_led_state,
+    clear_maximum_assistance,
     initial_effects,
     normalize_state,
     snapshot,
     steering_command_for_active_curve,
+    steering_command_for_current_state,
     transition,
 )
 from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
+    ButtonCommandFailed,
+    ButtonFeedbackDeadlineReached,
+    ButtonPressed,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
+    SetButtonLeds,
+    SetSteeringAssistance,
     SteeringFallbackReason,
     SteeringFallbackRequested,
     SteeringModeSet,
@@ -33,7 +41,18 @@ from e87canbus.config import (
     HighBeamStrobeConfig,
     SteeringConfig,
 )
-from e87canbus.device import DeviceRole
+from e87canbus.device import DeviceLifecycleStatus, DeviceRole, DeviceSource
+from e87canbus.device_registry import (
+    DeviceRegistryEntry,
+    FeatureUnavailable,
+    RegistryHeartbeatObserved,
+    RegistryHelloObserved,
+    expire_entry,
+    initial_registry,
+    registry_entry,
+    transition_heartbeat,
+    transition_hello,
+)
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
@@ -43,10 +62,23 @@ from e87canbus.features.steering import (
     validate_active_steering_curve,
     validate_steering_curve_definition,
 )
-from e87canbus.protocol.can import CanFrame, RoutedCanFrame
+from e87canbus.output import EffectRequest, OutputEffect, SendRegistryFrame
+from e87canbus.protocol.can import (
+    CanFrame,
+    RoutedCanFrame,
+    encode_welcome_ack,
+)
 from e87canbus.protocol.router import ProtocolRouter
 
 LOGGER = logging.getLogger(__name__)
+
+_controller_session_seed = 0
+
+
+def _new_controller_session_id() -> int:
+    global _controller_session_seed
+    _controller_session_seed = (_controller_session_seed % 0xFFFF) + 1
+    return _controller_session_seed
 
 
 @dataclass(frozen=True)
@@ -80,12 +112,14 @@ class CanEffectExecutionFailed:
     network: CanNetwork
     failed_at: float
     message: str
+    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
 class SteeringActuatorFailed:
     failed_at: float
     message: str
+    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +176,7 @@ ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
     | TimerElapsed
+    | ButtonFeedbackDeadlineReached
     | HighBeamStrobeDeadlineReached
     | CanReaderFailed
     | CanEffectExecutionFailed
@@ -175,6 +210,7 @@ INITIAL_KERNEL_TOPICS = frozenset(
         StateTopic.BUTTONS,
         StateTopic.LIGHTING,
         StateTopic.HEALTH,
+        StateTopic.DEVICES,
     }
 )
 
@@ -225,7 +261,9 @@ class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
     steering_actuator_fault: RuntimeFault | None = None
     inbox_overflow_fault: RuntimeFault | None = None
-    devices: tuple[DeviceRuntimeHealth, ...] = (DeviceRuntimeHealth(DeviceRole.BUTTON_PAD),)
+    devices: tuple[DeviceRuntimeHealth, ...] = tuple(
+        DeviceRuntimeHealth(role) for role in DeviceRole
+    )
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
@@ -306,7 +344,7 @@ class Commit:
 
     revision: int
     snapshot: ApplicationSnapshot
-    effects: tuple[ApplicationEffect, ...]
+    effects: tuple[EffectRequest, ...]
     changed_topics: frozenset[StateTopic]
     state_changed: bool
 
@@ -329,6 +367,8 @@ class CoordinatorKernel:
         high_beam_strobe_config: HighBeamStrobeConfig | None = None,
         router: ProtocolRouter | None = None,
         active_steering_curve: ActiveSteeringCurve | None = None,
+        device_sources: dict[DeviceRole, DeviceSource] | None = None,
+        servotronic_output_available: bool = True,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
@@ -338,6 +378,9 @@ class CoordinatorKernel:
             self._steering_config,
         )
         self._router = router or ProtocolRouter()
+        self._controller_session_id = _new_controller_session_id()
+        self._registry = initial_registry(device_sources)
+        self._servotronic_output_available = servotronic_output_available
         self._active_steering_curve = active_steering_curve or initial_active_steering_curve()
         validate_active_steering_curve(self._active_steering_curve)
         self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
@@ -352,6 +395,30 @@ class CoordinatorKernel:
     @property
     def health(self) -> RuntimeHealth:
         return self._health
+
+    @property
+    def controller_session_id(self) -> int:
+        return self._controller_session_id
+
+    @property
+    def registry(self) -> tuple[DeviceRegistryEntry, ...]:
+        return self._registry
+
+    def registry_for(self, role: DeviceRole) -> DeviceRegistryEntry:
+        return registry_entry(self._registry, role)
+
+    def next_deadline(self) -> float | None:
+        deadlines = [
+            entry.next_deadline for entry in self._registry if entry.next_deadline is not None
+        ]
+        deadlines.extend(
+            deadline
+            for deadline in self._state.button_feedback_deadlines
+            if deadline is not None
+        )
+        if self._state.high_beam_next_transition_at is not None:
+            deadlines.append(self._state.high_beam_next_transition_at)
+        return min(deadlines) if deadlines else None
 
     def snapshot(self) -> ApplicationSnapshot:
         return snapshot(
@@ -388,7 +455,7 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.CREATED:
                     return None
                 self._lifecycle = KernelLifecycle.RUNNING
-                return self._commit_startup()
+                return self._commit_startup(kernel_input.now)
             case CanReaderFailed(network, failed_at, message):
                 previous_health = self._health
                 self._health = self._health.with_fault(
@@ -410,12 +477,25 @@ class CoordinatorKernel:
                     previous_health=previous_health,
                 )
             case DeviceAdapterFailed(role, failed_at, message):
+                previous_health = self._health
                 self._health = self._health.with_device_fault(
                     role,
                     RuntimeFault(RuntimeFaultKind.DEVICE_ADAPTER, failed_at, message),
                 )
-                return None
-            case CanEffectExecutionFailed(network, failed_at, message):
+                if role is not DeviceRole.SERVOTRONIC_CONTROLLER:
+                    return None
+                previous_snapshot = self.snapshot()
+                previous_button_leds = button_led_state(self._state)
+                cleared = clear_maximum_assistance(self._state)
+                self._state = cleared.state
+                return self._commit_application_result(
+                    Transition(self._state, cleared.effects),
+                    previous_snapshot,
+                    previous_button_leds,
+                    previous_health=previous_health,
+                )
+            case CanEffectExecutionFailed(network, failed_at, message, origin_button_index):
+                previous_health = self._health
                 self._health = self._health.with_fault(
                     network,
                     RuntimeFault(
@@ -424,8 +504,16 @@ class CoordinatorKernel:
                         message,
                     ),
                 )
-                return None
-            case SteeringActuatorFailed(failed_at, message):
+                return (
+                    self._transition(
+                        ButtonCommandFailed(origin_button_index, failed_at),
+                        previous_health=previous_health,
+                    )
+                    if origin_button_index is not None
+                    else None
+                )
+            case SteeringActuatorFailed(failed_at, message, origin_button_index):
+                previous_health = self._health
                 self._health = self._health.with_steering_actuator_fault(
                     RuntimeFault(
                         RuntimeFaultKind.STEERING_ACTUATOR,
@@ -433,7 +521,14 @@ class CoordinatorKernel:
                         message,
                     )
                 )
-                return None
+                return (
+                    self._transition(
+                        ButtonCommandFailed(origin_button_index, failed_at),
+                        previous_health=previous_health,
+                    )
+                    if origin_button_index is not None
+                    else None
+                )
             case ReceivedCanFrame():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -441,7 +536,11 @@ class CoordinatorKernel:
             case TimerElapsed(now):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                return self._transition(ControlTimerElapsed(now))
+                return self._timer(now)
+            case ButtonFeedbackDeadlineReached():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._transition(kernel_input)
             case HighBeamStrobeDeadlineReached():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -449,14 +548,17 @@ class CoordinatorKernel:
             case ActivateSteeringCurve():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
+                self._require_servotronic_available()
                 return self._activate_steering_curve(kernel_input)
             case SetMaximumAssistance(enabled):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
+                self._require_servotronic_available()
                 return self._transition(MaximumAssistanceSet(enabled))
             case SetSteeringMode(mode, manual_level):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
+                self._require_servotronic_available()
                 return self._transition(SteeringModeSet(mode, manual_level))
             case _:
                 assert_never(kernel_input)
@@ -479,16 +581,48 @@ class CoordinatorKernel:
             self._health = self._health.with_frame_outcome(received.network, "ignored")
             return None
         self._health = self._health.with_frame_outcome(received.network, "decoded")
-        return self._transition(event)
+        if isinstance(event, RegistryHelloObserved):
+            if event.payload.device_id != self.registry_for(event.role).device_id:
+                LOGGER.info(
+                    "ignored registry HELLO for unknown device identity: role=%s device_id=%d",
+                    event.role.value,
+                    event.payload.device_id,
+                )
+                return None
+            return self._registry_hello(event)
+        if isinstance(event, RegistryHeartbeatObserved):
+            if event.payload.device_id != self.registry_for(event.role).device_id:
+                LOGGER.info(
+                    "ignored registry HEARTBEAT for unknown device identity: role=%s device_id=%d",
+                    event.role.value,
+                    event.payload.device_id,
+                )
+                return None
+            return self._registry_heartbeat(event)
+        if not isinstance(event, ButtonPressed):
+            return self._transition(event)
+        button_entry = self.registry_for(DeviceRole.BUTTON_PAD)
+        if button_entry.status is not DeviceLifecycleStatus.ACTIVE:
+            return None
+        if event.button_index in {0, 1, 2, 3} and not self._servotronic_usable:
+            return self._transition(ButtonCommandFailed(event.button_index, event.observed_at))
+        return self._transition(event, origin_button_index=event.button_index)
 
     def _transition(
         self,
         event: ApplicationEvent,
         *,
         previous_health: RuntimeHealth | None = None,
+        previous_snapshot: ApplicationSnapshot | None = None,
+        previous_button_leds: object | None = None,
+        extra_effects: tuple[OutputEffect, ...] = (),
+        extra_topics: frozenset[StateTopic] = frozenset(),
+        origin_button_index: int | None = None,
     ) -> Commit:
-        previous_snapshot = self.snapshot()
-        previous_button_leds = button_led_state(self._state)
+        prior_snapshot = self.snapshot() if previous_snapshot is None else previous_snapshot
+        prior_button_leds = (
+            button_led_state(self._state) if previous_button_leds is None else previous_button_leds
+        )
         result = transition(
             self._state,
             event,
@@ -496,6 +630,28 @@ class CoordinatorKernel:
             self._active_steering_curve.definition,
             self._high_beam_strobe_config,
         )
+        return self._commit_application_result(
+            result,
+            prior_snapshot,
+            prior_button_leds,
+            previous_health=previous_health,
+            extra_effects=extra_effects,
+            extra_topics=extra_topics,
+            origin_button_index=origin_button_index,
+        )
+
+    def _commit_application_result(
+        self,
+        result: object,
+        previous_snapshot: ApplicationSnapshot,
+        previous_button_leds: object,
+        *,
+        previous_health: RuntimeHealth | None = None,
+        extra_effects: tuple[OutputEffect, ...] = (),
+        extra_topics: frozenset[StateTopic] = frozenset(),
+        origin_button_index: int | None = None,
+    ) -> Commit:
+        assert isinstance(result, Transition)
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
@@ -505,23 +661,40 @@ class CoordinatorKernel:
             buttons_changed=button_led_state(self._state) != previous_button_leds,
             health_changed=(previous_health is not None and self._health != previous_health),
         )
+        changed_topics |= extra_topics
+        effect_requests = tuple(
+            EffectRequest(effect, origin_button_index if origin_button_index is not None else None)
+            for effect in (*extra_effects, *result.effects)
+        )
         return Commit(
             revision=self._revision,
             snapshot=committed_snapshot,
-            effects=result.effects,
-            changed_topics=changed_topics,
-            state_changed=committed_snapshot != previous_snapshot,
+            effects=self._gate_effects(effect_requests),
+            changed_topics=frozenset(changed_topics),
+            state_changed=(
+                committed_snapshot != previous_snapshot
+                or button_led_state(self._state) != previous_button_leds
+            ),
         )
 
-    def _commit_startup(self) -> Commit:
+    def _commit_startup(self, now: float) -> Commit:
+        self._registry = tuple(
+            replace(entry, last_transition_monotonic_s=now)
+            for entry in self._registry
+        )
         self._revision = 1
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=initial_effects(
-                self._state,
-                self._steering_config,
-                self._active_steering_curve.definition,
+            effects=self._gate_effects(
+                tuple(
+                    EffectRequest(effect)
+                    for effect in initial_effects(
+                        self._state,
+                        self._steering_config,
+                        self._active_steering_curve.definition,
+                    )
+                )
             ),
             changed_topics=INITIAL_KERNEL_TOPICS,
             state_changed=True,
@@ -560,7 +733,7 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=committed_snapshot,
-            effects=effects,
+            effects=self._gate_effects(tuple(EffectRequest(effect) for effect in effects)),
             changed_topics=_changed_controller_topics(
                 previous_snapshot,
                 committed_snapshot,
@@ -568,6 +741,175 @@ class CoordinatorKernel:
                 health_changed=False,
             ),
             state_changed=committed_snapshot != previous_snapshot,
+        )
+
+    def _timer(self, now: float) -> Commit:
+        previous_snapshot = self.snapshot()
+        previous_button_leds = button_led_state(self._state)
+        previous_registry = self._registry
+        extra_effects: list[OutputEffect] = []
+        self._registry = tuple(expire_entry(entry, now) for entry in self._registry)
+        previous_servotronic = registry_entry(previous_registry, DeviceRole.SERVOTRONIC_CONTROLLER)
+        current_servotronic = self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER)
+        if (
+            previous_servotronic.status is DeviceLifecycleStatus.ACTIVE
+            and current_servotronic.status is not DeviceLifecycleStatus.ACTIVE
+        ):
+            cleared = clear_maximum_assistance(self._state)
+            self._state = cleared.state
+            extra_effects.extend(cleared.effects)
+        registry_changed = self._registry != previous_registry
+        return self._transition(
+            ControlTimerElapsed(now),
+            previous_snapshot=previous_snapshot,
+            previous_button_leds=previous_button_leds,
+            extra_effects=tuple(extra_effects),
+            extra_topics=(frozenset({StateTopic.DEVICES}) if registry_changed else frozenset()),
+        )
+
+    def _registry_hello(self, observation: RegistryHelloObserved) -> Commit | None:
+        return self._apply_registry_transition(
+            observation.role,
+            transition_hello(
+                self.registry_for(observation.role),
+                observation,
+                self._controller_session_id,
+            ),
+        )
+
+    def _registry_heartbeat(self, observation: RegistryHeartbeatObserved) -> Commit | None:
+        return self._apply_registry_transition(
+            observation.role,
+            transition_heartbeat(
+                self.registry_for(observation.role),
+                observation,
+                self._controller_session_id,
+            ),
+        )
+
+    def _apply_registry_transition(
+        self,
+        role: DeviceRole,
+        result: object,
+    ) -> Commit | None:
+        from e87canbus.device_registry import RegistryTransition
+
+        assert isinstance(result, RegistryTransition)
+        previous_entry = self.registry_for(role)
+        next_entry = result.entry
+        if next_entry == previous_entry and result.acknowledgement is None:
+            return None
+        previous_snapshot = self.snapshot()
+        previous_button_leds = button_led_state(self._state)
+        previous_registry = self._registry
+        self._registry = tuple(
+            next_entry if entry.role is role else entry for entry in self._registry
+        )
+        effects: list[OutputEffect] = []
+        if result.acknowledgement is not None:
+            ids = self._router.ids
+            acknowledgement_id = (
+                ids.button_pad_welcome_ack
+                if role is DeviceRole.BUTTON_PAD
+                else ids.servotronic_controller_welcome_ack
+            )
+            effects.append(
+                SendRegistryFrame(
+                    RoutedCanFrame(
+                        CanNetwork.KCAN,
+                        encode_welcome_ack(result.acknowledgement, acknowledgement_id),
+                    )
+                )
+            )
+        if (
+            previous_entry.status is DeviceLifecycleStatus.ACTIVE
+            and next_entry.status is not DeviceLifecycleStatus.ACTIVE
+            and role is DeviceRole.SERVOTRONIC_CONTROLLER
+        ):
+            cleared = clear_maximum_assistance(self._state)
+            self._state = cleared.state
+            effects.extend(cleared.effects)
+        if (
+            previous_entry.status is not DeviceLifecycleStatus.ACTIVE
+            and next_entry.status is DeviceLifecycleStatus.ACTIVE
+        ):
+            if role is DeviceRole.BUTTON_PAD:
+                effects.append(SetButtonLeds(button_led_state(self._state)))
+            elif self._servotronic_usable:
+                effects.append(
+                    steering_command_for_current_state(
+                        self._state,
+                        self._steering_config,
+                        self._active_steering_curve.definition,
+                    )
+                )
+        changed_topics = _changed_controller_topics(
+            previous_snapshot,
+            self.snapshot(),
+            buttons_changed=button_led_state(self._state) != previous_button_leds,
+            health_changed=False,
+        )
+        if self._registry != previous_registry:
+            changed_topics |= {StateTopic.DEVICES}
+        self._revision += 1
+        return Commit(
+            revision=self._revision,
+            snapshot=self.snapshot(),
+            effects=self._gate_effects(tuple(EffectRequest(effect) for effect in effects)),
+            changed_topics=frozenset(changed_topics),
+            state_changed=(
+                self.snapshot() != previous_snapshot or self._registry != previous_registry
+            ),
+        )
+
+    @property
+    def _servotronic_usable(self) -> bool:
+        return (
+            self._servotronic_output_available
+            and self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER).status
+            is DeviceLifecycleStatus.ACTIVE
+            and self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is None
+        )
+
+    def health_for_device(self, role: DeviceRole) -> DeviceRuntimeHealth:
+        return next(item for item in self._health.devices if item.role is role)
+
+    def _require_servotronic_available(self) -> None:
+        entry = self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER)
+        if not self._servotronic_output_available:
+            raise FeatureUnavailable(
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                entry.status,
+                "servotronic_controller output adapter is unavailable",
+            )
+        if self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is not None:
+            raise FeatureUnavailable(
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                entry.status,
+                "servotronic_controller output adapter is faulted",
+            )
+        if entry.status is not DeviceLifecycleStatus.ACTIVE:
+            raise FeatureUnavailable(
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                entry.status,
+                f"servotronic_controller is {entry.status.value}",
+            )
+
+    def _gate_effects(self, effects: tuple[EffectRequest, ...]) -> tuple[EffectRequest, ...]:
+        button_active = (
+            self.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.ACTIVE
+        )
+        return tuple(
+            request
+            for request in effects
+            if (
+                not isinstance(request.effect, SetButtonLeds)
+                or button_active
+            )
+            and (
+                not isinstance(request.effect, SetSteeringAssistance)
+                or self._servotronic_usable
+            )
         )
 
 

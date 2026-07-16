@@ -242,7 +242,7 @@ def test_physical_button_pad_observation_is_unknown_without_acknowledgement() ->
 
     assert button_pad.source_mode is DeviceSource.PHYSICAL
     assert button_pad.connected is None
-    assert button_pad.last_seen_monotonic_s == 2.0
+    assert button_pad.last_seen_monotonic_s is None
     assert button_pad.observed_led_colours is None
     assert button_pad.last_output_fault is None
 
@@ -269,7 +269,7 @@ def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 
 
-def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames() -> None:
+def test_explicit_kcan_tx_composition_waits_for_registry_contact() -> None:
     FakeSocketCanBus.instances = []
     config = simulator_config()
     service = build_live_controller_service(
@@ -282,7 +282,7 @@ def test_explicit_kcan_tx_composition_emits_rate_limited_startup_frames() -> Non
     service.stop()
 
     kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
-    assert kcan.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
+    assert kcan.sent == []
 
 
 def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(

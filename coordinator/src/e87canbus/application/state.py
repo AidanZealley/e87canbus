@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -67,3 +68,11 @@ class ApplicationState:
     high_beam_enabled: bool = False
     high_beam_strobe_cycles_remaining: int = 0
     high_beam_next_transition_at: float | None = None
+    button_feedback_deadlines: tuple[float | None, ...] = (None,) * 16
+
+    def __post_init__(self) -> None:
+        if len(self.button_feedback_deadlines) != 16:
+            raise ValueError("button feedback deadlines must contain exactly 16 entries")
+        for deadline in self.button_feedback_deadlines:
+            if deadline is not None and not math.isfinite(deadline):
+                raise ValueError("button feedback deadlines must be finite")

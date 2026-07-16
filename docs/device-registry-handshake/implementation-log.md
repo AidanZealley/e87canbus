@@ -16,7 +16,7 @@ to them.
 | Phase | Status | Completed by | Date | Verification |
 |---|---|---|---|---|
 | 1 | Completed | Codex lead after James/Gibbs workers | 2026-07-16 | Generated check; focused protocol/config/architecture tests (79 passed); full coordinator suite (516 passed) |
-| 2 | Not started | — | — | — |
+| 2 | Completed | Codex | 2026-07-16 | Focused Phase 2 suites (225 passed); full coordinator suite (524 passed); generated check, Ruff, mypy, compileall, and diff check passed |
 | 3 | Not started | — | — | — |
 | 4 | Not started | — | — | — |
 | 5 | Not started | — | — | — |
@@ -148,3 +148,128 @@ changes. Write "None" when there were none.>
 
 - <Specific work for later phases or physical validation.>
 ```
+
+### Phase 2 — Kernel registry and gating — 2026-07-16
+
+- **Agent:** Codex
+- **Final status:** Completed
+
+#### Summary
+
+Implemented the Phase 2 controller-owned registry and symmetric CAN handshake. The kernel now
+owns both configured device entries, validates role identity, protocol version, device/controller
+sessions, and modulo-256 sequence ordering, emits role-specific `WELCOME_ACK` frames through the
+normal typed effect and live TX-grant path, renews leases through the existing timer path, and
+publishes device-topic changes only for public registry transitions. Simulation retains only the
+Phase 2 kernel/executor compatibility path: tests and adapters may inject real encoded CAN frames
+at the `ReceivedCanFrame` boundary, but the simulation runtime does not create or schedule virtual
+registry peers and does not force lifecycle state.
+
+Servotronic-dependent commands, decoded button actions, steering effects, and button LED effects
+are gated at the kernel/server boundaries. Activation synchronizes the retained normal output once
+after recovery, maximum assistance is cleared on optional-device loss, optional device and adapter
+faults remain nonfatal, and origin-aware 500 ms red feedback is bounded by independent deadlines
+without recursive feedback failures. Live composition retains explicit no-TX behavior by default;
+simulation uses the same registry and TX policy paths.
+
+#### Important files changed
+
+- `coordinator/src/e87canbus/device_registry.py` — pure registry records, lifecycle transitions,
+  lease expiry, session/sequence validation, and `feature_unavailable` domain exception.
+- `coordinator/src/e87canbus/runtime.py` — sole registry owner, routing, ACK effects, timer and
+  readiness gates, activation synchronization, maximum clearing, and origin propagation.
+- `coordinator/src/e87canbus/protocol/router.py` and `coordinator/src/e87canbus/protocol/can.py`
+  — typed registry observations and strict button-frame bounds using generated protocol values.
+- `coordinator/src/e87canbus/output.py` — typed `EffectRequest`/`SendRegistryFrame` boundary,
+  normal TX policy execution, and origin-preserving failures.
+- `coordinator/src/e87canbus/application/events.py`, `application/state.py`, and
+  `application/controller.py` — feedback events/deadlines, canonical LED overlays, and retained
+  state clearing.
+- `coordinator/src/e87canbus/live.py` and `coordinator/src/e87canbus/api/internal/commands.py`
+  — live composition/gates and HTTP 409 mapping for unavailable operational work.
+- `coordinator/src/e87canbus/simulation/devices.py`, `simulation/protocol.py`, and
+  `simulation/runtime.py` — retained NeoTrellis/vehicle/actuator adapters, normal effect
+  execution, and shared kernel gating; no virtual registry peer state machine was added.
+- `coordinator/tests/registry_test_support.py` — one shared encoded-frame injector used only by
+  device-dependent API, publication, and simulator tests.
+- `coordinator/tests/test_device_registry.py` plus updated runtime, activation, command, profile,
+  live, API, and simulation tests — lifecycle, gating, timing, encoded-frame injection, drop-policy,
+  and regression coverage.
+
+#### Public contract or schema changes
+
+- Added kernel-visible `RegistryHelloObserved`, `RegistryHeartbeatObserved`,
+  `DeviceRegistryEntry`, `SendRegistryFrame`, and `EffectRequest` values. Transport-bound effect
+  values live in `output.py` so the inward-only application layer does not import protocol types.
+- Added `ButtonCommandFailed` and `ButtonFeedbackDeadlineReached`, plus sixteen validated,
+  non-public application feedback deadlines.
+- Added `feature_unavailable` as the server-side 409 error code with dependency/status messages;
+  profile repository CRUD remains independent of device availability.
+- No generated protocol or schema artifacts changed; Phase 2 consumes the Phase 1 generator-owned
+  codecs and IDs.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `uv run pytest coordinator/tests/test_can_protocol.py coordinator/tests/test_runtime.py coordinator/tests/test_application_controller.py coordinator/tests/test_command_gateway.py coordinator/tests/test_output.py coordinator/tests/test_live.py coordinator/tests/test_reliability.py` | Passed; 99 tests, 1 existing Starlette deprecation warning. |
+| `uv run pytest coordinator/tests/test_profile_api.py coordinator/tests/test_command_api.py coordinator/tests/test_live_publication.py coordinator/tests/test_simulator_api.py -q` | Passed; 73 tests, 1 existing Starlette deprecation warning. |
+| `uv run pytest coordinator/tests/test_can_protocol.py coordinator/tests/test_runtime.py coordinator/tests/test_application_controller.py coordinator/tests/test_command_gateway.py coordinator/tests/test_output.py coordinator/tests/test_live.py coordinator/tests/test_reliability.py coordinator/tests/test_device_registry.py coordinator/tests/test_runtime_activation.py coordinator/tests/test_simulation_runtime.py coordinator/tests/test_live_publication.py coordinator/tests/test_simulator_api.py coordinator/tests/test_command_api.py coordinator/tests/test_profile_api.py -q` | Passed; 225 tests, 1 existing Starlette deprecation warning. |
+| `uv run pytest coordinator/tests` | Passed; 524 tests, 1 existing Starlette deprecation warning. |
+| `uv run python scripts/generate_custom_protocol.py --check` | Passed; generated protocol artifacts are current. |
+| `uv run ruff check .` | Passed. |
+| `uv run mypy coordinator/src/e87canbus` | Passed; no issues in 62 source files. |
+| `uv run python -m compileall -q coordinator/src/e87canbus` | Passed. |
+| `git diff --check` | Passed. |
+| `git diff --stat` plus untracked-file audit | Passed; complete diff inspected after removing virtual-peer simulation work; no generated artifacts changed. |
+
+#### Decisions and assumptions
+
+- Public registry equality excludes private lease, sequence, registration, and controller-session
+  fields. Duplicate valid heartbeats still receive ACKs but do not create a `devices` topic
+  publication.
+- A compatible HELLO enters `pending`; a matching healthy HEARTBEAT enters `active`; nonzero
+  heartbeat status enters `fault`; ordinary lease expiry enters `stale`; unsupported protocol
+  versions enter `incompatible` with the 15-second observation deadline; disabled sources remain
+  disabled and ignore ingress.
+- Button frames before active registration are ignored. Operational button actions and steering
+  output are rejected or suppressed at the kernel regardless of frontend state, and suppressed
+  effects are not replayed. Activation alone performs the complete retained-state synchronization.
+- Profile repository CRUD remains independent of registry availability; only tests that exercise
+  device-dependent activation or operational commands inject the minimal encoded frames needed.
+- Live publication tests drain the complete initial topic publication set before injecting device
+  frames or clearing emissions, keeping changed-topic and lighting assertions deterministic.
+- Phase 2 simulation tests inject encoded HELLO and HEARTBEAT frames through the runtime's normal
+  `ReceivedCanFrame` input boundary. They do not directly mutate registry entries or model peer
+  heartbeat/ACK scheduling. Atomic LED snapshot/drop semantics are tested against the normal
+  executor and observed NeoTrellis state without an unrelated heartbeat replay.
+- The single-owner kernel remains authoritative; live and simulator adapter projections consume
+  it and do not force registry lifecycle state.
+
+#### Deviations from the phase document
+
+- The transport-specific `SendRegistryFrame` and `EffectRequest` definitions are in
+  `output.py`, rather than importing `RoutedCanFrame` into `application/events.py`. This is an
+  intentional ownership boundary required by the existing architecture test: application code
+  remains inward-only while the typed effect contract and normal TX executor remain intact.
+
+#### Known limitations
+
+- The temporary `DeviceProjection` and current live device projection remain until Phase 3's
+  public registry-contract migration. No Phase 3 UI/API contract work was started.
+- Virtual registry-peer state machines, heartbeat cadence/retry scheduling, simulator lifecycle
+  controls, and peer-specific simulation coverage are intentionally not part of Phase 2. Phase 4
+  owns that behavior; the current simulation tests cover only frame injection at the kernel
+  boundary and the Phase 2 executor/gating contracts.
+- Live K-CAN TX remains disabled unless explicitly granted. Physical readiness, collision
+  validation, bench evidence, firmware handshake behavior, and in-car warnings remain deferred
+  evidence/product work outside Phase 2.
+
+#### Follow-up work
+
+- Phase 3 may migrate the public live registry projection and remove the retained temporary
+  `DeviceProjection` without moving registry ownership out of the kernel.
+- Phase 4 must add the virtual peer state machines, scheduling, and simulator controls if required
+  by its design; it should build on the Phase 2 kernel boundary rather than introducing a second
+  registry owner. Later phases handle the separately documented UI, firmware, bench, and in-car
+  readiness work.
