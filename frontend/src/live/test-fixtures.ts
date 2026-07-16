@@ -23,6 +23,7 @@ const steering = {
     saved_profile_id: null,
     saved_profile_revision: null,
   },
+  servotronic: null,
 }
 
 export const snapshot = (
@@ -60,7 +61,33 @@ export const snapshot = (
       high_beam_strobe_cycles_remaining: 0,
       observed_high_beam_enabled: false,
     },
-    devices: { devices: [], networks: [], steering_controller: null },
+    devices: {
+      registry: {
+        button_pad: {
+          role: "button_pad",
+          label: "Button pad",
+          device_id: 1,
+          source_mode: "emulated",
+          status: "not_found",
+          protocol_version: null,
+          device_session_id: null,
+          last_status_code: null,
+          last_transition_monotonic_s: null,
+        },
+        servotronic_controller: {
+          role: "servotronic_controller",
+          label: "Servotronic controller",
+          device_id: 1,
+          source_mode: "emulated",
+          status: "not_found",
+          protocol_version: null,
+          device_session_id: null,
+          last_status_code: null,
+          last_transition_monotonic_s: null,
+        },
+      },
+      networks: [],
+    },
     health: {
       ready: true,
       fatal: false,
@@ -72,7 +99,10 @@ export const snapshot = (
         latency_warning: false,
         overflow_latched: false,
       },
-      devices: [],
+      devices: [
+        { role: "button_pad", fault: null },
+        { role: "servotronic_controller", fault: null },
+      ],
       steering: {
         fault: null,
       },

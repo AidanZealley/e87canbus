@@ -10,10 +10,10 @@ from threading import Event
 import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.application.events import LedColour, SetSteeringAssistance, SteeringCommandReason
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
-from e87canbus.device import DeviceSource
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.simulation.devices import SimulatedSteeringController
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
@@ -204,10 +204,10 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
         snapshot = app.state.controller_service.snapshot()
 
     assert snapshot.diagnostics.health.fatal is True
-    assert snapshot.adapter.steering is not None
-    assert snapshot.adapter.steering.effective_assistance == 0.0
-    assert snapshot.adapter.steering.last_command_reason is None
-    assert snapshot.adapter.steering.watchdog_timed_out is True
+    assert snapshot.adapter.servotronic is not None
+    assert snapshot.adapter.servotronic.effective_assistance == 0.0
+    assert snapshot.adapter.servotronic.last_command_reason is None
+    assert snapshot.adapter.servotronic.watchdog_timed_out is True
 
 
 @pytest.mark.parametrize(
@@ -245,7 +245,12 @@ def test_disabled_composition_rejects_emulator_controls() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "controller_failed"
     assert snapshot.application.steering_mode.value == "auto"
-    assert snapshot.adapter.devices == ()
+    button_pad = next(
+        entry
+        for entry in snapshot.adapter.registry
+        if entry.role is DeviceRole.BUTTON_PAD
+    )
+    assert button_pad.status.value == "disabled"
 
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
@@ -258,8 +263,13 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert response.json() == {"accepted": True, "boot_id": snapshot.boot_id}
     assert snapshot.adapter.simulation_session_id == 2
     assert snapshot.application.steering_mode.value == "auto"
-    assert snapshot.adapter.devices[0].source_mode is DeviceSource.EMULATED
-    assert snapshot.adapter.devices[0].observed_led_colours == (0,) * 16
+    button_pad = next(
+        entry
+        for entry in snapshot.adapter.registry
+        if entry.role is DeviceRole.BUTTON_PAD
+    )
+    assert button_pad.source_mode is DeviceSource.EMULATED
+    assert snapshot.application.button_led_colours == (LedColour.BLUE,) + (LedColour.OFF,) * 15
 
 
 def test_reset_after_shutdown_failure_returns_new_healthy_api_session(

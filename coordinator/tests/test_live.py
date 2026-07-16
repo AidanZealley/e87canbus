@@ -236,15 +236,14 @@ def test_physical_button_pad_observation_is_unknown_without_acknowledgement() ->
     service.start()
     try:
         service.submit(ReceivedCanFrame(CanNetwork.KCAN, frame, 2.0)).result(timeout=0.2)
-        button_pad = service.snapshot().adapter.devices[0]
+        button_pad = service.snapshot().adapter.registry[0]
     finally:
         service.stop()
 
     assert button_pad.source_mode is DeviceSource.PHYSICAL
-    assert button_pad.connected is None
-    assert button_pad.last_seen_monotonic_s is None
-    assert button_pad.observed_led_colours is None
-    assert button_pad.last_output_fault is None
+    assert button_pad.status.value == "not_found"
+    assert button_pad.device_session_id is None
+    assert button_pad.last_status_code is None
 
 
 def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
@@ -265,7 +264,12 @@ def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
         service.stop()
 
     assert snapshot.application.steering_mode.value == "auto"
-    assert snapshot.adapter.devices == ()
+    button_pad = next(
+        entry
+        for entry in snapshot.adapter.registry
+        if entry.role.value == "button_pad"
+    )
+    assert button_pad.status.value == "disabled"
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 
 

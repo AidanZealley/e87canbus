@@ -32,24 +32,16 @@ afterEach(() => {
 it("clears retained LED observations and disables controls when unsynchronized", () => {
   const value = snapshot("dev-boot", 4)
   value.data.buttons.led_colours[0] = 3
-  value.data.devices = {
-    devices: [],
-    networks: [
-      {
-        id: "kcan",
-        label: "K-CAN",
-        interface: "can0",
-        bitrate: 100_000,
-        connected: true,
-        nodes: ["Pi", "NeoTrellis"],
-      },
-    ],
-    steering_controller: {
-      effective_assistance: 0.62,
-      last_command_reason: "auto",
-      watchdog_timed_out: false,
+  value.data.devices.networks = [
+    {
+      id: "kcan",
+      label: "K-CAN",
+      interface: "can0",
+      bitrate: 100_000,
+      connected: true,
+      nodes: ["Pi", "NeoTrellis"],
     },
-  }
+  ]
   useLiveStore.getState().applySnapshot(value)
   renderWithQueryClient(<SimulatorNeoTrellis />)
 
@@ -64,18 +56,14 @@ it("clears retained LED observations and disables controls when unsynchronized",
 
 it("sends emulator taps when the emulated source is selected", async () => {
   const value = snapshot("dev-boot", 5)
-  value.data.devices.devices = [
-    {
-      id: "button_pad",
-      label: "Button pad",
-      source_mode: "emulated",
-      connected: true,
-      last_seen_monotonic_s: 2,
-      desired_led_colours: Array(16).fill(0),
-      observed_led_colours: [2, ...Array(15).fill(0)],
-      last_output_fault: null,
-    },
-  ]
+  value.data.buttons.led_colours = [2, ...Array(15).fill(0)]
+  value.data.devices.registry.button_pad = {
+    ...value.data.devices.registry.button_pad,
+    source_mode: "emulated",
+    status: "active",
+    protocol_version: 1,
+    device_session_id: 2,
+  }
   useLiveStore.getState().applySnapshot(value)
   renderWithQueryClient(<SimulatorNeoTrellis />)
 
@@ -85,20 +73,15 @@ it("sends emulator taps when the emulated source is selected", async () => {
   await waitFor(() => expect(tapButton).toHaveBeenCalledWith(0))
 })
 
-it("disables wire controls when the observer source is selected", async () => {
-  const value = snapshot("observer-boot", 6)
-  value.data.devices.devices = [
-    {
-      id: "button_pad",
-      label: "Button pad",
-      source_mode: "observer",
-      connected: null,
-      last_seen_monotonic_s: null,
-      desired_led_colours: [4, ...Array(15).fill(0)],
-      observed_led_colours: null,
-      last_output_fault: null,
-    },
-  ]
+it("disables wire controls for a physical button-pad source", async () => {
+  const value = snapshot("physical-boot", 6)
+  value.data.devices.registry.button_pad = {
+    ...value.data.devices.registry.button_pad,
+    source_mode: "physical",
+    status: "active",
+    protocol_version: 1,
+    device_session_id: 3,
+  }
   useLiveStore.getState().applySnapshot(value)
   renderWithQueryClient(<SimulatorNeoTrellis />)
 

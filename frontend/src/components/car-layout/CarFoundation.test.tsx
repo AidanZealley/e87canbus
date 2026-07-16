@@ -83,37 +83,35 @@ it("renders severity and RPM stage as text in addition to color", () => {
   expect(criticalBadge.querySelector("svg[data-icon=inline-start]")).toBeTruthy()
 })
 
-it("fails an absent custom device closed", () => {
-  const { container } = render(
-    <DeviceStatusFooter devices={[]} />
-  )
+it("does not render disabled or not-found registry entries", () => {
+  render(<DeviceStatusFooter entries={[]} />)
 
   const footer = screen.getByRole("contentinfo", { name: "Device status" })
-  expect(within(footer).getByText("Button pad")).toBeTruthy()
-  expect(within(footer).getByText("Unavailable")).toBeTruthy()
-  expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
+  expect(within(footer).queryByText("Button pad")).toBeNull()
+  expect(within(footer).queryByText("Unavailable")).toBeNull()
 })
 
 it("does not present physical desired state as an observation", () => {
   const { container } = render(
     <DeviceStatusFooter
-      devices={[
+      entries={[
         {
-          id: "button_pad",
+          role: "button_pad",
           label: "Button pad",
+          device_id: 1,
           source_mode: "physical",
-          connected: null,
-          last_seen_monotonic_s: null,
-          desired_led_colours: Array(16).fill(0),
-          observed_led_colours: null,
-          last_output_fault: null,
+          status: "stale",
+          protocol_version: 1,
+          device_session_id: 1,
+          last_status_code: null,
+          last_transition_monotonic_s: null,
         },
       ]}
     />
   )
 
   expect(screen.getByText("physical")).toBeTruthy()
-  expect(screen.getByText(/connection unknown/)).toBeTruthy()
-  expect(container.querySelector(".bg-muted-foreground")).toBeTruthy()
+  expect(screen.getByText(/contact lost/)).toBeTruthy()
+  expect(container.querySelector(".bg-amber-500")).toBeTruthy()
   expect(container.querySelector(".bg-emerald-500")).toBeNull()
 })

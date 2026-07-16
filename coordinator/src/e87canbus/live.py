@@ -10,14 +10,14 @@ from dataclasses import replace
 from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.controller import ApplicationSnapshot, button_led_state
+from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -26,7 +26,7 @@ from e87canbus.output import (
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
-from e87canbus.protocol.router import LED_COLOUR_CODES, ProtocolRouter
+from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
@@ -39,7 +39,6 @@ from e87canbus.runtime import (
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
-    RuntimeFaultKind,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -347,35 +346,13 @@ class LiveControllerRuntime:
     ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         diagnostics = self._kernel.diagnostics()
         application = self._kernel.snapshot()
-        desired_led_colours = tuple(
-            LED_COLOUR_CODES[colour]
-            for colour in button_led_state(self._kernel.state).colours
-        )
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
         return (
             application,
             diagnostics,
             ControllerAdapterSnapshot(
                 simulation_session_id=None,
-                led_colours=desired_led_colours,
-                devices=(
-                    ()
-                    if self._button_pad_source is DeviceSource.DISABLED
-                    else (
-                        DeviceProjection(
-                            id=DeviceRole.BUTTON_PAD,
-                            label="Button pad",
-                            source_mode=self._button_pad_source,
-                            connected=None,
-                            last_seen_monotonic_s=self._kernel.registry_for(
-                                DeviceRole.BUTTON_PAD
-                            ).last_contact_monotonic_s,
-                            desired_led_colours=desired_led_colours,
-                            observed_led_colours=None,
-                            last_output_fault=self._button_output_fault(diagnostics),
-                        ),
-                    )
-                ),
+                registry=self._kernel.registry,
                 networks=tuple(
                     ObservedNetworkSnapshot(
                         network=item.network,
@@ -387,7 +364,7 @@ class LiveControllerRuntime:
                     )
                     for item in enabled
                 ),
-                steering=None,
+                servotronic=None,
                 lighting=None,
             ),
         )
@@ -437,21 +414,6 @@ class LiveControllerRuntime:
             except OSError as exc:
                 LOGGER.error("failed to close SocketCAN network %s: %s", network.value, exc)
         self._raw_buses.clear()
-
-    @staticmethod
-    def _button_output_fault(diagnostics: DiagnosticSnapshot) -> str | None:
-        network = next(
-            item
-            for item in diagnostics.health.networks
-            if item.network is CanNetwork.KCAN
-        )
-        if (
-            network.fault is None
-            or network.fault.kind is not RuntimeFaultKind.CAN_EFFECT_EXECUTION
-        ):
-            return None
-        return network.fault.message
-
 
 def _merge_executions(executions: list[RuntimeExecution]) -> RuntimeExecution | None:
     if not executions:

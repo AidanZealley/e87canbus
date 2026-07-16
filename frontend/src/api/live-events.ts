@@ -40,6 +40,16 @@ export type SteeringCurvePoint = {
   assistance_per_mille: number
 }
 
+export type SteeringCommandReason =
+  | "auto"
+  | "manual"
+  | "maximum"
+  | "speed_never_observed"
+  | "speed_stale"
+  | "can_reader_failure"
+  | "inbox_overflow"
+  | "shutdown"
+
 export type SteeringState = {
   mode: "auto" | "manual"
   manual_assistance_level: number
@@ -55,6 +65,11 @@ export type SteeringState = {
     saved_profile_id: string | null
     saved_profile_revision: number | null
   }
+  servotronic: {
+    effective_assistance: number
+    last_command_reason: SteeringCommandReason | null
+    watchdog_timed_out: boolean
+  } | null
 }
 
 export type ButtonsState = {
@@ -68,17 +83,30 @@ export type LightingState = {
   observed_high_beam_enabled: boolean | null
 }
 
+export type DeviceRegistryEntry = {
+  role: "button_pad" | "servotronic_controller"
+  label: string
+  device_id: number
+  source_mode: "physical" | "emulated" | "disabled"
+  status:
+    | "disabled"
+    | "not_found"
+    | "pending"
+    | "active"
+    | "stale"
+    | "incompatible"
+    | "fault"
+  protocol_version: number | null
+  device_session_id: number | null
+  last_status_code: number | null
+  last_transition_monotonic_s: number | null
+}
+
 export type DevicesState = {
-  devices: Array<{
-    id: "button_pad"
-    label: string
-    source_mode: "physical" | "emulated" | "observer"
-    connected: boolean | null
-    last_seen_monotonic_s: number | null
-    desired_led_colours: number[]
-    observed_led_colours: number[] | null
-    last_output_fault: string | null
-  }>
+  registry: {
+    button_pad: DeviceRegistryEntry
+    servotronic_controller: DeviceRegistryEntry
+  }
   networks: Array<{
     id: "kcan" | "ptcan" | "fcan"
     label: string
@@ -87,20 +115,6 @@ export type DevicesState = {
     connected: boolean
     nodes: string[]
   }>
-  steering_controller: {
-    effective_assistance: number
-    last_command_reason:
-      | "auto"
-      | "manual"
-      | "maximum"
-      | "speed_never_observed"
-      | "speed_stale"
-      | "can_reader_failure"
-      | "inbox_overflow"
-      | "shutdown"
-      | null
-    watchdog_timed_out: boolean
-  } | null
 }
 
 export type RuntimeFaultState = {
@@ -129,7 +143,7 @@ export type ControllerHealthState = {
     overflow_latched: boolean
   }
   devices: Array<{
-    id: "button_pad"
+    role: "button_pad" | "servotronic_controller"
     fault: RuntimeFaultState | null
   }>
   steering: {

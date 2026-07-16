@@ -1,4 +1,4 @@
-"""Repository-owned device vocabulary and compatibility projections."""
+"""Repository-owned device vocabulary."""
 
 from __future__ import annotations
 
@@ -92,22 +92,3 @@ DEFAULT_DEVICE_CATALOGUE = validate_device_catalogue(
         ),
     )
 )
-
-
-@dataclass(frozen=True)
-class DeviceProjection:
-    """Pre-registry adapter projection retained until phase 3's live cutover.
-
-    The service and current live contract are the concrete consumers. Phase 3 removes this
-    compatibility projection when it introduces the registry entry contract; it is not a second
-    application LED owner.
-    """
-
-    id: DeviceRole
-    label: str
-    source_mode: DeviceSource
-    connected: bool | None
-    last_seen_monotonic_s: float | None
-    desired_led_colours: tuple[int, ...]
-    observed_led_colours: tuple[int, ...] | None
-    last_output_fault: str | None

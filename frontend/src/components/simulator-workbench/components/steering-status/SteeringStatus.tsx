@@ -16,9 +16,15 @@ import { formatSteeringReason } from "../../utils"
 export const SteeringStatus = () => {
   const vehicle = useLiveStore((state) => state.vehicle)
   const steering = useLiveStore((state) => state.steering)
-  const controller = useLiveStore((state) => state.devices.steering_controller)
+  const controller = useLiveStore((state) => state.steering?.servotronic)
   const synchronized = useLiveStore((state) => state.connection.synchronized)
-  if (!synchronized || steering === null || controller === null) return null
+  if (
+    !synchronized ||
+    steering === null ||
+    controller === undefined ||
+    controller === null
+  )
+    return null
   const isAuto = steering.mode === "auto"
 
   return (

@@ -201,65 +201,58 @@
               }
             ]
           },
-          "id": {
-            "const": "button_pad",
-            "title": "Id",
+          "role": {
+            "enum": [
+              "button_pad",
+              "servotronic_controller"
+            ],
+            "title": "Role",
             "type": "string"
           }
         },
         "required": [
-          "id",
+          "role",
           "fault"
         ],
         "title": "DeviceHealthState",
         "type": "object"
       },
-      "DeviceState": {
+      "DeviceRegistryEntryState": {
         "additionalProperties": false,
         "properties": {
-          "connected": {
+          "device_id": {
+            "maximum": 65535,
+            "minimum": 0,
+            "title": "Device Id",
+            "type": "integer"
+          },
+          "device_session_id": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Connected"
-          },
-          "desired_led_colours": {
-            "items": {
-              "maximum": 5,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "maxItems": 16,
-            "minItems": 16,
-            "title": "Desired Led Colours",
-            "type": "array"
-          },
-          "id": {
-            "const": "button_pad",
-            "title": "Id",
-            "type": "string"
+            "title": "Device Session Id"
           },
           "label": {
             "title": "Label",
             "type": "string"
           },
-          "last_output_fault": {
+          "last_status_code": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Last Output Fault"
+            "title": "Last Status Code"
           },
-          "last_seen_monotonic_s": {
+          "last_transition_monotonic_s": {
             "anyOf": [
               {
                 "type": "number"
@@ -268,59 +261,84 @@
                 "type": "null"
               }
             ],
-            "title": "Last Seen Monotonic S"
+            "title": "Last Transition Monotonic S"
           },
-          "observed_led_colours": {
+          "protocol_version": {
             "anyOf": [
               {
-                "items": {
-                  "maximum": 5,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "maxItems": 16,
-                "minItems": 16,
-                "type": "array"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Observed Led Colours"
+            "title": "Protocol Version"
+          },
+          "role": {
+            "enum": [
+              "button_pad",
+              "servotronic_controller"
+            ],
+            "title": "Role",
+            "type": "string"
           },
           "source_mode": {
             "enum": [
               "physical",
               "emulated",
-              "observer"
+              "disabled"
             ],
             "title": "Source Mode",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "disabled",
+              "not_found",
+              "pending",
+              "active",
+              "stale",
+              "incompatible",
+              "fault"
+            ],
+            "title": "Status",
             "type": "string"
           }
         },
         "required": [
-          "id",
+          "role",
           "label",
+          "device_id",
           "source_mode",
-          "connected",
-          "last_seen_monotonic_s",
-          "desired_led_colours",
-          "observed_led_colours",
-          "last_output_fault"
+          "status",
+          "protocol_version",
+          "device_session_id",
+          "last_status_code",
+          "last_transition_monotonic_s"
         ],
-        "title": "DeviceState",
+        "title": "DeviceRegistryEntryState",
+        "type": "object"
+      },
+      "DeviceRegistryState": {
+        "additionalProperties": false,
+        "properties": {
+          "button_pad": {
+            "$ref": "#/$defs/DeviceRegistryEntryState"
+          },
+          "servotronic_controller": {
+            "$ref": "#/$defs/DeviceRegistryEntryState"
+          }
+        },
+        "required": [
+          "button_pad",
+          "servotronic_controller"
+        ],
+        "title": "DeviceRegistryState",
         "type": "object"
       },
       "DevicesState": {
         "additionalProperties": false,
         "properties": {
-          "devices": {
-            "items": {
-              "$ref": "#/$defs/DeviceState"
-            },
-            "title": "Devices",
-            "type": "array"
-          },
           "networks": {
             "items": {
               "$ref": "#/$defs/NetworkState"
@@ -328,21 +346,13 @@
             "title": "Networks",
             "type": "array"
           },
-          "steering_controller": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/SteeringActuatorState"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "registry": {
+            "$ref": "#/$defs/DeviceRegistryState"
           }
         },
         "required": [
-          "devices",
-          "networks",
-          "steering_controller"
+          "registry",
+          "networks"
         ],
         "title": "DevicesState",
         "type": "object"
@@ -661,7 +671,7 @@
         "title": "RuntimeFaultState",
         "type": "object"
       },
-      "SteeringActuatorState": {
+      "ServotronicState": {
         "additionalProperties": false,
         "properties": {
           "effective_assistance": {
@@ -699,7 +709,7 @@
           "last_command_reason",
           "watchdog_timed_out"
         ],
-        "title": "SteeringActuatorState",
+        "title": "ServotronicState",
         "type": "object"
       },
       "SteeringCapabilityHealthState": {
@@ -786,13 +796,24 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "servotronic": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ServotronicState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "mode",
           "manual_assistance_level",
           "maximum_assistance_active",
-          "active_curve"
+          "active_curve",
+          "servotronic"
         ],
         "title": "SteeringState",
         "type": "object"

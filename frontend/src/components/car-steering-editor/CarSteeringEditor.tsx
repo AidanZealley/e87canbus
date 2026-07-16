@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 
 import type {
-  DevicesState,
+  DeviceRegistryEntry,
   SteeringState,
   VehicleState,
 } from "@/api/live-events"
@@ -44,17 +44,24 @@ const NONE_SELECTED = "none-selected"
 export const CarSteeringEditor = () => {
   const steering = useLiveStore((state) => state.steering)
   const vehicle = useLiveStore((state) => state.vehicle)
-  const steeringController = useLiveStore(
-    (state) => state.devices.steering_controller
+  const servotronicRegistry = useLiveStore(
+    (state) => state.devices.registry.servotronic_controller
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
-  if (!connected || steering === null || steeringController === null) {
+  const servotronic = steering?.servotronic ?? null
+  const reason = dependencyReason(
+    connected,
+    servotronicRegistry.status,
+    servotronic,
+    steering
+  )
+  if (reason !== null || steering === null || servotronic === null) {
     return (
       <section className="grid min-h-full place-items-center p-4">
         <div className="text-center">
           <h1 className="text-lg font-semibold">Steering</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Active steering curve unavailable.
+            {reason}
           </p>
         </div>
       </section>
@@ -65,7 +72,7 @@ export const CarSteeringEditor = () => {
     <LoadedSteeringEditor
       steering={steering}
       vehicle={vehicle}
-      steeringController={steeringController}
+      servotronic={servotronic}
       initialActive={steering.active_curve}
     />
   )
@@ -74,12 +81,12 @@ export const CarSteeringEditor = () => {
 const LoadedSteeringEditor = ({
   steering,
   vehicle,
-  steeringController,
+  servotronic,
   initialActive,
 }: {
   steering: SteeringState
   vehicle: VehicleState
-  steeringController: NonNullable<DevicesState["steering_controller"]>
+  servotronic: NonNullable<SteeringState["servotronic"]>
   initialActive: ActiveSteeringCurve
 }) => {
   const liveActive = steering.active_curve
@@ -123,9 +130,9 @@ const LoadedSteeringEditor = ({
     definitionsEqual(draft, selectedProfile.definition)
   const speedKph = vehicle.speed_valid ? vehicle.speed_kph : null
   const activeAssistance = steering.maximum_assistance_active
-    ? 1
-    : steering.mode === "manual" || speedKph !== null
-      ? steeringController.effective_assistance
+      ? 1
+      : steering.mode === "manual" || speedKph !== null
+      ? servotronic.effective_assistance
       : null
 
   const selectAndLoad = (profileId: string | null) => {
@@ -318,4 +325,16 @@ const LoadedSteeringEditor = ({
       </AlertDialog>
     </section>
   )
+}
+
+const dependencyReason = (
+  synchronized: boolean,
+  status: DeviceRegistryEntry["status"],
+  servotronic: SteeringState["servotronic"],
+  steering: SteeringState | null
+) => {
+  if (!synchronized || steering === null) return "Live steering state unavailable."
+  if (status !== "active") return `servotronic controller is ${status}`
+  if (servotronic === null) return "servotronic output adapter is unavailable"
+  return null
 }

@@ -7,6 +7,7 @@ import pytest
 from e87canbus.application.controller import EngineTelemetryStatus, EngineTelemetryValue
 from e87canbus.application.events import (
     ButtonPressed,
+    LedColour,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
@@ -27,13 +28,7 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.protocol.generated import (
-    LED_COLOUR_AMBER,
-    LED_COLOUR_BLUE,
-    LED_COLOUR_OFF,
-    LED_COLOUR_WHITE,
-    LED_COUNT,
-)
+from e87canbus.protocol.generated import LED_COUNT
 from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance
 from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedSteeringController
@@ -64,14 +59,14 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
-AUTO_LEDS = (LED_COLOUR_BLUE,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
-MANUAL_LEDS = (LED_COLOUR_AMBER,) + (LED_COLOUR_OFF,) * (LED_COUNT - 1)
+AUTO_LEDS = (LedColour.BLUE,) + (LedColour.OFF,) * (LED_COUNT - 1)
+MANUAL_LEDS = (LedColour.AMBER,) + (LedColour.OFF,) * (LED_COUNT - 1)
 MAXIMUM_LEDS = (
-    LED_COLOUR_AMBER,
-    LED_COLOUR_OFF,
-    LED_COLOUR_OFF,
-    LED_COLOUR_WHITE,
-) + (LED_COLOUR_OFF,) * (LED_COUNT - 4)
+    LedColour.AMBER,
+    LedColour.OFF,
+    LedColour.OFF,
+    LedColour.WHITE,
+) + (LedColour.OFF,) * (LED_COUNT - 4)
 
 
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
@@ -205,23 +200,20 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert current_application.engine.rpm.status is EngineTelemetryStatus.NEVER_OBSERVED
     assert current_application.engine.rpm.value is None
     assert current_application.steering_mode is SteeringMode.AUTO
-    assert current_adapter.led_colours == AUTO_LEDS
-    assert current_adapter.steering is not None
-    assert current_adapter.steering.effective_assistance == 0.0
+    assert current_application.button_led_colours == AUTO_LEDS
+    assert current_adapter.servotronic is not None
+    assert current_adapter.servotronic.effective_assistance == 0.0
     assert (
-        current_adapter.steering.last_command_reason
+        current_adapter.servotronic.last_command_reason
         == SteeringCommandReason.SPEED_NEVER_OBSERVED.value
     )
-    assert current_adapter.steering.watchdog_timed_out is False
-    assert len(current_adapter.devices) == 1
-    button_pad = current_adapter.devices[0]
-    assert button_pad.id is DeviceRole.BUTTON_PAD
+    assert current_adapter.servotronic.watchdog_timed_out is False
+    assert len(current_adapter.registry) == 2
+    button_pad = next(
+        entry for entry in current_adapter.registry if entry.role is DeviceRole.BUTTON_PAD
+    )
     assert button_pad.source_mode is DeviceSource.EMULATED
-    assert button_pad.connected is True
-    assert button_pad.desired_led_colours == AUTO_LEDS
-    assert button_pad.observed_led_colours == AUTO_LEDS
-    assert button_pad.last_seen_monotonic_s is not None
-    assert button_pad.last_output_fault is None
+    assert button_pad.status.value == "active"
     assert controller.topology.trace() == ()
 
 
@@ -251,9 +243,13 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
     assert fault is not None
     assert fault.message == "emulator decoder failed"
     assert diagnostics(controller).health.fatal is False
-    assert adapter(controller).devices[0].source_mode is DeviceSource.EMULATED
-    assert adapter(controller).devices[0].connected is None
-    assert adapter(controller).devices[0].observed_led_colours is None
+    button_pad = next(
+        entry
+        for entry in adapter(controller).registry
+        if entry.role is DeviceRole.BUTTON_PAD
+    )
+    assert button_pad.source_mode is DeviceSource.EMULATED
+    assert button_pad.status.value == "active"
 
 
 def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() -> None:
@@ -262,8 +258,13 @@ def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() 
     controller.execute(SetMaximumAssistance(True))
 
     assert application(controller).maximum_assistance_active is True
-    assert adapter(controller).led_colours == MAXIMUM_LEDS
-    assert adapter(controller).devices == ()
+    assert application(controller).button_led_colours == MAXIMUM_LEDS
+    button_pad = next(
+        entry
+        for entry in adapter(controller).registry
+        if entry.role is DeviceRole.BUTTON_PAD
+    )
+    assert button_pad.status.value == "disabled"
 
 
 def test_reset_releases_old_session_topology_devices_and_endpoints() -> None:
@@ -288,7 +289,7 @@ def test_first_startup_command_failure_has_honest_fatal_snapshot() -> None:
     engine = build_test_engine(steering_controller_factory=RejectingSteeringController)
 
     current_diagnostics = diagnostics(engine)
-    steering = adapter(engine).steering
+    steering = adapter(engine).servotronic
     assert steering is not None
     assert (current_diagnostics.revision, current_diagnostics.health.fatal) == (6, True)
     assert steering.effective_assistance == 0.0
@@ -335,7 +336,9 @@ def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> 
     assert trace[1].frame.arbitration_id == 0x701
     assert trace[1].frame.data == b"\x04\x00\x00\x00\x00\x00\x00\x00"
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert adapter(controller).led_colours == MANUAL_LEDS
+    assert application(controller).button_led_colours == (
+        LedColour.AMBER,
+    ) + (LedColour.OFF,) * 15
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
@@ -346,7 +349,9 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     assert controller.topology.trace()[-1].frame.data == b"\x00\x00"
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert adapter(controller).led_colours == MANUAL_LEDS
+    assert application(controller).button_led_colours == (
+        LedColour.AMBER,
+    ) + (LedColour.OFF,) * 15
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
@@ -372,8 +377,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
         )
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
-    assert current_adapter.led_colours == AUTO_LEDS
-    assert current_adapter.devices[0].observed_led_colours == (LED_COLOUR_OFF,) * LED_COUNT
+    assert current_application.button_led_colours == AUTO_LEDS
     assert controller.topology.trace() == ()
 
     inject_registry_frames(controller)
@@ -500,14 +504,14 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     controller.execute(PressButton(3))
     assert application(controller).maximum_assistance_active is True
     assert application(controller).manual_assistance_level == 7
-    assert adapter(controller).led_colours[3] == LED_COLOUR_WHITE
+    assert application(controller).button_led_colours[3] is LedColour.WHITE
 
     controller.execute(ReleaseButton(3))
     controller.execute(PressButton(3))
     assert application(controller).maximum_assistance_active is False
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
-    assert adapter(controller).led_colours[3] == LED_COLOUR_OFF
+    assert application(controller).button_led_colours[3] is LedColour.OFF
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
@@ -524,7 +528,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
     assert application(controller).maximum_assistance_active is False
-    assert adapter(controller).led_colours[3] == LED_COLOUR_OFF
+    assert application(controller).button_led_colours[3] is LedColour.OFF
 
 
 def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> None:
@@ -536,8 +540,8 @@ def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> Non
 
     assert application(controller).speed_valid is False
     assert result.events == ()
-    assert adapter(controller).steering is not None
-    assert adapter(controller).steering.watchdog_timed_out is False
+    assert adapter(controller).servotronic is not None
+    assert adapter(controller).servotronic.watchdog_timed_out is False
 
 
 def test_timer_updates_new_manual_actuator_projection() -> None:
@@ -548,8 +552,8 @@ def test_timer_updates_new_manual_actuator_projection() -> None:
 
     assert [event["type"] for event in command.events] == ["frame", "frame"]
     assert timer.events == ()
-    assert adapter(controller).steering is not None
-    assert adapter(controller).steering.last_command_reason == SteeringCommandReason.MANUAL.value
+    assert adapter(controller).servotronic is not None
+    assert adapter(controller).servotronic.last_command_reason == SteeringCommandReason.MANUAL.value
 
 
 @pytest.mark.parametrize("value", [ButtonPressed(0), ApplicationState()])
@@ -613,36 +617,29 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
 
     controller.execute(PressButton(0))
     accepted_application = application(controller)
-    accepted_adapter = adapter(controller)
     controller.execute(ReleaseButton(0))
     controller.execute(PressButton(0))
     dropped_application = application(controller)
-    dropped_adapter = adapter(controller)
     dropped_trace = controller.topology.trace()
 
     assert accepted_application.steering_mode is SteeringMode.MANUAL
-    assert accepted_adapter.led_colours == MANUAL_LEDS
-    assert accepted_adapter.devices[0].observed_led_colours == MANUAL_LEDS
+    assert accepted_application.button_led_colours == MANUAL_LEDS
     assert dropped_application.steering_mode is SteeringMode.AUTO
-    assert dropped_adapter.led_colours == AUTO_LEDS
-    assert dropped_adapter.devices[0].observed_led_colours == MANUAL_LEDS
+    assert dropped_application.button_led_colours == AUTO_LEDS
     assert [entry.source for entry in dropped_trace].count("pi") == 1
 
     clock.now = 2.0
-    before_next_decision = adapter(controller)
     before_next_decision_trace = controller.topology.trace()
 
-    assert before_next_decision.led_colours == AUTO_LEDS
-    assert before_next_decision.devices[0].observed_led_colours == MANUAL_LEDS
+    assert application(controller).button_led_colours == AUTO_LEDS
     assert [entry.source for entry in before_next_decision_trace].count("pi") == 1
 
     controller.execute(PressButton(3))
     converged_application = application(controller)
-    converged_adapter = adapter(controller)
     converged_trace = controller.topology.trace()
 
     assert converged_application.maximum_assistance_active is True
-    assert converged_adapter.led_colours == MAXIMUM_LEDS
+    assert converged_application.button_led_colours == MAXIMUM_LEDS
     pi_frames = [entry.frame for entry in converged_trace if entry.source == "pi"]
     assert pi_frames == [
         CanFrame(0x701, b"\x04\x00\x00\x00\x00\x00\x00\x00"),
@@ -665,11 +662,11 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     assert speed_trace[-1].network is CanNetwork.FCAN
     assert speed.vehicle_speed_kph == 15.0
     assert controller.vehicle.speed_kph == 15.0
-    assert controlled.steering is not None
-    assert controlled.steering.effective_assistance == pytest.approx(
+    assert controlled.servotronic is not None
+    assert controlled.servotronic.effective_assistance == pytest.approx(
         5 / 6, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
     )
-    assert controlled.steering.last_command_reason == SteeringCommandReason.AUTO.value
+    assert controlled.servotronic.last_command_reason == SteeringCommandReason.AUTO.value
 
 
 def test_engine_signals_use_trace_decode_transition_and_canonical_snapshot_path() -> None:
@@ -748,11 +745,11 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     ) == 3
     assert first.speed_valid is True
     assert second_application.speed_valid is True
-    assert second_adapter.steering is not None
-    assert second_adapter.steering.effective_assistance == pytest.approx(
+    assert second_adapter.servotronic is not None
+    assert second_adapter.servotronic.effective_assistance == pytest.approx(
         2 / 3, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
     )
-    assert second_adapter.steering.last_command_reason == SteeringCommandReason.AUTO.value
+    assert second_adapter.servotronic.last_command_reason == SteeringCommandReason.AUTO.value
 
 
 def test_speed_silence_becomes_stale_and_setting_speed_recovers_auto() -> None:
@@ -771,25 +768,25 @@ def test_speed_silence_becomes_stale_and_setting_speed_recovers_auto() -> None:
     recovered_adapter = adapter(controller)
 
     assert stale_application.speed_valid is False
-    assert stale_adapter.steering is not None
-    assert stale_adapter.steering.effective_assistance == 0.0
-    assert stale_adapter.steering.last_command_reason == SteeringCommandReason.SPEED_STALE.value
+    assert stale_adapter.servotronic is not None
+    assert stale_adapter.servotronic.effective_assistance == 0.0
+    assert stale_adapter.servotronic.last_command_reason == SteeringCommandReason.SPEED_STALE.value
     assert recovered_application.speed_valid is True
-    assert recovered_adapter.steering is not None
-    assert recovered_adapter.steering.effective_assistance == pytest.approx(
+    assert recovered_adapter.servotronic is not None
+    assert recovered_adapter.servotronic.effective_assistance == pytest.approx(
         2 / 3, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
     )
-    assert recovered_adapter.steering.last_command_reason == SteeringCommandReason.AUTO.value
+    assert recovered_adapter.servotronic.last_command_reason == SteeringCommandReason.AUTO.value
 
 
 def test_manual_and_maximum_commands_remain_bounded_without_speed() -> None:
     controller = build_test_engine()
     controller.execute(PressButton(0))
     controller.execute(RunControlTimer(0.1))
-    manual = adapter(controller).steering
+    manual = adapter(controller).servotronic
     controller.execute(PressButton(3))
     controller.execute(RunControlTimer(0.2))
-    maximum = adapter(controller).steering
+    maximum = adapter(controller).servotronic
 
     assert manual is not None
     assert maximum is not None
@@ -806,7 +803,7 @@ def test_actuator_watchdog_falls_back_when_coordinator_commands_stop() -> None:
     controller.execute(RunControlTimer(clock()))
 
     clock.now = controller.config.simulation.steering_watchdog_timeout_s + 0.001
-    steering = adapter(controller).steering
+    steering = adapter(controller).servotronic
 
     assert steering is not None
     assert steering.watchdog_timed_out is True

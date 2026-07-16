@@ -880,19 +880,19 @@ class CoordinatorKernel:
             raise FeatureUnavailable(
                 DeviceRole.SERVOTRONIC_CONTROLLER,
                 entry.status,
-                "servotronic_controller output adapter is unavailable",
+                "servotronic output adapter is unavailable",
             )
         if self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is not None:
             raise FeatureUnavailable(
                 DeviceRole.SERVOTRONIC_CONTROLLER,
                 entry.status,
-                "servotronic_controller output adapter is faulted",
+                "servotronic output adapter is faulted",
             )
         if entry.status is not DeviceLifecycleStatus.ACTIVE:
             raise FeatureUnavailable(
                 DeviceRole.SERVOTRONIC_CONTROLLER,
                 entry.status,
-                f"servotronic_controller is {entry.status.value}",
+                f"servotronic controller is {entry.status.value}",
             )
 
     def _gate_effects(self, effects: tuple[EffectRequest, ...]) -> tuple[EffectRequest, ...]:

@@ -1,12 +1,10 @@
-import type { DevicesState } from "@/api/live-events"
+import type { SteeringState } from "@/api/live-events"
 import { toast } from "sonner"
 
 export const LED_COUNT = 16
 
 export const formatSteeringReason = (
-  reason: NonNullable<
-    DevicesState["steering_controller"]
-  >["last_command_reason"]
+  reason: NonNullable<SteeringState["servotronic"]>["last_command_reason"]
 ) => (reason === null ? "No command accepted" : reason.replaceAll("_", " "))
 
 export const notifySimulatorError = (error: Error) =>
