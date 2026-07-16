@@ -225,7 +225,7 @@ def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfata
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
 
-    with pytest.raises(FeatureUnavailable, match="servotronic_controller is not_found"):
+    with pytest.raises(FeatureUnavailable, match="servotronic controller is not_found"):
         kernel.dispatch(SetMaximumAssistance(True))
     with pytest.raises(FeatureUnavailable):
         kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 2))

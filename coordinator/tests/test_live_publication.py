@@ -182,7 +182,11 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
     await publisher.start()
     try:
         await wait_for_initial_publication(socket_server)
+        socket_server.emissions.clear()
         await asyncio.to_thread(activate_simulation_devices, service)
+        await wait_until(
+            lambda: "devices.state" in {event for event, *_ in socket_server.emissions}
+        )
         socket_server.emissions.clear()
         result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
         await wait_until(
@@ -201,7 +205,7 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
 
     assert result == command_topic_revision
     assert result <= before_reset_revision
-    assert set(events) == {"steering.state", "buttons.state", "devices.state"}
+    assert set(events) == {"steering.state", "buttons.state"}
     assert after_reset_revision > before_reset_revision
 
 

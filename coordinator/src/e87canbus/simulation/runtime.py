@@ -8,14 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any, assert_never
 
-from e87canbus.application.controller import ApplicationSnapshot, button_led_state
+from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
-from e87canbus.device import DeviceProjection, DeviceRole, DeviceSource
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -24,7 +24,6 @@ from e87canbus.output import (
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
-from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.runtime import (
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
@@ -36,7 +35,6 @@ from e87canbus.runtime import (
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
-    RuntimeFaultKind,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -49,7 +47,7 @@ from e87canbus.service import (
     ControllerWorkUnavailable,
     ObservedLightingSnapshot,
     ObservedNetworkSnapshot,
-    ObservedSteeringSnapshot,
+    ObservedServotronicSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
 )
@@ -190,6 +188,7 @@ class SimulatedControllerRuntime:
         self._started = False
         self._execution_commits: list[Commit] = []
         self._previous_projection: ControllerAdapterSnapshot | None = None
+        self._previous_application: ApplicationSnapshot | None = None
         self._previous_diagnostics: DiagnosticSnapshot | None = None
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
@@ -454,6 +453,7 @@ class SimulatedControllerRuntime:
         changed_topics = {
             topic for commit in self._execution_commits for topic in commit.changed_topics
         }
+        application = self.kernel.snapshot()
         projection = self._adapter_projection()
         diagnostics = self.kernel.diagnostics()
         previous = self._previous_projection
@@ -473,16 +473,21 @@ class SimulatedControllerRuntime:
             changed_topics.add(StateTopic.DEVICES)
         elif previous is not None:
             if (
-                previous.devices != projection.devices
+                previous.registry != projection.registry
                 or previous.networks != projection.networks
-                or previous.steering != projection.steering
+                or previous.servotronic != projection.servotronic
             ):
                 changed_topics.add(StateTopic.DEVICES)
-            if previous.led_colours != projection.led_colours:
+            if (
+                self._previous_application is not None
+                and self._previous_application.button_led_colours
+                != application.button_led_colours
+            ):
                 changed_topics.add(StateTopic.BUTTONS)
             if previous.lighting != projection.lighting:
                 changed_topics.add(StateTopic.LIGHTING)
         self._previous_projection = projection
+        self._previous_application = application
         self._previous_diagnostics = diagnostics
         if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
             changed_topics.add(StateTopic.HEALTH)
@@ -542,44 +547,9 @@ class SimulatedControllerRuntime:
         return commit
 
     def _adapter_projection(self) -> ControllerAdapterSnapshot:
-        led_colours = tuple(
-            LED_COLOUR_CODES[colour]
-            for colour in button_led_state(self.kernel.state).colours
-        )
-        emulator = self.neotrellis
-        kcan_fault = next(
-            item.fault
-            for item in self.kernel.health.networks
-            if item.network is CanNetwork.KCAN
-        )
         return ControllerAdapterSnapshot(
             simulation_session_id=self._session_id,
-            led_colours=led_colours,
-            devices=(
-                ()
-                if self.button_pad_source is DeviceSource.DISABLED
-                else (
-                    DeviceProjection(
-                        id=DeviceRole.BUTTON_PAD,
-                        label="Button pad",
-                        source_mode=self.button_pad_source,
-                        connected=True if emulator is not None else None,
-                        last_seen_monotonic_s=(
-                            None if emulator is None else emulator.last_seen_monotonic_s
-                        ),
-                        desired_led_colours=led_colours,
-                        observed_led_colours=(
-                            None if emulator is None else emulator.led_colours
-                        ),
-                        last_output_fault=(
-                            kcan_fault.message
-                            if kcan_fault is not None
-                            and kcan_fault.kind is RuntimeFaultKind.CAN_EFFECT_EXECUTION
-                            else None
-                        ),
-                    ),
-                )
-            ),
+            registry=self.kernel.registry,
             networks=tuple(
                 ObservedNetworkSnapshot(
                     network=item.network,
@@ -591,7 +561,7 @@ class SimulatedControllerRuntime:
                 )
                 for item in self.config.can_networks
             ),
-            steering=ObservedSteeringSnapshot(
+            servotronic=ObservedServotronicSnapshot(
                 effective_assistance=self.steering_controller.effective_assistance,
                 last_command_reason=(
                     None

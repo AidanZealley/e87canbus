@@ -19,25 +19,19 @@ export const SimulatorNeoTrellis = () => {
   const desiredLedColours = useLiveStore(
     useShallow((state) => state.buttons.led_colours)
   )
-  const { sourceMode, observedLedColours } = useLiveStore(
+  const sourceMode = useLiveStore(
     useShallow((state) => {
-      const device =
-        state.devices.devices.find(
-          (candidate) => candidate.id === "button_pad"
-        ) ?? null
-      return {
-        sourceMode: (device?.source_mode ?? "disabled") as
-          "physical" | "emulated" | "observer" | "disabled",
-        observedLedColours: device?.observed_led_colours ?? null,
-      }
+      return state.devices.registry.button_pad.source_mode
     })
+  )
+  const buttonPadStatus = useLiveStore(
+    (state) => state.devices.registry.button_pad.status
   )
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const displayedSourceMode = synchronized ? sourceMode : "unavailable"
-  const emulatorControlsAvailable = displayedSourceMode === "emulated"
-  const displayedColours = synchronized
-    ? (observedLedColours ?? desiredLedColours)
-    : unavailableLedColours
+  const emulatorControlsAvailable =
+    displayedSourceMode === "emulated" && buttonPadStatus === "active"
+  const displayedColours = synchronized ? desiredLedColours : unavailableLedColours
   const buttons: NeoTrellisButtonState[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({

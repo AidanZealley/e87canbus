@@ -79,6 +79,7 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
+    button_led_colours: tuple[LedColour, ...]
     high_beam_enabled: bool
     high_beam_strobe_active: bool
     high_beam_strobe_cycles_remaining: int
@@ -228,6 +229,7 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
+        button_led_colours=button_led_state(state).colours,
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,

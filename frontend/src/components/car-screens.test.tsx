@@ -110,26 +110,30 @@ const prepareLiveState = () => {
     mode: "manual",
     manual_assistance_level: 2,
     active_curve: active(),
-  }
-  value.data.devices = {
-    devices: [
-      {
-        id: "button_pad",
-        label: "Button pad",
-        source_mode: "physical",
-        connected: null,
-        last_seen_monotonic_s: null,
-        desired_led_colours: Array(16).fill(0),
-        observed_led_colours: null,
-        last_output_fault: null,
-      },
-    ],
-    networks: [],
-    steering_controller: {
+    servotronic: {
       effective_assistance: 0.5,
       last_command_reason: "auto",
       watchdog_timed_out: false,
     },
+  }
+  value.data.devices = {
+    registry: {
+      ...value.data.devices.registry,
+      button_pad: {
+        ...value.data.devices.registry.button_pad,
+        source_mode: "physical",
+        status: "active",
+        protocol_version: 1,
+        device_session_id: 1,
+      },
+      servotronic_controller: {
+        ...value.data.devices.registry.servotronic_controller,
+        status: "active",
+        protocol_version: 1,
+        device_session_id: 1,
+      },
+    },
+    networks: [],
   }
   useLiveStore.getState().applySnapshot(value)
 }

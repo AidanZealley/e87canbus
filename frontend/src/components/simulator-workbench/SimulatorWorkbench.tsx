@@ -82,11 +82,9 @@ const LiveSteeringCurveCard = () => {
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const steering = useLiveStore((state) => state.steering)
   const vehicle = useLiveStore((state) => state.vehicle)
-  const steeringController = useLiveStore(
-    (state) => state.devices.steering_controller
-  )
+  const servotronic = useLiveStore((state) => state.steering?.servotronic)
 
-  if (!synchronized || steering === null || steeringController === null)
+  if (!synchronized || steering === null || servotronic === undefined || servotronic === null)
     return null
 
   return (
@@ -98,7 +96,7 @@ const LiveSteeringCurveCard = () => {
           steering.maximum_assistance_active
             ? 1
             : steering.mode === "manual" || vehicle.speed_valid
-              ? steeringController.effective_assistance
+              ? servotronic.effective_assistance
               : null
         }
       />

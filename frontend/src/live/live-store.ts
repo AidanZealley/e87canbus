@@ -91,7 +91,33 @@ const emptySlices = (): LiveSlices => ({
     high_beam_strobe_cycles_remaining: 0,
     observed_high_beam_enabled: null,
   },
-  devices: { devices: [], networks: [], steering_controller: null },
+  devices: {
+    registry: {
+      button_pad: {
+        role: "button_pad",
+        label: "Button pad",
+        device_id: 1,
+        source_mode: "disabled",
+        status: "disabled",
+        protocol_version: null,
+        device_session_id: null,
+        last_status_code: null,
+        last_transition_monotonic_s: null,
+      },
+      servotronic_controller: {
+        role: "servotronic_controller",
+        label: "Servotronic controller",
+        device_id: 1,
+        source_mode: "disabled",
+        status: "disabled",
+        protocol_version: null,
+        device_session_id: null,
+        last_status_code: null,
+        last_transition_monotonic_s: null,
+      },
+    },
+    networks: [],
+  },
   health: {
     ready: false,
     fatal: false,
@@ -127,6 +153,48 @@ const initialConnection = (): LiveConnection => ({
 
 const incompatibleMessage = (version: number) =>
   `Live protocol ${version} is incompatible; this application requires version ${LIVE_PROTOCOL_VERSION}.`
+
+const registryEntryEqual = (
+  left: DevicesState["registry"][keyof DevicesState["registry"]],
+  right: DevicesState["registry"][keyof DevicesState["registry"]]
+) =>
+  left.role === right.role &&
+  left.label === right.label &&
+  left.device_id === right.device_id &&
+  left.source_mode === right.source_mode &&
+  left.status === right.status &&
+  left.protocol_version === right.protocol_version &&
+  left.device_session_id === right.device_session_id &&
+  left.last_status_code === right.last_status_code &&
+  left.last_transition_monotonic_s === right.last_transition_monotonic_s
+
+const reconcileDevices = (
+  previous: DevicesState,
+  next: DevicesState
+): DevicesState => {
+  const registry = {
+    button_pad: registryEntryEqual(
+      previous.registry.button_pad,
+      next.registry.button_pad
+    )
+      ? previous.registry.button_pad
+      : next.registry.button_pad,
+    servotronic_controller: registryEntryEqual(
+      previous.registry.servotronic_controller,
+      next.registry.servotronic_controller
+    )
+      ? previous.registry.servotronic_controller
+      : next.registry.servotronic_controller,
+  }
+  if (
+    registry.button_pad === previous.registry.button_pad &&
+    registry.servotronic_controller === previous.registry.servotronic_controller &&
+    previous.networks === next.networks
+  ) {
+    return previous
+  }
+  return { registry, networks: next.networks }
+}
 
 export const useLiveStore = create<LiveState>((set, get) => {
   const applyTopic = <Topic extends TopicName, Value>(
@@ -215,7 +283,7 @@ export const useLiveStore = create<LiveState>((set, get) => {
         steering: envelope.data.steering,
         buttons: envelope.data.buttons,
         lighting: envelope.data.lighting,
-        devices: envelope.data.devices,
+        devices: reconcileDevices(current.devices, envelope.data.devices),
         health: envelope.data.health,
         connection: {
           status: "connected",
@@ -230,7 +298,26 @@ export const useLiveStore = create<LiveState>((set, get) => {
     applySteering: (envelope) => applyTopic("steering", "steering", envelope),
     applyButtons: (envelope) => applyTopic("buttons", "buttons", envelope),
     applyLighting: (envelope) => applyTopic("lighting", "lighting", envelope),
-    applyDevices: (envelope) => applyTopic("devices", "devices", envelope),
+    applyDevices: (envelope) => {
+      const current = get()
+      if (envelope.protocol_version !== LIVE_PROTOCOL_VERSION) {
+        return applyTopic("devices", "devices", envelope)
+      }
+      if (
+        current.bootId !== envelope.boot_id ||
+        envelope.revision <= current.topicRevisions.devices
+      ) {
+        return applyTopic("devices", "devices", envelope)
+      }
+      set({
+        devices: reconcileDevices(current.devices, envelope.data),
+        topicRevisions: {
+          ...current.topicRevisions,
+          devices: envelope.revision,
+        },
+      })
+      return "applied"
+    },
     applyHealth: (envelope) => applyTopic("health", "health", envelope),
     reset: () => set({ ...emptySlices(), connection: initialConnection() }),
   }

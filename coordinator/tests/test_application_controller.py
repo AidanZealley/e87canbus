@@ -145,6 +145,7 @@ def test_initial_snapshot_and_effects() -> None:
         ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
+        button_led_colours=AUTO_LEDS.colours,
         high_beam_enabled=False,
         high_beam_strobe_active=False,
         high_beam_strobe_cycles_remaining=0,

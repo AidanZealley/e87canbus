@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.device import DeviceRole
+from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
@@ -64,45 +65,7 @@ class ActiveSteeringCurveState(LiveModel):
     saved_profile_revision: int | None
 
 
-class SteeringState(LiveModel):
-    mode: Literal["auto", "manual"]
-    manual_assistance_level: int = Field(ge=0)
-    maximum_assistance_active: bool
-    active_curve: ActiveSteeringCurveState
-
-
-class ButtonsState(LiveModel):
-    led_colours: LedSnapshot
-
-
-class LightingState(LiveModel):
-    high_beam_enabled: bool
-    high_beam_strobe_active: bool
-    high_beam_strobe_cycles_remaining: int = Field(ge=0)
-    observed_high_beam_enabled: bool | None
-
-
-class DeviceState(LiveModel):
-    id: Literal["button_pad"]
-    label: str
-    source_mode: Literal["physical", "emulated", "observer"]
-    connected: bool | None
-    last_seen_monotonic_s: float | None
-    desired_led_colours: LedSnapshot
-    observed_led_colours: LedSnapshot | None
-    last_output_fault: str | None
-
-
-class NetworkState(LiveModel):
-    id: Literal["kcan", "ptcan", "fcan"]
-    label: str
-    interface: str
-    bitrate: int = Field(gt=0)
-    connected: bool
-    nodes: tuple[str, ...]
-
-
-class SteeringActuatorState(LiveModel):
+class ServotronicState(LiveModel):
     effective_assistance: float
     last_command_reason: (
         Literal[
@@ -120,10 +83,62 @@ class SteeringActuatorState(LiveModel):
     watchdog_timed_out: bool
 
 
+class SteeringState(LiveModel):
+    mode: Literal["auto", "manual"]
+    manual_assistance_level: int = Field(ge=0)
+    maximum_assistance_active: bool
+    active_curve: ActiveSteeringCurveState
+    servotronic: ServotronicState | None
+
+
+class ButtonsState(LiveModel):
+    led_colours: LedSnapshot
+
+
+class LightingState(LiveModel):
+    high_beam_enabled: bool
+    high_beam_strobe_active: bool
+    high_beam_strobe_cycles_remaining: int = Field(ge=0)
+    observed_high_beam_enabled: bool | None
+
+
+class DeviceRegistryEntryState(LiveModel):
+    role: Literal["button_pad", "servotronic_controller"]
+    label: str
+    device_id: int = Field(ge=0, le=0xFFFF)
+    source_mode: Literal["physical", "emulated", "disabled"]
+    status: Literal[
+        "disabled",
+        "not_found",
+        "pending",
+        "active",
+        "stale",
+        "incompatible",
+        "fault",
+    ]
+    protocol_version: int | None
+    device_session_id: int | None
+    last_status_code: int | None
+    last_transition_monotonic_s: float | None
+
+
+class DeviceRegistryState(LiveModel):
+    button_pad: DeviceRegistryEntryState
+    servotronic_controller: DeviceRegistryEntryState
+
+
+class NetworkState(LiveModel):
+    id: Literal["kcan", "ptcan", "fcan"]
+    label: str
+    interface: str
+    bitrate: int = Field(gt=0)
+    connected: bool
+    nodes: tuple[str, ...]
+
+
 class DevicesState(LiveModel):
-    devices: tuple[DeviceState, ...]
+    registry: DeviceRegistryState
     networks: tuple[NetworkState, ...]
-    steering_controller: SteeringActuatorState | None
 
 
 class RuntimeFaultState(LiveModel):
@@ -152,7 +167,7 @@ class InboxHealthState(LiveModel):
 
 
 class DeviceHealthState(LiveModel):
-    id: Literal["button_pad"]
+    role: Literal["button_pad", "servotronic_controller"]
     fault: RuntimeFaultState | None
 
 
@@ -278,12 +293,23 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
             saved_profile_id=active.saved_profile_id,
             saved_profile_revision=active.saved_profile_revision,
         ),
+        servotronic=(
+            None
+            if snapshot.adapter.servotronic is None
+            else ServotronicState.model_validate(
+                snapshot.adapter.servotronic,
+                from_attributes=True,
+            )
+        ),
     )
 
 
 def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     return ButtonsState(
-        led_colours=snapshot.adapter.led_colours,
+        led_colours=tuple(
+            LED_COLOUR_CODES[colour]
+            for colour in snapshot.application.button_led_colours
+        ),
     )
 
 
@@ -301,11 +327,17 @@ def lighting_state(snapshot: ControllerServiceSnapshot) -> LightingState:
 
 
 def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
-    steering = snapshot.adapter.steering
+    registry = {
+        entry.role.value: DeviceRegistryEntryState.model_validate(
+            entry,
+            from_attributes=True,
+        )
+        for entry in snapshot.adapter.registry
+    }
     return DevicesState(
-        devices=tuple(
-            DeviceState.model_validate(device, from_attributes=True)
-            for device in snapshot.adapter.devices
+        registry=DeviceRegistryState(
+            button_pad=registry[DeviceRole.BUTTON_PAD.value],
+            servotronic_controller=registry[DeviceRole.SERVOTRONIC_CONTROLLER.value],
         ),
         networks=tuple(
             NetworkState(
@@ -317,11 +349,6 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
                 nodes=network.nodes,
             )
             for network in snapshot.adapter.networks
-        ),
-        steering_controller=(
-            None
-            if steering is None
-            else SteeringActuatorState.model_validate(steering, from_attributes=True)
         ),
     )
 
@@ -342,11 +369,10 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
         inbox=InboxHealthState.model_validate(snapshot.service.inbox, from_attributes=True),
         devices=tuple(
             DeviceHealthState(
-                id=cast(Literal["button_pad"], device.id.value),
-                fault=_fault_state(device_faults.get(device.id)),
+                role=device.role.value,
+                fault=_fault_state(device_faults.get(device.role)),
             )
-            for device in snapshot.adapter.devices
-            if device.id is DeviceRole.BUTTON_PAD
+            for device in health.devices
         ),
         steering=SteeringCapabilityHealthState(
             fault=_fault_state(health.steering_actuator_fault),

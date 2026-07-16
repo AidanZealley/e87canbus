@@ -29,6 +29,7 @@ const steering: SteeringState = {
     saved_profile_id: "11111111-1111-4111-8111-111111111111",
     saved_profile_revision: 3,
   },
+  servotronic: null,
 }
 const profile: StoredSteeringProfile = {
   profile_id: steering.active_curve.saved_profile_id!,

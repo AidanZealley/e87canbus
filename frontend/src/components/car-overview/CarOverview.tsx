@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 
+import type {
+  DeviceRegistryEntry,
+  SteeringState,
+} from "@/api/live-events"
 import { steeringProfilesQueryOptions } from "@/api/steering"
 import {
   celsiusToFahrenheit,
@@ -15,15 +19,23 @@ import { activeProfileLabel, steeringModeLabel } from "./utils"
 
 export const CarOverview = () => {
   const steering = useLiveStore((state) => state.steering)
-  const steeringController = useLiveStore(
-    (state) => state.devices.steering_controller
+  const servotronicRegistry = useLiveStore(
+    (state) => state.devices.registry.servotronic_controller
   )
-  const devices = useLiveStore((state) => state.devices.devices)
+  const buttonPadRegistry = useLiveStore(
+    (state) => state.devices.registry.button_pad
+  )
   const oilTelemetry = useLiveStore((state) => state.engine.oil_temperature_c)
   const coolantTelemetry = useLiveStore(
     (state) => state.engine.coolant_temperature_c
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
+  const servotronic = steering?.servotronic ?? null
+  const steeringDependencyReason = dependencyReason(
+    connected,
+    servotronicRegistry.status,
+    servotronic
+  )
   const settings = useEffectiveApplicationSettings().settings
   const profiles = useQuery(steeringProfilesQueryOptions())
   const oilSeverity = useTemperatureSeverity({
@@ -75,9 +87,9 @@ export const CarOverview = () => {
             <StatusValue
               label="Assistance"
               value={
-                !connected || steeringController === null
-                  ? "— · Unavailable"
-                  : `${Math.round(steeringController.effective_assistance * 100)}%`
+                steeringDependencyReason === null
+                  ? `${Math.round(servotronic!.effective_assistance * 100)}%`
+                  : `— · ${steeringDependencyReason}`
               }
             />
             {steering?.mode === "manual" ? (
@@ -120,9 +132,22 @@ export const CarOverview = () => {
           />
         </div>
       </div>
-      <DeviceStatusFooter devices={connected ? devices : []} />
+      <DeviceStatusFooter
+        entries={connected ? [buttonPadRegistry, servotronicRegistry] : []}
+      />
     </section>
   )
+}
+
+const dependencyReason = (
+  synchronized: boolean,
+  status: DeviceRegistryEntry["status"],
+  servotronic: SteeringState["servotronic"]
+) => {
+  if (!synchronized) return "live state unavailable"
+  if (status !== "active") return `servotronic controller is ${status}`
+  if (servotronic === null) return "servotronic output adapter is unavailable"
+  return null
 }
 
 const StatusValue = ({ label, value }: { label: string; value: string }) => (

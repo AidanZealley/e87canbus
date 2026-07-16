@@ -68,6 +68,38 @@ describe("live ownership", () => {
     expect(useLiveStore.getState().applyHealth(health)).toBe("ignored")
   })
 
+  it("preserves unchanged registry role references across device updates", () => {
+    useLiveStore.getState().reset()
+    const initial = snapshot("boot", 3)
+    expect(useLiveStore.getState().applySnapshot(initial)).toBe(true)
+    const initialButtonPad = useLiveStore.getState().devices.registry.button_pad
+    const initialServotronic =
+      useLiveStore.getState().devices.registry.servotronic_controller
+
+    const devices = {
+      ...initial.data.devices,
+      registry: {
+        ...initial.data.devices.registry,
+        button_pad: {
+          ...initial.data.devices.registry.button_pad,
+          status: "stale" as const,
+        },
+      },
+    }
+    expect(
+      useLiveStore.getState().applyDevices({
+        ...initial,
+        revision: 4,
+        data: devices,
+      })
+    ).toBe("applied")
+
+    const current = useLiveStore.getState().devices.registry
+    expect(current.button_pad).not.toBe(initialButtonPad)
+    expect(current.button_pad.status).toBe("stale")
+    expect(current.servotronic_controller).toBe(initialServotronic)
+  })
+
   it("applies lighting separately from the button and steering state", () => {
     useLiveStore.getState().reset()
     const initial = snapshot("boot", 3)

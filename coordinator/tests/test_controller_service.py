@@ -93,7 +93,12 @@ class RecordingRuntime:
         return (
             self.kernel.snapshot(),
             diagnostics,
-            ControllerAdapterSnapshot(None, (3,) + (0,) * 15, (), (), None),
+            ControllerAdapterSnapshot(
+                simulation_session_id=None,
+                registry=self.kernel.registry,
+                networks=(),
+                servotronic=None,
+            ),
         )
 
     @property

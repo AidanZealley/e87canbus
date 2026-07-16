@@ -168,9 +168,9 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
     engine.execute(RunControlTimer(1.0))
     engine.execute(ActivateSteeringCurve(smooth, requested_at=1.0))
     application, _, adapter = engine.projection()
-    assert adapter.steering is not None
-    assert adapter.steering.effective_assistance == pytest.approx(expected)
-    assert adapter.steering.last_command_reason == SteeringCommandReason.AUTO.value
+    assert adapter.servotronic is not None
+    assert adapter.servotronic.effective_assistance == pytest.approx(expected)
+    assert adapter.servotronic.last_command_reason == SteeringCommandReason.AUTO.value
     assert application.active_steering_curve.definition == smooth
 
 

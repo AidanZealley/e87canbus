@@ -15,7 +15,7 @@ from typing import Protocol
 
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.device import DeviceProjection
+from e87canbus.device_registry import DeviceRegistryEntry
 from e87canbus.runtime import (
     DiagnosticSnapshot,
     InboxOverflowed,
@@ -71,7 +71,7 @@ class ObservedNetworkSnapshot:
 
 
 @dataclass(frozen=True)
-class ObservedSteeringSnapshot:
+class ObservedServotronicSnapshot:
     effective_assistance: float
     last_command_reason: str | None
     watchdog_timed_out: bool
@@ -86,13 +86,12 @@ class ObservedLightingSnapshot:
 
 @dataclass(frozen=True)
 class ControllerAdapterSnapshot:
-    """Immutable observations and desired outputs owned outside the controller core."""
+    """Immutable adapter observations alongside the kernel-owned registry."""
 
     simulation_session_id: int | None
-    led_colours: tuple[int, ...]
-    devices: tuple[DeviceProjection, ...]
+    registry: tuple[DeviceRegistryEntry, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
-    steering: ObservedSteeringSnapshot | None
+    servotronic: ObservedServotronicSnapshot | None
     lighting: ObservedLightingSnapshot | None = None
 
 

@@ -17,7 +17,7 @@ to them.
 |---|---|---|---|---|
 | 1 | Completed | Codex lead after James/Gibbs workers | 2026-07-16 | Generated check; focused protocol/config/architecture tests (79 passed); full coordinator suite (516 passed) |
 | 2 | Completed | Codex | 2026-07-16 | Focused Phase 2 suites (225 passed); full coordinator suite (524 passed); generated check, Ruff, mypy, compileall, and diff check passed |
-| 3 | Not started | — | — | — |
+| 3 | Completed | Codex lead after Tesla worker | 2026-07-16 | Required coordinator suites (41 passed); full coordinator suite (524 passed); frontend tests (30 unit + 60 component) and build passed; generated contract check, Ruff, mypy, and diff check passed |
 | 4 | Not started | — | — | — |
 | 5 | Not started | — | — | — |
 
@@ -273,3 +273,80 @@ simulation uses the same registry and TX policy paths.
   by its design; it should build on the Phase 2 kernel boundary rather than introducing a second
   registry owner. Later phases handle the separately documented UI, firmware, bench, and in-car
   readiness work.
+
+### Phase 3 — Live contract and `/car` UI — 2026-07-16
+
+- **Agent:** Tesla worker and Codex lead audit
+- **Final status:** Completed
+
+#### Summary
+
+Migrated the live v1 contract from the temporary broad device projection to the fixed two-role
+registry map. Servotronic actuator observation now belongs to `steering.servotronic`, while
+`buttons.led_colours` is projected only from canonical controller application state. The `/car`
+surface now hides disabled/not-found entries, retains observed lifecycle failures with specific
+text and numeric fault codes, and explains unavailable steering and assistance dependencies.
+Profile CRUD remains independent of device availability.
+
+#### Important files changed
+
+- `coordinator/src/e87canbus/service.py` and `coordinator/src/e87canbus/live.py` — expose kernel-owned
+  registry/network state and Servotronic steering observation without adapter LED duplication.
+- `coordinator/src/e87canbus/api/models/live.py` — define the fixed registry, steering, and health
+  projections and canonical button LED mapping.
+- `protocol/live-events-v1.schema.json` and `frontend/src/api/live-events.ts` — synchronize the
+  generated JSON schema and explicit TypeScript transport types in unreleased protocol v1.
+- `frontend/src/live/live-store.ts` — reconcile registry entries independently and preserve each
+  unchanged role-entry reference; fixtures/tests cover no-render and no-replacement behavior.
+- `frontend/src/components/car-overview/`, `car-steering-editor/`, and
+  `device-status-footer/` — implement lifecycle filtering, dependency reasons, and unavailable
+  dependent-screen states.
+
+#### Public contract or schema changes
+
+- Removed public `DeviceProjection`, `devices.devices`, `devices.steering_controller`,
+  `desired_led_colours`, and `observed_led_colours` fields.
+- Added `devices.registry.button_pad` and `devices.registry.servotronic_controller` with the
+  fixed role/source/status/session/diagnostic fields.
+- Added nullable `steering.servotronic`; health device entries now use `role` for both registry
+  roles.
+- Preserved live protocol version 1 and refreshed the generated schema and TypeScript contract.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `uv run python scripts/generate_live_contract.py --check` | Passed; generated live schema current. |
+| `uv run pytest coordinator/tests/test_live_contract.py coordinator/tests/test_live_publication.py coordinator/tests/test_socketio_server.py coordinator/tests/test_command_api.py coordinator/tests/test_profile_api.py` | Passed; 41 tests, 1 existing Starlette deprecation warning. |
+| `uv run pytest coordinator/tests` | Passed; 524 tests, 1 existing Starlette deprecation warning. |
+| `cd frontend && pnpm test -- --run` | Passed; 30 unit tests and 60 component tests across 17 files. |
+| `cd frontend && pnpm build` | Passed; TypeScript project build and Vite production build. |
+| `uv run ruff check .` | Passed. |
+| `uv run mypy coordinator/src/e87canbus` | Passed; no issues in 62 source files. |
+| `git diff --check` | Passed. |
+
+#### Decisions and assumptions
+
+- Live v1 is updated in place because the contract is unreleased; old frontend/backend combinations
+  remain unsupported rather than gaining compatibility aliases.
+- Registry state remains kernel-owned; live and simulator projections consume it. Phase 3 adds no
+  virtual device state machines or simulator lifecycle controls.
+- The optional Servotronic output adapter remains explicitly nullable, so an active registry entry
+  alone does not make steering output usable.
+
+#### Deviations from the phase document
+
+- None.
+
+#### Known limitations
+
+- Virtual device peers, simulator lifecycle controls, and reusable `/dev` device cards remain
+  deferred to Phase 4.
+- Firmware handshake implementation, live physical CAN TX authorization, collision validation,
+  bench/in-car evidence, and physical NeoTrellis/Servotronic validation remain deferred evidence
+  gates for later phases and hardware work.
+
+#### Follow-up work
+
+- Phase 4 must consume the live registry entries for virtual peers and `/dev` controls without
+  introducing another production registry owner or changing the v1 live contract.
