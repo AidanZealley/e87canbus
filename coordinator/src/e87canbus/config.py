@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from enum import StrEnum
 
-from e87canbus.protocol.generated import CAN_ID_BUTTON_EVENT, CAN_ID_LED_SNAPSHOT
+from e87canbus.protocol.generated import (
+    CAN_ID_BUTTON_EVENT,
+    CAN_ID_BUTTON_PAD_HEARTBEAT,
+    CAN_ID_BUTTON_PAD_HELLO,
+    CAN_ID_BUTTON_PAD_WELCOME_ACK,
+    CAN_ID_LED_SNAPSHOT,
+    CAN_ID_SERVOTRONIC_CONTROLLER_HEARTBEAT,
+    CAN_ID_SERVOTRONIC_CONTROLLER_HELLO,
+    CAN_ID_SERVOTRONIC_CONTROLLER_WELCOME_ACK,
+)
 
 
 class CanNetwork(StrEnum):
@@ -41,6 +50,19 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
 class CustomCanIds:
     button_event: int = CAN_ID_BUTTON_EVENT
     led_snapshot: int = CAN_ID_LED_SNAPSHOT
+    button_pad_hello: int = CAN_ID_BUTTON_PAD_HELLO
+    button_pad_welcome_ack: int = CAN_ID_BUTTON_PAD_WELCOME_ACK
+    button_pad_heartbeat: int = CAN_ID_BUTTON_PAD_HEARTBEAT
+    servotronic_controller_hello: int = CAN_ID_SERVOTRONIC_CONTROLLER_HELLO
+    servotronic_controller_welcome_ack: int = CAN_ID_SERVOTRONIC_CONTROLLER_WELCOME_ACK
+    servotronic_controller_heartbeat: int = CAN_ID_SERVOTRONIC_CONTROLLER_HEARTBEAT
+
+    def __post_init__(self) -> None:
+        can_ids = tuple(getattr(self, item.name) for item in fields(self))
+        if any(type(can_id) is not int or not 0 <= can_id <= 0x7FF for can_id in can_ids):
+            raise ValueError("custom CAN IDs must be unsigned standard 11-bit IDs")
+        if len(set(can_ids)) != len(can_ids):
+            raise ValueError("custom CAN IDs must be unique")
 
 
 @dataclass(frozen=True)

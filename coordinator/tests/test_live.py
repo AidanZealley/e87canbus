@@ -247,12 +247,12 @@ def test_physical_button_pad_observation_is_unknown_without_acknowledgement() ->
     assert button_pad.last_output_fault is None
 
 
-def test_observer_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
+def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
     FakeSocketCanBus.instances = []
     config = default_config()
     service = build_live_controller_service(
         config=config,
-        button_pad_source=DeviceSource.OBSERVER,
+        button_pad_source=DeviceSource.DISABLED,
         socketcan_factory=FakeSocketCanBus,
     )
     frame = encode_button_event(ArduinoButtonEventPayload(0, True), config.custom_can_ids)
@@ -265,8 +265,7 @@ def test_observer_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
         service.stop()
 
     assert snapshot.application.steering_mode.value == "auto"
-    assert snapshot.adapter.devices[0].source_mode is DeviceSource.OBSERVER
-    assert snapshot.adapter.devices[0].last_seen_monotonic_s is None
+    assert snapshot.adapter.devices == ()
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 
 

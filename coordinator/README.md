@@ -214,10 +214,10 @@ application retains observations internally but projects `null` with `never_obse
 when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
 and every active signal is re-emitted before each ordered control-timer evaluation.
 
-Composition selects the repository-owned button pad as `physical`, `emulated`, `observer`, or
-`disabled`, with exactly one source per role. Physical input is accepted only by live SocketCAN;
-emulated input is accepted only from the virtual K-CAN device; observer cannot originate input;
-disabled omits the capability. The projection separates controller-desired LEDs from
+Composition selects the repository-owned button pad as `physical`, `emulated`, or `disabled`, with
+exactly one source per role. Physical input is accepted only by live SocketCAN; emulated input is
+accepted only from the virtual K-CAN device; disabled omits the capability. The projection separates
+controller-desired LEDs from
 device-observed LEDs. The emulator may report connection and observation because it decodes the
 actual output frame. A physical pad has no acknowledgement, so its connection and observed LEDs
 remain unknown. No heartbeat or manually selected presentation-health state exists.
@@ -254,8 +254,8 @@ Run the development simulator with `uv run e87canbus run --mode simulated`. Simu
 routes are registered only in simulated mode; live mode returns `404` for those development-only
 paths. Both modes use the same HTTP/Socket.IO application composition. Use `--log-level` to change
 logging verbosity.
-Use `--button-pad-source emulated|observer|disabled` for simulated composition and
-`--button-pad-source physical|observer|disabled` for live composition. The selection is fixed for
+Use `--button-pad-source emulated|disabled` for simulated composition and
+`--button-pad-source physical|disabled` for live composition. The selection is fixed for
 the process lifetime and invalid mode/source combinations fail before adapters start.
 `uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
 

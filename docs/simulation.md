@@ -11,8 +11,8 @@ Run the FastAPI backend:
 uv run e87canbus run --mode simulated --reload
 ```
 
-Use `--button-pad-source observer` or `--button-pad-source disabled` to inspect those fixed
-composition roles. The default simulated role is `emulated`; source changes require restart.
+Use `--button-pad-source disabled` to inspect the disabled composition role. The default simulated
+role is `emulated`; source changes require restart.
 
 Run the browser frontend:
 
@@ -81,10 +81,9 @@ blue.
 Controller LEDs are desired state. The emulator's displayed observation changes only after it
 receives and atomically decodes the complete `0x701` frame. A rate-limited or malformed output can
 therefore leave desired and observed values different until a later accepted snapshot converges.
-Observer mode has no emulator controls or device-originated traffic; physical state remains unknown
-without a protocol acknowledgement; disabled omits the capability. Source-mode changes require
-restart. Reset reconstructs the virtual topology and emulator, clears trace identity and restores
-vehicle signals to never-observed without retaining old endpoints.
+Disabled mode has no emulator controls or device-originated traffic and omits the capability.
+Source-mode changes require restart. Reset reconstructs the virtual topology and emulator, clears
+trace identity and restores vehicle signals to never-observed without retaining old endpoints.
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
 

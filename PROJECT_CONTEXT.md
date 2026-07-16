@@ -202,7 +202,7 @@ e87canbus/
 │   └── tests/
 ├── devices/
 │   ├── button-pad/                # NeoTrellis/CAN PlatformIO project
-│   └── steering-controller/       # Future actuator-controller firmware
+│   └── servotronic-controller/    # Future actuator-controller firmware
 ├── frontend/                      # Simulator and in-car React UI
 ├── protocol/                      # Protocol source TOML, generated docs, and DBC notes
 ├── docs/

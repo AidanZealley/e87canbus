@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 from e87canbus.config import (
     CanNetwork,
+    CustomCanIds,
     EngineTelemetryConfig,
     LivePublicationConfig,
     SimulationConfig,
@@ -10,6 +11,15 @@ from e87canbus.config import (
     TxPolicyConfig,
     default_config,
     simulator_config,
+)
+from e87canbus.device import (
+    DEFAULT_DEVICE_CATALOGUE,
+    DeviceCatalogueEntry,
+    DeviceIdentity,
+    DeviceLifecycleStatus,
+    DeviceRole,
+    DeviceSource,
+    validate_device_catalogue,
 )
 
 
@@ -183,6 +193,86 @@ def test_default_tx_policy() -> None:
 
     assert policy.network_window_s == 1.0
     assert policy.max_frames_per_network_window == 20
+
+
+def test_default_device_catalogue_and_registry_vocabulary() -> None:
+    assert tuple(DeviceRole) == (
+        DeviceRole.BUTTON_PAD,
+        DeviceRole.SERVOTRONIC_CONTROLLER,
+    )
+    assert tuple(DeviceSource) == (
+        DeviceSource.PHYSICAL,
+        DeviceSource.EMULATED,
+        DeviceSource.DISABLED,
+    )
+    assert tuple(DeviceLifecycleStatus) == (
+        DeviceLifecycleStatus.DISABLED,
+        DeviceLifecycleStatus.NOT_FOUND,
+        DeviceLifecycleStatus.PENDING,
+        DeviceLifecycleStatus.ACTIVE,
+        DeviceLifecycleStatus.STALE,
+        DeviceLifecycleStatus.INCOMPATIBLE,
+        DeviceLifecycleStatus.FAULT,
+    )
+    assert [
+        (entry.identity.role, entry.identity.device_id) for entry in DEFAULT_DEVICE_CATALOGUE
+    ] == [
+        (DeviceRole.BUTTON_PAD, 1),
+        (DeviceRole.SERVOTRONIC_CONTROLLER, 1),
+    ]
+    assert all(
+        entry.enabled and entry.supported_protocol_version == 1
+        for entry in DEFAULT_DEVICE_CATALOGUE
+    )
+    assert all(entry.instance_limit == 1 for entry in DEFAULT_DEVICE_CATALOGUE)
+
+
+def test_default_custom_can_ids_cover_all_project_messages() -> None:
+    ids = CustomCanIds()
+
+    assert (
+        ids.button_event,
+        ids.led_snapshot,
+        ids.button_pad_hello,
+        ids.button_pad_welcome_ack,
+        ids.button_pad_heartbeat,
+        ids.servotronic_controller_hello,
+        ids.servotronic_controller_welcome_ack,
+        ids.servotronic_controller_heartbeat,
+    ) == tuple(range(0x700, 0x708))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"button_event": -1},
+        {"led_snapshot": 0x800},
+        {"button_pad_hello": 0x702, "button_pad_welcome_ack": 0x702},
+    ],
+)
+def test_custom_can_ids_reject_invalid_or_duplicate_standard_ids(
+    changes: dict[str, int],
+) -> None:
+    with pytest.raises(ValueError, match="CAN IDs"):
+        CustomCanIds(**changes)
+
+
+def test_device_catalogue_rejects_duplicate_identity_or_role() -> None:
+    duplicate_identity = DeviceIdentity(DeviceRole.BUTTON_PAD, 1)
+    with pytest.raises(ValueError, match="identities"):
+        validate_device_catalogue(
+            (
+                DeviceCatalogueEntry(duplicate_identity, True, 1),
+                DeviceCatalogueEntry(duplicate_identity, True, 1),
+            )
+        )
+    with pytest.raises(ValueError, match="one instance"):
+        validate_device_catalogue(
+            (
+                DeviceCatalogueEntry(DeviceIdentity(DeviceRole.BUTTON_PAD, 1), True, 1),
+                DeviceCatalogueEntry(DeviceIdentity(DeviceRole.BUTTON_PAD, 2), True, 1),
+            )
+        )
 
 
 @pytest.mark.parametrize(

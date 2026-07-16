@@ -227,9 +227,9 @@ def test_button_commands_return_acknowledgements(
     )
 
 
-def test_observer_composition_rejects_emulator_controls() -> None:
+def test_disabled_composition_rejects_emulator_controls() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_config(config, button_pad_source=DeviceSource.OBSERVER)
+    app = make_app_for_config(config, button_pad_source=DeviceSource.DISABLED)
 
     with TestClient(app) as client:
         response = client.post(
@@ -240,8 +240,7 @@ def test_observer_composition_rejects_emulator_controls() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "controller_failed"
     assert snapshot.application.steering_mode.value == "auto"
-    assert snapshot.adapter.devices[0].source_mode is DeviceSource.OBSERVER
-    assert snapshot.adapter.devices[0].observed_led_colours is None
+    assert snapshot.adapter.devices == ()
 
 
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:

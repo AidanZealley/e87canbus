@@ -1,4 +1,4 @@
-# ADR 0007: Let the steering controller own speed-to-assistance mapping
+# ADR 0007: Let the Servotronic controller own speed-to-assistance mapping
 
 - **Status:** Proposed
 - **Date:** 2026-07-14
@@ -8,7 +8,7 @@
 The current hardware-independent implementation decodes speed and maps it through a fixed curve in
 the coordinator. Its actuator boundary receives an already-selected dimensionless assistance
 value. This is useful for simulation but makes continuous Auto behavior dependent on the
-coordinator process and its connection to a future steering controller.
+coordinator process and its connection to a future Servotronic controller.
 
 The intended physical controller will already own time-critical PWM/current regulation, hardware
 limits, command freshness, telemetry and electrical fallback behavior. Keeping the speed mapping
@@ -22,7 +22,7 @@ the physical safe state, watchdog timing, controller hardware and an authorized 
 
 ## Decision
 
-Propose that the future steering controller own the real-time mapping from directly observed,
+Propose that the future Servotronic controller own the real-time mapping from directly observed,
 validated vehicle speed to assistance and own application of that target to its local actuator
 loop.
 

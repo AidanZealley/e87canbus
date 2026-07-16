@@ -13,6 +13,12 @@ a separate deployment defense.
 |---|---|---|---:|---|
 | `0x700` | Button pad to coordinator | Button event | 2 | byte 0 = button index, byte 1 = state |
 | `0x701` | Coordinator to button pad | Complete 16-colour LED snapshot | 8 | two LED colour nibbles per byte, even index low |
+| `0x702` | Button pad to coordinator | Device HELLO | 8 | byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero |
+| `0x703` | Coordinator to button pad | WELCOME acknowledgement | 8 | byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence |
+| `0x704` | Button pad to coordinator | Device HEARTBEAT | 8 | bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code |
+| `0x705` | Servotronic controller to coordinator | Device HELLO | 8 | byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero |
+| `0x706` | Coordinator to Servotronic controller | WELCOME acknowledgement | 8 | byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence |
+| `0x707` | Servotronic controller to coordinator | Device HEARTBEAT | 8 | bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code |
 
 ## Button State Constants
 
@@ -36,6 +42,6 @@ a separate deployment defense.
 Run `uv run python scripts/generate_custom_protocol.py` after editing `protocol/custom.toml`.
 Use `--check` to verify that the Python, firmware, and Markdown artifacts are current.
 
-`0x700` and `0x701` require collision validation against a real K-CAN capture before any in-car
+`0x700`–`0x707` require collision validation against a real K-CAN capture before any in-car
 transmission. Their location in the high standard-ID range is not evidence that they are unused by
 the vehicle.

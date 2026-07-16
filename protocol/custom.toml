@@ -1,8 +1,12 @@
+protocol_version = 1
+
 [button_event]
 can_id = 0x700
 length = 2
 direction = "Button pad to coordinator"
 purpose = "Button event"
+payload = "byte 0 = button index, byte 1 = state"
+values_title = "Button State Constants"
 
 [button_event.bytes]
 button_index = 0
@@ -17,6 +21,8 @@ can_id = 0x701
 length = 8
 direction = "Coordinator to button pad"
 purpose = "Complete 16-colour LED snapshot"
+payload = "two LED colour nibbles per byte, even index low"
+values_title = "LED Colour Codes"
 led_count = 16
 even_index_shift = 0
 odd_index_shift = 4
@@ -29,3 +35,105 @@ green = 0x02
 blue = 0x03
 amber = 0x04
 white = 0x05
+
+[button_pad_hello]
+can_id = 0x702
+length = 8
+direction = "Button pad to coordinator"
+purpose = "Device HELLO"
+payload = "byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero"
+
+[button_pad_hello.bytes]
+protocol_version = 0
+device_id_low = 1
+device_id_high = 2
+device_session_id_low = 3
+device_session_id_high = 4
+sequence = 5
+reserved_6 = 6
+reserved_7 = 7
+
+[button_pad_welcome_ack]
+can_id = 0x703
+length = 8
+direction = "Coordinator to button pad"
+purpose = "WELCOME acknowledgement"
+payload = "byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence"
+
+[button_pad_welcome_ack.bytes]
+version_and_response = 0
+device_id_low = 1
+device_id_high = 2
+device_session_id_low = 3
+device_session_id_high = 4
+controller_session_id_low = 5
+controller_session_id_high = 6
+device_sequence = 7
+
+[button_pad_heartbeat]
+can_id = 0x704
+length = 8
+direction = "Button pad to coordinator"
+purpose = "Device HEARTBEAT"
+payload = "bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code"
+
+[button_pad_heartbeat.bytes]
+device_id_low = 0
+device_id_high = 1
+device_session_id_low = 2
+device_session_id_high = 3
+controller_session_id_low = 4
+controller_session_id_high = 5
+sequence = 6
+status = 7
+
+[servotronic_controller_hello]
+can_id = 0x705
+length = 8
+direction = "Servotronic controller to coordinator"
+purpose = "Device HELLO"
+payload = "byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero"
+
+[servotronic_controller_hello.bytes]
+protocol_version = 0
+device_id_low = 1
+device_id_high = 2
+device_session_id_low = 3
+device_session_id_high = 4
+sequence = 5
+reserved_6 = 6
+reserved_7 = 7
+
+[servotronic_controller_welcome_ack]
+can_id = 0x706
+length = 8
+direction = "Coordinator to Servotronic controller"
+purpose = "WELCOME acknowledgement"
+payload = "byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence"
+
+[servotronic_controller_welcome_ack.bytes]
+version_and_response = 0
+device_id_low = 1
+device_id_high = 2
+device_session_id_low = 3
+device_session_id_high = 4
+controller_session_id_low = 5
+controller_session_id_high = 6
+device_sequence = 7
+
+[servotronic_controller_heartbeat]
+can_id = 0x707
+length = 8
+direction = "Servotronic controller to coordinator"
+purpose = "Device HEARTBEAT"
+payload = "bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code"
+
+[servotronic_controller_heartbeat.bytes]
+device_id_low = 0
+device_id_high = 1
+device_session_id_low = 2
+device_session_id_high = 3
+controller_session_id_low = 4
+controller_session_id_high = 5
+sequence = 6
+status = 7

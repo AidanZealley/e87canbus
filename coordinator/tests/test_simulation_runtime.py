@@ -171,7 +171,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert controller.topology.trace() == ()
 
 
-@pytest.mark.parametrize("source", [DeviceSource.OBSERVER, DeviceSource.DISABLED])
+@pytest.mark.parametrize("source", [DeviceSource.DISABLED])
 def test_non_emulated_roles_cannot_emit_button_input(source: DeviceSource) -> None:
     controller = build_test_engine(button_pad_source=source)
 
@@ -180,21 +180,6 @@ def test_non_emulated_roles_cannot_emit_button_input(source: DeviceSource) -> No
 
     assert application(controller).steering_mode is SteeringMode.AUTO
     assert "button-pad-emulator" not in adapter(controller).networks[0].nodes
-
-
-def test_observer_projects_controller_desire_without_fabricating_observation() -> None:
-    controller = build_test_engine(button_pad_source=DeviceSource.OBSERVER)
-
-    controller.execute(SetMaximumAssistance(True))
-
-    button_pad = adapter(controller).devices[0]
-    assert button_pad.source_mode is DeviceSource.OBSERVER
-    assert button_pad.connected is None
-    assert button_pad.last_seen_monotonic_s is None
-    assert button_pad.desired_led_colours == MAXIMUM_LEDS
-    assert button_pad.observed_led_colours is None
-    assert button_pad.last_output_fault is None
-    assert all(entry.source != "pi" for entry in controller.topology.trace())
 
 
 def test_emulator_failure_is_reported_without_claiming_physical_health() -> None:
