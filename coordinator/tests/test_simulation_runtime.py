@@ -32,7 +32,7 @@ from e87canbus.protocol.can import (
     encode_hello,
 )
 from e87canbus.protocol.generated import LED_COUNT
-from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance
+from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance, StateTopic
 from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
 from e87canbus.simulation.protocol import (
@@ -287,6 +287,9 @@ def test_disconnect_expires_lease_reconnects_and_reboots_with_new_sessions() -> 
     assert peer is not None
     original_session = peer.session_id
 
+    runtime.execute(ConnectSimulatedDevice(DeviceRole.BUTTON_PAD))
+    assert peer.session_id == original_session
+
     runtime.execute(DisconnectSimulatedDevice(DeviceRole.BUTTON_PAD))
     assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
 
@@ -304,7 +307,7 @@ def test_disconnect_expires_lease_reconnects_and_reboots_with_new_sessions() -> 
     assert registry_status(runtime, DeviceRole.BUTTON_PAD) == "active"
 
 
-def test_ack_loss_enters_controller_lost_and_connect_restarts_a_connected_peer() -> None:
+def test_ack_loss_rediscovers_without_connect_rebooting_the_peer() -> None:
     runtime, clock = build_handshake_engine()
     runtime.deadline(clock())
     clock.now = 1.0
@@ -329,14 +332,14 @@ def test_ack_loss_enters_controller_lost_and_connect_restarts_a_connected_peer()
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
     lost_session = peer.session_id
 
-    runtime.execute(ConnectSimulatedDevice(DeviceRole.SERVOTRONIC_CONTROLLER))
-    assert peer.session_id != lost_session
-    assert peer.state is SimulatedDeviceState.DISCOVERING
-    assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "pending"
-
     peer.process_pending = original_process_pending  # type: ignore[method-assign]
+    runtime.execute(ConnectSimulatedDevice(DeviceRole.SERVOTRONIC_CONTROLLER))
+    assert peer.session_id == lost_session
+    assert peer.state is SimulatedDeviceState.CONTROLLER_LOST
+
     clock.now = 5.0
     runtime.deadline(clock())
+    assert peer.state is SimulatedDeviceState.OPERATIONAL
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
 
 
@@ -437,12 +440,18 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
         raise OSError("emulator decoder failed")
 
     emulator.process_pending_led_snapshots = fail  # type: ignore[method-assign]
-    controller.execute(SetMaximumAssistance(True))
+    execution = controller.execute(SetMaximumAssistance(True))
 
     fault = controller.kernel.health.devices[0].fault
     assert fault is not None
     assert fault.message == "emulator decoder failed"
     assert diagnostics(controller).health.fatal is False
+    assert execution.commit_count == 2
+    assert execution.changed_topics == {
+        StateTopic.BUTTONS,
+        StateTopic.HEALTH,
+        StateTopic.STEERING,
+    }
     button_pad = next(
         entry
         for entry in adapter(controller).registry

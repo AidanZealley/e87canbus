@@ -1,13 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 
-import type {
-  DeviceRegistryEntry,
-  SteeringState,
-} from "@/api/live-events"
 import { steeringProfilesQueryOptions } from "@/api/steering"
 import {
   celsiusToFahrenheit,
   roundDisplayValue,
+  steeringDependency,
 } from "@/components/car-layout/car-ui"
 import { DeviceStatusFooter } from "@/components/device-status-footer"
 import { TemperatureGauge } from "@/components/temperature-gauge"
@@ -30,12 +27,20 @@ export const CarOverview = () => {
     (state) => state.engine.coolant_temperature_c
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
-  const servotronic = steering?.servotronic ?? null
-  const steeringDependencyReason = dependencyReason(
-    connected,
-    servotronicRegistry.status,
-    servotronic
+  const steeringFault = useLiveStore((state) => state.health.steering.fault)
+  const servotronicAdapterFault = useLiveStore(
+    (state) =>
+      state.health.devices.find(
+        (device) => device.role === "servotronic_controller"
+      )?.fault ?? null
   )
+  const steeringAvailability = steeringDependency({
+    synchronized: connected,
+    status: servotronicRegistry.status,
+    steering,
+    steeringFault,
+    deviceAdapterFault: servotronicAdapterFault,
+  })
   const settings = useEffectiveApplicationSettings().settings
   const profiles = useQuery(steeringProfilesQueryOptions())
   const oilSeverity = useTemperatureSeverity({
@@ -87,9 +92,9 @@ export const CarOverview = () => {
             <StatusValue
               label="Assistance"
               value={
-                steeringDependencyReason === null
-                  ? `${Math.round(servotronic!.effective_assistance * 100)}%`
-                  : `— · ${steeringDependencyReason}`
+                steeringAvailability.available
+                  ? `${Math.round(steeringAvailability.servotronic.effective_assistance * 100)}%`
+                  : `— · ${steeringAvailability.reason}`
               }
             />
             {steering?.mode === "manual" ? (
@@ -137,17 +142,6 @@ export const CarOverview = () => {
       />
     </section>
   )
-}
-
-const dependencyReason = (
-  synchronized: boolean,
-  status: DeviceRegistryEntry["status"],
-  servotronic: SteeringState["servotronic"]
-) => {
-  if (!synchronized) return "live state unavailable"
-  if (status !== "active") return `servotronic controller is ${status}`
-  if (servotronic === null) return "servotronic output adapter is unavailable"
-  return null
 }
 
 const StatusValue = ({ label, value }: { label: string; value: string }) => (

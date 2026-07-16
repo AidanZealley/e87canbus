@@ -6,7 +6,6 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import replace
 from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
@@ -153,8 +152,7 @@ def _execute(
     if commit is None:
         return ()
     return tuple(
-        _effect_failure_input(failure, clock())
-        for failure in executor.execute(commit.effects)
+        _effect_failure_input(failure, clock()) for failure in executor.execute(commit.effects)
     )
 
 
@@ -252,7 +250,8 @@ class LiveControllerRuntime:
                 self._clock,
             )
             for item in enabled
-            if item.tx_enabled and item.network in self._tx_grants
+            if item.tx_enabled
+            and item.network in self._tx_grants
             and (
                 item.network is not CanNetwork.KCAN
                 or self._button_pad_source is DeviceSource.PHYSICAL
@@ -374,7 +373,6 @@ class LiveControllerRuntime:
         return self._kernel.health.fatal
 
     def _dispatch(self, work: ControllerInput) -> RuntimeExecution | None:
-        before_health = self._kernel.health
         commit = self._kernel.dispatch(work)
         commits = [] if commit is None else [commit]
         failures = _execute(commit, self._executor, self._clock)
@@ -384,22 +382,15 @@ class LiveControllerRuntime:
                 commits.append(failure_commit)
                 feedback_failures = _execute(failure_commit, self._executor, self._clock)
                 for feedback_failure in feedback_failures:
-                    self._kernel.dispatch(feedback_failure)
-        health_changed = self._kernel.health != before_health
-        if not commits and not health_changed:
+                    feedback_commit = self._kernel.dispatch(feedback_failure)
+                    if feedback_commit is not None:
+                        commits.append(feedback_commit)
+        if not commits:
             return None
-        execution = RuntimeExecution(
-            changed_topics=frozenset(
-                topic for item in commits for topic in item.changed_topics
-            ),
+        return RuntimeExecution(
+            changed_topics=frozenset(topic for item in commits for topic in item.changed_topics),
             commit_count=len(commits),
         )
-        if health_changed:
-            topics = execution.changed_topics | {StateTopic.HEALTH}
-            if any(isinstance(failure, CanEffectExecutionFailed) for failure in failures):
-                topics |= {StateTopic.DEVICES}
-            execution = replace(execution, changed_topics=topics)
-        return execution
 
     def _current_execution(self, commit: Commit | None) -> RuntimeExecution:
         return RuntimeExecution(
@@ -414,6 +405,7 @@ class LiveControllerRuntime:
             except OSError as exc:
                 LOGGER.error("failed to close SocketCAN network %s: %s", network.value, exc)
         self._raw_buses.clear()
+
 
 def _merge_executions(executions: list[RuntimeExecution]) -> RuntimeExecution | None:
     if not executions:

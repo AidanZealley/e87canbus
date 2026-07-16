@@ -14,6 +14,8 @@ from e87canbus.config import (
 )
 from e87canbus.device import (
     DEFAULT_DEVICE_CATALOGUE,
+    DeviceCatalogueEntry,
+    DeviceIdentity,
     DeviceLifecycleStatus,
     DeviceRole,
     DeviceSource,
@@ -222,6 +224,15 @@ def test_default_device_catalogue_and_registry_vocabulary() -> None:
         for entry in DEFAULT_DEVICE_CATALOGUE
     )
     assert all(entry.instance_limit == 1 for entry in DEFAULT_DEVICE_CATALOGUE)
+
+
+def test_device_catalogue_protocol_version_must_fit_ack_nibble() -> None:
+    with pytest.raises(ValueError, match="ACK version nibble"):
+        DeviceCatalogueEntry(
+            DeviceIdentity(DeviceRole.BUTTON_PAD, 1),
+            enabled=True,
+            supported_protocol_version=0x10,
+        )
 
 
 def test_default_custom_can_ids_cover_all_project_messages() -> None:

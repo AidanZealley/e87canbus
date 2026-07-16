@@ -59,15 +59,10 @@ export const SimulatedDeviceCard = ({
   errorMessage = null,
   children,
 }: SimulatedDeviceCardProps) => {
-  const statusVariant =
-    registryEntry.status === "active"
-      ? "default"
-      : registryEntry.status === "not_found" || registryEntry.status === "disabled"
-        ? "outline"
-        : registryEntry.status === "pending"
-          ? "warning"
-          : "destructive"
-  const visibleActions = (Object.keys(actionLabels) as SimulatedDeviceAction[]).filter(
+  const statusVariant = statusBadgeVariant(registryEntry.status)
+  const visibleActions = (
+    Object.keys(actionLabels) as SimulatedDeviceAction[]
+  ).filter(
     (action) => availableActions[action] && callbacks[action] !== undefined
   )
 
@@ -78,7 +73,10 @@ export const SimulatedDeviceCard = ({
         <CardDescription>
           Virtual peer · {registryEntry.source_mode}
         </CardDescription>
-        <Badge variant={statusVariant} aria-label={`Status: ${registryEntry.status}`}>
+        <Badge
+          variant={statusVariant}
+          aria-label={`Status: ${registryEntry.status}`}
+        >
           {formatStatus(registryEntry.status)}
         </Badge>
       </CardHeader>
@@ -119,11 +117,17 @@ export const SimulatedDeviceCard = ({
             <Button
               key={action}
               size="sm"
-              variant={action === "disconnect" || action === "fault" ? "destructive" : "outline"}
+              variant={
+                action === "disconnect" || action === "fault"
+                  ? "destructive"
+                  : "outline"
+              }
               disabled={pendingAction !== null}
               onClick={callbacks[action]}
             >
-              {pendingAction === action ? `${actionLabels[action]}…` : actionLabels[action]}
+              {pendingAction === action
+                ? `${actionLabels[action]}…`
+                : actionLabels[action]}
             </Button>
           ))}
         </CardFooter>
@@ -133,4 +137,24 @@ export const SimulatedDeviceCard = ({
 }
 
 const formatStatus = (status: DeviceRegistryEntry["status"]) =>
-  status.replaceAll("_", " ").replace(/^./, (character) => character.toUpperCase())
+  status
+    .replaceAll("_", " ")
+    .replace(/^./, (character) => character.toUpperCase())
+
+const statusBadgeVariant = (
+  status: DeviceRegistryEntry["status"]
+): "default" | "outline" | "warning" | "destructive" => {
+  switch (status) {
+    case "active":
+      return "default"
+    case "disabled":
+    case "not_found":
+      return "outline"
+    case "pending":
+      return "warning"
+    case "fault":
+    case "incompatible":
+    case "stale":
+      return "destructive"
+  }
+}

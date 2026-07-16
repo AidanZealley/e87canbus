@@ -4,6 +4,7 @@
 #include <mcp_can.h>
 
 #include "can_ids.h"
+#include "protocol_state.h"
 
 #ifndef DEVICE_ID
 #define DEVICE_ID 1
@@ -24,17 +25,9 @@ const uint32_t CONTROLLER_TIMEOUT_MS = 3000;
 const int32_t CADENCE_JITTER_MS = 100;
 const uint8_t RESPONSE_ACCEPTED = 0;
 const uint8_t RESPONSE_UNSUPPORTED = 1;
-const uint8_t STATUS_LOCAL_FAULT = 1;
-const uint8_t STATUS_CAN_SEND_FAILED = 2;
-
-enum class DeviceState : uint8_t {
-    BOOTING,
-    DISCOVERING,
-    OPERATIONAL,
-    CONTROLLER_LOST,
-    INCOMPATIBLE,
-    LOCAL_FAULT,
-};
+using button_pad::DeviceState;
+using button_pad::STATUS_CAN_SEND_FAILED;
+using button_pad::STATUS_LOCAL_FAULT;
 
 enum class DisplayMode : uint8_t {
     DISCOVERING,
@@ -49,7 +42,7 @@ bool canReady = false;
 bool controllerLease = false;
 uint16_t deviceSession = 0;
 uint16_t controllerSession = 0;
-uint8_t latestSequence = 0;
+button_pad::SequenceState sequences;
 uint8_t deviceStatusCode = 0;
 uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
@@ -69,11 +62,6 @@ uint32_t cadence(uint32_t now, uint32_t interval) {
 uint16_t getUint16(const uint8_t *payload, uint8_t lowByte, uint8_t highByte) {
     return static_cast<uint16_t>(payload[lowByte]) |
            (static_cast<uint16_t>(payload[highByte]) << 8);
-}
-
-void putUint16(uint8_t *payload, uint16_t value, uint8_t lowByte, uint8_t highByte) {
-    payload[lowByte] = static_cast<uint8_t>(value & 0xFF);
-    payload[highByte] = static_cast<uint8_t>(value >> 8);
 }
 
 void selectDisplay(DisplayMode mode) {
@@ -170,15 +158,9 @@ bool sendHello(uint32_t now) {
     }
 
     uint8_t payload[BUTTON_PAD_HELLO_LENGTH] = {};
-    latestSequence = static_cast<uint8_t>(latestSequence + 1);
-    payload[BUTTON_PAD_HELLO_PROTOCOL_VERSION_BYTE] = CUSTOM_DEVICE_PROTOCOL_VERSION;
-    putUint16(payload, static_cast<uint16_t>(DEVICE_ID),
-               BUTTON_PAD_HELLO_DEVICE_ID_LOW_BYTE,
-               BUTTON_PAD_HELLO_DEVICE_ID_HIGH_BYTE);
-    putUint16(payload, deviceSession,
-               BUTTON_PAD_HELLO_DEVICE_SESSION_ID_LOW_BYTE,
-               BUTTON_PAD_HELLO_DEVICE_SESSION_ID_HIGH_BYTE);
-    payload[BUTTON_PAD_HELLO_SEQUENCE_BYTE] = latestSequence;
+    const uint8_t sequence = sequences.nextHello();
+    button_pad::encodeHello(payload, CUSTOM_DEVICE_PROTOCOL_VERSION,
+                            static_cast<uint16_t>(DEVICE_ID), deviceSession, sequence);
 
     const byte status = canBus.sendMsgBuf(CAN_ID_BUTTON_PAD_HELLO, 0,
                                           BUTTON_PAD_HELLO_LENGTH, payload);
@@ -199,31 +181,30 @@ bool sendHeartbeat(uint32_t now) {
     }
 
     uint8_t payload[BUTTON_PAD_HEARTBEAT_LENGTH] = {};
-    latestSequence = static_cast<uint8_t>(latestSequence + 1);
-    putUint16(payload, static_cast<uint16_t>(DEVICE_ID),
-               BUTTON_PAD_HEARTBEAT_DEVICE_ID_LOW_BYTE,
-               BUTTON_PAD_HEARTBEAT_DEVICE_ID_HIGH_BYTE);
-    putUint16(payload, deviceSession,
-               BUTTON_PAD_HEARTBEAT_DEVICE_SESSION_ID_LOW_BYTE,
-               BUTTON_PAD_HEARTBEAT_DEVICE_SESSION_ID_HIGH_BYTE);
-    putUint16(payload, controllerSession,
-               BUTTON_PAD_HEARTBEAT_CONTROLLER_SESSION_ID_LOW_BYTE,
-               BUTTON_PAD_HEARTBEAT_CONTROLLER_SESSION_ID_HIGH_BYTE);
-    payload[BUTTON_PAD_HEARTBEAT_SEQUENCE_BYTE] = latestSequence;
-    payload[BUTTON_PAD_HEARTBEAT_STATUS_BYTE] = deviceStatusCode;
+    const uint8_t sequence = sequences.nextHeartbeat();
+    button_pad::encodeHeartbeat(payload, static_cast<uint16_t>(DEVICE_ID), deviceSession,
+                                controllerSession, sequence, deviceStatusCode);
 
     const byte status = canBus.sendMsgBuf(CAN_ID_BUTTON_PAD_HEARTBEAT, 0,
                                            BUTTON_PAD_HEARTBEAT_LENGTH, payload);
     nextHeartbeatMs = cadence(now, HEARTBEAT_INTERVAL_MS);
+    const button_pad::DeviceStatus sendResult = button_pad::heartbeatSendCompleted(
+        {state, deviceStatusCode}, status == CAN_OK);
     if (status != CAN_OK) {
         Serial.print("HEARTBEAT send failed status=");
         Serial.println(status);
-        if (state == DeviceState::OPERATIONAL) {
-            deviceStatusCode = STATUS_CAN_SEND_FAILED;
-            transitionTo(DeviceState::LOCAL_FAULT);
+        deviceStatusCode = sendResult.code;
+        if (state != sendResult.state) {
+            transitionTo(sendResult.state);
             selectDisplay(DisplayMode::ERROR);
         }
         return false;
+    }
+    if (state != sendResult.state) {
+        deviceStatusCode = sendResult.code;
+        transitionTo(sendResult.state);
+        selectDisplay(DisplayMode::NORMAL);
+        Serial.println("heartbeat send recovered; transient CAN fault cleared");
     }
     return true;
 }
@@ -269,7 +250,7 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
     }
     if (acknowledgedDeviceId != static_cast<uint16_t>(DEVICE_ID) ||
         acknowledgedDeviceSession != deviceSession ||
-        acknowledgedSequence != latestSequence) {
+        acknowledgedSequence != sequences.lastSent) {
         Serial.println("ignored WELCOME_ACK identity, session, or sequence mismatch");
         return;
     }
@@ -429,8 +410,8 @@ void loop() {
         return;
     }
 
-    if ((state == DeviceState::OPERATIONAL || state == DeviceState::LOCAL_FAULT) &&
-        (!freshControllerLease(now) || due(now, lastControllerAckMs + CONTROLLER_TIMEOUT_MS))) {
+    if (button_pad::shouldBeginDiscovery(
+            state, controllerLease, freshControllerLease(now))) {
         beginDiscovery(now, DeviceState::CONTROLLER_LOST);
         return;
     }

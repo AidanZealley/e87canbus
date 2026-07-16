@@ -218,6 +218,56 @@ it("masks all overview and drive live observations after disconnect", () => {
   expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0)
 })
 
+it.each(["steering", "device"] as const)(
+  "makes steering views unavailable for a %s adapter fault",
+  (faultSource) => {
+    renderScreen(
+      <>
+        <CarOverview />
+        <CarSteeringEditor />
+      </>
+    )
+    expect(screen.getByText("50%")).toBeTruthy()
+
+    act(() => {
+      const current = useLiveStore.getState()
+      const fault = {
+        kind:
+          faultSource === "steering"
+            ? ("steering_actuator" as const)
+            : ("device_adapter" as const),
+        monotonic_s: 4,
+        message: "adapter failed",
+      }
+      current.applyHealth({
+        protocol_version: 1,
+        boot_id: "screens-boot",
+        revision: 4,
+        emitted_at: "2026-07-15T00:00:04Z",
+        data: {
+          ...current.health,
+          steering: {
+            fault: faultSource === "steering" ? fault : null,
+          },
+          devices: current.health.devices.map((device) =>
+            device.role === "servotronic_controller"
+              ? {
+                  ...device,
+                  fault: faultSource === "device" ? fault : null,
+                }
+              : device
+          ),
+        },
+      })
+    })
+
+    expect(screen.queryByText("50%")).toBeNull()
+    expect(
+      screen.getAllByText(/servotronic output adapter is faulted/)
+    ).toHaveLength(2)
+  }
+)
+
 it("keeps steering draft local across active updates and activates without false provenance", async () => {
   const requests: Array<{ url: string; body: Record<string, unknown> }> = []
   vi.stubGlobal(

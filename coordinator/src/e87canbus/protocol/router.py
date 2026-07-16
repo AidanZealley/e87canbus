@@ -12,12 +12,14 @@ from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import (
+    DeviceWelcomeAckPayload,
     LedSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
     decode_heartbeat,
     decode_hello,
     encode_led_snapshot,
+    encode_welcome_ack,
 )
 from e87canbus.protocol.generated import (
     LED_COLOUR_AMBER,
@@ -65,8 +67,7 @@ class ProtocolRouter:
         ):
             return None
         payload = decode_button_event(routed.frame, self.ids)
-        assert payload is not None
-        if not payload.pressed:
+        if payload is None or not payload.pressed:
             return None
         return ButtonPressed(payload.button_index, observed_at)
 
@@ -89,16 +90,31 @@ class ProtocolRouter:
                 self.ids.servotronic_controller_hello,
                 self.ids.servotronic_controller_heartbeat,
             ),
-            ):
+        ):
             if frame_id == hello_id:
                 hello_payload = decode_hello(routed.frame, hello_id)
-                assert hello_payload is not None
-                return RegistryHelloObserved(role, hello_payload, observed_at)
+                if hello_payload is not None:
+                    return RegistryHelloObserved(role, hello_payload, observed_at)
             if frame_id == heartbeat_id:
                 heartbeat_payload = decode_heartbeat(routed.frame, heartbeat_id)
-                assert heartbeat_payload is not None
-                return RegistryHeartbeatObserved(role, heartbeat_payload, observed_at)
+                if heartbeat_payload is not None:
+                    return RegistryHeartbeatObserved(role, heartbeat_payload, observed_at)
         return None
+
+    def encode_registry_ack(
+        self,
+        role: DeviceRole,
+        acknowledgement: DeviceWelcomeAckPayload,
+    ) -> RoutedCanFrame:
+        arbitration_id = (
+            self.ids.button_pad_welcome_ack
+            if role is DeviceRole.BUTTON_PAD
+            else self.ids.servotronic_controller_welcome_ack
+        )
+        return RoutedCanFrame(
+            CanNetwork.KCAN,
+            encode_welcome_ack(acknowledgement, arbitration_id),
+        )
 
     def encode(self, effect: SetButtonLeds) -> RoutedCanFrame:
         return RoutedCanFrame(

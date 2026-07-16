@@ -234,7 +234,6 @@ class SimulatedControllerRuntime:
         self._started = False
         self._execution_commits: list[Commit] = []
         self._previous_projection: ControllerAdapterSnapshot | None = None
-        self._previous_application: ApplicationSnapshot | None = None
         self._previous_diagnostics: DiagnosticSnapshot | None = None
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
@@ -444,9 +443,7 @@ class SimulatedControllerRuntime:
             device_sources={
                 DeviceRole.BUTTON_PAD: self.button_pad_source,
                 DeviceRole.SERVOTRONIC_CONTROLLER: (
-                    DeviceSource.EMULATED
-                    if kcan_enabled
-                    else DeviceSource.DISABLED
+                    DeviceSource.EMULATED if kcan_enabled else DeviceSource.DISABLED
                 ),
             },
             servotronic_output_available=kcan_enabled,
@@ -534,7 +531,6 @@ class SimulatedControllerRuntime:
         changed_topics = {
             topic for commit in self._execution_commits for topic in commit.changed_topics
         }
-        application = self.kernel.snapshot()
         projection = self._adapter_projection()
         diagnostics = self.kernel.diagnostics()
         previous = self._previous_projection
@@ -550,40 +546,18 @@ class SimulatedControllerRuntime:
                 history[1] += network.decoded_frames
                 history[2] += network.ignored_frames
                 history[3] += network.malformed_frames
-        if initial:
-            changed_topics.add(StateTopic.DEVICES)
-        elif previous is not None:
-            if (
+        if initial or (
+            previous is not None
+            and (
                 previous.registry != projection.registry
                 or previous.networks != projection.networks
                 or previous.servotronic != projection.servotronic
-            ):
-                changed_topics.add(StateTopic.DEVICES)
-            if (
-                self._previous_application is not None
-                and self._previous_application.button_led_colours
-                != application.button_led_colours
-            ):
-                changed_topics.add(StateTopic.BUTTONS)
-            if previous.lighting != projection.lighting:
-                changed_topics.add(StateTopic.LIGHTING)
+            )
+        ):
+            changed_topics.add(StateTopic.DEVICES)
         self._previous_projection = projection
-        self._previous_application = application
         self._previous_diagnostics = diagnostics
-        if previous_diagnostics is not None and diagnostics.health != previous_diagnostics.health:
-            changed_topics.add(StateTopic.HEALTH)
-            if any(
-                current.fault != prior.fault
-                for current, prior in zip(
-                    diagnostics.health.devices,
-                    previous_diagnostics.health.devices,
-                    strict=True,
-                )
-            ):
-                changed_topics.add(StateTopic.DEVICES)
         commit_count = len(self._execution_commits)
-        if commit_count == 0 and changed_topics:
-            commit_count = 1
         return RuntimeExecution(events, frozenset(changed_topics), commit_count)
 
     def _drain_kernel_inputs(self, *, limit: int | None = None) -> int:
@@ -655,7 +629,11 @@ class SimulatedControllerRuntime:
                 commits.append(failure_commit)
                 feedback_failures = self.executor.execute(failure_commit.effects)
                 for feedback_failure in feedback_failures:
-                    self.kernel.dispatch(_effect_failure_input(feedback_failure, self._clock()))
+                    feedback_commit = self.kernel.dispatch(
+                        _effect_failure_input(feedback_failure, self._clock())
+                    )
+                    if feedback_commit is not None:
+                        commits.append(feedback_commit)
         if failures and self.kernel.health.fatal:
             shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
             if shutdown is not None:
@@ -707,7 +685,7 @@ class SimulatedControllerRuntime:
             emulator.process_pending_led_snapshots()
         except (OSError, RuntimeError, ValueError) as exc:
             LOGGER.error("button-pad emulator failed: %s", exc)
-            self.kernel.dispatch(
+            self._dispatch(
                 DeviceAdapterFailed(DeviceRole.BUTTON_PAD, self._clock(), str(exc))
             )
             self.neotrellis = None

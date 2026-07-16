@@ -55,9 +55,10 @@ class DeviceCatalogueEntry:
             raise ValueError("device catalogue enabled must be a boolean")
         if (
             type(self.supported_protocol_version) is not int
-            or not 0 <= self.supported_protocol_version <= 0xFF
+            or not 0 <= self.supported_protocol_version <= 0x0F
         ):
-            raise ValueError("supported protocol version must fit in one byte")
+            # WELCOME_ACK stores the controller version in its high nibble.
+            raise ValueError("supported protocol version must fit in the ACK version nibble")
         if type(self.instance_limit) is not int or self.instance_limit < 1:
             raise ValueError("device catalogue instance_limit must be positive")
 

@@ -1,5 +1,10 @@
 import type { ApplicationSettings } from "@/api/settings"
-import type { EngineTelemetryValue } from "@/api/live-events"
+import type {
+  DeviceRegistryEntry,
+  EngineTelemetryValue,
+  RuntimeFaultState,
+  SteeringState,
+} from "@/api/live-events"
 
 export type TemperatureSeverity =
   "normal" | "warning" | "critical" | "unavailable"
@@ -16,6 +21,55 @@ export type RpmPresentation = {
   rpm: number | null
   stage: RpmStage
   position: number
+}
+
+export type SteeringDependency =
+  | {
+      available: true
+      steering: SteeringState
+      servotronic: NonNullable<SteeringState["servotronic"]>
+    }
+  | { available: false; reason: string }
+
+export const steeringDependency = ({
+  synchronized,
+  status,
+  steering,
+  steeringFault,
+  deviceAdapterFault,
+}: {
+  synchronized: boolean
+  status: DeviceRegistryEntry["status"]
+  steering: SteeringState | null
+  steeringFault: RuntimeFaultState | null
+  deviceAdapterFault: RuntimeFaultState | null
+}): SteeringDependency => {
+  if (!synchronized || steering === null) {
+    return { available: false, reason: "live steering state unavailable" }
+  }
+  if (steering.servotronic === null) {
+    return {
+      available: false,
+      reason: "servotronic output adapter is unavailable",
+    }
+  }
+  if (steeringFault !== null || deviceAdapterFault !== null) {
+    return {
+      available: false,
+      reason: "servotronic output adapter is faulted",
+    }
+  }
+  if (status !== "active") {
+    return {
+      available: false,
+      reason: `servotronic controller is ${status}`,
+    }
+  }
+  return {
+    available: true,
+    steering,
+    servotronic: steering.servotronic,
+  }
 }
 
 export const kilometresPerHourToMilesPerHour = (value: number) =>

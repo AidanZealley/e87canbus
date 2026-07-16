@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import assert_never
 
 from e87canbus.application.controller import (
+    SERVOTRONIC_BUTTON_INDEXES,
     ApplicationSnapshot,
     Transition,
     button_led_state,
@@ -25,6 +26,7 @@ from e87canbus.application.events import (
     ApplicationEvent,
     ButtonCommandFailed,
     ButtonFeedbackDeadlineReached,
+    ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
@@ -48,6 +50,7 @@ from e87canbus.device_registry import (
     FeatureUnavailable,
     RegistryHeartbeatObserved,
     RegistryHelloObserved,
+    RegistryTransition,
     expire_entry,
     initial_registry,
     registry_entry,
@@ -67,7 +70,6 @@ from e87canbus.output import EffectRequest, OutputEffect, SendRegistryFrame
 from e87canbus.protocol.can import (
     CanFrame,
     RoutedCanFrame,
-    encode_welcome_ack,
 )
 from e87canbus.protocol.router import ProtocolRouter
 
@@ -272,9 +274,8 @@ class RuntimeHealth:
 
     @property
     def fatal(self) -> bool:
-        return (
-            self.inbox_overflow_fault is not None
-            or any(item.fault is not None for item in self.networks)
+        return self.inbox_overflow_fault is not None or any(
+            item.fault is not None for item in self.networks
         )
 
     def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
@@ -413,9 +414,7 @@ class CoordinatorKernel:
             entry.next_deadline for entry in self._registry if entry.next_deadline is not None
         ]
         deadlines.extend(
-            deadline
-            for deadline in self._state.button_feedback_deadlines
-            if deadline is not None
+            deadline for deadline in self._state.button_feedback_deadlines if deadline is not None
         )
         if self._state.high_beam_next_transition_at is not None:
             deadlines.append(self._state.high_beam_next_transition_at)
@@ -484,7 +483,7 @@ class CoordinatorKernel:
                     RuntimeFault(RuntimeFaultKind.DEVICE_ADAPTER, failed_at, message),
                 )
                 if role is not DeviceRole.SERVOTRONIC_CONTROLLER:
-                    return None
+                    return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
                 previous_button_leds = button_led_state(self._state)
                 cleared = clear_maximum_assistance(self._state)
@@ -511,7 +510,7 @@ class CoordinatorKernel:
                         previous_health=previous_health,
                     )
                     if origin_button_index is not None
-                    else None
+                    else self._commit_health(previous_health)
                 )
             case SteeringActuatorFailed(failed_at, message, origin_button_index):
                 previous_health = self._health
@@ -523,7 +522,7 @@ class CoordinatorKernel:
                     )
                 )
                 if self._lifecycle is KernelLifecycle.STOPPED:
-                    return None
+                    return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
                 previous_button_leds = button_led_state(self._state)
                 cleared = clear_maximum_assistance(self._state)
@@ -617,7 +616,7 @@ class CoordinatorKernel:
         button_entry = self.registry_for(DeviceRole.BUTTON_PAD)
         if button_entry.status is not DeviceLifecycleStatus.ACTIVE:
             return None
-        if event.button_index in {0, 1, 2, 3} and not self._servotronic_usable:
+        if event.button_index in SERVOTRONIC_BUTTON_INDEXES and not self._servotronic_usable:
             return self._transition(ButtonCommandFailed(event.button_index, event.observed_at))
         return self._transition(event, origin_button_index=event.button_index)
 
@@ -627,7 +626,7 @@ class CoordinatorKernel:
         *,
         previous_health: RuntimeHealth | None = None,
         previous_snapshot: ApplicationSnapshot | None = None,
-        previous_button_leds: object | None = None,
+        previous_button_leds: ButtonLedState | None = None,
         extra_effects: tuple[OutputEffect, ...] = (),
         extra_topics: frozenset[StateTopic] = frozenset(),
         origin_button_index: int | None = None,
@@ -655,16 +654,15 @@ class CoordinatorKernel:
 
     def _commit_application_result(
         self,
-        result: object,
+        result: Transition,
         previous_snapshot: ApplicationSnapshot,
-        previous_button_leds: object,
+        previous_button_leds: ButtonLedState,
         *,
         previous_health: RuntimeHealth | None = None,
         extra_effects: tuple[OutputEffect, ...] = (),
         extra_topics: frozenset[StateTopic] = frozenset(),
         origin_button_index: int | None = None,
     ) -> Commit:
-        assert isinstance(result, Transition)
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
@@ -690,10 +688,23 @@ class CoordinatorKernel:
             ),
         )
 
+    def _commit_health(self, previous_health: RuntimeHealth) -> Commit:
+        """Commit an accepted diagnostic-only input through the kernel contract."""
+
+        self._revision += 1
+        return Commit(
+            revision=self._revision,
+            snapshot=self.snapshot(),
+            effects=(),
+            changed_topics=(
+                frozenset({StateTopic.HEALTH}) if self._health != previous_health else frozenset()
+            ),
+            state_changed=False,
+        )
+
     def _commit_startup(self, now: float) -> Commit:
         self._registry = tuple(
-            replace(entry, last_transition_monotonic_s=now)
-            for entry in self._registry
+            replace(entry, last_transition_monotonic_s=now) for entry in self._registry
         )
         self._revision = 1
         return Commit(
@@ -803,11 +814,8 @@ class CoordinatorKernel:
     def _apply_registry_transition(
         self,
         role: DeviceRole,
-        result: object,
+        result: RegistryTransition,
     ) -> Commit | None:
-        from e87canbus.device_registry import RegistryTransition
-
-        assert isinstance(result, RegistryTransition)
         previous_entry = self.registry_for(role)
         next_entry = result.entry
         if next_entry == previous_entry and result.acknowledgement is None:
@@ -820,19 +828,8 @@ class CoordinatorKernel:
         )
         effects: list[OutputEffect] = []
         if result.acknowledgement is not None:
-            ids = self._router.ids
-            acknowledgement_id = (
-                ids.button_pad_welcome_ack
-                if role is DeviceRole.BUTTON_PAD
-                else ids.servotronic_controller_welcome_ack
-            )
             effects.append(
-                SendRegistryFrame(
-                    RoutedCanFrame(
-                        CanNetwork.KCAN,
-                        encode_welcome_ack(result.acknowledgement, acknowledgement_id),
-                    )
-                )
+                SendRegistryFrame(self._router.encode_registry_ack(role, result.acknowledgement))
             )
         if (
             previous_entry.status is DeviceLifecycleStatus.ACTIVE
@@ -922,14 +919,8 @@ class CoordinatorKernel:
         return tuple(
             request
             for request in effects
-            if (
-                not isinstance(request.effect, SetButtonLeds)
-                or button_active
-            )
-            and (
-                not isinstance(request.effect, SetSteeringAssistance)
-                or self._servotronic_usable
-            )
+            if (not isinstance(request.effect, SetButtonLeds) or button_active)
+            and (not isinstance(request.effect, SetSteeringAssistance) or self._servotronic_usable)
         )
 
 
@@ -963,10 +954,7 @@ def _changed_controller_topics(
     if (
         current.high_beam_enabled != previous.high_beam_enabled
         or current.high_beam_strobe_active != previous.high_beam_strobe_active
-        or (
-            current.high_beam_strobe_cycles_remaining
-            != previous.high_beam_strobe_cycles_remaining
-        )
+        or (current.high_beam_strobe_cycles_remaining != previous.high_beam_strobe_cycles_remaining)
     ):
         changed.add(StateTopic.LIGHTING)
     if health_changed:

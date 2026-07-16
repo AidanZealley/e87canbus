@@ -104,6 +104,19 @@ def test_neotrellis_rejects_buttons_outside_generated_device_positions() -> None
         node.send_button_event(LED_COUNT, pressed=True)
 
 
+def test_connect_is_idempotent_while_peer_is_connected() -> None:
+    network = InMemoryCanNetwork()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=CustomCanIds(),
+    )
+    initial_session = node.session_id
+
+    assert node.connect() is False
+
+    assert node.session_id == initial_session
+
+
 def test_neotrellis_rejects_button_and_led_traffic_without_fresh_operational_lease() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
