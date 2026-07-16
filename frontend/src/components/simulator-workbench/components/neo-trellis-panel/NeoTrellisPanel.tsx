@@ -17,11 +17,6 @@ export const NeoTrellisPanel = ({
   onClick,
 }: NeoTrellisPanelProps) => (
   <section className="grid gap-4" aria-label="Button-pad emulator exercise">
-    {!emulatorControlsAvailable ? (
-      <p className="text-xs text-muted-foreground">
-        Wire-level button controls are available only for the active emulated role.
-      </p>
-    ) : null}
     <div className="grid grid-cols-4 gap-2">
       {buttons.map(({ index, rgb }) => (
         <div key={index} className="flex min-w-0 flex-col gap-1">

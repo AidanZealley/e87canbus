@@ -551,10 +551,16 @@ class SimulatedControllerRuntime:
             and (
                 previous.registry != projection.registry
                 or previous.networks != projection.networks
-                or previous.servotronic != projection.servotronic
             )
         ):
             changed_topics.add(StateTopic.DEVICES)
+        # Effective assistance is nested in the steering live payload, rather than
+        # the devices payload.  Its projection must therefore advance the steering
+        # topic revision so a live client receives a new curve marker.
+        if initial or (
+            previous is not None and previous.servotronic != projection.servotronic
+        ):
+            changed_topics.add(StateTopic.STEERING)
         self._previous_projection = projection
         self._previous_diagnostics = diagnostics
         commit_count = len(self._execution_commits)

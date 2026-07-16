@@ -1,4 +1,4 @@
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 from e87canbus.application import controller
@@ -275,7 +275,11 @@ def test_mapped_buttons_from_normal_modes(
     result = transition(state, ButtonPressed(button_index), CONFIG)
 
     assert projection(result.state) == expected
-    expected_effects = () if expected_led_state is None else (SetButtonLeds(expected_led_state),)
+    expected_effects: tuple[ApplicationEffect, ...] = ()
+    if expected_led_state is not None:
+        expected_effects += (SetButtonLeds(expected_led_state),)
+    if result.state.steering != state.steering:
+        expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
     assert result.effects == expected_effects
 
 
@@ -298,7 +302,11 @@ def test_mapped_buttons_while_maximum_assistance_is_active(
     result = transition(state, ButtonPressed(button_index), CONFIG)
 
     assert projection(result.state) == expected
-    expected_effects = () if expected_led_state is None else (SetButtonLeds(expected_led_state),)
+    expected_effects: tuple[ApplicationEffect, ...] = ()
+    if expected_led_state is not None:
+        expected_effects += (SetButtonLeds(expected_led_state),)
+    if result.state.steering != state.steering:
+        expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
     assert result.effects == expected_effects
 
 
@@ -308,7 +316,10 @@ def test_mode_button_selects_auto_from_maximum_over_previous_manual_state() -> N
     result = transition(state, ButtonPressed(0), CONFIG)
 
     assert projection(result.state) == (SteeringMode.AUTO, 5, False)
-    assert result.effects == (SetButtonLeds(AUTO_LEDS),)
+    assert result.effects == (
+        SetButtonLeds(AUTO_LEDS),
+        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
+    )
 
 
 def test_maximum_assistance_restores_previous_manual_state() -> None:
@@ -328,6 +339,16 @@ def test_first_assistance_press_after_maximum_only_restores_level() -> None:
 
     assert snapshot(restored, CONFIG).manual_assistance_level == 3
     assert snapshot(adjusted, CONFIG).manual_assistance_level == 4
+
+
+def test_each_assistance_button_press_immediately_emits_its_new_command() -> None:
+    state = application_state(SteeringMode.MANUAL, 5)
+
+    raised = transition(state, ButtonPressed(2), CONFIG)
+    lowered = transition(raised.state, ButtonPressed(1), CONFIG)
+
+    assert raised.effects == (SetSteeringAssistance(6 / 7, SteeringCommandReason.MANUAL),)
+    assert lowered.effects == (SetSteeringAssistance(5 / 7, SteeringCommandReason.MANUAL),)
 
 
 def test_unknown_button_is_a_no_op() -> None:
@@ -388,6 +409,24 @@ def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
     assert result.state.speed_sample == SpeedSample(0.0, 12.5, CanNetwork.PTCAN)
     assert snapshot(result.state, CONFIG).speed_valid is True
     assert result.effects == ()
+
+
+def test_zero_speed_start_immediately_uses_the_active_auto_curve() -> None:
+    curve = replace(
+        CURVE_DEFINITION,
+        points=(
+            replace(CURVE_DEFINITION.points[0], assistance_per_mille=950),
+            *CURVE_DEFINITION.points[1:],
+        ),
+    )
+    result = controller.transition(
+        ApplicationState(),
+        SpeedObserved(SpeedSample(0.0, 1.0, CanNetwork.FCAN)),
+        CONFIG,
+        curve,
+    )
+
+    assert result.effects == (SetSteeringAssistance(0.95, SteeringCommandReason.AUTO),)
 
 
 def test_engine_observations_store_canonical_value_time_and_ptcan_source() -> None:

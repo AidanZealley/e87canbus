@@ -1,54 +1,32 @@
-import type { ReactNode } from "react"
-
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { DeviceRegistryEntry } from "@/api/live-events"
-
-export type SimulatedDeviceAction =
-  | "connect"
-  | "disconnect"
-  | "reboot"
-  | "incompatible"
-  | "restore-compatible"
-  | "fault"
-  | "clear-fault"
-
-export type SimulatedDeviceActionAvailability = Record<
-  SimulatedDeviceAction,
-  boolean
->
-
-export type SimulatedDeviceActionCallbacks = Partial<
-  Record<SimulatedDeviceAction, () => void>
->
-
-type SimulatedDeviceCardProps = {
-  role: DeviceRegistryEntry["role"]
-  registryEntry: DeviceRegistryEntry
-  availableActions: SimulatedDeviceActionAvailability
-  callbacks: SimulatedDeviceActionCallbacks
-  pendingAction?: SimulatedDeviceAction | null
-  errorMessage?: string | null
-  children: ReactNode
-}
-
-const actionLabels: Record<SimulatedDeviceAction, string> = {
-  connect: "Connect",
-  disconnect: "Disconnect",
-  reboot: "Reboot",
-  incompatible: "Simulate incompatible",
-  "restore-compatible": "Restore compatible",
-  fault: "Set fault",
-  "clear-fault": "Clear fault",
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { LoadingButton } from "@/components/loading-button"
+import { Settings2Icon } from "lucide-react"
+import { actionIcons, actionLabels, statusControls } from "./constants"
+import type { SimulatedDeviceAction, SimulatedDeviceCardProps } from "./types"
+import {
+  connectionActionForStatus,
+  formatStatus,
+  statusActionForControl,
+  statusBadgeVariant,
+  statusControlForStatus,
+} from "./utils"
 
 export const SimulatedDeviceCard = ({
   role,
@@ -56,105 +34,140 @@ export const SimulatedDeviceCard = ({
   availableActions,
   callbacks,
   pendingAction = null,
-  errorMessage = null,
   children,
 }: SimulatedDeviceCardProps) => {
   const statusVariant = statusBadgeVariant(registryEntry.status)
-  const visibleActions = (
-    Object.keys(actionLabels) as SimulatedDeviceAction[]
-  ).filter(
+  const connectionAction = connectionActionForStatus(registryEntry.status)
+  const actionCandidates: SimulatedDeviceAction[] = [connectionAction, "reboot"]
+  const visibleActions = actionCandidates.filter(
     (action) => availableActions[action] && callbacks[action] !== undefined
+  )
+  const statusControlActions = statusControls.map((control) => ({
+    ...control,
+    action: statusActionForControl(registryEntry.status, control.value),
+  }))
+  const statusMenuAvailable = statusControlActions.some(
+    (control) =>
+      control.action !== null &&
+      availableActions[control.action] &&
+      callbacks[control.action] !== undefined
   )
 
   return (
     <Card className="min-w-0" data-device-role={role}>
       <CardHeader>
-        <CardTitle>{registryEntry.label}</CardTitle>
-        <CardDescription>
-          Virtual peer · {registryEntry.source_mode}
-        </CardDescription>
-        <Badge
-          variant={statusVariant}
-          aria-label={`Status: ${registryEntry.status}`}
-        >
-          {formatStatus(registryEntry.status)}
-        </Badge>
-      </CardHeader>
-
-      <CardContent className="grid gap-4">
-        <dl className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-md border p-2">
-            <dt className="text-muted-foreground">Protocol</dt>
-            <dd className="font-medium">
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle>{registryEntry.label}</CardTitle>
+          <div className="flex items-center">
+            <Badge
+              variant={statusVariant}
+              aria-label={`Status: ${registryEntry.status}`}
+            >
+              {formatStatus(registryEntry.status)}
+            </Badge>
+          </div>
+        </div>
+        <dl className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex gap-1">
+            <dt>Protocol</dt>
+            <dd className="text-foreground">
               {registryEntry.protocol_version ?? "Not observed"}
             </dd>
           </div>
-          <div className="rounded-md border p-2">
-            <dt className="text-muted-foreground">Session</dt>
-            <dd className="font-medium">
+          <div className="flex gap-1">
+            <dt>Session</dt>
+            <dd className="text-foreground">
               {registryEntry.device_session_id ?? "Not observed"}
             </dd>
           </div>
           {registryEntry.last_status_code !== null ? (
-            <div className="col-span-2 rounded-md border p-2">
-              <dt className="text-muted-foreground">Device status code</dt>
-              <dd className="font-medium">{registryEntry.last_status_code}</dd>
+            <div className="flex gap-1">
+              <dt>Status code</dt>
+              <dd className="text-foreground">
+                {registryEntry.last_status_code}
+              </dd>
             </div>
           ) : null}
         </dl>
+      </CardHeader>
 
-        {children}
-        {errorMessage ? (
-          <p className="text-xs text-destructive" role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
-      </CardContent>
+      <CardContent className="grid gap-4">{children}</CardContent>
 
-      {visibleActions.length > 0 ? (
-        <CardFooter className="flex flex-wrap gap-2 border-t">
-          {visibleActions.map((action) => (
-            <Button
-              key={action}
-              size="sm"
-              variant={
-                action === "disconnect" || action === "fault"
-                  ? "destructive"
-                  : "outline"
-              }
-              disabled={pendingAction !== null}
-              onClick={callbacks[action]}
-            >
-              {pendingAction === action
-                ? `${actionLabels[action]}…`
-                : actionLabels[action]}
-            </Button>
-          ))}
+      {visibleActions.length > 0 || statusMenuAvailable ? (
+        <CardFooter className="flex items-center justify-between gap-2 border-t">
+          <div className="flex flex-wrap gap-2">
+            {visibleActions.map((action) => {
+              const Icon = actionIcons[action]
+
+              return (
+                <LoadingButton
+                  key={action}
+                  size="sm"
+                  variant={action === "disconnect" ? "destructive" : "outline"}
+                  isLoading={pendingAction === action}
+                  disabled={pendingAction !== null && pendingAction !== action}
+                  onClick={callbacks[action]}
+                >
+                  <Icon className="size-2.5" strokeWidth={3} />
+                  {actionLabels[action]}
+                </LoadingButton>
+              )
+            })}
+          </div>
+
+          {statusMenuAvailable ? (
+            <div className="flex">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pendingAction !== null}
+                    />
+                  }
+                >
+                  <Settings2Icon className="size-2.5" strokeWidth={3} />
+                  Status
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Device status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={statusControlForStatus(registryEntry.status)}
+                    >
+                      {statusControlActions.map((control) => {
+                        const Icon = actionIcons[control.iconAction]
+                        const disabled =
+                          pendingAction !== null ||
+                          control.action === null ||
+                          !availableActions[control.action] ||
+                          callbacks[control.action] === undefined
+
+                        return (
+                          <DropdownMenuRadioItem
+                            key={control.value}
+                            value={control.value}
+                            disabled={disabled}
+                            onClick={() => {
+                              if (control.action !== null) {
+                                callbacks[control.action]?.()
+                              }
+                            }}
+                          >
+                            <Icon />
+                            {control.label}
+                          </DropdownMenuRadioItem>
+                        )
+                      })}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
         </CardFooter>
       ) : null}
     </Card>
   )
-}
-
-const formatStatus = (status: DeviceRegistryEntry["status"]) =>
-  status
-    .replaceAll("_", " ")
-    .replace(/^./, (character) => character.toUpperCase())
-
-const statusBadgeVariant = (
-  status: DeviceRegistryEntry["status"]
-): "default" | "outline" | "warning" | "destructive" => {
-  switch (status) {
-    case "active":
-      return "default"
-    case "disabled":
-    case "not_found":
-      return "outline"
-    case "pending":
-      return "warning"
-    case "fault":
-    case "incompatible":
-    case "stale":
-      return "destructive"
-  }
 }

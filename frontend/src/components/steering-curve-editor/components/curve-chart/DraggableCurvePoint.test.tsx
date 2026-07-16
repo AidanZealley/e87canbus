@@ -80,6 +80,20 @@ describe("DraggableCurvePoint", () => {
     expect(onAdjustingChange.mock.calls).toEqual([[true], [false]])
   })
 
+  it("focuses the point when a drag begins so keyboard controls are available", () => {
+    renderPoint()
+    const handle = screen.getByRole("slider")
+
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      buttons: 1,
+      pointerId: 4,
+      pointerType: "mouse",
+    })
+
+    expect(document.activeElement).toBe(handle)
+  })
+
   it("does not resume a mouse drag after the button is released elsewhere", () => {
     const onChange = renderPoint()
     const handle = screen.getByRole("slider")

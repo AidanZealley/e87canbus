@@ -69,11 +69,6 @@ export const SimulatorNeoTrellis = () => {
           ? (deviceMutation.variables?.action ?? null)
           : null
       }
-      errorMessage={
-        deviceMutation.error instanceof Error
-          ? deviceMutation.error.message
-          : null
-      }
     >
       <NeoTrellisPanel
         buttons={buttons}

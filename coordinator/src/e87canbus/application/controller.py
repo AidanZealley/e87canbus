@@ -110,13 +110,24 @@ def transition(
                 high_beam_strobe_config or HighBeamStrobeConfig(),
             )
         case SpeedObserved(sample):
-            return Transition(
-                replace(
-                    state,
-                    speed_sample=replace(sample, speed_kph=max(0.0, sample.speed_kph)),
-                    speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
-                )
+            next_state = replace(
+                state,
+                speed_sample=replace(sample, speed_kph=max(0.0, sample.speed_kph)),
+                speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
             )
+            # Starting the virtual car publishes an explicit 0 km/h sample.  Apply
+            # Auto's curve result immediately so the live marker never renders the
+            # prior zero-assist fallback while waiting for the next control tick.
+            if (
+                not isinstance(next_state.steering, MaximumAssistance)
+                and next_state.steering.mode is SteeringMode.AUTO
+                and sample.speed_kph == 0.0
+            ):
+                return Transition(
+                    next_state,
+                    (_steering_command(next_state, config, active_definition),),
+                )
+            return Transition(next_state)
         case EngineRpmObserved(sample):
             return Transition(replace(state, engine_rpm_sample=sample))
         case OilTemperatureObserved(sample):
@@ -178,6 +189,8 @@ def transition(
             effects: tuple[ApplicationEffect, ...] = ()
             if new_leds != previous_leds:
                 effects += (SetButtonLeds(new_leds),)
+            if new_state.steering != state.steering:
+                effects += (_steering_command(new_state, config, active_definition),)
             if new_state.high_beam_enabled != state.high_beam_enabled:
                 effects += (SetHighBeam(new_state.high_beam_enabled),)
             return Transition(new_state, effects)

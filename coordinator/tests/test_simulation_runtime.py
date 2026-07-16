@@ -944,7 +944,7 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     controller.execute(SetVehicleSpeed(30.0))
 
     clock.now = 2.001
-    controller.execute(RunControlTimer(clock()))
+    first_execution = controller.execute(RunControlTimer(clock()))
     first = application(controller)
     clock.now = 3.5
     controller.execute(RunControlTimer(clock()))
@@ -955,6 +955,7 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
         "simulated-vehicle"
     ) == 3
     assert first.speed_valid is True
+    assert StateTopic.STEERING in first_execution.changed_topics
     assert second_application.speed_valid is True
     assert second_adapter.servotronic is not None
     assert second_adapter.servotronic.effective_assistance == pytest.approx(

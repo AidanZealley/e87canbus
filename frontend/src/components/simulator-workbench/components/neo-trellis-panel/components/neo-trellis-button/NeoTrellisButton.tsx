@@ -42,11 +42,11 @@ export const NeoTrellisButton = ({
     />
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0.75 z-0 rounded-[calc(var(--radius-4xl)-0.25rem)] bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/15%),transparent_36%),linear-gradient(145deg,rgb(var(--button-led-rgb)/30%),var(--muted))] opacity-0 transition-opacity duration-100 ease-out group-hover/button:opacity-100"
+      className="pointer-events-none absolute inset-0.75 z-0 rounded-[calc(var(--radius-4xl)-0.25rem)] bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/5%),transparent_36%),linear-gradient(145deg,rgb(var(--button-led-rgb)/12%),var(--muted))] opacity-0 transition-opacity duration-100 ease-out group-hover/button:opacity-100"
     />
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0.75 z-0 rounded-[calc(var(--radius-4xl)-0.25rem)] bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/14%),transparent_36%),linear-gradient(145deg,rgb(var(--button-led-rgb)/12%),var(--muted))] opacity-0 transition-opacity duration-100 ease-out group-active/button:opacity-100"
+      className="pointer-events-none absolute inset-0.75 z-0 rounded-[calc(var(--radius-4xl)-0.25rem)] bg-[radial-gradient(circle_at_30%_20%,rgb(255_255_255/5%),transparent_36%),linear-gradient(145deg,rgb(var(--button-led-rgb)/30%),var(--muted))] opacity-0 transition-opacity duration-100 ease-out group-active/button:opacity-100"
     />
     <span className="relative z-10 font-heading text-2xl transition-transform duration-100 ease-out group-active/button:translate-y-0.5">
       {index}

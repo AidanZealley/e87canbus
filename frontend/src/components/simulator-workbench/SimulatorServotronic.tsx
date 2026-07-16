@@ -36,9 +36,6 @@ export const SimulatorServotronic = () => {
       pendingAction={
         mutation.isPending ? (mutation.variables?.action ?? null) : null
       }
-      errorMessage={
-        mutation.error instanceof Error ? mutation.error.message : null
-      }
     >
       <SteeringStatus />
     </SimulatedDeviceCard>

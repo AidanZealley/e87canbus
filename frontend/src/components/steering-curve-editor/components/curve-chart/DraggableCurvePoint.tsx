@@ -89,6 +89,7 @@ export const DraggableCurvePoint = ({
         onPointerDown={(event) => {
           if (event.button !== 0 || activePointer.current !== null) return
           activePointer.current = event.pointerId
+          event.currentTarget.focus()
           onAdjustingChange(true)
           event.currentTarget.setPointerCapture?.(event.pointerId)
           event.preventDefault()
