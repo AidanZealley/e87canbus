@@ -15,6 +15,7 @@ from typing import Protocol
 
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.device import DeviceRole
 from e87canbus.device_registry import DeviceRegistryEntry
 from e87canbus.runtime import (
     DiagnosticSnapshot,
@@ -40,6 +41,14 @@ class ControllerInboxFull(ControllerServiceError):
 
 class ControllerWorkUnavailable(ControllerServiceError):
     """Raised when selected runtime state cannot process otherwise valid work."""
+
+
+class SimulationDeviceUnavailable(ControllerWorkUnavailable):
+    """Raised when a requested virtual peer is absent from the composition."""
+
+    def __init__(self, role: DeviceRole) -> None:
+        self.role = role
+        super().__init__(f"simulated {role.value} is unavailable")
 
 
 class ControllerServiceLifecycle(StrEnum):

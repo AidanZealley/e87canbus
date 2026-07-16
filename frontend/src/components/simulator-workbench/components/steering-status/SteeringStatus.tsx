@@ -1,15 +1,6 @@
 import { GaugeIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { useLiveStore } from "@/live/live-store"
 import { formatSteeringReason } from "../../utils"
 
@@ -28,18 +19,20 @@ export const SteeringStatus = () => {
   const isAuto = steering.mode === "auto"
 
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Steering assist</CardTitle>
-        <CardDescription>
-          Application state and ideal controller projection
-        </CardDescription>
-        <CardAction>
+    <section className="grid gap-4" aria-label="Servotronic steering assist">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="font-heading text-sm font-medium">Steering assist</h2>
+          <p className="text-xs/relaxed text-muted-foreground">
+            In-process actuator projection and watchdog
+          </p>
+        </div>
+        <div>
           <GaugeIcon aria-hidden="true" />
-        </CardAction>
-      </CardHeader>
+        </div>
+      </div>
 
-      <CardContent className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between rounded-md bg-muted p-3">
           <span className="text-xs text-muted-foreground">Mode</span>
           <div className="flex items-center gap-2">
@@ -99,13 +92,11 @@ export const SteeringStatus = () => {
             </dd>
           </div>
         </dl>
-      </CardContent>
+      </div>
 
-      <CardFooter>
-        <p className="text-xs text-muted-foreground">
-          Button 0 changes mode; 1/2 adjust; 3 toggles maximum assist.
-        </p>
-      </CardFooter>
-    </Card>
+      <p className="text-xs text-muted-foreground">
+        Button 0 changes mode; 1/2 adjust; 3 toggles maximum assist.
+      </p>
+    </section>
   )
 }

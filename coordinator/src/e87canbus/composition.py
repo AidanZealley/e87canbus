@@ -10,7 +10,7 @@ from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_co
 from e87canbus.device import DeviceSource
 from e87canbus.live import LiveControllerRuntime
 from e87canbus.service import ControllerMode, ControllerService
-from e87canbus.simulation.devices import SimulatedSteeringController
+from e87canbus.simulation.devices import SimulatedServotronicPeer
 from e87canbus.simulation.runtime import SimulatedControllerRuntime
 
 
@@ -61,9 +61,9 @@ def build_simulated_controller_service(
     config: AppConfig | None = None,
     button_pad_source: DeviceSource | None = None,
     clock: Callable[[], float] = time.monotonic,
-    steering_controller_factory: Callable[
-        [float, Callable[[], float]], SimulatedSteeringController
-    ] = SimulatedSteeringController,
+    servotronic_factory: Callable[
+        [float, Callable[[], float]], SimulatedServotronicPeer
+    ] = SimulatedServotronicPeer,
 ) -> ControllerService:
     selected_config = config or simulator_config()
     _validate_networks(selected_config)
@@ -87,7 +87,7 @@ def build_simulated_controller_service(
             config=selected_config,
             button_pad_source=selected_button_pad,
             clock=clock,
-            steering_controller_factory=steering_controller_factory,
+            servotronic_factory=servotronic_factory,
         ),
         mode=ControllerMode.SIMULATED,
         clock=clock,

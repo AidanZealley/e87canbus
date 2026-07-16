@@ -5,10 +5,10 @@ import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
 import { SteeringCurveCard } from "./components/steering-curve-card"
-import { SteeringStatus } from "./components/steering-status/SteeringStatus"
 import { LightingStatus } from "./components/lighting-status/LightingStatus"
 import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
+import { SimulatorServotronic } from "./SimulatorServotronic"
 import { SimulatorTrace } from "./SimulatorTrace"
 import { notifySimulatorError } from "./utils"
 
@@ -50,7 +50,7 @@ export const SimulatorWorkbench = () => {
         </div>
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <SteeringStatus />
+          <SimulatorServotronic />
           <LightingStatus />
           <NetworkTopology />
         </div>

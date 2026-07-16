@@ -14,7 +14,7 @@ from e87canbus.application.events import LedColour, SetSteeringAssistance, Steer
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.simulation.devices import SimulatedSteeringController
+from e87canbus.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 
@@ -33,14 +33,14 @@ def make_app(*, inbox_capacity: int = 64):
 def make_app_for_config(
     config,
     *,
-    steering_controller_factory=SimulatedSteeringController,
+    servotronic_factory=SimulatedServotronicPeer,
     button_pad_source=None,
 ):
     profile_directory = TemporaryDirectory()
     service = build_simulated_controller_service(
         config=config,
         button_pad_source=button_pad_source,
-        steering_controller_factory=steering_controller_factory,
+        servotronic_factory=servotronic_factory,
     )
     app = create_app(
         controller_service=service,
@@ -57,7 +57,7 @@ def client() -> Iterator[TestClient]:
         yield test_client
 
 
-class FailingFirstSessionController(SimulatedSteeringController):
+class FailingFirstSessionPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -73,19 +73,19 @@ class FailingFirstSessionController(SimulatedSteeringController):
         super().set_assistance(command)
 
 
-class RejectingStartupController(SimulatedSteeringController):
+class RejectingStartupPeer(SimulatedServotronicPeer):
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         raise OSError("startup actuator failure")
 
 
-class RejectingShutdownController(SimulatedSteeringController):
+class RejectingShutdownPeer(SimulatedServotronicPeer):
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         if command.reason is SteeringCommandReason.SHUTDOWN:
             raise OSError("shutdown actuator failure")
         super().set_assistance(command)
 
 
-class BlockingShutdownController(SimulatedSteeringController):
+class BlockingShutdownPeer(SimulatedServotronicPeer):
     def __init__(
         self,
         watchdog_timeout_s: float,
@@ -146,7 +146,7 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert topic_revisions["health"] == payload["revision"]
     assert {
         revision for topic, revision in topic_revisions.items() if topic != "health"
-    } == {1, 8}
+    } == {1, 10}
     health = payload["data"]["health"]
     assert health["ready"] is True
     assert health["inbox"]["capacity"] == 64
@@ -196,7 +196,7 @@ def test_failed_first_command_is_projected_without_fabricated_reason() -> None:
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app_for_config(
         config,
-        steering_controller_factory=RejectingStartupController,
+        servotronic_factory=RejectingStartupPeer,
     )
 
     with TestClient(app):
@@ -278,7 +278,7 @@ def test_reset_after_shutdown_failure_returns_new_healthy_api_session(
     config = replace(simulator_config(), tick_interval_s=60.0)
     app = make_app_for_config(
         config,
-        steering_controller_factory=RejectingShutdownController,
+        servotronic_factory=RejectingShutdownPeer,
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
@@ -335,6 +335,56 @@ def test_development_simulation_requests_reject_unknown_fields(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("role", ["button_pad", "servotronic_controller"])
+def test_simulated_device_routes_accept_only_catalogue_roles_and_idempotent_lifecycle(
+    client: TestClient,
+    role: str,
+) -> None:
+    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
+    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
+    assert client.post(f"/api/dev/simulation/devices/{role}/disconnect").status_code == 200
+    assert client.post(f"/api/dev/simulation/devices/{role}/disconnect").status_code == 200
+
+    absent_reboot = client.post(f"/api/dev/simulation/devices/{role}/reboot")
+    assert absent_reboot.status_code == 409
+    assert absent_reboot.json()["error"]["code"] == "simulation_device_unavailable"
+    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
+
+    unknown_role = client.post("/api/dev/simulation/devices/unknown/connect")
+    assert unknown_role.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("path", "field"),
+    [
+        (
+            "/api/dev/simulation/devices/button_pad/protocol-version",
+            "protocol_version",
+        ),
+        ("/api/dev/simulation/devices/servotronic_controller/status-code", "status_code"),
+    ],
+)
+def test_simulated_device_byte_requests_are_strict_and_bounded(
+    client: TestClient,
+    path: str,
+    field: str,
+) -> None:
+    for value in (0, 255):
+        response = client.put(path, json={field: value})
+        assert response.status_code == 200
+
+    for body in (
+        {},
+        {field: True},
+        {field: 1.0},
+        {field: -1},
+        {field: 256},
+        {field: 1, "unexpected": True},
+    ):
+        response = client.put(path, json=body)
+        assert response.status_code == 422
 
 
 def test_vehicle_speed_silence_command_returns_current_acknowledgement(
@@ -468,13 +518,13 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
         tick_interval_s=60.0,
         runtime_inbox_capacity=1,
     )
-    controllers: list[BlockingShutdownController] = []
+    controllers: list[BlockingShutdownPeer] = []
 
     def build_controller(
         watchdog_timeout_s: float,
         clock: Callable[[], float],
-    ) -> BlockingShutdownController:
-        controller = BlockingShutdownController(
+    ) -> BlockingShutdownPeer:
+        controller = BlockingShutdownPeer(
             watchdog_timeout_s,
             clock,
             block_shutdown=not controllers,
@@ -482,7 +532,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
         controllers.append(controller)
         return controller
 
-    app = make_app_for_config(config, steering_controller_factory=build_controller)
+    app = make_app_for_config(config, servotronic_factory=build_controller)
 
     with TestClient(app) as client:
         activate_simulation_devices(app.state.controller_service)
@@ -542,11 +592,11 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
     def build_controller(
         watchdog_timeout_s: float,
         clock: Callable[[], float],
-    ) -> SimulatedSteeringController:
+    ) -> SimulatedServotronicPeer:
         nonlocal session_count
         session_count += 1
         controller_type = (
-            FailingFirstSessionController if session_count == 1 else SimulatedSteeringController
+            FailingFirstSessionPeer if session_count == 1 else SimulatedServotronicPeer
         )
         return controller_type(watchdog_timeout_s, clock)
 
@@ -558,7 +608,7 @@ def test_fatal_timer_is_published_and_scheduling_resumes_after_reset() -> None:
     )
     app = make_app_for_config(
         config,
-        steering_controller_factory=build_controller,
+        servotronic_factory=build_controller,
     )
 
     with TestClient(app) as client:

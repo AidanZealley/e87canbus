@@ -18,7 +18,7 @@ to them.
 | 1 | Completed | Codex lead after James/Gibbs workers | 2026-07-16 | Generated check; focused protocol/config/architecture tests (79 passed); full coordinator suite (516 passed) |
 | 2 | Completed | Codex | 2026-07-16 | Focused Phase 2 suites (225 passed); full coordinator suite (524 passed); generated check, Ruff, mypy, compileall, and diff check passed |
 | 3 | Completed | Codex lead after Tesla worker | 2026-07-16 | Required coordinator suites (41 passed); full coordinator suite (524 passed); frontend tests (30 unit + 60 component) and build passed; generated contract check, Ruff, mypy, and diff check passed |
-| 4 | Not started | — | — | — |
+| 4 | Completed | Codex lead after Sagan worker | 2026-07-16 | Phase 4 coordinator suites (119 passed); full coordinator suite (532 passed); frontend tests (30 unit + 63 component), build, lint, Ruff, mypy, compileall, and diff check passed |
 | 5 | Not started | — | — | — |
 
 Allowed statuses are:
@@ -350,3 +350,93 @@ Profile CRUD remains independent of device availability.
 
 - Phase 4 must consume the live registry entries for virtual peers and `/dev` controls without
   introducing another production registry owner or changing the v1 live contract.
+
+### Phase 4 — Simulation and `/dev` UI — 2026-07-16
+
+- **Agent:** Sagan worker and Codex lead audit
+- **Final status:** Completed
+
+#### Summary
+
+Added virtual button-pad and Servotronic peers that exercise the real generated CAN registry
+frames through independent in-memory K-CAN endpoints. HELLO, controller acknowledgements, and
+heartbeat contact now run through a bounded fake-clock fixed-point drain; peer-local session,
+sequence, protocol, status, contact, incompatibility, fault, and controller-loss behavior remain
+separate from kernel-owned registry lifecycle state. Simulation reset starts both peers healthy and
+the lifecycle actions operate by changing peer behavior rather than mutating registry entries.
+
+Added strict development routes for connect, disconnect, reboot, protocol version, and status code,
+including catalogue-role validation, byte bounds, idempotent connect/disconnect, and the required
+absent-peer reboot conflict. The Servotronic peer is associated with the existing in-process
+actuator model, while no physical Servotronic transport was introduced.
+
+The `/dev` workbench now uses one reusable `SimulatedDeviceCard` around the NeoTrellis and
+Servotronic panels. Cards display server registry status and diagnostics, expose context-sensitive
+peer actions, and surface pending/error state without creating a browser-side lifecycle model.
+
+#### Important files changed
+
+- `coordinator/src/e87canbus/simulation/devices.py` — shared virtual peer state machine, role-specific
+  IDs, frame codecs, contact timers, peer ACK processing, and Servotronic actuator peer.
+- `coordinator/src/e87canbus/simulation/runtime.py` — peer endpoints, deterministic bounded drain,
+  lifecycle command objects, session reset, and registry/trace projection integration.
+- `coordinator/src/e87canbus/api/models/simulation.py` and
+  `coordinator/src/e87canbus/api/routes/simulation.py` — strict development request bodies/routes.
+- `coordinator/src/e87canbus/service.py` and `api/internal/commands.py` — shared unavailable-peer
+  error boundary that preserves the architecture import rule and maps to HTTP 409.
+- `frontend/src/components/simulator-workbench/components/simulated-device-card/` — reusable
+  registry-driven card and action availability helper; `SimulatorNeoTrellis.tsx` and
+  `SimulatorServotronic.tsx` consume it without nested duplicate cards.
+- `coordinator/tests/test_simulation_runtime.py`, `test_simulator_api.py`, and the focused frontend
+  card test — lifecycle traces, strict API boundaries, reset/recovery, and card behavior.
+
+#### Public contract or schema changes
+
+- Added development-only endpoints:
+  `/api/dev/simulation/devices/{role}/connect`, `disconnect`, `reboot`,
+  `protocol-version`, and `status-code`.
+- Added strict `{protocol_version}` and `{status_code}` request models bounded to unsigned bytes;
+  role path values are limited to `button_pad` and `servotronic_controller`.
+- No live protocol v1, production registry schema, physical transport, or compiled firmware path
+  was changed.
+
+#### Verification
+
+| Command | Result |
+|---|---|
+| `uv run pytest coordinator/tests/test_simulation_devices.py coordinator/tests/test_simulation_runtime.py coordinator/tests/test_simulator_api.py coordinator/tests/test_simulation_protocol.py coordinator/tests/test_simulation_bus.py` | Passed; 119 tests, 1 existing Starlette deprecation warning. |
+| `uv run pytest coordinator/tests` | Passed; 532 tests, 1 existing Starlette deprecation warning. |
+| `cd frontend && pnpm test -- --run` | Passed; 30 unit tests and 63 component tests across 18 files. |
+| `cd frontend && pnpm build` | Passed; TypeScript project build and Vite production build. |
+| `cd frontend && pnpm lint` | Passed. |
+| `uv run ruff check .` | Passed. |
+| `uv run mypy coordinator/src/e87canbus` | Passed; no issues in 62 source files. |
+| `uv run python -m compileall -q coordinator/src/e87canbus` | Passed. |
+| `git diff --check` | Passed. |
+
+#### Decisions and assumptions
+
+- The fixed-point scheduler is bounded to 32 virtual-device iterations and 256 controller-bus
+  frames per execution; exceeding either bound raises an explicit runtime error instead of looping.
+- A peer that is connected but has lost controller contact can be explicitly reconnected to create a
+  new session; healthy repeated Connect/Disconnect actions remain idempotent.
+- `SimulationDeviceUnavailable` lives at the service error boundary so the shared command adapter
+  does not import simulation modules and the architecture ownership rule remains intact.
+- The UI derives action availability from the server registry entry and synchronized transport; it
+  does not infer or assign lifecycle transitions.
+
+#### Deviations from the phase document
+
+- None.
+
+#### Known limitations
+
+- The Arduino firmware still does not implement the virtual-peer behavior; Phase 5 must mirror the
+  vectors, role IDs, session/sequence rules, status handling, and timing in the real device.
+- Physical Servotronic output, compiled Arduino execution in simulation, CAN collision validation,
+  live TX authorization, bench/in-car evidence, and physical hardware validation remain deferred.
+
+#### Follow-up work
+
+- Phase 5 must implement the button-pad firmware against the same generated protocol vectors and
+  timing without copying the simulator scheduler or claiming physical output readiness.

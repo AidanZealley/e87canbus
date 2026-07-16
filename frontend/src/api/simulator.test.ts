@@ -1,9 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest"
 
 import {
+  connectSimulatedDevice,
+  disconnectSimulatedDevice,
+  rebootSimulatedDevice,
   setCoolantTemperature,
   setEngineRpm,
   setOilTemperature,
+  setSimulatedDeviceProtocolVersion,
+  setSimulatedDeviceStatusCode,
   silenceCoolantTemperature,
   silenceEngineRpm,
   silenceOilTemperature,
@@ -79,4 +84,51 @@ it("sends one atomic button-tap command", async () => {
     "http://127.0.0.1:8000/api/dev/simulation/devices/button-pad/buttons/3/tap",
     expect.objectContaining({ method: "POST" })
   )
+})
+
+it("sends strict virtual-device lifecycle commands", async () => {
+  const fetchMock = vi.fn<
+    (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+  >(async () => new Response("{}", { status: 200 }))
+  vi.stubGlobal("fetch", fetchMock)
+
+  await connectSimulatedDevice("button_pad")
+  await disconnectSimulatedDevice("servotronic_controller")
+  await rebootSimulatedDevice("button_pad")
+  await setSimulatedDeviceProtocolVersion("servotronic_controller", 2)
+  await setSimulatedDeviceStatusCode("button_pad", 7)
+
+  expect(
+    fetchMock.mock.calls.map(([input, init]) => [
+      input,
+      init?.method,
+      init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    ])
+  ).toEqual([
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/devices/button_pad/connect",
+      "POST",
+      undefined,
+    ],
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/devices/servotronic_controller/disconnect",
+      "POST",
+      undefined,
+    ],
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/devices/button_pad/reboot",
+      "POST",
+      undefined,
+    ],
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/devices/servotronic_controller/protocol-version",
+      "PUT",
+      { protocol_version: 2 },
+    ],
+    [
+      "http://127.0.0.1:8000/api/dev/simulation/devices/button_pad/status-code",
+      "PUT",
+      { status_code: 7 },
+    ],
+  ])
 })

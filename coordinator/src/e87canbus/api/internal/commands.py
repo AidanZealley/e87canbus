@@ -14,6 +14,7 @@ from e87canbus.service import (
     ControllerInboxFull,
     ControllerServiceNotRunning,
     ControllerWorkUnavailable,
+    SimulationDeviceUnavailable,
 )
 
 
@@ -39,6 +40,8 @@ async def submit_runtime_work(app: FastAPI, work: object) -> int:
             "command_timeout",
             "controller command did not complete before the response timeout",
         ) from exc
+    except SimulationDeviceUnavailable as exc:
+        raise ApiProblem(409, "simulation_device_unavailable", str(exc)) from exc
     except ControllerWorkUnavailable as exc:
         raise ApiProblem(503, "controller_failed", str(exc)) from exc
     except FeatureUnavailable as exc:
