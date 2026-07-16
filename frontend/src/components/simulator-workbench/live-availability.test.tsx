@@ -12,11 +12,13 @@ import type { ReactNode } from "react"
 import { afterEach, expect, it, vi } from "vitest"
 
 import { tapButton } from "@/api/simulator"
+import { setMaximumAssistance } from "@/api/commands"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 
 vi.mock("@/api/simulator", () => ({ tapButton: vi.fn() }))
+vi.mock("@/api/commands", () => ({ setMaximumAssistance: vi.fn() }))
 
 const renderWithQueryClient = (ui: ReactNode) =>
   render(
@@ -51,13 +53,7 @@ it("clears retained LED observations and disables controls when unsynchronized",
     },
   }
   useLiveStore.getState().applySnapshot(value)
-  renderWithQueryClient(
-    <SimulatorNeoTrellis
-      maximumAssistanceActive={false}
-      semanticCommandPending={false}
-      onMaximumAssistanceChange={() => {}}
-    />
-  )
+  renderWithQueryClient(<SimulatorNeoTrellis />)
 
   const firstButton = screen.getByRole("button", { name: "Button 0" })
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 0 255")
@@ -90,28 +86,21 @@ it("sends emulator taps separately from semantic controller commands", async () 
     },
   ]
   useLiveStore.getState().applySnapshot(value)
-  const onMaximumAssistanceChange = vi.fn()
-
-  renderWithQueryClient(
-    <SimulatorNeoTrellis
-      maximumAssistanceActive={false}
-      semanticCommandPending={false}
-      onMaximumAssistanceChange={onMaximumAssistanceChange}
-    />
-  )
+  renderWithQueryClient(<SimulatorNeoTrellis />)
 
   const firstButton = screen.getByRole("button", { name: "Button 0" })
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 255 0")
   fireEvent.click(firstButton)
   await waitFor(() => expect(tapButton).toHaveBeenCalledWith(0))
-  expect(onMaximumAssistanceChange).not.toHaveBeenCalled()
+  expect(setMaximumAssistance).not.toHaveBeenCalled()
 
   fireEvent.click(screen.getByRole("button", { name: "Enable maximum" }))
-  expect(onMaximumAssistanceChange).toHaveBeenCalledWith(true)
+  await waitFor(() => expect(setMaximumAssistance).toHaveBeenCalled())
+  expect(setMaximumAssistance).toHaveBeenLastCalledWith(true, expect.anything())
   expect(tapButton).toHaveBeenCalledTimes(1)
 })
 
-it("keeps semantic control available while observer wire controls stay unavailable", () => {
+it("keeps semantic control available while observer wire controls stay unavailable", async () => {
   const value = snapshot("observer-boot", 6)
   value.data.devices.devices = [
     {
@@ -126,15 +115,7 @@ it("keeps semantic control available while observer wire controls stay unavailab
     },
   ]
   useLiveStore.getState().applySnapshot(value)
-  const onMaximumAssistanceChange = vi.fn()
-
-  renderWithQueryClient(
-    <SimulatorNeoTrellis
-      maximumAssistanceActive={false}
-      semanticCommandPending={false}
-      onMaximumAssistanceChange={onMaximumAssistanceChange}
-    />
-  )
+  renderWithQueryClient(<SimulatorNeoTrellis />)
 
   const wireButton = screen.getByRole("button", { name: "Button 0" })
   expect((wireButton as HTMLButtonElement).disabled).toBe(true)
@@ -144,5 +125,6 @@ it("keeps semantic control available while observer wire controls stay unavailab
   const semanticButton = screen.getByRole("button", { name: "Enable maximum" })
   expect((semanticButton as HTMLButtonElement).disabled).toBe(false)
   fireEvent.click(semanticButton)
-  expect(onMaximumAssistanceChange).toHaveBeenCalledWith(true)
+  await waitFor(() => expect(setMaximumAssistance).toHaveBeenCalled())
+  expect(setMaximumAssistance).toHaveBeenLastCalledWith(true, expect.anything())
 })

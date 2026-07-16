@@ -1,42 +1,53 @@
+import { useMutation } from "@tanstack/react-query"
+import { useShallow } from "zustand/react/shallow"
+
+import { setMaximumAssistance } from "@/api/commands"
+import { tapButton } from "@/api/simulator"
+import { useLiveStore } from "@/live/live-store"
 import {
   NeoTrellisPanel,
   type NeoTrellisButtonState,
 } from "./components/neo-trellis-panel/NeoTrellisPanel"
-import { useMutation } from "@tanstack/react-query"
-import { tapButton } from "@/api/simulator"
-import { useLiveStore } from "@/live/live-store"
 import { LED_COUNT, notifySimulatorError } from "./utils"
 
 const unavailableLedColours = Array<number>(LED_COUNT).fill(0)
 
-type SimulatorNeoTrellisProps = {
-  maximumAssistanceActive: boolean
-  semanticCommandPending: boolean
-  onMaximumAssistanceChange: (enabled: boolean) => void
-}
-
-export const SimulatorNeoTrellis = ({
-  maximumAssistanceActive,
-  semanticCommandPending,
-  onMaximumAssistanceChange,
-}: SimulatorNeoTrellisProps) => {
-  const tap = useMutation({
+export const SimulatorNeoTrellis = () => {
+  const { mutate: tapButtonMutation } = useMutation({
     mutationFn: (index: number) => tapButton(index),
     onError: notifySimulatorError,
   })
-  const desiredLedColours = useLiveStore((state) => state.buttons.led_colours)
-  const device = useLiveStore(
-    (state) =>
-      state.devices.devices.find(
-        (candidate) => candidate.id === "button_pad"
-      ) ?? null
+  const {
+    mutate: maximumAssistanceMutation,
+    isPending: maximumAssistancePending,
+  } = useMutation({
+    mutationFn: setMaximumAssistance,
+    onError: notifySimulatorError,
+  })
+  const desiredLedColours = useLiveStore(
+    useShallow((state) => state.buttons.led_colours)
+  )
+  const { sourceMode, observedLedColours } = useLiveStore(
+    useShallow((state) => {
+      const device =
+        state.devices.devices.find(
+          (candidate) => candidate.id === "button_pad"
+        ) ?? null
+      return {
+        sourceMode: (device?.source_mode ?? "disabled") as
+          "physical" | "emulated" | "observer" | "disabled",
+        observedLedColours: device?.observed_led_colours ?? null,
+      }
+    })
   )
   const synchronized = useLiveStore((state) => state.connection.synchronized)
-  const sourceMode = synchronized
-    ? (device?.source_mode ?? "disabled")
-    : "unavailable"
-  const emulatorControlsAvailable = sourceMode === "emulated"
-  const observedLedColours = device?.observed_led_colours ?? null
+  const maximumAssistanceActive = useLiveStore(
+    (state) => state.steering?.maximum_assistance_active ?? false
+  )
+  const displayedSourceMode: NonNullable<
+    Parameters<typeof NeoTrellisPanel>[0]["sourceMode"]
+  > = synchronized ? sourceMode : "unavailable"
+  const emulatorControlsAvailable = displayedSourceMode === "emulated"
   const displayedColours = synchronized
     ? (observedLedColours ?? desiredLedColours)
     : unavailableLedColours
@@ -55,14 +66,14 @@ export const SimulatorNeoTrellis = ({
   return (
     <NeoTrellisPanel
       buttons={buttons}
-      sourceMode={sourceMode}
+      sourceMode={displayedSourceMode}
       observationLabel={observationLabel}
       emulatorControlsAvailable={emulatorControlsAvailable}
       controllerControlsAvailable={synchronized}
       maximumAssistanceActive={maximumAssistanceActive}
-      semanticCommandPending={semanticCommandPending}
-      onMaximumAssistanceChange={onMaximumAssistanceChange}
-      onClick={(index) => tap.mutate(index)}
+      semanticCommandPending={maximumAssistancePending}
+      onMaximumAssistanceChange={maximumAssistanceMutation}
+      onClick={tapButtonMutation}
     />
   )
 }

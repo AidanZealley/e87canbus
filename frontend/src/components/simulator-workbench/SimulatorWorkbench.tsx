@@ -1,7 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 
 import { resetSimulator } from "@/api/simulator"
-import { setMaximumAssistance } from "@/api/commands"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
@@ -20,20 +19,8 @@ const unavailableEngine = {
 }
 export const SimulatorWorkbench = () => {
   const connection = useLiveStore((state) => state.connection)
-  const synchronized = connection.synchronized
-  const vehicle = useLiveStore((state) => state.vehicle)
-  const engine = useLiveStore((state) => state.engine)
-  const lighting = useLiveStore((state) => state.lighting)
-  const steering = useLiveStore((state) => state.steering)
-  const steeringController = useLiveStore(
-    (state) => state.devices.steering_controller
-  )
   const reset = useMutation({
     mutationFn: resetSimulator,
-    onError: notifySimulatorError,
-  })
-  const maximumAssistance = useMutation({
-    mutationFn: setMaximumAssistance,
     onError: notifySimulatorError,
   })
 
@@ -51,47 +38,15 @@ export const SimulatorWorkbench = () => {
         <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
           <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
             <section className="min-w-0">
-              <SimulatorNeoTrellis
-                maximumAssistanceActive={
-                  synchronized && steering !== null
-                    ? steering.maximum_assistance_active
-                    : false
-                }
-                semanticCommandPending={maximumAssistance.isPending}
-                onMaximumAssistanceChange={(enabled) =>
-                  maximumAssistance.mutate(enabled)
-                }
-              />
+              <SimulatorNeoTrellis />
             </section>
 
             <section className="min-w-0">
-              <SimulatedVehicleControls
-                speedKph={
-                  synchronized && vehicle.speed_valid ? vehicle.speed_kph : null
-                }
-                engine={synchronized ? engine : unavailableEngine}
-                observedHighBeamEnabled={
-                  synchronized ? lighting.observed_high_beam_enabled : null
-                }
-              />
+              <LiveSimulatedVehicleControls />
             </section>
           </div>
 
-          {synchronized && steering !== null && steeringController !== null ? (
-            <section className="min-w-0" aria-label="Steering curve settings">
-              <SteeringCurveCard
-                activeCurve={steering.active_curve}
-                speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
-                activeAssistance={
-                  steering.maximum_assistance_active
-                    ? 1
-                    : steering.mode === "manual" || vehicle.speed_valid
-                      ? steeringController.effective_assistance
-                      : null
-                }
-              />
-            </section>
-          ) : null}
+          <LiveSteeringCurveCard />
         </div>
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-2">
@@ -103,5 +58,50 @@ export const SimulatorWorkbench = () => {
         <SimulatorTrace />
       </main>
     </div>
+  )
+}
+
+const LiveSimulatedVehicleControls = () => {
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  const vehicle = useLiveStore((state) => state.vehicle)
+  const engine = useLiveStore((state) => state.engine)
+  const observedHighBeamEnabled = useLiveStore(
+    (state) => state.lighting.observed_high_beam_enabled
+  )
+
+  return (
+    <SimulatedVehicleControls
+      speedKph={synchronized && vehicle.speed_valid ? vehicle.speed_kph : null}
+      engine={synchronized ? engine : unavailableEngine}
+      observedHighBeamEnabled={synchronized ? observedHighBeamEnabled : null}
+    />
+  )
+}
+
+const LiveSteeringCurveCard = () => {
+  const synchronized = useLiveStore((state) => state.connection.synchronized)
+  const steering = useLiveStore((state) => state.steering)
+  const vehicle = useLiveStore((state) => state.vehicle)
+  const steeringController = useLiveStore(
+    (state) => state.devices.steering_controller
+  )
+
+  if (!synchronized || steering === null || steeringController === null)
+    return null
+
+  return (
+    <section className="min-w-0" aria-label="Steering curve settings">
+      <SteeringCurveCard
+        activeCurve={steering.active_curve}
+        speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
+        activeAssistance={
+          steering.maximum_assistance_active
+            ? 1
+            : steering.mode === "manual" || vehicle.speed_valid
+              ? steeringController.effective_assistance
+              : null
+        }
+      />
+    </section>
   )
 }

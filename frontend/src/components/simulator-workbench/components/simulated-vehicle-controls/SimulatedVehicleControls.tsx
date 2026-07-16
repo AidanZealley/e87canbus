@@ -85,7 +85,9 @@ export const SimulatedVehicleControls = ({
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Simulated vehicle</CardTitle>
-        <CardDescription>External vehicle inputs on simulated CAN</CardDescription>
+        <CardDescription>
+          External vehicle inputs on simulated CAN
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="grid gap-5">
