@@ -95,12 +95,22 @@ sudo install -o root -g root -m 0644 \
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \
     /etc/systemd/system/e87canbus-controller.service
+KIOSK_USER="${USER}"
+KIOSK_HOME="$(getent passwd "${KIOSK_USER}" | cut -d: -f6)"
+sed \
+    -e "s|User=pi|User=${KIOSK_USER}|g" \
+    -e "s|/home/pi/.Xauthority|${KIOSK_HOME}/.Xauthority|g" \
+    "${REPO_ROOT}/deploy/systemd/e87canbus-kiosk.service" \
+    | sudo tee /etc/systemd/system/e87canbus-kiosk.service >/dev/null
+sudo chmod 0644 /etc/systemd/system/e87canbus-kiosk.service
+sudo chown root:root /etc/systemd/system/e87canbus-kiosk.service
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/controller.env.example" \
     /etc/e87canbus/controller.env
 sudo systemctl daemon-reload
 sudo systemctl enable e87canbus-can0.service
 sudo systemctl enable e87canbus-controller.service
+sudo systemctl enable e87canbus-kiosk.service
 
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     echo
@@ -130,3 +140,6 @@ echo "Pi setup complete. Check:"
 echo "  systemctl status e87canbus-controller.service"
 echo "  journalctl -u e87canbus-controller.service -f"
 echo "  candump can0"
+echo
+echo "Kiosk: e87canbus-kiosk.service installed for user '${KIOSK_USER}'."
+echo "  It starts automatically after the controller on next graphical boot."

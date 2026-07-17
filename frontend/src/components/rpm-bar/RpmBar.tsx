@@ -54,7 +54,7 @@ export const RpmBar = ({ rpm, stage, position, redlineRpm }: RpmBarProps) => {
                 "ring-1 ring-destructive"
             )}
             style={{
-              height: `${16 + 1.3 ** index * 5}px`,
+              height: `${16 + 1.27 ** index * 5}px`,
             }}
           />
         ))}

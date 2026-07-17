@@ -1,4 +1,4 @@
-import { DropletIcon, WavesIcon } from "lucide-react"
+import { DropletIcon, LightbulbIcon, WavesIcon } from "lucide-react"
 
 import {
   celsiusToFahrenheit,
@@ -11,6 +11,7 @@ import { RpmBar } from "@/components/rpm-bar"
 import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { TelemetryValue } from "@/components/telemetry-value"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
+import { cn } from "@/lib/utils"
 import { useLiveStore } from "@/live/live-store"
 
 const OIL_OPERATING_TEMPERATURE_C = 110
@@ -24,6 +25,7 @@ export const CarDrive = () => {
     (state) => state.engine.coolant_temperature_c
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
+  const lighting = useLiveStore((state) => state.lighting)
   const settings = useEffectiveApplicationSettings().settings
   const oilSeverity = useTemperatureSeverity({
     telemetry: oilTelemetry,
@@ -65,13 +67,28 @@ export const CarDrive = () => {
 
   return (
     <section
-      className="grid min-h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-12"
+      className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-12"
       aria-labelledby="drive-title"
     >
       <h1 id="drive-title" className="sr-only">
         Drive
       </h1>
       <div className="flex flex-col gap-12">
+        <div className="flex items-center gap-6" role="status" aria-label="Indicator lights">
+          <LightbulbIcon
+            aria-label={
+              connected && lighting.high_beam_enabled
+                ? "High beam on"
+                : "High beam off"
+            }
+            className={cn(
+              "size-8 transition-colors",
+              connected && lighting.high_beam_enabled
+                ? "text-yellow-300"
+                : "text-muted-foreground/20"
+            )}
+          />
+        </div>
         <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
         <TelemetryValue
           label="Speed"

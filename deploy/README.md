@@ -81,6 +81,9 @@ settings and profiles live in the configured SQLite file. Live telemetry, traces
 are process-local and are deliberately not restored.
 
 Development simulator routes are not registered in live composition. Production live mode also
-has no development CORS origins; same-origin browser requests remain allowed. The service unit does
-not start Chromium or a kiosk session. Direct SPA routes such as `/dev` and `/car` serve the built
-entry document, while missing assets and unknown API/health/socket routes remain 404.
+has no development CORS origins; same-origin browser requests remain allowed. A companion kiosk
+unit (`e87canbus-kiosk.service`) starts Chromium in kiosk mode at `http://127.0.0.1:8000/car`
+after the controller is ready. `setup_pi.sh` templates the unit with the invoking user's name and
+home directory at install time, so no manual editing is required regardless of username. Direct SPA
+routes such as `/dev` and `/car` serve the built entry document, while missing assets and unknown
+API/health/socket routes remain 404.
