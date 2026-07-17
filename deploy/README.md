@@ -19,9 +19,10 @@ cd /opt/e87canbus
 ```
 
 The script installs host dependencies, enables SPI, configures the Waveshare MCP2515 overlay,
-syncs Python dependencies, builds the frontend, installs the service, and applies the initial
-`can0`-only bench profile. It never reboots implicitly. If boot configuration changes, reboot and
-run it again; use `./scripts/setup_pi.sh --reboot` only when an automatic reboot is acceptable.
+syncs Python dependencies, builds the frontend, installs the `can0` boot unit and controller
+service, and starts the boot-managed `can0` interface. It never reboots implicitly. If boot
+configuration changes, reboot and run it again; use `./scripts/setup_pi.sh --reboot` only when an
+automatic reboot is acceptable.
 
 The script cannot validate physical CAN-H/CAN-L wiring, common ground, MCP2515 crystal frequency,
 or bus termination.
@@ -37,17 +38,19 @@ pnpm build
 Install the checked-in service and explicit environment file:
 
 ```bash
+sudo install -o root -g root -m 0644 deploy/systemd/e87canbus-can0.service /etc/systemd/system/
 sudo install -o root -g root -m 0644 deploy/systemd/e87canbus-controller.service /etc/systemd/system/
 sudo install -o root -g e87canbus -m 0640 deploy/systemd/controller.env.example /etc/e87canbus/controller.env
 sudo install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus
 sudo systemctl daemon-reload
+sudo systemctl enable --now e87canbus-can0.service
 sudo systemctl enable --now e87canbus-controller.service
 ```
 
 Configure `can0`, `can1` and `can2` independently before starting the service. The application does
-not create interfaces, change bitrates, grant device permissions or enable transmission. Default
-live composition has no application CAN transmit grant. Use operating-system and CAN-hardware
-listen-only configuration as an additional defense.
+not create interfaces, grant device permissions or enable transmission. Default live composition
+has no application CAN transmit grant. Use operating-system and CAN-hardware listen-only
+configuration as an additional defense.
 
 ## Operate
 

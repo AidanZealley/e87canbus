@@ -90,12 +90,16 @@ sudo chgrp -R e87canbus "${REPO_ROOT}"
 sudo chmod -R g+rX "${REPO_ROOT}"
 sudo install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus /etc/e87canbus
 sudo install -o root -g root -m 0644 \
+    "${REPO_ROOT}/deploy/systemd/e87canbus-can0.service" \
+    /etc/systemd/system/e87canbus-can0.service
+sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \
     /etc/systemd/system/e87canbus-controller.service
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/controller.env.example" \
     /etc/e87canbus/controller.env
 sudo systemctl daemon-reload
+sudo systemctl enable e87canbus-can0.service
 sudo systemctl enable e87canbus-controller.service
 
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
@@ -113,12 +117,12 @@ fi
 
 if ! ip link show can0 >/dev/null 2>&1; then
     echo "can0 is not available; leaving the service stopped." >&2
-    echo "Check the HAT wiring/overlay, then run scripts/bench_can_up.sh." >&2
+    echo "Check the HAT wiring/overlay, then reboot if the boot config changed." >&2
     exit 1
 fi
 
-echo "Bringing up can0 at 100 kbit/s..."
-sudo "${REPO_ROOT}/scripts/bench_can_up.sh"
+echo "Starting the boot-managed can0 service..."
+sudo systemctl start e87canbus-can0.service
 sudo systemctl restart e87canbus-controller.service
 
 echo

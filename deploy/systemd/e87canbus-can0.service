@@ -1,0 +1,16 @@
+[Unit]
+Description=E87 CAN0 bootstrap
+After=sys-subsystem-net-devices-can0.device
+Requires=sys-subsystem-net-devices-can0.device
+Before=e87canbus-controller.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip link set can0 down
+ExecStart=/usr/sbin/ip link set can0 type can bitrate 100000 restart-ms 100
+ExecStart=/usr/sbin/ip link set can0 up
+ExecStop=-/usr/sbin/ip link set can0 down
+
+[Install]
+WantedBy=multi-user.target

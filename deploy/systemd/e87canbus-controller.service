@@ -1,5 +1,7 @@
 [Unit]
 Description=E87 unified CAN controller
+Requires=e87canbus-can0.service
+After=e87canbus-can0.service
 After=network.target
 
 [Service]

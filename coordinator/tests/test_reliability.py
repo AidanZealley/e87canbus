@@ -159,8 +159,18 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 
 def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> None:
     root = Path(__file__).resolve().parents[2]
+    can0_unit = (root / "deploy/systemd/e87canbus-can0.service").read_text()
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
+    assert "Before=e87canbus-controller.service" in can0_unit
+    assert "sys-subsystem-net-devices-can0.device" in can0_unit
+    assert "restart-ms 100" in can0_unit
+    assert "WantedBy=multi-user.target" in can0_unit
+    assert "ExecStartPre=-/usr/sbin/ip link set can0 down" in can0_unit
+    assert "ExecStart=/usr/sbin/ip link set can0 up" in can0_unit
+    assert "ExecStop=-/usr/sbin/ip link set can0 down" in can0_unit
+    assert "Requires=e87canbus-can0.service" in unit
+    assert "After=e87canbus-can0.service" in unit
     assert "EnvironmentFile=/etc/e87canbus/controller.env" in unit
     assert "e87canbus run --mode live --host 127.0.0.1" in unit
     assert "Restart=on-failure" in unit
