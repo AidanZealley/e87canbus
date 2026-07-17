@@ -1,22 +1,23 @@
 import pytest
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
+    RGB_SNAPSHOT_LENGTH,
     ArduinoButtonEventPayload,
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    LedSnapshotPayload,
+    RgbSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
     decode_heartbeat,
     decode_hello,
-    decode_led_snapshot,
+    decode_rgb_snapshot,
     decode_welcome_ack,
     encode_button_event,
     encode_heartbeat,
     encode_hello,
-    encode_led_snapshot,
+    encode_rgb_snapshot,
     encode_welcome_ack,
 )
 
@@ -44,46 +45,33 @@ def test_encode_and_decode_arduino_button_event() -> None:
 
 
 @pytest.mark.parametrize(
-    ("colour_codes", "expected_data"),
+    ("rgb", "expected_data"),
     [
-        ((0,) * 16, b"\x00\x00\x00\x00\x00\x00\x00\x00"),
-        ((3, 0, 0, 5) + (0,) * 12, b"\x03\x50\x00\x00\x00\x00\x00\x00"),
-        ((3, 4, 2, 1, 5, 0) + (0,) * 10, b"\x43\x12\x05\x00\x00\x00\x00\x00"),
+        (((0, 0, 0),) * 16, b"\x00" * 48),
+        (((3, 0, 0), (5, 0, 0)) + ((0, 0, 0),) * 14, b"\x03\x00\x00\x05\x00\x00" + b"\x00" * 42),
     ],
 )
-def test_encode_and_decode_led_snapshot_golden_vectors(
-    colour_codes: tuple[int, ...], expected_data: bytes
+def test_encode_and_decode_rgb_snapshot_golden_vectors(
+    rgb: tuple[tuple[int, int, int], ...], expected_data: bytes
 ) -> None:
-    ids = CustomCanIds()
-    payload = LedSnapshotPayload(colour_codes)
-    frame = encode_led_snapshot(payload, ids)
+    payload = RgbSnapshotPayload(rgb)
+    data = encode_rgb_snapshot(payload)
 
-    assert frame.arbitration_id == 0x701
-    assert frame.data == expected_data
-    assert decode_led_snapshot(frame, ids) == payload
+    assert data == expected_data
+    assert decode_rgb_snapshot(data) == payload
 
 
 def test_reject_invalid_payload_lengths() -> None:
-    ids = CustomCanIds()
-
     with pytest.raises(ValueError, match="button event payload"):
-        decode_button_event(CanFrame(ids.button_event, b"\x01"), ids)
+        decode_button_event(CanFrame(CustomCanIds().button_event, b"\x01"), CustomCanIds())
 
-    with pytest.raises(ValueError, match="LED snapshot payload"):
-        decode_led_snapshot(CanFrame(ids.led_snapshot, b"\x00" * 7), ids)
-
-
-def test_led_snapshot_rejects_invalid_final_nibble_without_payload() -> None:
-    ids = CustomCanIds()
-    frame = CanFrame(ids.led_snapshot, b"\x00" * 7 + b"\x60")
-
-    with pytest.raises(ValueError, match="invalid colour"):
-        decode_led_snapshot(frame, ids)
+    with pytest.raises(ValueError, match="RGB snapshot payload"):
+        decode_rgb_snapshot(b"\x00" * (RGB_SNAPSHOT_LENGTH - 1))
 
 
-def test_led_snapshot_payload_rejects_partial_state() -> None:
+def test_rgb_snapshot_payload_rejects_partial_state() -> None:
     with pytest.raises(ValueError, match="exactly 16"):
-        LedSnapshotPayload((0,) * 15)
+        RgbSnapshotPayload(((0, 0, 0),) * 15)
 
 
 @pytest.mark.parametrize(
@@ -160,5 +148,3 @@ def test_button_and_led_codecs_reject_extended_frames_on_standard_ids() -> None:
 
     with pytest.raises(ValueError, match="standard"):
         decode_button_event(CanFrame(ids.button_event, b"\x00\x01", True), ids)
-    with pytest.raises(ValueError, match="standard"):
-        decode_led_snapshot(CanFrame(ids.led_snapshot, b"\x00" * 8, True), ids)

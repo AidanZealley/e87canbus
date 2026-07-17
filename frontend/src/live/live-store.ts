@@ -84,7 +84,7 @@ const emptySlices = (): LiveSlices => ({
     coolant_temperature_c: { value: null, status: "never_observed" },
   },
   steering: null,
-  buttons: { led_colours: Array<number>(16).fill(0) },
+  buttons: { led_rgb: Array.from({ length: 16 }, () => [0, 0, 0] as [number, number, number]) },
   lighting: {
     high_beam_enabled: false,
     high_beam_strobe_active: false,

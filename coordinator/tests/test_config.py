@@ -240,21 +240,20 @@ def test_default_custom_can_ids_cover_all_project_messages() -> None:
 
     assert (
         ids.button_event,
-        ids.led_snapshot,
         ids.button_pad_hello,
         ids.button_pad_welcome_ack,
         ids.button_pad_heartbeat,
         ids.servotronic_controller_hello,
         ids.servotronic_controller_welcome_ack,
         ids.servotronic_controller_heartbeat,
-    ) == tuple(range(0x700, 0x708))
+    ) == (0x700, *range(0x702, 0x708))
 
 
 @pytest.mark.parametrize(
     "changes",
     [
         {"button_event": -1},
-        {"led_snapshot": 0x800},
+        {"button_event": 0x800},
         {"button_pad_hello": 0x702, "button_pad_welcome_ack": 0x702},
     ],
 )

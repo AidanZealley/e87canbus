@@ -6,8 +6,10 @@ from pathlib import Path
 
 import pytest
 from e87canbus.application.events import (
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_RED,
     ButtonFeedbackDeadlineReached,
-    LedColour,
     SetButtonLeds,
     SetSteeringAssistance,
     SteeringCommandReason,
@@ -169,8 +171,8 @@ def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:
     assert active.effects[0].effect.routed.frame.arbitration_id == IDS.button_pad_welcome_ack
     assert active.effects[1].effect == SetButtonLeds(
         replace(
-            active.effects[1].effect.colours,
-            colours=(LedColour.BLUE,) + (LedColour.OFF,) * 15,
+                active.effects[1].effect.rgb,
+            rgb=(RGB_BLUE,) + (RGB_OFF,) * 15,
         )
     )
 
@@ -298,8 +300,8 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
         EffectRequest(
             SetButtonLeds(
                 replace(
-                    unavailable.effects[0].effect.colours,
-                    colours=(LedColour.RED,) + (LedColour.OFF,) * 15,
+                    unavailable.effects[0].effect.rgb,
+            rgb=(RGB_RED,) + (RGB_OFF,) * 15,
                 )
             )
         ),
@@ -308,7 +310,7 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.5))
     assert expired is not None
     assert kernel.state.button_feedback_deadlines[0] is None
-    assert expired.effects[0].effect.colours.colours[0] is LedColour.BLUE
+    assert expired.effects[0].effect.rgb.rgb[0] == RGB_BLUE
 
 
 def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfatal() -> None:

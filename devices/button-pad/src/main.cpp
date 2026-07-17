@@ -4,6 +4,7 @@
 #include <mcp_can.h>
 
 #include "can_ids.h"
+#include "isotp_transport.h"
 #include "protocol_state.h"
 
 #ifndef DEVICE_ID
@@ -25,6 +26,7 @@ const uint32_t CONTROLLER_TIMEOUT_MS = 3000;
 const int32_t CADENCE_JITTER_MS = 100;
 const uint8_t RESPONSE_ACCEPTED = 0;
 const uint8_t RESPONSE_UNSUPPORTED = 1;
+const uint8_t BUTTON_LED_COUNT = 16;
 using button_pad::DeviceState;
 using button_pad::STATUS_CAN_SEND_FAILED;
 using button_pad::STATUS_LOCAL_FAULT;
@@ -36,6 +38,13 @@ enum class DisplayMode : uint8_t {
 };
 
 MCP_CAN canBus(CAN_CS_PIN);
+
+bool sendIsoTpFrame(uint32_t arbitrationId, const uint8_t *payload, uint8_t length) {
+    return canBus.sendMsgBuf(arbitrationId, 0, length, const_cast<uint8_t *>(payload)) == CAN_OK;
+}
+
+button_pad::IsoTpTransport transport(CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR,
+                                     sendIsoTpFrame);
 DeviceState state = DeviceState::BOOTING;
 DisplayMode displayMode = DisplayMode::DISCOVERING;
 bool canReady = false;
@@ -47,7 +56,6 @@ uint8_t deviceStatusCode = 0;
 uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
-uint8_t ledColours[LED_COUNT] = {};
 
 bool due(uint32_t now, uint32_t deadline) {
     return static_cast<int32_t>(now - deadline) >= 0;
@@ -289,47 +297,6 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
     }
 }
 
-void renderLedSnapshot() {
-    Serial.print("received LED snapshot colours=");
-    for (uint8_t index = 0; index < LED_COUNT; ++index) {
-        if (index > 0) {
-            Serial.print(',');
-        }
-        Serial.print(ledColours[index]);
-    }
-    Serial.println();
-}
-
-void handleLedSnapshot(const uint8_t *payload, uint8_t length, uint32_t now) {
-    if (state != DeviceState::OPERATIONAL || !freshControllerLease(now)) {
-        return;
-    }
-    if (length != LED_SNAPSHOT_LENGTH) {
-        Serial.print("ignored malformed LED snapshot length=");
-        Serial.println(length);
-        return;
-    }
-
-    uint8_t decoded[LED_COUNT] = {};
-    for (uint8_t byteIndex = 0; byteIndex < LED_SNAPSHOT_LENGTH; ++byteIndex) {
-        const uint8_t packed = payload[byteIndex];
-        const uint8_t evenColour =
-            (packed >> LED_EVEN_INDEX_SHIFT) & LED_NIBBLE_MASK;
-        const uint8_t oddColour =
-            (packed >> LED_ODD_INDEX_SHIFT) & LED_NIBBLE_MASK;
-        if (evenColour > LED_COLOUR_MAX || oddColour > LED_COLOUR_MAX) {
-            Serial.print("ignored malformed LED snapshot colour byte=");
-            Serial.println(byteIndex);
-            return;
-        }
-        decoded[byteIndex * 2] = evenColour;
-        decoded[byteIndex * 2 + 1] = oddColour;
-    }
-
-    memcpy(ledColours, decoded, sizeof(ledColours));
-    renderLedSnapshot();
-}
-
 void pollCan(uint32_t now) {
     if (!canReady || canBus.checkReceive() != CAN_MSGAVAIL) {
         return;
@@ -342,8 +309,8 @@ void pollCan(uint32_t now) {
 
     if (arbitrationId == CAN_ID_BUTTON_PAD_WELCOME_ACK) {
         handleWelcomeAck(payload, length, now);
-    } else if (arbitrationId == CAN_ID_LED_SNAPSHOT) {
-        handleLedSnapshot(payload, length, now);
+    } else if (arbitrationId == CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE) {
+        transport.onFrame(payload, length);
     }
 }
 
@@ -351,7 +318,7 @@ bool sendButtonEvent(uint8_t buttonIndex, bool pressed) __attribute__((unused));
 
 bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
     if (state != DeviceState::OPERATIONAL || !freshControllerLease(millis()) ||
-        buttonIndex >= LED_COUNT) {
+        buttonIndex >= BUTTON_LED_COUNT) {
         return false;
     }
 
@@ -401,6 +368,13 @@ void setup() {
 void loop() {
     const uint32_t now = millis();
     pollCan(now);
+    transport.poll();
+    uint8_t transportPayload[button_pad::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
+    uint16_t transportLength = 0;
+    if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
+        Serial.print("received ISO-TP payload bytes=");
+        Serial.println(transportLength);
+    }
 
     if (state == DeviceState::DISCOVERING || state == DeviceState::CONTROLLER_LOST ||
         state == DeviceState::INCOMPATIBLE) {

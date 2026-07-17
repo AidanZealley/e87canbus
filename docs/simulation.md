@@ -73,14 +73,15 @@ The default simulated composition selects the button pad's `emulated` role. The 
 wire-level emulator exercise separately from semantic controller commands. Button `0` starts blue
 because the authoritative steering mode starts in Auto. Press it to send
 `0x700 0001`; the application changes to Manual, replies with
-`0x701 0400000000000000`, and the complete device state is replaced with button 0 amber and all
-other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
+an ISO-TP RGB snapshot on `0x708`/`0x709`; after complete reassembly the simulated pad privately
+applies button 0 amber and all other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
 application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
 blue.
 
-Controller LEDs are desired state. The emulator's displayed observation changes only after it
-receives and atomically decodes the complete `0x701` frame. A rate-limited or malformed output can
-therefore leave desired and observed values different until a later accepted snapshot converges.
+`buttons.led_rgb` is controller-requested state and is what the browser renders. The simulated pad
+independently receives and atomically reassembles the complete 48-byte RGB payload; this private
+device state is exercised by tests but is not published as an observed-output API. A rate-limited
+or malformed payload therefore never partially changes the device state.
 Disabled mode has no emulator controls or device-originated traffic and omits the capability.
 Source-mode changes require restart. Reset reconstructs the virtual topology and emulator, clears
 trace identity and restores vehicle signals to never-observed without retaining old endpoints.
@@ -139,8 +140,8 @@ wire bits per standard-ID DLC-8 frame, the ceiling is at most 2.7% of 100 kbit/s
 500 kbit/s network before errors or retransmissions. It is a flood bound, not a target cadence. The
 simulator explicitly grants K-CAN transmission and uses the same executor and policy path as the
 live runtime: excess coordinator frames are logged and dropped without replay, while simulated
-external devices remain unrestricted. A later accepted `0x701` snapshot replaces all 16 simulated
-LED colours and repairs a missed intermediate state. The default live composition grants no
+external devices remain unrestricted. A later accepted ISO-TP RGB snapshot replaces all 16 simulated
+LED values and repairs a missed intermediate state. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
 The high-beam strobe additionally requires its own simulator-only actuator capability. Live mode
@@ -148,12 +149,13 @@ does not construct that actuator and its router has no high-beam frame mapping; 
 grant therefore cannot enable this output accidentally. No BMW high-beam frame, live high-beam
 actuator, or real-car TX capability exists in this repository.
 
-The emulator and physical pad share the generated provisional project protocol on K-CAN:
+The emulator uses the generated provisional project protocol on K-CAN; firmware compiles the same
+transport but physical NeoTrellis RGB consumption remains deferred:
 
 - `0x700`: button-pad event.
-- `0x701`: complete 16-colour coordinator LED snapshot.
+- `0x708`/`0x709`: bounded ISO-TP link carrying complete 16×RGB coordinator snapshots.
 
-The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700` and `0x701` require collision
+The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700`, `0x708`, and `0x709` require collision
 validation against a real K-CAN capture before any in-car transmission.
 
 It does not simulate verified BMW vehicle control traffic. Its synthetic extended speed and

@@ -26,35 +26,19 @@ def test_generated_protocol_artifacts_are_current() -> None:
 def test_definition_owns_ids_lengths_positions_and_values() -> None:
     definition = load_definition(ROOT / "protocol" / "custom.toml")
     button_event = definition.message("button_event")
-    led_snapshot = definition.message("led_snapshot")
 
     assert definition.protocol_version == 1
-    assert len(definition.messages) == 8
+    assert len(definition.messages) == 7
     assert button_event.can_id == 0x700
     assert button_event.length == 2
     assert dict(button_event.byte_positions) == {"button_index": 0, "state": 1}
     assert dict(button_event.values) == {"released": 0, "pressed": 1}
-    assert led_snapshot.can_id == 0x701
-    assert led_snapshot.length == 8
-    assert led_snapshot.led_count == 16
-    assert led_snapshot.even_index_shift == 0
-    assert led_snapshot.odd_index_shift == 4
-    assert led_snapshot.nibble_mask == 0x0F
-    assert led_snapshot.byte_positions == ()
-    assert dict(led_snapshot.values) == {
-        "off": 0,
-        "red": 1,
-        "green": 2,
-        "blue": 3,
-        "amber": 4,
-        "white": 5,
-    }
 
 
 def test_registry_messages_have_fixed_ids_and_layouts() -> None:
     definition = load_definition(ROOT / "protocol" / "custom.toml")
 
-    assert [message.can_id for message in definition.messages] == list(range(0x700, 0x708))
+    assert [message.can_id for message in definition.messages] == [0x700, *range(0x702, 0x708)]
     assert all(message.length == 8 for message in definition.messages[2:])
     assert dict(definition.message("button_pad_hello").byte_positions) == {
         "protocol_version": 0,

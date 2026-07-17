@@ -66,20 +66,31 @@
       "ButtonsState": {
         "additionalProperties": false,
         "properties": {
-          "led_colours": {
+          "led_rgb": {
             "items": {
-              "maximum": 5,
-              "minimum": 0,
-              "type": "integer"
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
             },
             "maxItems": 16,
             "minItems": 16,
-            "title": "Led Colours",
+            "title": "Led Rgb",
             "type": "array"
           }
         },
         "required": [
-          "led_colours"
+          "led_rgb"
         ],
         "title": "ButtonsState",
         "type": "object"

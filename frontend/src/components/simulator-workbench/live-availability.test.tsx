@@ -16,7 +16,12 @@ import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 
-vi.mock("@/api/simulator", () => ({ tapButton: vi.fn() }))
+vi.mock("@/api/simulator", () => ({
+  tapButton: vi.fn(),
+  connectSimulatedDevice: vi.fn(),
+  disconnectSimulatedDevice: vi.fn(),
+  rebootSimulatedDevice: vi.fn(),
+}))
 
 const renderWithQueryClient = (ui: ReactNode) =>
   render(
@@ -31,7 +36,7 @@ afterEach(() => {
 
 it("clears retained LED observations and disables controls when unsynchronized", () => {
   const value = snapshot("dev-boot", 4)
-  value.data.buttons.led_colours[0] = 3
+  value.data.buttons.led_rgb[0] = [0, 0, 255]
   value.data.devices.networks = [
     {
       id: "kcan",
@@ -56,7 +61,7 @@ it("clears retained LED observations and disables controls when unsynchronized",
 
 it("sends emulator taps when the emulated source is selected", async () => {
   const value = snapshot("dev-boot", 5)
-  value.data.buttons.led_colours = [2, ...Array(15).fill(0)]
+  value.data.buttons.led_rgb = [[0, 255, 0], ...Array.from({ length: 15 }, () => [0, 0, 0] as [number, number, number])]
   value.data.devices.registry.button_pad = {
     ...value.data.devices.registry.button_pad,
     source_mode: "emulated",

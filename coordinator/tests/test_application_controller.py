@@ -11,6 +11,10 @@ from e87canbus.application.controller import (
     normalize_state,
 )
 from e87canbus.application.events import (
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
     ApplicationEffect,
     ApplicationEvent,
     ButtonLedState,
@@ -19,7 +23,6 @@ from e87canbus.application.events import (
     CoolantTemperatureObserved,
     EngineRpmObserved,
     HighBeamStrobeDeadlineReached,
-    LedColour,
     OilTemperatureObserved,
     SetButtonLeds,
     SetHighBeam,
@@ -56,29 +59,10 @@ CONFIG = SteeringConfig()
 ENGINE_CONFIG = EngineTelemetryConfig()
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
-AUTO_LEDS = ButtonLedState(
-    (
-        LedColour.BLUE,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-        LedColour.OFF,
-    )
-)
-MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
+AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
+MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
 MANUAL_MAXIMUM_LEDS = ButtonLedState(
-    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE) + (LedColour.OFF,) * 12
+    (RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12
 )
 
 
@@ -145,7 +129,7 @@ def test_initial_snapshot_and_effects() -> None:
         ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
-        button_led_colours=AUTO_LEDS.colours,
+        button_led_rgb=AUTO_LEDS.rgb,
         high_beam_enabled=False,
         high_beam_strobe_active=False,
         high_beam_strobe_cycles_remaining=0,

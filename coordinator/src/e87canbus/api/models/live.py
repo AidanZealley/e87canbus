@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.device import DeviceRole
-from e87canbus.protocol.router import LED_COLOUR_CODES
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
-LedCode = Annotated[int, Field(ge=0, le=5)]
-LedSnapshot = Annotated[tuple[LedCode, ...], Field(min_length=16, max_length=16)]
 
 
 class LiveModel(BaseModel):
@@ -92,7 +89,7 @@ class SteeringState(LiveModel):
 
 
 class ButtonsState(LiveModel):
-    led_colours: LedSnapshot
+    led_rgb: tuple[tuple[int, int, int], ...] = Field(min_length=16, max_length=16)
 
 
 class LightingState(LiveModel):
@@ -306,10 +303,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
 
 def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     return ButtonsState(
-        led_colours=tuple(
-            LED_COLOUR_CODES[colour]
-            for colour in snapshot.application.button_led_colours
-        ),
+        led_rgb=snapshot.application.button_led_rgb,
     )
 
 

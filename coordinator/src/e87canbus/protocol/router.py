@@ -5,39 +5,18 @@ from __future__ import annotations
 from e87canbus.application.events import (
     ApplicationEvent,
     ButtonPressed,
-    LedColour,
-    SetButtonLeds,
 )
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import (
     DeviceWelcomeAckPayload,
-    LedSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
     decode_heartbeat,
     decode_hello,
-    encode_led_snapshot,
     encode_welcome_ack,
 )
-from e87canbus.protocol.generated import (
-    LED_COLOUR_AMBER,
-    LED_COLOUR_BLUE,
-    LED_COLOUR_GREEN,
-    LED_COLOUR_OFF,
-    LED_COLOUR_RED,
-    LED_COLOUR_WHITE,
-)
-
-LED_COLOUR_CODES = {
-    LedColour.OFF: LED_COLOUR_OFF,
-    LedColour.RED: LED_COLOUR_RED,
-    LedColour.GREEN: LED_COLOUR_GREEN,
-    LedColour.BLUE: LED_COLOUR_BLUE,
-    LedColour.AMBER: LED_COLOUR_AMBER,
-    LedColour.WHITE: LED_COLOUR_WHITE,
-}
 
 
 class ProtocolRouter:
@@ -114,15 +93,4 @@ class ProtocolRouter:
         return RoutedCanFrame(
             CanNetwork.KCAN,
             encode_welcome_ack(acknowledgement, arbitration_id),
-        )
-
-    def encode(self, effect: SetButtonLeds) -> RoutedCanFrame:
-        return RoutedCanFrame(
-            network=CanNetwork.KCAN,
-            frame=encode_led_snapshot(
-                LedSnapshotPayload(
-                    tuple(LED_COLOUR_CODES[colour] for colour in effect.colours.colours)
-                ),
-                self.ids,
-            ),
         )

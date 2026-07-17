@@ -2,7 +2,6 @@ import pytest
 from e87canbus.application.events import (
     ButtonLedState,
     HighBeamStrobeDeadlineReached,
-    LedColour,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
@@ -15,11 +14,11 @@ def test_steering_effect_rejects_out_of_range_assistance() -> None:
         SetSteeringAssistance(1.1, SteeringCommandReason.MAXIMUM)
 
 
-def test_button_led_state_rejects_partial_and_unknown_colours() -> None:
+def test_button_led_state_rejects_partial_and_invalid_rgb() -> None:
     with pytest.raises(ValueError, match="exactly 16"):
-        ButtonLedState((LedColour.OFF,) * 15)
-    with pytest.raises(ValueError, match="known LED colours"):
-        ButtonLedState((LedColour.OFF,) * 15 + ("off",))  # type: ignore[arg-type]
+        ButtonLedState(((0, 0, 0),) * 15)
+    with pytest.raises(ValueError, match="RGB bytes"):
+        ButtonLedState(((0, 0, 0),) * 15 + ((256, 0, 0),))
 
 
 def test_high_beam_effect_requires_boolean() -> None:
