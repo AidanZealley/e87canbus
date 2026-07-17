@@ -1,6 +1,8 @@
+#include <Adafruit_NeoTrellis.h>
 #include <Arduino.h>
 #include <EEPROM.h>
 #include <SPI.h>
+#include <Wire.h>
 #include <mcp_can.h>
 
 #include "can_ids.h"
@@ -27,6 +29,10 @@ const int32_t CADENCE_JITTER_MS = 100;
 const uint8_t RESPONSE_ACCEPTED = 0;
 const uint8_t RESPONSE_UNSUPPORTED = 1;
 const uint8_t BUTTON_LED_COUNT = 16;
+const uint8_t TRELLIS_ADDR = 0x2E;
+const uint8_t TRELLIS_BRIGHTNESS = 20;
+const uint8_t RGB_PAYLOAD_LENGTH = BUTTON_LED_COUNT * 3;  // 48 bytes: R,G,B per pixel
+const uint32_t TRELLIS_POLL_MS = 20;
 using button_pad::DeviceState;
 using button_pad::STATUS_CAN_SEND_FAILED;
 using button_pad::STATUS_LOCAL_FAULT;
@@ -38,6 +44,7 @@ enum class DisplayMode : uint8_t {
 };
 
 MCP_CAN canBus(CAN_CS_PIN);
+Adafruit_NeoTrellis trellis(TRELLIS_ADDR);
 
 bool sendIsoTpFrame(uint32_t arbitrationId, const uint8_t *payload, uint8_t length) {
     return canBus.sendMsgBuf(arbitrationId, 0, length, const_cast<uint8_t *>(payload)) == CAN_OK;
@@ -48,6 +55,7 @@ button_pad::IsoTpTransport transport(CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORD
 DeviceState state = DeviceState::BOOTING;
 DisplayMode displayMode = DisplayMode::DISCOVERING;
 bool canReady = false;
+bool trellisReady = false;
 bool controllerLease = false;
 uint16_t deviceSession = 0;
 uint16_t controllerSession = 0;
@@ -56,6 +64,8 @@ uint8_t deviceStatusCode = 0;
 uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
+uint32_t nextTrellisPollMs = 0;
+uint8_t pixelBuffer[RGB_PAYLOAD_LENGTH] = {};
 
 bool due(uint32_t now, uint32_t deadline) {
     return static_cast<int32_t>(now - deadline) >= 0;
@@ -72,6 +82,28 @@ uint16_t getUint16(const uint8_t *payload, uint8_t lowByte, uint8_t highByte) {
            (static_cast<uint16_t>(payload[highByte]) << 8);
 }
 
+void applyPixelDisplay() {
+    if (!trellisReady) {
+        return;
+    }
+    if (displayMode == DisplayMode::NORMAL) {
+        for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
+            trellis.pixels.setPixelColor(
+                i, trellis.pixels.Color(pixelBuffer[i * 3], pixelBuffer[i * 3 + 1],
+                                        pixelBuffer[i * 3 + 2]));
+        }
+    } else if (displayMode == DisplayMode::DISCOVERING) {
+        for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
+            trellis.pixels.setPixelColor(i, 0x201000);  // dim amber: no controller
+        }
+    } else {
+        for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
+            trellis.pixels.setPixelColor(i, 0x200000);  // dim red: fault
+        }
+    }
+    trellis.pixels.show();
+}
+
 void selectDisplay(DisplayMode mode) {
     if (displayMode == mode) {
         return;
@@ -85,6 +117,7 @@ void selectDisplay(DisplayMode mode) {
     } else {
         Serial.println("error");
     }
+    applyPixelDisplay();
 }
 
 void transitionTo(DeviceState nextState) {
@@ -314,8 +347,6 @@ void pollCan(uint32_t now) {
     }
 }
 
-bool sendButtonEvent(uint8_t buttonIndex, bool pressed) __attribute__((unused));
-
 bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
     if (state != DeviceState::OPERATIONAL || !freshControllerLease(millis()) ||
         buttonIndex >= BUTTON_LED_COUNT) {
@@ -334,6 +365,13 @@ bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
         return false;
     }
     return true;
+}
+
+// Seesaw hardware debounces; rising = pressed, falling = released.
+// Physical key index maps 1:1 to logical index 0–15 (row-major, top-left = 0).
+TrellisCallback onTrellisKey(keyEvent evt) {
+    sendButtonEvent(evt.bit.NUM, evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING);
+    return nullptr;
 }
 
 }  // namespace
@@ -364,6 +402,22 @@ void setup() {
     canBus.setMode(MCP_NORMAL);
     canReady = true;
     Serial.println("CAN init ok at 100000 bit/s; handshake is bench-only");
+
+    // NeoTrellis on hardware I²C: SDA=D2, SCL=D3 (ATmega32U4 TWI).
+    Wire.begin();
+    if (!trellis.begin()) {
+        Serial.println("NeoTrellis init failed - check I2C wiring and address 0x2E");
+    } else {
+        trellisReady = true;
+        trellis.pixels.setBrightness(TRELLIS_BRIGHTNESS);
+        for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
+            trellis.activateKey(i, SEESAW_KEYPAD_EDGE_RISING);
+            trellis.activateKey(i, SEESAW_KEYPAD_EDGE_FALLING);
+            trellis.registerCallback(i, onTrellisKey);
+        }
+        Serial.println("NeoTrellis init ok at 0x2E");
+    }
+
     beginDiscovery(millis(), DeviceState::DISCOVERING);
 }
 
@@ -371,11 +425,24 @@ void loop() {
     const uint32_t now = millis();
     pollCan(now);
     transport.poll();
+
     uint8_t transportPayload[button_pad::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
     uint16_t transportLength = 0;
     if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
-        Serial.print("received ISO-TP payload bytes=");
-        Serial.println(transportLength);
+        if (transportLength == RGB_PAYLOAD_LENGTH) {
+            memcpy(pixelBuffer, transportPayload, RGB_PAYLOAD_LENGTH);
+            if (displayMode == DisplayMode::NORMAL) {
+                applyPixelDisplay();
+            }
+        } else {
+            Serial.print("ignored ISO-TP payload unexpected length=");
+            Serial.println(transportLength);
+        }
+    }
+
+    if (trellisReady && due(now, nextTrellisPollMs)) {
+        trellis.read();
+        nextTrellisPollMs = now + TRELLIS_POLL_MS;
     }
 
     if (state == DeviceState::DISCOVERING || state == DeviceState::CONTROLLER_LOST ||
