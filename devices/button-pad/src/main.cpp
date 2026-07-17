@@ -65,9 +65,6 @@ uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
 uint32_t nextTrellisPollMs = 0;
-uint32_t nextPixelUpdateMs = 0;
-bool pixelBufferDirty = false;
-bool pendingCanRecovery = false;
 uint8_t pixelBuffer[RGB_PAYLOAD_LENGTH] = {};
 
 bool due(uint32_t now, uint32_t deadline) {
@@ -196,35 +193,6 @@ bool freshControllerLease(uint32_t now) {
     return controllerLease && (now - lastControllerAckMs <= CONTROLLER_TIMEOUT_MS);
 }
 
-// This MCP2515 module has an 8 MHz crystal; this is independent of the
-// Pro Micro's 16 MHz ATmega32U4 CPU clock.
-bool initializeCanController() {
-    canReady = false;
-    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
-    if (status != CAN_OK) {
-        Serial.print("CAN init failed status=");
-        Serial.println(status);
-        return false;
-    }
-    canBus.setMode(MCP_NORMAL);
-    canReady = true;
-    return true;
-}
-
-void recoverCanController(uint32_t now) {
-    Serial.println("recovering CAN controller");
-    controllerLease = false;
-    controllerSession = 0;
-    if (!initializeCanController()) {
-        transitionTo(DeviceState::LOCAL_FAULT);
-        selectDisplay(DisplayMode::ERROR);
-        return;
-    }
-    transitionTo(DeviceState::DISCOVERING);
-    selectDisplay(DisplayMode::DISCOVERING);
-    nextHelloMs = now;
-}
-
 bool sendHello(uint32_t now) {
     if (!canReady) {
         return false;
@@ -243,7 +211,6 @@ bool sendHello(uint32_t now) {
     if (status != CAN_OK) {
         Serial.print("HELLO send failed status=");
         Serial.println(status);
-        pendingCanRecovery = true;
         return false;
     }
     return true;
@@ -272,7 +239,6 @@ bool sendHeartbeat(uint32_t now) {
             transitionTo(sendResult.state);
             selectDisplay(DisplayMode::ERROR);
         }
-        pendingCanRecovery = true;
         return false;
     }
     if (state != sendResult.state) {
@@ -406,21 +372,6 @@ TrellisCallback onTrellisKey(keyEvent evt) {
     return nullptr;
 }
 
-void handleTransportReceive() {
-    uint8_t payload[button_pad::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
-    uint16_t length = 0;
-    if (!transport.receive(payload, sizeof(payload), &length)) {
-        return;
-    }
-    if (length == RGB_PAYLOAD_LENGTH) {
-        memcpy(pixelBuffer, payload, RGB_PAYLOAD_LENGTH);
-        pixelBufferDirty = true;
-    } else {
-        Serial.print("ignored ISO-TP payload unexpected length=");
-        Serial.println(length);
-    }
-}
-
 }  // namespace
 
 void setup() {
@@ -435,11 +386,19 @@ void setup() {
     Serial.print(" session=");
     Serial.println(deviceSession);
 
-    if (!initializeCanController()) {
+    // This MCP2515 module has an 8 MHz crystal; this is independent of the
+    // Pro Micro's 16 MHz ATmega32U4 CPU clock.
+    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
+    if (status != CAN_OK) {
+        Serial.print("CAN init failed status=");
+        Serial.println(status);
         Serial.println("check MCP2515 wiring, CS pin 10, bitrate 100000, and module clock");
         enterLocalFault(STATUS_LOCAL_FAULT, "MCP2515 initialization failed");
         return;
     }
+
+    canBus.setMode(MCP_NORMAL);
+    canReady = true;
     Serial.println("CAN init ok at 100000 bit/s; handshake is controller-managed");
 
     // NeoTrellis on hardware I²C: SDA=D2, SCL=D3 (ATmega32U4 TWI).
@@ -462,21 +421,21 @@ void setup() {
 
 void loop() {
     const uint32_t now = millis();
-
-    if (pendingCanRecovery) {
-        pendingCanRecovery = false;
-        recoverCanController(now);
-        return;
-    }
-
     pollCan(now);
     transport.poll();
-    handleTransportReceive();
 
-    if (pixelBufferDirty && displayMode == DisplayMode::NORMAL && due(now, nextPixelUpdateMs)) {
-        applyPixelDisplay();
-        pixelBufferDirty = false;
-        nextPixelUpdateMs = now + 16;
+    uint8_t transportPayload[button_pad::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
+    uint16_t transportLength = 0;
+    if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
+        if (transportLength == RGB_PAYLOAD_LENGTH) {
+            memcpy(pixelBuffer, transportPayload, RGB_PAYLOAD_LENGTH);
+            if (displayMode == DisplayMode::NORMAL) {
+                applyPixelDisplay();
+            }
+        } else {
+            Serial.print("ignored ISO-TP payload unexpected length=");
+            Serial.println(transportLength);
+        }
     }
 
     if (trellisReady && due(now, nextTrellisPollMs)) {
