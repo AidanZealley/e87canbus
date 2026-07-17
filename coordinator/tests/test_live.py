@@ -8,10 +8,16 @@ from dataclasses import replace
 import e87canbus.live as live
 import pytest
 from e87canbus.composition import build_live_controller_service
-from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.config import (
+    CanNetwork,
+    configure_can_networks,
+    default_config,
+    simulator_config,
+)
 from e87canbus.device import DeviceSource
 from e87canbus.live import read_frames_into_queue
 from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
+from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
 from e87canbus.runtime import (
     CanReaderFailed,
     ControllerInput,
@@ -379,3 +385,105 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
         if thread.name.endswith("-reader")
     ):
         assert time.monotonic() < deadline
+
+
+class TestConfigurableNetworkEnablement:
+    def test_kcan_only_opens_can0_not_can1_or_can2(self) -> None:
+        FakeSocketCanBus.instances = []
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+        service = build_live_controller_service(
+            config=config,
+            tx_grants=frozenset({CanNetwork.KCAN}),
+            socketcan_factory=FakeSocketCanBus,
+        )
+
+        service.start()
+        service.stop()
+
+        interfaces = [bus.interface for bus in FakeSocketCanBus.instances]
+        assert interfaces == ["can0"]
+
+    def test_all_three_networks_opens_all_interfaces(self) -> None:
+        FakeSocketCanBus.instances = []
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+        service = build_live_controller_service(
+            config=config,
+            tx_grants=frozenset({CanNetwork.KCAN}),
+            socketcan_factory=FakeSocketCanBus,
+        )
+
+        service.start()
+        service.stop()
+
+        interfaces = sorted(bus.interface for bus in FakeSocketCanBus.instances)
+        assert interfaces == ["can0", "can1", "can2"]
+
+    def test_kcan_tx_grant_creates_transmitter_for_configured_network(self) -> None:
+        FakeSocketCanBus.instances = []
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+        service = build_live_controller_service(
+            config=config,
+            tx_grants=frozenset({CanNetwork.KCAN}),
+            socketcan_factory=FakeSocketCanBus,
+        )
+
+        service.start()
+        service.stop()
+
+        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+        assert kcan is not None
+
+    def test_no_tx_grant_creates_no_transmitter(self) -> None:
+        FakeSocketCanBus.instances = []
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset(),
+        )
+        service = build_live_controller_service(
+            config=config,
+            button_pad_source=DeviceSource.DISABLED,
+            tx_grants=frozenset(),
+            socketcan_factory=FakeSocketCanBus,
+        )
+
+        hello_frame = CanFrame(
+            CAN_ID_BUTTON_PAD_HELLO,
+            bytes([0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        )
+        service.start()
+        try:
+            service.submit(ReceivedCanFrame(CanNetwork.KCAN, hello_frame, 1.0)).result(
+                timeout=0.2
+            )
+        finally:
+            service.stop()
+
+        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+        assert kcan.sent == []
+
+    def test_granting_disabled_network_fails(self) -> None:
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+
+        with pytest.raises(ValueError, match="live CAN TX grant has no enabled transmitter"):
+            build_live_controller_service(
+                config=config,
+                tx_grants=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN}),
+                socketcan_factory=FakeSocketCanBus,
+            )

@@ -231,3 +231,69 @@ def simulator_config() -> AppConfig:
         replace(item, tx_enabled=item.network is CanNetwork.KCAN) for item in config.can_networks
     )
     return replace(config, can_networks=networks)
+
+
+CANONICAL_NETWORK_ORDER = (CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN)
+
+
+class NetworkConfigError(ValueError):
+    """Raised when network configuration parsing fails."""
+
+
+def parse_network_names(value: str) -> frozenset[CanNetwork]:
+    """Parse comma-separated network names into a frozenset of CanNetwork values.
+
+    Accepts whitespace around commas. Rejects unknown names and duplicates.
+    """
+    if not value.strip():
+        return frozenset()
+    raw_names = [name.strip().lower() for name in value.split(",")]
+    seen: set[str] = set()
+    networks: set[CanNetwork] = set()
+    for name in raw_names:
+        if not name:
+            continue
+        if name in seen:
+            raise NetworkConfigError(f"duplicate network name: {name}")
+        seen.add(name)
+        try:
+            networks.add(CanNetwork(name))
+        except ValueError:
+            valid = ", ".join(n.value for n in CanNetwork)
+            raise NetworkConfigError(f"unknown network name: {name}; valid: {valid}") from None
+    return frozenset(networks)
+
+
+def configure_can_networks(
+    config: AppConfig,
+    *,
+    enabled_networks: frozenset[CanNetwork],
+    tx_networks: frozenset[CanNetwork],
+) -> AppConfig:
+    """Apply deployment network selections to an existing AppConfig.
+
+    For every defined network:
+    - `enabled` becomes whether it appears in `enabled_networks`
+    - `tx_enabled` becomes whether it appears in `tx_networks`
+
+    Fails closed if a TX network is not in the enabled set.
+    """
+    not_enabled_tx = tx_networks - enabled_networks
+    if not_enabled_tx:
+        names = ", ".join(sorted(n.value for n in not_enabled_tx))
+        raise NetworkConfigError(f"TX network not enabled: {names}")
+
+    new_networks = tuple(
+        replace(
+            item,
+            enabled=item.network in enabled_networks,
+            tx_enabled=item.network in tx_networks,
+        )
+        for item in config.can_networks
+    )
+    return replace(config, can_networks=new_networks)
+
+
+def sorted_network_names(networks: frozenset[CanNetwork]) -> list[str]:
+    """Return network names sorted in canonical order (kcan, ptcan, fcan)."""
+    return [n.value for n in CANONICAL_NETWORK_ORDER if n in networks]

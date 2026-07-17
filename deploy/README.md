@@ -11,6 +11,21 @@ Create the service account and application directories using the distribution's 
 tools, then place the repository at `/opt/e87canbus`. The account needs read/execute access to that
 tree and read/write access only to `/var/lib/e87canbus`. Install dependencies and build the frontend:
 
+For a fresh Raspberry Pi with this repository already cloned at `/opt/e87canbus`, run:
+
+```bash
+cd /opt/e87canbus
+./scripts/setup_pi.sh
+```
+
+The script installs host dependencies, enables SPI, configures the Waveshare MCP2515 overlay,
+syncs Python dependencies, builds the frontend, installs the service, and applies the initial
+`can0`-only bench profile. It never reboots implicitly. If boot configuration changes, reboot and
+run it again; use `./scripts/setup_pi.sh --reboot` only when an automatic reboot is acceptable.
+
+The script cannot validate physical CAN-H/CAN-L wiring, common ground, MCP2515 crystal frequency,
+or bus termination.
+
 ```bash
 cd /opt/e87canbus
 uv sync --frozen
