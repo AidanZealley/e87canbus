@@ -55,16 +55,13 @@ On Linux, the port is commonly `/dev/ttyACM0` or similar.
 
 ## Coordinator CAN
 
-Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT v2.1:
+Pi deployments use the boot-managed `can0` unit installed by `scripts/setup_pi.sh`:
 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - `can0` at `100000`
 
-Manually bring up bench CAN:
+The service unit applies the bitrate and raises `can0` automatically at boot. If you change the
+boot overlay, reboot and rerun the setup script so the deployed service and CAN interface stay in
+sync.
 
-```bash
-sudo ./scripts/bench_can_up.sh
-```
-
-The bench helper configures only this single 100 kbit/s interface. Three-interface live bring-up
-and a live vehicle coordinator process are not part of this milestone.
+Three-interface live bring-up and a live vehicle coordinator process are not part of this milestone.

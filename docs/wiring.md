@@ -10,14 +10,14 @@ Pending connector identification and pinout confirmation.
 
 Pending PT-CAN and DSC/F-CAN connector pinout confirmation.
 
-## Bench CAN
+## Pi CAN Bring-Up
 
-Confirmed bench defaults:
+Confirmed defaults for the Pi deployment:
 
 - Raspberry Pi 4 with Waveshare RS485 CAN HAT v2.1.
 - HAT oscillator marking `12000`, so use `oscillator=12000000`.
 - MCP2515 overlay interrupt BCM `25`.
-- `can0` bench bitrate `100000`.
+- `can0` bitrate `100000`.
 - Arduino Micro / ATmega32U4 with MCP2515 CS pin `10`.
 - Arduino MCP2515 library clock setting currently `MCP_16MHZ`.
 
@@ -40,6 +40,5 @@ First milestone firmware does not initialize Trellis. It sends alternating butto
 `0x700` automatically every second. It receives provisional ISO-TP traffic on `0x708`/`0x709`; the
 firmware transport compiles but physical RGB snapshot consumption and rendering remain deferred.
 Physical topology, logical-to-pixel mapping, brightness, and current limits remain unverified and
-unimplemented. This firmware is bench-only and
-must not be attached to the car while automatic transmission remains enabled; both IDs still
-require collision validation.
+unimplemented. This firmware is hardware-validation-gated and must not be attached to the car while
+automatic transmission remains enabled; both IDs still require collision validation.

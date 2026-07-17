@@ -401,7 +401,7 @@ void setup() {
 
     canBus.setMode(MCP_NORMAL);
     canReady = true;
-    Serial.println("CAN init ok at 100000 bit/s; handshake is bench-only");
+    Serial.println("CAN init ok at 100000 bit/s; handshake is controller-managed");
 
     // NeoTrellis on hardware I²C: SDA=D2, SCL=D3 (ATmega32U4 TWI).
     Wire.begin();
