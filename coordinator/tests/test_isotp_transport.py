@@ -47,21 +47,22 @@ def _endpoints() -> tuple[IsoTpEndpoint, IsoTpEndpoint]:
 
 def test_iso_tp_exchanges_multi_frame_opaque_payloads_over_simulated_can() -> None:
     coordinator, pad = _endpoints()
-    assert coordinator.send(bytes(range(48)))
+    coordinator.send(bytes(range(48)))
     coordinator.pump()  # type: ignore[attr-defined]
     assert pad.receive_payload() == bytes(range(48))
 
-    assert pad.send(bytes(range(48)))
+    pad.send(bytes(range(48)))
     coordinator.pump()  # type: ignore[attr-defined]
     assert coordinator.receive_payload() == bytes(range(48))
 
 
-def test_iso_tp_single_frame_and_busy_send() -> None:
+def test_iso_tp_latest_value_overwrites_pending_before_dispatch() -> None:
     coordinator, pad = _endpoints()
-    assert coordinator.send(b"small")
-    assert not coordinator.send(b"must not interleave")
+    coordinator.send(b"first")
+    coordinator.send(b"second")  # overwrites before any poll; only second is transmitted
     coordinator.pump()  # type: ignore[attr-defined]
-    assert pad.receive_payload() == b"small"
+    assert pad.receive_payload() == b"second"
+    assert pad.receive_payload() is None
 
 
 def test_iso_tp_rejects_oversize_payload_and_ignores_other_frames() -> None:

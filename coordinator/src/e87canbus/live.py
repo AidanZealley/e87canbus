@@ -387,6 +387,7 @@ class LiveControllerRuntime:
                     feedback_commit = self._kernel.dispatch(feedback_failure)
                     if feedback_commit is not None:
                         commits.append(feedback_commit)
+        self._executor.poll_transport()
         if not commits:
             return None
         return RuntimeExecution(

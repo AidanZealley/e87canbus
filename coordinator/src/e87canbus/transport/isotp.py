@@ -13,7 +13,13 @@ MAXIMUM_PAYLOAD_LENGTH = 256
 
 
 class IsoTpEndpoint:
-    """One bounded, point-to-point ISO-TP link with private RX/TX state."""
+    """One bounded, point-to-point ISO-TP link with private RX/TX state.
+
+    TX follows latest-value semantics: send() always accepts the new payload,
+    overwriting any not-yet-dispatched pending payload. poll() dispatches the
+    pending payload as soon as the layer becomes idle. This decouples callers
+    from transport timing — there is no "busy" condition to handle.
+    """
 
     def __init__(
         self,
@@ -29,6 +35,7 @@ class IsoTpEndpoint:
         self._completed: deque[bytes] = deque()
         self._errors: deque[Exception] = deque()
         self._maximum_payload_length = maximum_payload_length
+        self._pending: bytes | None = None
         self._layer = isotp.TransportLayer(
             rxfn=self._receive,
             txfn=lambda message: send_frame(
@@ -51,20 +58,21 @@ class IsoTpEndpoint:
         )
         return True
 
-    def send(self, payload: bytes) -> bool:
-        """Start a transfer, returning false instead of interleaving when busy."""
+    def send(self, payload: bytes) -> None:
+        """Buffer the latest payload for transmission; poll() dispatches when idle."""
 
         if len(payload) > self._maximum_payload_length:
             raise ValueError("ISO-TP payload exceeds 256 bytes")
-        if self._layer.transmitting():
-            return False
-        self._layer.send(payload)
-        return True
+        self._pending = payload
 
     def poll(self) -> None:
-        """Advance the package state machine and expose complete payloads only."""
+        """Advance the ISO-TP state machine; dispatch pending payload when idle."""
 
         self._layer.process(rx_timeout=0)
+        if self._pending is not None and not self._layer.transmitting():
+            self._layer.send(self._pending)
+            self._pending = None
+            self._layer.process(rx_timeout=0)
         while self._layer.available():
             payload = self._layer.recv()
             if payload is not None and len(payload) <= self._maximum_payload_length:
@@ -75,7 +83,7 @@ class IsoTpEndpoint:
 
     @property
     def transmitting(self) -> bool:
-        return self._layer.transmitting()
+        return self._layer.transmitting() or self._pending is not None
 
     @property
     def errors(self) -> tuple[Exception, ...]:

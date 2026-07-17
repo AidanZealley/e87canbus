@@ -200,16 +200,20 @@ class EffectExecutor:
             return None
         try:
             payload = encode_rgb_snapshot(RgbSnapshotPayload(effect.rgb.rgb))
-            if not self._button_pad_transport.send(payload):
-                return CanEffectFailure(
-                    CanNetwork.KCAN,
-                    "button-pad ISO-TP transport busy",
-                    origin_button_index,
-                )
+            self._button_pad_transport.send(payload)
             self._button_pad_transport.poll()
         except (OSError, RuntimeError, ValueError) as exc:
             return CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)
         return None
+
+    def poll_transport(self) -> None:
+        """Advance the button-pad ISO-TP state machine on each service tick."""
+        if self._button_pad_transport is None:
+            return
+        try:
+            self._button_pad_transport.poll()
+        except (OSError, RuntimeError) as exc:
+            LOGGER.warning("button-pad transport poll error: %s", exc)
 
     def on_frame(self, network: CanNetwork, frame: CanFrame) -> bool:
         if network is not CanNetwork.KCAN or self._button_pad_transport is None:

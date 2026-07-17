@@ -331,19 +331,17 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
 }
 
 void pollCan(uint32_t now) {
-    if (!canReady || canBus.checkReceive() != CAN_MSGAVAIL) {
-        return;
-    }
+    while (canReady && canBus.checkReceive() == CAN_MSGAVAIL) {
+        unsigned long arbitrationId = 0;
+        uint8_t length = 0;
+        uint8_t payload[8] = {};
+        canBus.readMsgBuf(&arbitrationId, &length, payload);
 
-    unsigned long arbitrationId = 0;
-    uint8_t length = 0;
-    uint8_t payload[8] = {};
-    canBus.readMsgBuf(&arbitrationId, &length, payload);
-
-    if (arbitrationId == CAN_ID_BUTTON_PAD_WELCOME_ACK) {
-        handleWelcomeAck(payload, length, now);
-    } else if (arbitrationId == CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE) {
-        transport.onFrame(payload, length);
+        if (arbitrationId == CAN_ID_BUTTON_PAD_WELCOME_ACK) {
+            handleWelcomeAck(payload, length, now);
+        } else if (arbitrationId == CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE) {
+            transport.onFrame(payload, length);
+        }
     }
 }
 
