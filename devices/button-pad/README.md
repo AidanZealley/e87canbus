@@ -3,6 +3,10 @@
 This Arduino Micro project implements the button-pad side of the generated
 device-registry protocol v1 on MCP2515 K-CAN at 100 kbit/s.
 
+The current bench hardware is a 5 V/16 MHz Pro Micro with an MCP2515 module
+using an 8 MHz crystal. The firmware's `MCP_8MHZ` CAN-controller setting refers
+to the MCP2515 module crystal and is independent of the Pro Micro CPU clock.
+
 `DEVICE_ID` defaults to `1` in the checked-in firmware source and is checked as
 an unsigned 16-bit build-time value. An explicit compiler flag may override it
 without redefining a project build flag for a separately provisioned bench

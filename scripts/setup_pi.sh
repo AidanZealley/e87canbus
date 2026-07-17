@@ -64,7 +64,9 @@ if ! sudo grep -Fxq "${OVERLAY}" "${CONFIG_FILE}"; then
 fi
 
 echo "Synchronizing Python dependencies..."
-uv sync --frozen
+# Use the system interpreter so the systemd service account does not depend on a Python
+# installation inside the invoking user's home directory.
+uv sync --frozen --python /usr/bin/python3
 
 echo "Building the frontend..."
 (
@@ -82,6 +84,10 @@ if ! id e87canbus >/dev/null 2>&1; then
         --create-home --shell /usr/sbin/nologin e87canbus
 fi
 
+# The checkout and its uv environment are built as the invoking user, while systemd runs the
+# service as e87canbus. Keep ownership with the checkout owner but grant the service group access.
+sudo chgrp -R e87canbus "${REPO_ROOT}"
+sudo chmod -R g+rX "${REPO_ROOT}"
 sudo install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus /etc/e87canbus
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \

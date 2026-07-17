@@ -350,7 +350,9 @@ void setup() {
     Serial.print(" session=");
     Serial.println(deviceSession);
 
-    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_16MHZ);
+    // This MCP2515 module has an 8 MHz crystal; this is independent of the
+    // Pro Micro's 16 MHz ATmega32U4 CPU clock.
+    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
     if (status != CAN_OK) {
         Serial.print("CAN init failed status=");
         Serial.println(status);

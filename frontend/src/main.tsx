@@ -9,6 +9,10 @@ import { Toaster } from "@/components/ui/sonner"
 import { startLiveTransport } from "@/live/transport"
 import { router } from "@/router"
 
+if (import.meta.env.DEV) {
+  window.setInterval(() => performance.clearMeasures(), 60_000)
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
