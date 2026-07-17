@@ -44,7 +44,6 @@ const chartConfig = {
   draft: { label: "Draft", color: "var(--color-primary)" },
 } satisfies ChartConfig
 
-const NON_INTERACTIVE_ACTIVE_DOT = { className: "pointer-events-none" } as const
 const CHART_MARGIN = { top: 18, right: 18, bottom: 8, left: 0 } as const
 const SPEED_DOMAIN = [0, 250] as const
 const SPEED_TICKS = [0, 10, 20, 30, 60, 100, 160, 250] as const
@@ -152,7 +151,7 @@ export const CurveChart = ({
           stroke="var(--color-active)"
           strokeWidth={3}
           dot={false}
-          activeDot={NON_INTERACTIVE_ACTIVE_DOT}
+          activeDot={false}
           isAnimationActive={false}
         />
         <Line
@@ -162,7 +161,7 @@ export const CurveChart = ({
           strokeWidth={2}
           strokeDasharray="6 5"
           dot={false}
-          activeDot={NON_INTERACTIVE_ACTIVE_DOT}
+          activeDot={false}
           isAnimationActive={false}
         />
         <CurvePositionMarker
