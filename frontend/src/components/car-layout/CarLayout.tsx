@@ -19,9 +19,9 @@ const navigation = [
 
 export const CarLayout = () => (
   <div className="flex h-svh min-w-0 overflow-hidden bg-background text-foreground">
-    <aside className="flex w-14 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="flex w-12 shrink-0 flex-col">
       <nav
-        className="flex flex-1 flex-col items-center justify-center gap-3 py-3"
+        className="flex flex-1 flex-col items-center justify-center gap-2 py-3"
         aria-label="Car display"
       >
         {navigation.map(({ to, label, icon: Icon }) => (
@@ -33,7 +33,7 @@ export const CarLayout = () => (
             title={label}
             className={cn(
               buttonVariants({ variant: "ghost", size: "icon-lg" }),
-              "text-sidebar-foreground focus-visible:ring-sidebar-ring/40 data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground"
+              "size-10 rounded-lg data-[status=active]:bg-secondary [&_svg:not([class*='size-'])]:size-5"
             )}
           >
             <Icon aria-hidden="true" />
@@ -42,9 +42,9 @@ export const CarLayout = () => (
         ))}
       </nav>
     </aside>
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-w-0 flex-1 flex-col py-1 pr-1">
       {/* <CarStatusBanners /> */}
-      <main className="min-h-0 min-w-0 flex-1 overflow-auto">
+      <main className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border bg-muted/20">
         <Outlet />
       </main>
     </div>
