@@ -67,6 +67,10 @@ uint32_t nextHeartbeatMs = 0;
 uint32_t nextTrellisPollMs = 0;
 uint8_t pixelBuffer[RGB_PAYLOAD_LENGTH] = {};
 
+bool initializeCanController();
+bool recoverCanController(uint32_t now, const char *reason);
+bool sendHello(uint32_t now, bool allowRecovery = true);
+bool sendHeartbeat(uint32_t now, bool allowRecovery = true);
 bool due(uint32_t now, uint32_t deadline) {
     return static_cast<int32_t>(now - deadline) >= 0;
 }
@@ -193,7 +197,25 @@ bool freshControllerLease(uint32_t now) {
     return controllerLease && (now - lastControllerAckMs <= CONTROLLER_TIMEOUT_MS);
 }
 
-bool sendHello(uint32_t now) {
+bool initializeCanController() {
+    // This MCP2515 module has an 8 MHz crystal; this is independent of the
+    // Pro Micro's 16 MHz ATmega32U4 CPU clock.
+    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
+    if (status != CAN_OK) {
+        Serial.print("CAN init failed status=");
+        Serial.println(status);
+        Serial.println("check MCP2515 wiring, CS pin 10, bitrate 100000, and module clock");
+        canReady = false;
+        return false;
+    }
+
+    canBus.setMode(MCP_NORMAL);
+    canReady = true;
+    Serial.println("CAN init ok at 100000 bit/s; handshake is controller-managed");
+    return true;
+}
+
+bool sendHello(uint32_t now, bool allowRecovery) {
     if (!canReady) {
         return false;
     }
@@ -211,12 +233,15 @@ bool sendHello(uint32_t now) {
     if (status != CAN_OK) {
         Serial.print("HELLO send failed status=");
         Serial.println(status);
+        if (allowRecovery && recoverCanController(now, "HELLO send failure")) {
+            return true;
+        }
         return false;
     }
     return true;
 }
 
-bool sendHeartbeat(uint32_t now) {
+bool sendHeartbeat(uint32_t now, bool allowRecovery) {
     if (!canReady || !controllerLease) {
         return false;
     }
@@ -238,6 +263,9 @@ bool sendHeartbeat(uint32_t now) {
         if (state != sendResult.state) {
             transitionTo(sendResult.state);
             selectDisplay(DisplayMode::ERROR);
+        }
+        if (allowRecovery && recoverCanController(now, "HEARTBEAT send failure")) {
+            return true;
         }
         return false;
     }
@@ -372,6 +400,27 @@ TrellisCallback onTrellisKey(keyEvent evt) {
     return nullptr;
 }
 
+bool recoverCanController(uint32_t now, const char *reason) {
+    Serial.print("recovering CAN controller after ");
+    Serial.println(reason);
+    canReady = false;
+    controllerLease = false;
+    controllerSession = 0;
+
+    if (!initializeCanController()) {
+        transitionTo(DeviceState::LOCAL_FAULT);
+        selectDisplay(DisplayMode::ERROR);
+        nextHelloMs = now + HELLO_INTERVAL_MS;
+        return false;
+    }
+
+    transitionTo(DeviceState::DISCOVERING);
+    selectDisplay(DisplayMode::DISCOVERING);
+    nextHelloMs = now;
+    sendHello(now, false);
+    return true;
+}
+
 }  // namespace
 
 void setup() {
@@ -386,20 +435,10 @@ void setup() {
     Serial.print(" session=");
     Serial.println(deviceSession);
 
-    // This MCP2515 module has an 8 MHz crystal; this is independent of the
-    // Pro Micro's 16 MHz ATmega32U4 CPU clock.
-    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
-    if (status != CAN_OK) {
-        Serial.print("CAN init failed status=");
-        Serial.println(status);
-        Serial.println("check MCP2515 wiring, CS pin 10, bitrate 100000, and module clock");
+    if (!initializeCanController()) {
         enterLocalFault(STATUS_LOCAL_FAULT, "MCP2515 initialization failed");
         return;
     }
-
-    canBus.setMode(MCP_NORMAL);
-    canReady = true;
-    Serial.println("CAN init ok at 100000 bit/s; handshake is controller-managed");
 
     // NeoTrellis on hardware I²C: SDA=D2, SCL=D3 (ATmega32U4 TWI).
     Wire.begin();
