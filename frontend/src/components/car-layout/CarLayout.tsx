@@ -8,7 +8,7 @@ import { Link, Outlet } from "@tanstack/react-router"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { CarStatusBanners } from "./CarStatusBanners"
+// import { CarStatusBanners } from "./CarStatusBanners"
 
 const navigation = [
   { to: "/car", label: "Overview", icon: HouseIcon },
@@ -43,7 +43,7 @@ export const CarLayout = () => (
       </nav>
     </aside>
     <div className="flex min-w-0 flex-1 flex-col">
-      <CarStatusBanners />
+      {/* <CarStatusBanners /> */}
       <main className="min-h-0 min-w-0 flex-1 overflow-auto">
         <Outlet />
       </main>

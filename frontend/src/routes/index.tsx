@@ -11,13 +11,13 @@ function ModeChooser() {
     <main className="grid min-h-svh bg-background md:grid-cols-2">
       <Link
         to="/dev"
-        className="group flex min-h-64 flex-col items-center justify-center gap-5 border-b p-8 text-center transition-colors outline-none hover:bg-muted/60 focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-ring/40 md:border-r md:border-b-0"
+        className="group flex min-h-64 flex-col items-center justify-center gap-5 border-b p-8 text-center transition-colors outline-none hover:bg-muted/10 focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-ring/40 md:border-r md:border-b-0"
       >
         <IconStack
           aria-hidden="true"
-          className="transition-transform group-hover:-translate-y-1"
+          className="text-foreground/50 transition-colors group-hover:text-foreground/75"
         >
-          <WrenchIcon className="size-5" />
+          <WrenchIcon className="size-5 transition-colors group-hover:text-foreground" />
         </IconStack>
         <span>
           <span className="block text-2xl font-semibold">
@@ -30,13 +30,13 @@ function ModeChooser() {
       </Link>
       <Link
         to="/car"
-        className="group flex min-h-64 flex-col items-center justify-center gap-5 p-8 text-center transition-colors outline-none hover:bg-muted/60 focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-ring/40"
+        className="group flex min-h-64 flex-col items-center justify-center gap-5 p-8 text-center transition-colors outline-none hover:bg-muted/10 focus-visible:z-10 focus-visible:ring-4 focus-visible:ring-ring/40"
       >
         <IconStack
           aria-hidden="true"
-          className="transition-transform group-hover:-translate-y-1"
+          className="text-foreground/50 transition-colors group-hover:text-foreground/75"
         >
-          <CarFrontIcon className="size-5" />
+          <CarFrontIcon className="size-5 transition-colors group-hover:text-foreground" />
         </IconStack>
         <span>
           <span className="block text-2xl font-semibold">Car Display</span>

@@ -67,14 +67,18 @@ export const CarDrive = () => {
 
   return (
     <section
-      className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-12"
+      className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-2 p-6"
       aria-labelledby="drive-title"
     >
       <h1 id="drive-title" className="sr-only">
         Drive
       </h1>
-      <div className="flex flex-col gap-12">
-        <div className="flex items-center gap-6" role="status" aria-label="Indicator lights">
+      <div className="flex flex-col gap-6">
+        <div
+          className="flex items-center gap-6"
+          role="status"
+          aria-label="Indicator lights"
+        >
           <LightbulbIcon
             aria-label={
               connected && lighting.high_beam_enabled
@@ -82,20 +86,22 @@ export const CarDrive = () => {
                 : "High beam off"
             }
             className={cn(
-              "size-8 transition-colors",
+              "size-6 transition-colors",
               connected && lighting.high_beam_enabled
                 ? "text-yellow-300"
                 : "text-muted-foreground/20"
             )}
           />
         </div>
-        <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
-        <TelemetryValue
-          label="Speed"
-          value={speed}
-          unit={settings.speed_unit === "mph" ? "mph" : "km/h"}
-          status={speed === null ? "Unavailable" : "Live"}
-        />
+        <div className="flex flex-col gap-4">
+          <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
+          <TelemetryValue
+            label="Speed"
+            value={speed}
+            unit={settings.speed_unit === "mph" ? "mph" : "km/h"}
+            status={speed === null ? "Unavailable" : "Live"}
+          />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-12">
         <DriveTemperatureGauge

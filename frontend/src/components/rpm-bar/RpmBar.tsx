@@ -20,11 +20,7 @@ export const RpmBar = ({ rpm, stage, position, redlineRpm }: RpmBarProps) => {
   const activeSegments = available ? Math.ceil(position * SEGMENT_COUNT) : 0
 
   return (
-    <div
-      className="flex flex-col gap-16"
-      role="group"
-      aria-label="Engine speed"
-    >
+    <div className="flex flex-col gap-8" role="group" aria-label="Engine speed">
       <div
         className="grid h-4 grid-cols-18 gap-1"
         role="meter"
@@ -54,14 +50,14 @@ export const RpmBar = ({ rpm, stage, position, redlineRpm }: RpmBarProps) => {
                 "ring-1 ring-destructive"
             )}
             style={{
-              height: `${16 + 1.27 ** index * 5}px`,
+              height: `${16 + 1.185 ** index * 5}px`,
             }}
           />
         ))}
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={cn("text-9xl", !available && "text-muted-foreground")}>
-          {available ? rpm : "—"}
+        <span className={cn("text-7xl", !available && "text-muted-foreground")}>
+          {available ? rpm : "-"}
         </span>
         {available ? (
           <span className="text-4xl font-semibold text-muted-foreground">

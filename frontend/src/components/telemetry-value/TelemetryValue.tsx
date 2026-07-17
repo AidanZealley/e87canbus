@@ -21,11 +21,11 @@ export const TelemetryValue = ({
       role="group"
       aria-label={label}
       className={cn(
-        "flex items-baseline gap-1 text-[20rem] leading-none tabular-nums",
+        "flex items-baseline gap-1 text-9xl leading-none tabular-nums",
         !available && "text-muted-foreground"
       )}
     >
-      <span>{available ? value : "—"}</span>
+      <span>{available ? value : "-"}</span>
       {available && unit ? (
         <span className="text-4xl font-semibold text-muted-foreground uppercase">
           {unit}

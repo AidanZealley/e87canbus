@@ -58,7 +58,7 @@ export const DriveTemperatureGauge = ({
 
   return (
     <div className="flex flex-col gap-3" aria-label={label}>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <div
           className={cn(
             "flex items-center justify-between gap-3",
@@ -67,13 +67,13 @@ export const DriveTemperatureGauge = ({
             severity === "critical" && "text-destructive"
           )}
         >
-          <Icon className="size-8 shrink-0" aria-hidden="true" />
+          <Icon className="size-6 shrink-0" aria-hidden="true" />
           <div
             className={cn(
               "flex shrink-0 items-baseline gap-1 leading-none font-medium tabular-nums"
             )}
           >
-            <span className="text-6xl">{available ? value : "—"}</span>
+            <span className="text-4xl">{available ? value : "-"}</span>
             {available ? (
               <span className="text-sm font-medium">{unit}</span>
             ) : null}
