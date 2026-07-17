@@ -180,7 +180,7 @@ class LivePublicationConfig:
 @dataclass(frozen=True)
 class TxPolicyConfig:
     network_window_s: float = 1.0
-    max_frames_per_network_window: int = 20
+    max_frames_per_network_window: int = 200
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.network_window_s) or self.network_window_s <= 0:

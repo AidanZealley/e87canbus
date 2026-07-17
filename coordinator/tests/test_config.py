@@ -195,7 +195,7 @@ def test_default_tx_policy() -> None:
     policy = default_config().tx_policy
 
     assert policy.network_window_s == 1.0
-    assert policy.max_frames_per_network_window == 20
+    assert policy.max_frames_per_network_window == 200
 
 
 def test_default_device_catalogue_and_registry_vocabulary() -> None:

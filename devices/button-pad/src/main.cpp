@@ -65,6 +65,8 @@ uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
 uint32_t nextTrellisPollMs = 0;
+uint32_t nextPixelUpdateMs = 0;
+bool pixelBufferDirty = false;
 uint8_t pixelBuffer[RGB_PAYLOAD_LENGTH] = {};
 
 bool initializeCanController();
@@ -468,13 +470,17 @@ void loop() {
     if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
         if (transportLength == RGB_PAYLOAD_LENGTH) {
             memcpy(pixelBuffer, transportPayload, RGB_PAYLOAD_LENGTH);
-            if (displayMode == DisplayMode::NORMAL) {
-                applyPixelDisplay();
-            }
+            pixelBufferDirty = true;
         } else {
             Serial.print("ignored ISO-TP payload unexpected length=");
             Serial.println(transportLength);
         }
+    }
+
+    if (pixelBufferDirty && displayMode == DisplayMode::NORMAL && due(now, nextPixelUpdateMs)) {
+        applyPixelDisplay();
+        pixelBufferDirty = false;
+        nextPixelUpdateMs = now + 16;
     }
 
     if (trellisReady && due(now, nextTrellisPollMs)) {
