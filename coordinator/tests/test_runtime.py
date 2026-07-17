@@ -2,10 +2,13 @@ import logging
 
 import pytest
 from e87canbus.application.events import (
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
     ApplicationEvent,
     ButtonLedState,
     ButtonPressed,
-    LedColour,
     SetButtonLeds,
     SetSteeringAssistance,
     SpeedObserved,
@@ -46,10 +49,10 @@ from e87canbus.runtime import (
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
-AUTO_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
-MANUAL_LEDS = ButtonLedState((LedColour.AMBER,) + (LedColour.OFF,) * 15)
+AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
+MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
 MAXIMUM_LEDS = ButtonLedState(
-    (LedColour.AMBER, LedColour.OFF, LedColour.OFF, LedColour.WHITE) + (LedColour.OFF,) * 12
+    (RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12
 )
 
 
@@ -232,7 +235,7 @@ def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> No
     )
     assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
     assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
-    assert len(led_effects[0].colours.colours) == 16
+    assert len(led_effects[0].rgb.rgb) == 16
 
 
 @pytest.mark.parametrize(

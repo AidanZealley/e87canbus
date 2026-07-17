@@ -11,19 +11,6 @@ static const uint8_t BUTTON_EVENT_STATE_BYTE = 1;
 static const uint8_t BUTTON_EVENT_LENGTH = 2;
 static const uint8_t BUTTON_RELEASED = 0x00;
 static const uint8_t BUTTON_PRESSED = 0x01;
-static const unsigned long CAN_ID_LED_SNAPSHOT = 0x701;
-static const uint8_t LED_SNAPSHOT_LENGTH = 8;
-static const uint8_t LED_COUNT = 16;
-static const uint8_t LED_EVEN_INDEX_SHIFT = 0;
-static const uint8_t LED_ODD_INDEX_SHIFT = 4;
-static const uint8_t LED_NIBBLE_MASK = 0x0F;
-static const uint8_t LED_COLOUR_OFF = 0x00;
-static const uint8_t LED_COLOUR_RED = 0x01;
-static const uint8_t LED_COLOUR_GREEN = 0x02;
-static const uint8_t LED_COLOUR_BLUE = 0x03;
-static const uint8_t LED_COLOUR_AMBER = 0x04;
-static const uint8_t LED_COLOUR_WHITE = 0x05;
-static const uint8_t LED_COLOUR_MAX = 0x05;
 static const unsigned long CAN_ID_BUTTON_PAD_HELLO = 0x702;
 static const uint8_t BUTTON_PAD_HELLO_PROTOCOL_VERSION_BYTE = 0;
 static const uint8_t BUTTON_PAD_HELLO_DEVICE_ID_LOW_BYTE = 1;
@@ -84,5 +71,8 @@ static const uint8_t SERVOTRONIC_CONTROLLER_HEARTBEAT_CONTROLLER_SESSION_ID_HIGH
 static const uint8_t SERVOTRONIC_CONTROLLER_HEARTBEAT_SEQUENCE_BYTE = 6;
 static const uint8_t SERVOTRONIC_CONTROLLER_HEARTBEAT_STATUS_BYTE = 7;
 static const uint8_t SERVOTRONIC_CONTROLLER_HEARTBEAT_LENGTH = 8;
+static const unsigned long CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE = 0x708;
+static const unsigned long CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR = 0x709;
+static const uint16_t BUTTON_PAD_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH = 256;
 
 #endif

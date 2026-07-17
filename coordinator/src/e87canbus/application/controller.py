@@ -9,6 +9,11 @@ from typing import assert_never
 from e87canbus.application.events import (
     BUTTON_FEEDBACK_DURATION_S,
     BUTTON_LED_COUNT,
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_RED,
+    RGB_WHITE,
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
@@ -19,7 +24,6 @@ from e87canbus.application.events import (
     CoolantTemperatureObserved,
     EngineRpmObserved,
     HighBeamStrobeDeadlineReached,
-    LedColour,
     MaximumAssistanceSet,
     OilTemperatureObserved,
     SetButtonLeds,
@@ -80,7 +84,7 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
-    button_led_colours: tuple[LedColour, ...]
+    button_led_rgb: tuple[tuple[int, int, int], ...]
     high_beam_enabled: bool
     high_beam_strobe_active: bool
     high_beam_strobe_cycles_remaining: int
@@ -243,7 +247,7 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
-        button_led_colours=button_led_state(state).colours,
+        button_led_rgb=button_led_state(state).rgb,
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
@@ -486,21 +490,21 @@ def button_led_state(state: ApplicationState) -> ButtonLedState:
 
     steering = state.steering
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    mode_colour = LedColour.BLUE if mode is SteeringMode.AUTO else LedColour.AMBER
+    mode_colour = RGB_BLUE if mode is SteeringMode.AUTO else RGB_AMBER
     maximum_colour = (
-        LedColour.WHITE if isinstance(state.steering, MaximumAssistance) else LedColour.OFF
+        RGB_WHITE if isinstance(state.steering, MaximumAssistance) else RGB_OFF
     )
     normal = tuple(
         mode_colour
         if index == STEERING_MODE_BUTTON_INDEX
         else maximum_colour
         if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX
-        else LedColour.OFF
+        else RGB_OFF
         for index in range(BUTTON_LED_COUNT)
     )
     return ButtonLedState(
         tuple(
-            LedColour.RED if deadline is not None else normal[index]
+            RGB_RED if deadline is not None else normal[index]
             for index, deadline in enumerate(state.button_feedback_deadlines)
         )
     )

@@ -14,32 +14,32 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 
-
-class LedColour(StrEnum):
-    OFF = "off"
-    RED = "red"
-    GREEN = "green"
-    BLUE = "blue"
-    AMBER = "amber"
-    WHITE = "white"
-
-
 BUTTON_LED_COUNT = 16
 BUTTON_FEEDBACK_DURATION_S = 0.5
+Rgb = tuple[int, int, int]
+RGB_OFF: Rgb = (0, 0, 0)
+RGB_RED: Rgb = (255, 0, 0)
+RGB_BLUE: Rgb = (0, 0, 255)
+RGB_AMBER: Rgb = (255, 191, 0)
+RGB_WHITE: Rgb = (255, 255, 255)
 
 
 @dataclass(frozen=True)
 class ButtonLedState:
-    colours: tuple[LedColour, ...]
+    rgb: tuple[Rgb, ...]
 
     def __post_init__(self) -> None:
-        if len(self.colours) != BUTTON_LED_COUNT:
-            raise ValueError(f"button LED state must contain exactly {BUTTON_LED_COUNT} colours")
-        if any(not isinstance(colour, LedColour) for colour in self.colours):
-            raise ValueError("button LED state must contain only known LED colours")
+        if len(self.rgb) != BUTTON_LED_COUNT:
+            raise ValueError(f"button LED state must contain exactly {BUTTON_LED_COUNT} RGB values")
+        if any(
+            len(value) != 3
+            or any(type(channel) is not int or not 0 <= channel <= 0xFF for channel in value)
+            for value in self.rgb
+        ):
+            raise ValueError("button LED state must contain only RGB bytes")
 
 
-OFF_BUTTON_LEDS = ButtonLedState((LedColour.OFF,) * BUTTON_LED_COUNT)
+OFF_BUTTON_LEDS = ButtonLedState((RGB_OFF,) * BUTTON_LED_COUNT)
 
 
 @dataclass(frozen=True)
@@ -160,7 +160,7 @@ ApplicationEvent = (
 
 @dataclass(frozen=True)
 class SetButtonLeds:
-    colours: ButtonLedState
+    rgb: ButtonLedState
 
 
 @dataclass(frozen=True)

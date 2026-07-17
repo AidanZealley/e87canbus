@@ -19,8 +19,9 @@ from e87canbus.application.events import (
 )
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.protocol.can import CanFrame, RoutedCanFrame
+from e87canbus.protocol.can import CanFrame, RgbSnapshotPayload, RoutedCanFrame, encode_rgb_snapshot
 from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
 
@@ -141,6 +142,22 @@ class EffectExecutor:
         self._router = router or ProtocolRouter()
         self._steering_actuator = steering_actuator
         self._high_beam_actuator = high_beam_actuator
+        transmitter = self._transmitters.get(CanNetwork.KCAN)
+
+        def send_transport_frame(frame: CanFrame) -> None:
+            if transmitter is not None:
+                transmitter.send(frame)
+
+        self._button_pad_transport = (
+            None
+            if transmitter is None
+            else IsoTpEndpoint(
+                tx_id=self._router.ids.button_pad_transport_coordinator_to_device,
+                rx_id=self._router.ids.button_pad_transport_device_to_coordinator,
+                send_frame=send_transport_frame,
+                maximum_payload_length=self._router.ids.button_pad_transport_maximum_payload_length,
+            )
+        )
 
     def execute(
         self,
@@ -178,12 +195,29 @@ class EffectExecutor:
         effect: SetButtonLeds,
         origin_button_index: int | None,
     ) -> CanEffectFailure | None:
-        routed = self._router.encode(effect)
-        return self._execute_routed_can(
-            SendRegistryFrame(routed),
-            origin_button_index,
-            log_unavailable_tx=True,
-        )
+        if self._button_pad_transport is None:
+            LOGGER.warning("dropped button-pad RGB effect for unavailable TX capability")
+            return None
+        try:
+            payload = encode_rgb_snapshot(RgbSnapshotPayload(effect.rgb.rgb))
+            if not self._button_pad_transport.send(payload):
+                return CanEffectFailure(
+                    CanNetwork.KCAN,
+                    "button-pad ISO-TP transport busy",
+                    origin_button_index,
+                )
+            self._button_pad_transport.poll()
+        except (OSError, RuntimeError, ValueError) as exc:
+            return CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)
+        return None
+
+    def on_frame(self, network: CanNetwork, frame: CanFrame) -> bool:
+        if network is not CanNetwork.KCAN or self._button_pad_transport is None:
+            return False
+        accepted = self._button_pad_transport.on_frame(frame)
+        if accepted:
+            self._button_pad_transport.poll()
+        return accepted
 
     def _execute_routed_can(
         self,

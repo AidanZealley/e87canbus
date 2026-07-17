@@ -38,12 +38,6 @@ from e87canbus.protocol.generated import (
     BUTTON_PAD_WELCOME_ACK_VERSION_AND_RESPONSE_BYTE,
     BUTTON_PRESSED,
     BUTTON_RELEASED,
-    LED_COLOUR_MAX,
-    LED_COUNT,
-    LED_EVEN_INDEX_SHIFT,
-    LED_NIBBLE_MASK,
-    LED_ODD_INDEX_SHIFT,
-    LED_SNAPSHOT_LENGTH,
 )
 
 
@@ -69,17 +63,20 @@ class ArduinoButtonEventPayload:
 
 
 @dataclass(frozen=True)
-class LedSnapshotPayload:
-    colour_codes: tuple[int, ...]
+class RgbSnapshotPayload:
+    rgb: tuple[tuple[int, int, int], ...]
 
     def __post_init__(self) -> None:
-        if len(self.colour_codes) != LED_COUNT:
-            raise ValueError(f"LED snapshot must contain exactly {LED_COUNT} colours")
+        if len(self.rgb) != RGB_SNAPSHOT_LED_COUNT:
+            raise ValueError(
+                f"RGB snapshot must contain exactly {RGB_SNAPSHOT_LED_COUNT} values"
+            )
         if any(
-            not isinstance(colour, int) or not 0 <= colour <= LED_COLOUR_MAX
-            for colour in self.colour_codes
+            len(value) != 3
+            or any(type(channel) is not int or not 0 <= channel <= 0xFF for channel in value)
+            for value in self.rgb
         ):
-            raise ValueError("LED snapshot contains an invalid colour code")
+            raise ValueError("RGB snapshot contains an invalid RGB byte")
 
 
 @dataclass(frozen=True)
@@ -330,36 +327,30 @@ def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEven
     state = frame.data[BUTTON_EVENT_STATE_BYTE]
     if state not in (BUTTON_RELEASED, BUTTON_PRESSED):
         raise ValueError("button event state must be released or pressed")
-    if frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE] >= LED_COUNT:
-        raise ValueError(f"button event index must be between 0 and {LED_COUNT - 1}")
+    if frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE] >= RGB_SNAPSHOT_LED_COUNT:
+        raise ValueError(
+            f"button event index must be between 0 and {RGB_SNAPSHOT_LED_COUNT - 1}"
+        )
     return ArduinoButtonEventPayload(
         button_index=frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE],
         pressed=state == BUTTON_PRESSED,
     )
 
 
-def encode_led_snapshot(payload: LedSnapshotPayload, ids: CustomCanIds) -> CanFrame:
-    data = bytes(
-        payload.colour_codes[index] << LED_EVEN_INDEX_SHIFT
-        | payload.colour_codes[index + 1] << LED_ODD_INDEX_SHIFT
-        for index in range(0, LED_COUNT, 2)
-    )
-    return CanFrame(ids.led_snapshot, data)
+RGB_SNAPSHOT_LED_COUNT = 16
+RGB_SNAPSHOT_LENGTH = RGB_SNAPSHOT_LED_COUNT * 3
 
 
-def decode_led_snapshot(frame: CanFrame, ids: CustomCanIds) -> LedSnapshotPayload | None:
-    if frame.arbitration_id != ids.led_snapshot:
-        return None
-    if frame.is_extended_id:
-        raise ValueError("LED snapshot frames must use a standard CAN ID")
-    if len(frame.data) != LED_SNAPSHOT_LENGTH:
-        raise ValueError(f"LED snapshot payload must be exactly {LED_SNAPSHOT_LENGTH} bytes")
-    colour_codes = tuple(
-        colour
-        for packed in frame.data
-        for colour in (
-            (packed >> LED_EVEN_INDEX_SHIFT) & LED_NIBBLE_MASK,
-            (packed >> LED_ODD_INDEX_SHIFT) & LED_NIBBLE_MASK,
+def encode_rgb_snapshot(payload: RgbSnapshotPayload) -> bytes:
+    return bytes(channel for value in payload.rgb for channel in value)
+
+
+def decode_rgb_snapshot(payload: bytes) -> RgbSnapshotPayload:
+    if len(payload) != RGB_SNAPSHOT_LENGTH:
+        raise ValueError(f"RGB snapshot payload must be exactly {RGB_SNAPSHOT_LENGTH} bytes")
+    return RgbSnapshotPayload(
+        tuple(
+            (payload[index], payload[index + 1], payload[index + 2])
+            for index in range(0, len(payload), 3)
         )
     )
-    return LedSnapshotPayload(colour_codes)

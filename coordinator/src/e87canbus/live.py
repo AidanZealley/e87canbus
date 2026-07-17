@@ -373,6 +373,8 @@ class LiveControllerRuntime:
         return self._kernel.health.fatal
 
     def _dispatch(self, work: ControllerInput) -> RuntimeExecution | None:
+        if isinstance(work, ReceivedCanFrame):
+            self._executor.on_frame(work.network, work.frame)
         commit = self._kernel.dispatch(work)
         commits = [] if commit is None else [commit]
         failures = _execute(commit, self._executor, self._clock)

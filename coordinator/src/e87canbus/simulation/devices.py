@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.application.events import (
+    BUTTON_LED_COUNT,
+    RGB_OFF,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
@@ -24,14 +26,13 @@ from e87canbus.protocol.can import (
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    LedSnapshotPayload,
-    decode_led_snapshot,
+    RgbSnapshotPayload,
+    decode_rgb_snapshot,
     decode_welcome_ack,
     encode_button_event,
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.protocol.generated import LED_COLOUR_OFF, LED_COUNT
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     decode_simulated_high_beam_command,
@@ -41,6 +42,7 @@ from e87canbus.simulation.protocol import (
     encode_simulated_oil_temperature,
     encode_simulated_speed,
 )
+from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
 
@@ -371,7 +373,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self,
         bus: CanEndpoint,
         ids: CustomCanIds,
-        led_colours: tuple[int, ...] = (LED_COLOUR_OFF,) * LED_COUNT,
+        led_rgb: tuple[tuple[int, int, int], ...] = (RGB_OFF,) * BUTTON_LED_COUNT,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__(
@@ -380,12 +382,18 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             ids=ids,
             clock=clock,
         )
-        self.led_colours = led_colours
+        self.led_rgb = led_rgb
         self.last_seen_monotonic_s: float | None = None
+        self.transport = IsoTpEndpoint(
+            tx_id=ids.button_pad_transport_device_to_coordinator,
+            rx_id=ids.button_pad_transport_coordinator_to_device,
+            send_frame=bus.send,
+            maximum_payload_length=ids.button_pad_transport_maximum_payload_length,
+        )
 
     def send_button_event(self, button_index: int, pressed: bool) -> CanFrame | None:
-        if not 0 <= button_index < LED_COUNT:
-            raise ValueError(f"button_index must be between 0 and {LED_COUNT - 1}")
+        if not 0 <= button_index < BUTTON_LED_COUNT:
+            raise ValueError(f"button_index must be between 0 and {BUTTON_LED_COUNT - 1}")
         if not self._operational_with_fresh_lease(self.clock()):
             return None
         frame = encode_button_event(
@@ -398,8 +406,8 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self._require_bus().send(frame)
         return frame
 
-    def process_pending_led_snapshots(self, *, limit: int = 64) -> list[LedSnapshotPayload]:
-        snapshots: list[LedSnapshotPayload] = []
+    def process_pending_led_snapshots(self, *, limit: int = 64) -> list[RgbSnapshotPayload]:
+        snapshots: list[RgbSnapshotPayload] = []
         self._process_pending(self.clock(), limit=limit, snapshots=snapshots)
         return snapshots
 
@@ -411,7 +419,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         now: float,
         *,
         limit: int,
-        snapshots: list[LedSnapshotPayload] | None = None,
+        snapshots: list[RgbSnapshotPayload] | None = None,
     ) -> int:
         if limit < 1:
             raise ValueError("simulated device frame limit must be positive")
@@ -421,12 +429,20 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             processed += 1
             if self._consume_registry_frame(frame, now):
                 continue
-            snapshot = self._decode_led_snapshot(frame)
-            if snapshot is not None and self._operational_with_fresh_lease(now):
-                self.led_colours = snapshot.colour_codes
-                self.last_seen_monotonic_s = now
-                if snapshots is not None:
-                    snapshots.append(snapshot)
+            self.transport.on_frame(frame)
+        self.transport.poll()
+        while (payload := self.transport.receive_payload()) is not None:
+            if not self._operational_with_fresh_lease(now):
+                continue
+            try:
+                snapshot = decode_rgb_snapshot(payload)
+            except ValueError as exc:
+                LOGGER.warning("sim neotrellis ignored malformed RGB snapshot: %s", exc)
+                continue
+            self.led_rgb = snapshot.rgb
+            self.last_seen_monotonic_s = now
+            if snapshots is not None:
+                snapshots.append(snapshot)
         return processed
 
     def _operational_with_fresh_lease(self, now: float) -> bool:
@@ -436,17 +452,6 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             and now < self._controller_lease_deadline
         )
 
-    def _decode_led_snapshot(self, frame: CanFrame) -> LedSnapshotPayload | None:
-        try:
-            return decode_led_snapshot(frame, self.ids)
-        except ValueError as exc:
-            LOGGER.warning(
-                "sim neotrellis ignored malformed LED snapshot: id=0x%03x data=%s error=%s",
-                frame.arbitration_id,
-                frame.data.hex(),
-                exc,
-            )
-            return None
 
 
 @dataclass

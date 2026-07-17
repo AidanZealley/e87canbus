@@ -1,22 +1,21 @@
 import logging
 
 import pytest
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.application.events import (
+    BUTTON_LED_COUNT,
+    SetSteeringAssistance,
+    SteeringCommandReason,
+)
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceWelcomeAckPayload,
-    LedSnapshotPayload,
     decode_hello,
-    encode_led_snapshot,
     encode_welcome_ack,
 )
 from e87canbus.protocol.generated import (
     BUTTON_PRESSED,
     BUTTON_RELEASED,
-    LED_COLOUR_GREEN,
-    LED_COLOUR_OFF,
-    LED_COUNT,
 )
 from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 from e87canbus.simulation.devices import (
@@ -100,8 +99,8 @@ def test_neotrellis_rejects_buttons_outside_generated_device_positions() -> None
         ids=ids,
     )
 
-    with pytest.raises(ValueError, match=f"between 0 and {LED_COUNT - 1}"):
-        node.send_button_event(LED_COUNT, pressed=True)
+    with pytest.raises(ValueError, match=f"between 0 and {BUTTON_LED_COUNT - 1}"):
+        node.send_button_event(BUTTON_LED_COUNT, pressed=True)
 
 
 def test_connect_is_idempotent_while_peer_is_connected() -> None:
@@ -117,7 +116,7 @@ def test_connect_is_idempotent_while_peer_is_connected() -> None:
     assert node.session_id == initial_session
 
 
-def test_neotrellis_rejects_button_and_led_traffic_without_fresh_operational_lease() -> None:
+def test_neotrellis_rejects_buttons_without_fresh_operational_lease() -> None:
     ids = CustomCanIds()
     network = InMemoryCanNetwork()
     controller_bus = network.create_bus("pi")
@@ -127,43 +126,12 @@ def test_neotrellis_rejects_button_and_led_traffic_without_fresh_operational_lea
         ids=ids,
         clock=clock,
     )
-    requested = LedSnapshotPayload((LED_COLOUR_GREEN,) * LED_COUNT)
-
     assert node.send_button_event(0, pressed=True) is None
-    controller_bus.send(encode_led_snapshot(requested, ids))
-    assert node.process_pending_led_snapshots() == []
-    assert node.led_colours == (LED_COLOUR_OFF,) * LED_COUNT
 
     activate_neotrellis(node, controller_bus, clock)
     assert controller_bus.receive(timeout_s=0) is not None
     clock.now = 3.1
     assert node.send_button_event(0, pressed=True) is None
-    controller_bus.send(encode_led_snapshot(requested, ids))
-    assert node.process_pending_led_snapshots() == []
-    assert node.led_colours == (LED_COLOUR_OFF,) * LED_COUNT
-
-
-def test_neotrellis_led_snapshot_replaces_all_colours() -> None:
-    ids = CustomCanIds()
-    network = InMemoryCanNetwork()
-    pi_bus = network.create_bus("pi")
-    clock = MutableClock()
-    node = SimulatedNeoTrellisNode(
-        bus=network.create_bus("neotrellis"),
-        ids=ids,
-        clock=clock,
-    )
-    activate_neotrellis(node, pi_bus, clock)
-    assert pi_bus.receive(timeout_s=0) is not None
-
-    pi_bus.send(
-        encode_led_snapshot(LedSnapshotPayload((LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8), ids)
-    )
-
-    snapshots = node.process_pending_led_snapshots()
-
-    assert snapshots == [LedSnapshotPayload((LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8)]
-    assert node.led_colours == (LED_COLOUR_OFF, LED_COLOUR_GREEN) * 8
 
 
 def test_neotrellis_ignores_unknown_frame_id() -> None:
@@ -181,38 +149,6 @@ def test_neotrellis_ignores_unknown_frame_id() -> None:
 
     pi_bus.send(CanFrame(0x123, b"\x00\x01"))
 
-    assert node.process_pending_led_snapshots() == []
-    assert node.led_colours == (LED_COLOUR_OFF,) * 16
-
-
-@pytest.mark.parametrize("data", [b"\x00" * 7, b"\x00" * 7 + b"\x60"])
-def test_neotrellis_logs_and_atomically_ignores_malformed_led_snapshot(
-    data: bytes,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    ids = CustomCanIds()
-    network = InMemoryCanNetwork()
-    pi_bus = network.create_bus("pi")
-    clock = MutableClock()
-    node = SimulatedNeoTrellisNode(
-        bus=network.create_bus("neotrellis"),
-        ids=ids,
-        clock=clock,
-    )
-    activate_neotrellis(node, pi_bus, clock)
-    assert pi_bus.receive(timeout_s=0) is not None
-
-    prior = (LED_COLOUR_GREEN,) * 16
-    pi_bus.send(encode_led_snapshot(LedSnapshotPayload(prior), ids))
-    assert node.process_pending_led_snapshots() == [LedSnapshotPayload(prior)]
-    pi_bus.send(CanFrame(ids.led_snapshot, data))
-
-    with caplog.at_level(logging.WARNING):
-        snapshots = node.process_pending_led_snapshots()
-
-    assert snapshots == []
-    assert node.led_colours == prior
-    assert "sim neotrellis ignored malformed LED snapshot" in caplog.text
 
 
 def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() -> None:

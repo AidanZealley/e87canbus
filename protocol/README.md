@@ -39,12 +39,9 @@ devices, malformed DLC, nonzero reserved bytes, invalid fields, and extended-ID 
 registry payloads. Registry routing is K-CAN-only; the same arbitration IDs on PT-CAN or F-CAN are
 not registry traffic.
 
-`0x701` has DLC 8 and carries the complete 16-colour button-pad LED state, with the even logical
-position in each byte's low nibble and the following odd position in its high nibble. Codes above
-`0x5`, the wrong arbitration ID, or any length other than eight are not a snapshot. Consumers
-validate the entire frame before replacing all 16 logical colours; no prefix is applied. Physical
-NeoTrellis topology, mapping, brightness, and electrical limits remain unselected pending verified
-hardware evidence.
+The button-pad RGB snapshot is a 48-byte ISO-TP payload on `0x708`/`0x709`, ordered as 16 `R G B`
+triples. Consumers replace all values only after complete reassembly and exact-length validation.
+Physical NeoTrellis rendering, mapping, brightness, and electrical limits remain deferred.
 
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
@@ -57,7 +54,7 @@ transport types only and does not duplicate controller behavior or CAN constants
 
 The device-registry phase owns the static role vocabulary and wire codecs. The current adapter
 projection remains a temporary pre-registry transport surface until the registry kernel and live
-contract phases replace it. `buttons.led_colours` remains the canonical controller-requested LED
+contract phases replace it. `buttons.led_rgb` remains the canonical controller-requested LED
 state; a successful send is not an acknowledgement or evidence of physical output application.
 
 `controller.health` is a bounded, process-local operational projection rather than durable event

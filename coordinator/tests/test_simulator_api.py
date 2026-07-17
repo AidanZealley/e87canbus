@@ -10,7 +10,12 @@ from threading import Event
 import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
-from e87canbus.application.events import LedColour, SetSteeringAssistance, SteeringCommandReason
+from e87canbus.application.events import (
+    RGB_BLUE,
+    RGB_OFF,
+    SetSteeringAssistance,
+    SteeringCommandReason,
+)
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.device import DeviceRole, DeviceSource
@@ -274,7 +279,7 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
         if entry.role is DeviceRole.BUTTON_PAD
     )
     assert button_pad.source_mode is DeviceSource.EMULATED
-    assert snapshot.application.button_led_colours == (LedColour.BLUE,) + (LedColour.OFF,) * 15
+    assert snapshot.application.button_led_rgb == (RGB_BLUE,) + (RGB_OFF,) * 15
 
 
 def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(

@@ -32,9 +32,19 @@ class MessageDefinition:
 
 
 @dataclass(frozen=True)
+class TransportLinkDefinition:
+    name: str
+    coordinator_to_device_id: int
+    device_to_coordinator_id: int
+    maximum_payload_length: int
+    purpose: str
+
+
+@dataclass(frozen=True)
 class ProtocolDefinition:
     protocol_version: int
     messages: tuple[MessageDefinition, ...]
+    transport_links: tuple[TransportLinkDefinition, ...]
 
     def message(self, name: str) -> MessageDefinition:
         for message in self.messages:
@@ -61,9 +71,41 @@ def load_definition(path: Path) -> ProtocolDefinition:
     can_ids = [message.can_id for message in messages]
     if len(set(can_ids)) != len(can_ids):
         raise ValueError("custom protocol arbitration IDs must be unique")
-    definition = ProtocolDefinition(protocol_version, messages)
+    transport_links = tuple(
+        _parse_transport_link(name, table)
+        for name, table in raw.items()
+        if isinstance(table, dict) and "coordinator_to_device_id" in table
+    )
+    link_ids = [
+        can_id
+        for link in transport_links
+        for can_id in (link.coordinator_to_device_id, link.device_to_coordinator_id)
+    ]
+    if set(can_ids).intersection(link_ids) or len(set(link_ids)) != len(link_ids):
+        raise ValueError("custom protocol arbitration IDs must be unique")
+    definition = ProtocolDefinition(protocol_version, messages, transport_links)
     _validate_shared_registry_layouts(definition)
     return definition
+
+
+def _parse_transport_link(name: str, table: Mapping[str, Any]) -> TransportLinkDefinition:
+    coordinator_to_device_id = table.get("coordinator_to_device_id")
+    device_to_coordinator_id = table.get("device_to_coordinator_id")
+    maximum_payload_length = table.get("maximum_payload_length")
+    purpose = table.get("purpose")
+    if not all(isinstance(value, int) and 0 <= value <= 0x7FF for value in (
+        coordinator_to_device_id, device_to_coordinator_id
+    )):
+        raise ValueError(f"{name} transport IDs must be standard CAN IDs")
+    if coordinator_to_device_id == device_to_coordinator_id:
+        raise ValueError(f"{name} transport IDs must differ")
+    if not isinstance(maximum_payload_length, int) or not 1 <= maximum_payload_length <= 256:
+        raise ValueError(f"{name} maximum payload length must be between 1 and 256")
+    if not isinstance(purpose, str):
+        raise ValueError(f"{name}.purpose must be a string")
+    return TransportLinkDefinition(
+        name, coordinator_to_device_id, device_to_coordinator_id, maximum_payload_length, purpose
+    )
 
 
 def _validate_shared_registry_layouts(definition: ProtocolDefinition) -> None:
@@ -217,6 +259,15 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
                 (f"LED_COLOUR_{name.upper()}", value) for name, value in message.values
             )
             constants.append(("LED_COLOUR_MAX", max(value for _, value in message.values)))
+    for link in definition.transport_links:
+        prefix = _constant_prefix(link.name)
+        constants.extend(
+            (
+                (f"CAN_ID_{prefix}_COORDINATOR_TO_DEVICE", link.coordinator_to_device_id),
+                (f"CAN_ID_{prefix}_DEVICE_TO_COORDINATOR", link.device_to_coordinator_id),
+                (f"{prefix}_MAXIMUM_PAYLOAD_LENGTH", link.maximum_payload_length),
+            )
+        )
     return tuple(constants)
 
 
@@ -246,7 +297,13 @@ def _render_value(name: str, value: int) -> str:
 def render_header(definition: ProtocolDefinition) -> str:
     declarations: list[str] = []
     for name, value in _constants(definition):
-        value_type = "unsigned long" if name.startswith("CAN_ID_") else "uint8_t"
+        value_type = (
+            "unsigned long"
+            if name.startswith("CAN_ID_")
+            else "uint16_t"
+            if name.endswith("MAXIMUM_PAYLOAD_LENGTH")
+            else "uint8_t"
+        )
         declarations.append(f"static const {value_type} {name} = {_render_value(name, value)};")
     return "\n".join(
         [
@@ -275,6 +332,13 @@ def render_markdown_section(definition: ProtocolDefinition) -> str:
         lines.append(
             f"| `0x{message.can_id:03X}` | {message.direction} | {message.purpose} "
             f"| {message.length} | {message.payload} |"
+        )
+    for link in definition.transport_links:
+        lines.append(
+            f"| `0x{link.coordinator_to_device_id:03X}` / "
+            f"`0x{link.device_to_coordinator_id:03X}` | "
+            f"Coordinator ↔ button pad | {link.purpose} | variable | ISO-TP; maximum "
+            f"{link.maximum_payload_length} reassembled bytes |"
         )
     for message in definition.messages:
         if message.values:

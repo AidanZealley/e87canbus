@@ -1,23 +1,4 @@
 import type { TraceRow } from "@/api/live-events"
-import { LED_COUNT } from "../../utils.ts"
-
-const LED_SNAPSHOT_HEX_PATTERN = /^[0-9a-fA-F]{16}$/
-
-export const decodeLedSnapshot = (dataHex: string): number[] | null => {
-  if (!LED_SNAPSHOT_HEX_PATTERN.test(dataHex)) {
-    return null
-  }
-
-  const colours = Array.from({ length: LED_COUNT }, (_, index) => {
-    const byteStart = Math.floor(index / 2) * 2
-    const packed = Number.parseInt(dataHex.slice(byteStart, byteStart + 2), 16)
-    return index % 2 === 0 ? packed & 0x0f : packed >> 4
-  })
-  return colours.every((colour) => colour >= 0 && colour <= 5)
-    ? colours
-    : null
-}
-
 export const decodeMeaning = (entry: TraceRow) => {
   if (entry.network !== "kcan") return "unknown"
 
@@ -30,13 +11,6 @@ export const decodeMeaning = (entry: TraceRow) => {
     }
     const state = stateCode === "01" ? "pressed" : "released"
     return `button ${button} ${state}`
-  }
-
-  if (entry.arbitration_id_hex === "0x701") {
-    const colours = decodeLedSnapshot(entry.data_hex)
-    return colours === null
-      ? "malformed LED snapshot"
-      : `LEDs ${colours.join(" ")}`
   }
 
   return "unknown"

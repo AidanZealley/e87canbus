@@ -73,7 +73,7 @@ export type SteeringState = {
 }
 
 export type ButtonsState = {
-  led_colours: number[]
+  led_rgb: Array<[number, number, number]>
 }
 
 export type LightingState = {

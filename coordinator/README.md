@@ -225,10 +225,10 @@ remain unknown. No heartbeat or manually selected presentation-health state exis
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
-The coordinator derives exactly 16 desired LED colours, emits one `SetButtonLeds` effect, and packs
-one `0x701` DLC-8 snapshot. The simulated button pad validates every nibble before replacing all 16
-observed colours; invalid frames preserve the previous observation. There is one wire codec and no
-simulator callback or alternate decoder.
+The coordinator derives exactly 16 desired RGB LED values, emits one `SetButtonLeds` effect, and
+sends one 48-byte ISO-TP snapshot. The simulated button pad validates complete reassembly before
+atomically replacing all 16 private RGB values; invalid or incomplete payloads preserve the prior
+state. Physical NeoTrellis rendering remains deferred.
 
 ## Running the unified controller
 
@@ -242,7 +242,7 @@ The default live preset opens all three networks with application transmission d
 the API after startup synchronization. It does
 not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
 deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
-compositions. Custom IDs `0x700` and `0x701` still require collision validation before any future
+compositions. Custom IDs `0x700`, `0x708`, and `0x709` still require collision validation before any future
 in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
 
 The simulated high-beam frame is not in that custom registry and is not a BMW candidate. Any future

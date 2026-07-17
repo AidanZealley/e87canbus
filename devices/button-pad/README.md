@@ -15,7 +15,7 @@ immediate HELLO, validates only matching WELCOME acknowledgements, sends an
 immediate first heartbeat after acceptance, and renews its controller lease
 with one-second heartbeats. Discovery, operational, controller-loss,
 incompatible, and local-fault states select logical display modes for future
-NeoTrellis rendering. LED snapshots and button events are accepted only while
+NeoTrellis rendering. ISO-TP payloads and button events are accepted only while
 operational with a fresh controller lease.
 
 Physical NeoTrellis scanning, logical-to-physical mapping, brightness/current

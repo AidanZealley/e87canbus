@@ -53,7 +53,7 @@ export const snapshot = (
     },
     steering,
     buttons: {
-      led_colours: Array<number>(16).fill(revision),
+      led_rgb: Array.from({ length: 16 }, () => [revision, revision, revision] as [number, number, number]),
     },
     lighting: {
       high_beam_enabled: false,

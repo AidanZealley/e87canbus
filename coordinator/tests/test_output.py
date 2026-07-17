@@ -2,8 +2,10 @@ import logging
 
 import pytest
 from e87canbus.application.events import (
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
     ButtonLedState,
-    LedColour,
     SetButtonLeds,
     SetHighBeam,
     SetSteeringAssistance,
@@ -19,8 +21,8 @@ from e87canbus.output import (
 )
 from e87canbus.protocol.can import CanFrame
 
-BLUE_LEDS = ButtonLedState((LedColour.BLUE,) + (LedColour.OFF,) * 15)
-WHITE_LEDS = ButtonLedState((LedColour.WHITE,) * 16)
+BLUE_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
+WHITE_LEDS = ButtonLedState((RGB_WHITE,) * 16)
 
 
 class FakeTransmitter:
@@ -86,7 +88,7 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
 
     executor.execute((EffectRequest(SetButtonLeds(BLUE_LEDS)),))
 
-    assert raw.sent == [CanFrame(0x701, b"\x03\x00\x00\x00\x00\x00\x00\x00")]
+    assert raw.sent == [CanFrame(0x708, b"\x10\x30\x00\x00\xff\x00\x00\x00")]
 
 
 def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
@@ -108,7 +110,7 @@ def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
         )
     )
 
-    assert raw.sent == [CanFrame(0x701, b"\x55" * 8)]
+    assert raw.sent == [CanFrame(0x708, b"\x10\x30\xff\xff\xff\xff\xff\xff")]
 
 
 def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
@@ -140,7 +142,7 @@ def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
     )
 
     assert failures == (
-        CanEffectFailure(CanNetwork.KCAN, "failed 1793"),
+        CanEffectFailure(CanNetwork.KCAN, "failed 1800"),
         SteeringActuatorFailure("failed 0.5"),
     )
 
@@ -156,7 +158,7 @@ def test_alternating_payloads_on_one_id_share_network_window(
     raw = FakeTransmitter()
     policy = TxPolicyConfig(max_frames_per_network_window=2)
     transmitter = SafeCanTransmitter(raw, policy, MutableClock())
-    frames = [CanFrame(0x701, bytes([value]) * 8) for value in range(3)]
+    frames = [CanFrame(0x708, bytes([value]) * 8) for value in range(3)]
 
     transmitter.send(frames[0])
     transmitter.send(frames[1])

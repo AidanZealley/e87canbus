@@ -580,6 +580,7 @@ class SimulatedControllerRuntime:
                 if limit is not None and processed > limit:
                     raise RuntimeError("simulated CAN processing frame bound exceeded")
                 observed_at = self._clock()
+                self.executor.on_frame(network, frame)
                 self._dispatch(ReceivedCanFrame(network, frame, observed_at))
             if not found_frame:
                 return processed

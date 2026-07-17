@@ -35,13 +35,14 @@ Live readers timestamp CAN frames before placing them in a bounded inbox. One ke
 application state and applies pure transitions in input order; committed effects leave through an
 explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
 The simulator operates external nodes and follows that same path rather than injecting application
-events or state. A button-pad LED decision is one complete 16-colour state, one effect, and one
-provisional `0x701` DLC-8 frame; accepted frames replace the simulated device state atomically.
+events or state. A button-pad LED decision is one complete 16×RGB state, one effect, and one
+48-byte ISO-TP payload on the provisional `0x708`/`0x709` link; completed payloads replace the
+simulated device state atomically.
 
 Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
 `disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
 are unavailable outside the emulated role. Dashboard operational controls use semantic HTTP
-commands instead. `buttons.led_colours` is the canonical controller-requested LED state; physical
+commands instead. `buttons.led_rgb` is the canonical controller-requested LED state; physical
 application observation is not implied by local send success.
 
 ## Local Setup
@@ -140,7 +141,7 @@ timestamping, decoding, transition, commit, and effect execution; the live route
 Future verified vehicle inputs must replace synthetic definitions with captured network-specific
 frames. There is no simulator-only state injection boundary.
 
-The bench-only `0x700`/`0x701` IDs are provisional and require collision checks against a real
+The bench-only `0x700`, `0x708`, and `0x709` IDs are provisional and require collision checks against a real
 K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
 the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
 The current button-pad firmware transmits automatically and must not be connected to the car.
