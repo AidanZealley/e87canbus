@@ -6,11 +6,15 @@ from e87canbus.config import (
     CustomCanIds,
     EngineTelemetryConfig,
     LivePublicationConfig,
+    NetworkConfigError,
     SimulationConfig,
     SteeringConfig,
     TxPolicyConfig,
+    configure_can_networks,
     default_config,
+    parse_network_names,
     simulator_config,
+    sorted_network_names,
 )
 from e87canbus.device import (
     DEFAULT_DEVICE_CATALOGUE,
@@ -274,3 +278,104 @@ def test_custom_can_ids_reject_invalid_or_duplicate_standard_ids(
 def test_tx_policy_rejects_non_positive_limits(changes: dict[str, int | float]) -> None:
     with pytest.raises(ValueError, match="TX policy"):
         TxPolicyConfig(**changes)
+
+
+class TestParseNetworkNames:
+    def test_single_kcan(self) -> None:
+        assert parse_network_names("kcan") == frozenset({CanNetwork.KCAN})
+
+    def test_all_three_networks(self) -> None:
+        result = parse_network_names("kcan,ptcan,fcan")
+        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
+
+    def test_whitespace_around_commas(self) -> None:
+        result = parse_network_names(" kcan , ptcan , fcan ")
+        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
+
+    def test_case_insensitive(self) -> None:
+        result = parse_network_names("KCAN,PtCan,FcAn")
+        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
+
+    def test_empty_string_returns_empty(self) -> None:
+        assert parse_network_names("") == frozenset()
+        assert parse_network_names("   ") == frozenset()
+
+    def test_unknown_network_fails(self) -> None:
+        with pytest.raises(NetworkConfigError, match="unknown network name: ican"):
+            parse_network_names("kcan,ican")
+
+    def test_duplicate_names_fail(self) -> None:
+        with pytest.raises(NetworkConfigError, match="duplicate network name: kcan"):
+            parse_network_names("kcan,ptcan,kcan")
+
+
+class TestConfigureCanNetworks:
+    def test_kcan_only_enabled(self) -> None:
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+
+        kcan = next(n for n in config.can_networks if n.network is CanNetwork.KCAN)
+        ptcan = next(n for n in config.can_networks if n.network is CanNetwork.PTCAN)
+        fcan = next(n for n in config.can_networks if n.network is CanNetwork.FCAN)
+
+        assert kcan.enabled is True
+        assert kcan.tx_enabled is True
+        assert ptcan.enabled is False
+        assert ptcan.tx_enabled is False
+        assert fcan.enabled is False
+        assert fcan.tx_enabled is False
+
+    def test_all_networks_enabled_kcan_tx_only(self) -> None:
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN}),
+            tx_networks=frozenset({CanNetwork.KCAN}),
+        )
+
+        assert all(n.enabled for n in config.can_networks)
+        tx_networks = [n.network for n in config.can_networks if n.tx_enabled]
+        assert tx_networks == [CanNetwork.KCAN]
+
+    def test_empty_tx_set_valid(self) -> None:
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset(),
+        )
+
+        kcan = next(n for n in config.can_networks if n.network is CanNetwork.KCAN)
+        assert kcan.enabled is True
+        assert kcan.tx_enabled is False
+
+    def test_tx_network_not_enabled_fails(self) -> None:
+        with pytest.raises(NetworkConfigError, match="TX network not enabled: ptcan"):
+            configure_can_networks(
+                default_config(),
+                enabled_networks=frozenset({CanNetwork.KCAN}),
+                tx_networks=frozenset({CanNetwork.PTCAN}),
+            )
+
+    def test_all_three_networks_remain_in_config(self) -> None:
+        config = configure_can_networks(
+            default_config(),
+            enabled_networks=frozenset({CanNetwork.KCAN}),
+            tx_networks=frozenset(),
+        )
+
+        networks = [n.network for n in config.can_networks]
+        assert networks == [CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN]
+
+
+class TestSortedNetworkNames:
+    def test_canonical_ordering(self) -> None:
+        networks = frozenset({CanNetwork.FCAN, CanNetwork.KCAN, CanNetwork.PTCAN})
+        assert sorted_network_names(networks) == ["kcan", "ptcan", "fcan"]
+
+    def test_single_network(self) -> None:
+        assert sorted_network_names(frozenset({CanNetwork.PTCAN})) == ["ptcan"]
+
+    def test_empty_set(self) -> None:
+        assert sorted_network_names(frozenset()) == []

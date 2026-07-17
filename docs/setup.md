@@ -43,6 +43,16 @@ Upload to the button-pad controller connected over USB:
 ./scripts/button_pad_upload.sh
 ```
 
+PlatformIO normally detects the only connected board. To choose a specific USB device, list ports
+and pass the selected port through `UPLOAD_PORT`:
+
+```bash
+pio device list
+UPLOAD_PORT=/dev/cu.usbmodemXXXX ./scripts/button_pad_upload.sh
+```
+
+On Linux, the port is commonly `/dev/ttyACM0` or similar.
+
 ## Coordinator CAN
 
 Bench SocketCAN defaults target a Raspberry Pi 4 with a Waveshare RS485 CAN HAT v2.1:
