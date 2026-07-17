@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_ROOT="/opt/e87canbus"
 CONFIG_FILE=""
+CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
 
@@ -25,6 +26,23 @@ for argument in "$@"; do
     esac
 done
 
+# ---------------------------------------------------------------------------
+# Kiosk mode detection
+#   desktop — a display manager is installed; use XDG autostart
+#   headless — no display manager; use cage as a system service
+# ---------------------------------------------------------------------------
+KIOSK_MODE="headless"
+for dm in lightdm gdm3 gdm sddm lxdm wdm; do
+    if dpkg-query -W -f='${Status}' "$dm" 2>/dev/null | grep -q "install ok installed"; then
+        KIOSK_MODE="desktop"
+        break
+    fi
+done
+echo "Kiosk mode: ${KIOSK_MODE}"
+
+# ---------------------------------------------------------------------------
+# Boot config paths
+# ---------------------------------------------------------------------------
 if [[ -f /boot/firmware/config.txt ]]; then
     CONFIG_FILE=/boot/firmware/config.txt
 elif [[ -f /boot/config.txt ]]; then
@@ -34,9 +52,46 @@ else
     exit 1
 fi
 
+if [[ -f /boot/firmware/cmdline.txt ]]; then
+    CMDLINE_FILE=/boot/firmware/cmdline.txt
+elif [[ -f /boot/cmdline.txt ]]; then
+    CMDLINE_FILE=/boot/cmdline.txt
+else
+    echo "Could not find Raspberry Pi cmdline.txt." >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Package installation
+# ---------------------------------------------------------------------------
 echo "Installing Pi packages..."
 sudo apt-get update
-sudo apt-get install -y can-utils build-essential python3 python3-pip python3-venv nodejs npm
+
+PACKAGES="can-utils build-essential python3 python3-pip python3-venv nodejs npm curl"
+
+if [[ "${KIOSK_MODE}" == "headless" ]]; then
+    # Chromium — package name varies by distro
+    CHROMIUM_PKG=""
+    for cpkg in chromium-browser chromium; do
+        if apt-cache show "${cpkg}" >/dev/null 2>&1; then
+            CHROMIUM_PKG="${cpkg}"
+            break
+        fi
+    done
+    if [[ -n "${CHROMIUM_PKG}" ]]; then
+        PACKAGES="${PACKAGES} ${CHROMIUM_PKG}"
+    else
+        echo "WARNING: No Chromium apt package found; install it manually (e.g. via snap)." >&2
+    fi
+
+    PACKAGES="${PACKAGES} cage plymouth"
+    if apt-cache show plymouth-themes >/dev/null 2>&1; then
+        PACKAGES="${PACKAGES} plymouth-themes"
+    fi
+fi
+
+# shellcheck disable=SC2086
+sudo apt-get install -y ${PACKAGES}
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "Installing uv..."
@@ -48,6 +103,9 @@ if ! command -v pnpm >/dev/null 2>&1; then
     sudo npm install --global pnpm@9.15.1
 fi
 
+# ---------------------------------------------------------------------------
+# SPI and Waveshare MCP2515 overlay
+# ---------------------------------------------------------------------------
 echo "Configuring SPI and the Waveshare MCP2515 interface..."
 sudo cp -n "${CONFIG_FILE}" "${CONFIG_FILE}.e87canbus-before-setup" || true
 
@@ -63,6 +121,24 @@ if ! sudo grep -Fxq "${OVERLAY}" "${CONFIG_FILE}"; then
     REBOOT_REQUIRED=1
 fi
 
+# ---------------------------------------------------------------------------
+# Quiet boot (headless only)
+#   Suppresses kernel messages and the Pi logo so nothing appears on screen
+#   until cage takes over.
+# ---------------------------------------------------------------------------
+if [[ "${KIOSK_MODE}" == "headless" ]]; then
+    echo "Configuring quiet boot..."
+    for param in quiet splash loglevel=3 logo.nologo vt.global_cursor_default=0; do
+        if ! grep -qw "${param}" "${CMDLINE_FILE}"; then
+            sudo sed -i "s/$/ ${param}/" "${CMDLINE_FILE}"
+            REBOOT_REQUIRED=1
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+# Python dependencies and frontend build
+# ---------------------------------------------------------------------------
 echo "Synchronizing Python dependencies..."
 # Use the system interpreter so the systemd service account does not depend on a Python
 # installation inside the invoking user's home directory.
@@ -75,6 +151,9 @@ echo "Building the frontend..."
     pnpm build
 )
 
+# ---------------------------------------------------------------------------
+# Service account and controller systemd units
+# ---------------------------------------------------------------------------
 echo "Installing the e87canbus service account and deployment files..."
 if ! getent group e87canbus >/dev/null; then
     sudo groupadd --system e87canbus
@@ -95,23 +174,83 @@ sudo install -o root -g root -m 0644 \
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \
     /etc/systemd/system/e87canbus-controller.service
-KIOSK_USER="${USER}"
-KIOSK_HOME="$(getent passwd "${KIOSK_USER}" | cut -d: -f6)"
-sed \
-    -e "s|User=pi|User=${KIOSK_USER}|g" \
-    -e "s|/home/pi/.Xauthority|${KIOSK_HOME}/.Xauthority|g" \
-    "${REPO_ROOT}/deploy/systemd/e87canbus-kiosk.service" \
-    | sudo tee /etc/systemd/system/e87canbus-kiosk.service >/dev/null
-sudo chmod 0644 /etc/systemd/system/e87canbus-kiosk.service
-sudo chown root:root /etc/systemd/system/e87canbus-kiosk.service
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/controller.env.example" \
     /etc/e87canbus/controller.env
+
+# ---------------------------------------------------------------------------
+# Kiosk startup script (shared by both modes)
+# ---------------------------------------------------------------------------
+echo "Installing kiosk startup script..."
+sudo install -o root -g root -m 0755 \
+    "${REPO_ROOT}/deploy/kiosk/start-kiosk.sh" \
+    /usr/local/bin/e87canbus-kiosk
+
+# ---------------------------------------------------------------------------
+# Kiosk launch — mode-specific
+# ---------------------------------------------------------------------------
+if [[ "${KIOSK_MODE}" == "desktop" ]]; then
+    echo "Configuring desktop autostart for user '${USER}'..."
+    mkdir -p "${HOME}/.config/autostart"
+    cp "${REPO_ROOT}/deploy/kiosk/e87canbus-kiosk.desktop" \
+        "${HOME}/.config/autostart/e87canbus-kiosk.desktop"
+
+    # Remove cage service if re-running after switching from headless
+    if [[ -f /etc/systemd/system/e87canbus-kiosk.service ]]; then
+        sudo systemctl disable e87canbus-kiosk.service 2>/dev/null || true
+        sudo rm -f /etc/systemd/system/e87canbus-kiosk.service
+    fi
+else
+    echo "Configuring headless kiosk (cage) for user '${USER}'..."
+
+    # Display hardware access — takes effect after reboot
+    sudo usermod -aG video,render,input "${USER}"
+    REBOOT_REQUIRED=1
+
+    # Plymouth splash — keeps the screen non-blank until cage takes over.
+    # Tries themes in preference order; falls back gracefully if unavailable.
+    if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+        echo "Configuring Plymouth splash theme..."
+        PLYMOUTH_THEME=""
+        for theme in spinner fade-in solar bgrt; do
+            if sudo plymouth-set-default-theme "${theme}" 2>/dev/null; then
+                PLYMOUTH_THEME="${theme}"
+                break
+            fi
+        done
+        if [[ -n "${PLYMOUTH_THEME}" ]]; then
+            echo "Plymouth theme set to '${PLYMOUTH_THEME}'; updating initramfs (may take a minute)..."
+            sudo update-initramfs -u
+        else
+            echo "No preferred Plymouth theme available; boot screen may show text."
+        fi
+    fi
+
+    # cage systemd service — templates the invoking user into the unit file
+    sed "s|KIOSK_USER_PLACEHOLDER|${USER}|g" \
+        "${REPO_ROOT}/deploy/systemd/e87canbus-kiosk.service" \
+        | sudo tee /etc/systemd/system/e87canbus-kiosk.service >/dev/null
+    sudo chmod 0644 /etc/systemd/system/e87canbus-kiosk.service
+    sudo chown root:root /etc/systemd/system/e87canbus-kiosk.service
+
+    # Remove XDG autostart if re-running after switching from desktop
+    rm -f "${HOME}/.config/autostart/e87canbus-kiosk.desktop"
+fi
+
+# ---------------------------------------------------------------------------
+# Enable services
+# ---------------------------------------------------------------------------
 sudo systemctl daemon-reload
 sudo systemctl enable e87canbus-can0.service
 sudo systemctl enable e87canbus-controller.service
-sudo systemctl enable e87canbus-kiosk.service
+if [[ "${KIOSK_MODE}" == "headless" ]]; then
+    sudo systemctl enable e87canbus-kiosk.service
+fi
 
+# ---------------------------------------------------------------------------
+# Reboot gate — boot config or group changes require a reboot before services
+# can be started. Services are already enabled above; they start on next boot.
+# ---------------------------------------------------------------------------
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     echo
     echo "Boot configuration changed; reboot is required before can0 can appear."
@@ -141,5 +280,8 @@ echo "  systemctl status e87canbus-controller.service"
 echo "  journalctl -u e87canbus-controller.service -f"
 echo "  candump can0"
 echo
-echo "Kiosk: e87canbus-kiosk.service installed for user '${KIOSK_USER}'."
-echo "  It starts automatically after the controller on next graphical boot."
+if [[ "${KIOSK_MODE}" == "desktop" ]]; then
+    echo "Kiosk: autostart installed for '${USER}'. Chromium opens at /car on next desktop login."
+else
+    echo "Kiosk: cage service installed for '${USER}'. Chromium opens at /car on next boot."
+fi

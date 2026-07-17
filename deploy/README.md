@@ -81,9 +81,25 @@ settings and profiles live in the configured SQLite file. Live telemetry, traces
 are process-local and are deliberately not restored.
 
 Development simulator routes are not registered in live composition. Production live mode also
-has no development CORS origins; same-origin browser requests remain allowed. A companion kiosk
-unit (`e87canbus-kiosk.service`) starts Chromium in kiosk mode at `http://127.0.0.1:8000/car`
-after the controller is ready. `setup_pi.sh` templates the unit with the invoking user's name and
-home directory at install time, so no manual editing is required regardless of username. Direct SPA
-routes such as `/dev` and `/car` serve the built entry document, while missing assets and unknown
+has no development CORS origins; same-origin browser requests remain allowed. Direct SPA routes
+such as `/dev` and `/car` serve the built entry document, while missing assets and unknown
 API/health/socket routes remain 404.
+
+## Kiosk display
+
+`setup_pi.sh` detects the environment and configures the kiosk automatically:
+
+**Desktop (Pi OS with desktop / display manager installed)** — installs an XDG autostart entry at
+`~/.config/autostart/e87canbus-kiosk.desktop`. Requires autologin to be enabled
+(`sudo raspi-config` → System → Boot / Auto Login → Desktop).
+
+**Headless (Pi OS Lite / Ubuntu Server / no display manager)** — installs `cage` (a minimal
+Wayland kiosk compositor) as a system service (`e87canbus-kiosk.service`). Also configures:
+- Quiet boot kernel parameters (`quiet splash loglevel=3 logo.nologo`) so no console output
+  appears before the kiosk
+- Plymouth splash theme (spinner or similar) to fill the screen during boot
+- User added to `video`, `render`, `input` groups for KMS/DRM display access
+
+Both modes install the same startup script at `/usr/local/bin/e87canbus-kiosk`, which polls
+`/health/live` until the controller is ready before opening Chromium. Re-running `setup_pi.sh`
+after switching distro cleans up the previous mode's artefacts automatically.

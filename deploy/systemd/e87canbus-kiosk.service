@@ -1,25 +1,19 @@
 [Unit]
-Description=E87 kiosk display
-After=e87canbus-controller.service graphical.target
-Wants=graphical.target
-Requires=e87canbus-controller.service
+Description=E87 kiosk display (cage)
+After=e87canbus-controller.service systemd-logind.service
 
 [Service]
 Type=simple
-User=pi
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/pi/.Xauthority
-ExecStartPre=/bin/sleep 5
-ExecStart=/usr/bin/chromium-browser \
-    --kiosk \
-    --noerrdialogs \
-    --disable-infobars \
-    --no-first-run \
-    --disable-translate \
-    --disable-features=TranslateUI \
-    http://127.0.0.1:8000/car
+User=KIOSK_USER_PLACEHOLDER
+PAMName=login
+Environment=XDG_SEAT=seat0
+Environment=XDG_VTNR=7
+TTYPath=/dev/tty7
+StandardInput=tty
+ExecStartPre=-/usr/bin/plymouth quit --retain-splash
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/e87canbus-kiosk
 Restart=on-failure
 RestartSec=5s
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
