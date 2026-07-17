@@ -6,7 +6,7 @@
 
 namespace button_pad {
 
-constexpr uint16_t ISOTP_MAXIMUM_PAYLOAD_LENGTH = 256;
+constexpr uint16_t ISOTP_MAXIMUM_PAYLOAD_LENGTH = 64;
 
 using IsoTpSendFrame = bool (*)(uint32_t arbitrationId, const uint8_t *data, uint8_t length);
 
