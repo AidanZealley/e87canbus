@@ -66,7 +66,7 @@ export const TemperatureGauge = ({
             severity === "critical" && "text-destructive"
           )}
         >
-          <span>{available ? value : "—"}</span>
+          <span>{available ? value : "-"}</span>
           {available ? (
             <span className="text-sm font-medium text-muted-foreground">
               {unit}

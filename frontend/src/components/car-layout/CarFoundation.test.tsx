@@ -26,7 +26,7 @@ it("never renders a manufactured numeric zero for unavailable values", () => {
     </div>
   )
 
-  expect(screen.getAllByText("—")).toHaveLength(3)
+  expect(screen.getAllByText("-")).toHaveLength(3)
   expect(screen.queryByText("0")).toBeNull()
   expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(3)
 })
