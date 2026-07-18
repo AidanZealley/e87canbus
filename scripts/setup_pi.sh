@@ -190,7 +190,20 @@ fi
 # service as e87canbus. Keep ownership with the checkout owner but grant the service group access.
 sudo chgrp -R e87canbus "${REPO_ROOT}"
 sudo chmod -R g+rX "${REPO_ROOT}"
+# Stop the controller before repairing the database set so SQLite cannot be writing its WAL or
+# shared-memory file while their ownership is changed. This also repairs databases created by an
+# older deployment that ran the application as the checkout user.
+sudo systemctl stop e87canbus-controller.service 2>/dev/null || true
 sudo install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus /etc/e87canbus
+for database_file in \
+    /var/lib/e87canbus/application.sqlite3 \
+    /var/lib/e87canbus/application.sqlite3-wal \
+    /var/lib/e87canbus/application.sqlite3-shm; do
+    if [[ -e "${database_file}" ]]; then
+        sudo chown e87canbus:e87canbus "${database_file}"
+        sudo chmod 0640 "${database_file}"
+    fi
+done
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-can0.service" \
     /etc/systemd/system/e87canbus-can0.service
