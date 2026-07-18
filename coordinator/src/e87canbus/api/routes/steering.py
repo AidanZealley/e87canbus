@@ -27,6 +27,18 @@ async def list_steering_profiles(
     return await steering.list_profiles(request.app.state.profile_repository)
 
 
+@router.get(
+    "/profile",
+    operation_id="getSavedSteeringProfile",
+    response_model=SteeringProfileResponse,
+    responses=api_problem_responses(404, 503),
+)
+async def get_saved_steering_profile(
+    request: Request,
+) -> StoredSteeringProfile:
+    return await steering.get_saved_profile(request.app.state.profile_repository)
+
+
 @router.post(
     "/profiles",
     status_code=201,

@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from fastapi import FastAPI
 
+from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.steering import (
@@ -50,6 +51,18 @@ async def list_profiles(
     repository: SteeringProfileRepository,
 ) -> tuple[StoredSteeringProfile, ...]:
     return await repository_operation(repository.list_profiles)
+
+
+async def get_saved_profile(
+    repository: SteeringProfileRepository,
+) -> StoredSteeringProfile:
+    profiles = await list_profiles(repository)
+    if not profiles:
+        raise ApiProblem(404, "profile_not_found", "saved steering profile not found")
+    return next(
+        (profile for profile in profiles if profile.profile_id == BUILT_IN_PROFILE_ID),
+        profiles[0],
+    )
 
 
 async def create_profile(

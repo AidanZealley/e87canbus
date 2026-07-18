@@ -1,62 +1,149 @@
-import type { SteeringProfileResponse } from "@/api/http/types.gen"
-import type { ActiveSteeringCurveState } from "@/api/live-contract.gen"
-import { Card, CardContent } from "@/components/ui/card"
-import { CurveActionError } from "./components/curve-action-error/CurveActionError"
-import { CurveActions } from "./components/curve-actions/CurveActions"
-import { CurvePointInputs } from "./components/curve-point-inputs/CurvePointInputs"
-import { CurveSpeedComparison } from "./components/curve-speed-comparison/CurveSpeedComparison"
-import { CurveStateBadges } from "./components/curve-state-badges/CurveStateBadges"
-import { EditorCurveChart } from "./components/editor-curve-chart/EditorCurveChart"
-import { EditorHeader } from "./components/editor-header/EditorHeader"
-import { ProfileSelector } from "./components/profile-selector/ProfileSelector"
-import { SteeringCurveEditorProvider } from "./SteeringCurveEditorProvider"
-import type { SteeringCurveEditorEffects } from "./types"
+import { useRef, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+
+import {
+  activateSteeringCurveMutation,
+  activateSteeringProfileMutation,
+  getSavedSteeringProfileOptions,
+  getSavedSteeringProfileQueryKey,
+  setSteeringModeMutation,
+  updateSteeringProfileMutation,
+} from "@/api/http/@tanstack/react-query.gen"
+import { isApiProblemResponse } from "@/api/is-api-problem"
+import type { ActiveSteeringCurveState, Mode } from "@/api/live-contract.gen"
+import { cn } from "@/lib/utils"
+import { CurveActionError } from "./components/curve-action-error"
+import { CurveActions } from "./components/curve-actions"
+import { EditorCurveChart } from "./components/editor-curve-chart"
+import type { PendingCurveAction } from "./types"
+import { definitionsEqual } from "./utils"
 
 type SteeringCurveEditorProps = {
   activeCurve: ActiveSteeringCurveState
-  profiles: SteeringProfileResponse[]
-  profilesError?: unknown
-  effects: SteeringCurveEditorEffects
+  mode: Mode
   speedKph: number | null
   activeAssistance?: number | null
+  className?: string
+  chartClassName?: string
 }
 
 export const SteeringCurveEditor = ({
   activeCurve,
-  profiles,
-  profilesError = null,
-  effects,
+  mode,
   speedKph,
   activeAssistance = null,
-}: SteeringCurveEditorProps) => (
-  <SteeringCurveEditorProvider
-    activeCurve={activeCurve}
-    profiles={profiles}
-    profilesError={profilesError}
-    effects={effects}
-  >
-    <Card className="min-w-0">
-      <EditorHeader />
-      <CardContent className="grid gap-4">
-        <CurveStateBadges />
-        <CurveActionError />
-        <CurveSpeedComparison
-          speedKph={speedKph}
-          activeAssistance={activeAssistance}
-        />
-        <EditorCurveChart
-          speedKph={speedKph}
-          activeAssistance={activeAssistance}
-        />
-        <CurvePointInputs />
-        <ProfileSelector />
-        <CurveActions />
-        <p className="text-xs text-muted-foreground" aria-live="polite">
-          Editing changes browser draft state only. Save creates a saved
-          revision; Apply consciously activates the draft. Neither grants
-          physical steering output authority.
-        </p>
-      </CardContent>
-    </Card>
-  </SteeringCurveEditorProvider>
-)
+  className,
+  chartClassName,
+}: SteeringCurveEditorProps) => {
+  const queryClient = useQueryClient()
+  const { data: savedProfile = null } = useQuery({
+    ...getSavedSteeringProfileOptions(),
+    retry: false,
+  })
+  const { mutateAsync: activateCurve } = useMutation(
+    activateSteeringCurveMutation()
+  )
+  const { mutateAsync: activateProfile } = useMutation(
+    activateSteeringProfileMutation()
+  )
+  const { mutateAsync: setMode } = useMutation(setSteeringModeMutation())
+  const { mutateAsync: updateProfile } = useMutation({
+    ...updateSteeringProfileMutation(),
+    onSuccess: (saved) =>
+      queryClient.setQueryData(getSavedSteeringProfileQueryKey(), saved),
+    onError: (error) => {
+      if (
+        isApiProblemResponse(error) &&
+        error.error.code === "profile_revision_conflict"
+      ) {
+        return queryClient.invalidateQueries({
+          queryKey: getSavedSteeringProfileQueryKey(),
+        })
+      }
+    },
+  })
+  const [pendingAction, setPendingAction] = useState<PendingCurveAction>(null)
+  const [lastError, setLastError] = useState<string | null>(null)
+  const pendingRef = useRef(false)
+
+  const runAction = async (
+    action: Exclude<PendingCurveAction, null>,
+    operation: () => Promise<unknown>
+  ) => {
+    if (pendingRef.current) return
+    pendingRef.current = true
+    setPendingAction(action)
+    setLastError(null)
+    try {
+      await operation()
+    } catch (error) {
+      setLastError(
+        isApiProblemResponse(error)
+          ? error.error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown steering API error."
+      )
+    } finally {
+      pendingRef.current = false
+      setPendingAction(null)
+    }
+  }
+
+  const save = () => {
+    if (!savedProfile) return
+    void runAction("save", () =>
+      updateProfile({
+        path: { profile_id: savedProfile.profile_id },
+        body: {
+          name: savedProfile.name,
+          expected_revision: savedProfile.revision,
+          definition: activeCurve.definition,
+        },
+      })
+    )
+  }
+
+  const reset = () => {
+    if (!savedProfile) return
+    void runAction("reset", () =>
+      activateProfile({
+        body: {
+          profile_id: savedProfile.profile_id,
+          expected_revision: savedProfile.revision,
+        },
+      })
+    )
+  }
+
+  const activeMatchesSaved =
+    savedProfile !== null &&
+    definitionsEqual(activeCurve.definition, savedProfile.definition)
+
+  return (
+    <div className={cn("grid gap-4", className)}>
+      <CurveActionError lastError={lastError} />
+      <EditorCurveChart
+        key={activeCurve.fingerprint}
+        activeDefinition={activeCurve.definition}
+        speedKph={speedKph}
+        activeAssistance={activeAssistance}
+        className={chartClassName}
+        onPointCommit={(definition) =>
+          void runAction("apply", () => activateCurve({ body: { definition } }))
+        }
+      />
+      <CurveActions
+        mode={mode}
+        pendingAction={pendingAction}
+        activeMatchesSaved={activeMatchesSaved}
+        hasSavedProfile={savedProfile !== null}
+        onModeChange={(nextMode) =>
+          void runAction("mode", () => setMode({ body: { mode: nextMode } }))
+        }
+        onSave={save}
+        onReset={reset}
+      />
+    </div>
+  )
+}

@@ -102,6 +102,10 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
     assert created["definition"] == definition_json(second_assistance=850)
     assert created["created_at"] == created["updated_at"]
 
+    saved = client.get("/api/steering/profile")
+    assert saved.status_code == 200
+    assert saved.json() == initial.json()[0]
+
     fetched = client.get(f"/api/steering/profiles/{created['profile_id']}")
     updated = client.put(
         f"/api/steering/profiles/{created['profile_id']}",
@@ -128,6 +132,25 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
     ]
     assert deleted.status_code == 204
     assert client.get(f"/api/steering/profiles/{created['profile_id']}").status_code == 404
+
+
+def test_saved_profile_endpoint_returns_an_editable_builtin_profile(
+    client: TestClient,
+) -> None:
+    saved = client.get("/api/steering/profile").json()
+
+    updated = client.put(
+        f"/api/steering/profiles/{saved['profile_id']}",
+        json={
+            "expected_revision": saved["revision"],
+            "name": saved["name"],
+            "definition": definition_json(second_assistance=800),
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["revision"] == saved["revision"] + 1
+    assert client.get("/api/steering/profile").json() == updated.json()
 
 
 def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(

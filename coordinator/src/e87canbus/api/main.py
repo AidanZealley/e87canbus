@@ -100,6 +100,7 @@ def create_app(
         profile or DeploymentProfile.SIMULATOR,
         config=config,
         clock=clock,
+        profile_database_path=profile_database_path,
     )
     selected_cors_origins = (
         tuple(cors_origins)

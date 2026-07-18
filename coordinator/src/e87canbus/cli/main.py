@@ -79,7 +79,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     selected_profile = DeploymentProfile(args.profile)
-    service = build_controller_service(selected_profile)
+    service = build_controller_service(
+        selected_profile,
+        profile_database_path=args.profile_database,
+    )
     if (
         service.deployment.transport is CanTransport.SOCKETCAN
         and args.host not in {"127.0.0.1", "::1", "localhost"}

@@ -13,6 +13,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import {
   getApplicationSettingsQueryKey,
+  getSavedSteeringProfileQueryKey,
   listSteeringProfilesQueryKey,
 } from "@/api/http/@tanstack/react-query.gen"
 import type {
@@ -37,17 +38,26 @@ vi.mock("@/components/steering-curve-editor/components/curve-chart", () => ({
     active,
     draft,
     onPointChange,
+    onPointCommit,
   }: {
     active: SteeringCurveDefinition
     draft: SteeringCurveDefinition
-    onPointChange: (index: number, value: number) => void
+    onPointChange?: (index: number, value: number) => void
+    onPointCommit?: (definition: SteeringCurveDefinition) => void
   }) => (
     <div>
       <span>
         active {active.points[1]?.assistance_per_mille} draft{" "}
         {draft.points[1]?.assistance_per_mille}
       </span>
-      <button onClick={() => onPointChange(1, 800)}>Drag draft point</button>
+      <button
+        onClick={() => {
+          onPointChange?.(1, 800)
+          onPointCommit?.(definition([1000, 800, 780, 670, 380, 0, 0, 0]))
+        }}
+      >
+        Drag draft point
+      </button>
     </div>
   ),
 }))
@@ -181,6 +191,10 @@ const renderScreen = (
     )
   }
   client.setQueryData(listSteeringProfilesQueryKey(), options.profiles ?? [])
+  const savedProfile = options.profiles?.[0]
+  if (savedProfile !== undefined) {
+    client.setQueryData(getSavedSteeringProfileQueryKey(), savedProfile)
+  }
   return {
     client,
     ...render(
@@ -284,7 +298,7 @@ it.each(["steering", "device"] as const)(
   }
 )
 
-it("keeps steering draft local across active updates and activates without false provenance", async () => {
+it("uses the shared thin steering editor and applies point changes immediately", async () => {
   const requests: Array<{ url: string; body: Record<string, unknown> }> = []
   vi.stubGlobal(
     "fetch",
@@ -301,36 +315,8 @@ it("keeps steering draft local across active updates and activates without false
   renderScreen(<CarSteeringEditor />, {
     profiles: [profile(), profile("Wet track")],
   })
-  expect(
-    screen.getByRole("combobox", { name: "Saved profile" }).textContent
-  ).toContain("Dry track")
+  expect(screen.getByRole("switch", { name: "Auto" })).toBeTruthy()
   fireEvent.click(screen.getByRole("button", { name: "Drag draft point" }))
-  expect(screen.getByText("active 890 draft 800")).toBeTruthy()
-
-  act(() => {
-    const current = useLiveStore.getState()
-    current.applySteering({
-      protocol_version: 1,
-      boot_id: "screens-boot",
-      revision: 4,
-      emitted_at: "2026-07-15T00:00:04Z",
-      data: {
-        ...current.steering!,
-        active_curve: active(
-          definition([1000, 850, 780, 670, 380, 0, 0, 0]),
-          2,
-          null
-        ),
-      },
-    })
-  })
-  expect(screen.getByText("active 850 draft 800")).toBeTruthy()
-
-  fireEvent.click(screen.getByRole("button", { name: "Apply" }))
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-  expect(requests).toHaveLength(0)
-  fireEvent.click(screen.getByRole("button", { name: "Apply" }))
-  fireEvent.click(screen.getByRole("button", { name: "Confirm activation" }))
   await waitFor(() => expect(requests).toHaveLength(1))
   expect(requests[0]?.url).toMatch(/api\/commands\/steering-curve$/)
   expect(requests[0]?.body).toEqual({

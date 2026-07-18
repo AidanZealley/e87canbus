@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from "react"
 
-import { ASSISTANCE_PAGE_INCREMENT_PER_MILLE } from "../../utils"
+import { ASSISTANCE_PAGE_INCREMENT_PER_MILLE } from "../../../../utils"
 
 type DraggableCurvePointProps = {
   x: number
@@ -11,7 +11,7 @@ type DraggableCurvePointProps = {
   maximum: number
   inverseY: (pixelValue: number) => unknown
   onChange: (value: number) => void
-  onAdjustingChange: (isAdjusting: boolean) => void
+  onRelease: () => void
 }
 
 export const DraggableCurvePoint = ({
@@ -23,14 +23,18 @@ export const DraggableCurvePoint = ({
   maximum,
   inverseY,
   onChange,
-  onAdjustingChange,
+  onRelease,
 }: DraggableCurvePointProps) => {
   const activePointer = useRef<number | null>(null)
+  const didChange = useRef(false)
 
   const finishPointer = (event: PointerEvent<SVGCircleElement>) => {
     if (activePointer.current !== event.pointerId) return
     activePointer.current = null
-    onAdjustingChange(false)
+    if (didChange.current) {
+      onRelease()
+    }
+    didChange.current = false
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
@@ -46,6 +50,7 @@ export const DraggableCurvePoint = ({
     if (chartY === null) return
     const value = inverseY(chartY)
     if (typeof value === "number" && Number.isFinite(value)) {
+      didChange.current = true
       onChange(value)
     }
   }
@@ -66,6 +71,7 @@ export const DraggableCurvePoint = ({
     }
     event.preventDefault()
     onChange(assistancePerMille + direction * amount)
+    onRelease()
   }
 
   return (
@@ -77,7 +83,7 @@ export const DraggableCurvePoint = ({
         fill="transparent"
         stroke="transparent"
         strokeWidth={3}
-        className="peer cursor-ns-resize touch-none focus-visible:outline-none"
+        className="peer cursor-ns-resize touch-none outline-none"
         role="slider"
         tabIndex={0}
         aria-label={`Assistance at ${speedKph} km/h`}
@@ -89,8 +95,8 @@ export const DraggableCurvePoint = ({
         onPointerDown={(event) => {
           if (event.button !== 0 || activePointer.current !== null) return
           activePointer.current = event.pointerId
+          didChange.current = false
           event.currentTarget.focus()
-          onAdjustingChange(true)
           event.currentTarget.setPointerCapture?.(event.pointerId)
           event.preventDefault()
         }}
@@ -100,7 +106,6 @@ export const DraggableCurvePoint = ({
         onLostPointerCapture={(event) => {
           if (activePointer.current === event.pointerId) {
             activePointer.current = null
-            onAdjustingChange(false)
           }
         }}
       />
@@ -117,7 +122,7 @@ export const DraggableCurvePoint = ({
         cy={y}
         r={11}
         fill="none"
-        className="pointer-events-none stroke-ring opacity-0 peer-focus-visible:opacity-100"
+        className="pointer-events-none stroke-ring opacity-0 peer-focus:opacity-100"
         strokeWidth={2}
         aria-hidden="true"
       />

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import (
@@ -37,6 +38,7 @@ def build_live_controller_service(
     clock: Callable[[], float] = time.monotonic,
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
     deployment: DeploymentSpec | None = None,
+    profile_database_path: str | Path | None = None,
 ) -> ControllerService:
     selected_deployment = deployment or deployment_spec(DeploymentProfile.CAR)
     if selected_deployment.transport is not CanTransport.SOCKETCAN:
@@ -75,6 +77,7 @@ def build_live_controller_service(
                 else None
             ),
             clock=clock,
+            profile_database_path=profile_database_path,
         ),
         deployment=selected_deployment,
         clock=clock,
@@ -129,6 +132,7 @@ def build_controller_service(
     config: AppConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
+    profile_database_path: str | Path | None = None,
 ) -> ControllerService:
     """Build one of the closed operator-facing deployment profiles."""
 
@@ -160,6 +164,7 @@ def build_controller_service(
         clock=clock,
         socketcan_factory=socketcan_factory,
         deployment=spec,
+        profile_database_path=profile_database_path,
     )
 
 

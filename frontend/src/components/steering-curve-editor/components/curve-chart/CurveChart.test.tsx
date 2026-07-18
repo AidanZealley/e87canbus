@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
 import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
@@ -59,31 +59,17 @@ it("renders eight accessible points on honest linear series", async () => {
       activeSpeedKph={20}
       activeAssistance={0.78}
       onPointChange={vi.fn()}
+      onPointCommit={vi.fn()}
     />
   )
 
   expect(await screen.findAllByRole("slider")).toHaveLength(8)
-  expect(document.querySelectorAll(".recharts-line-curve")).toHaveLength(2)
+  expect(document.querySelectorAll(".recharts-line-curve")).toHaveLength(1)
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
   }
   const marker = document.querySelector(".recharts-reference-line line")
   expect(marker?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
-  expect(document.querySelector(".recharts-tooltip-wrapper")).not.toBeNull()
-  const tooltip = document.querySelector<HTMLElement>(
-    ".recharts-tooltip-wrapper"
-  )!
-  expect(tooltip.style.opacity).toBe("1")
-  const firstPoint = screen.getAllByRole("slider")[0]!
-  fireEvent.pointerDown(firstPoint, {
-    button: 0,
-    buttons: 1,
-    pointerId: 1,
-    pointerType: "mouse",
-  })
-  expect(tooltip.style.opacity).toBe("0")
-  fireEvent.pointerUp(firstPoint, { pointerId: 1, pointerType: "mouse" })
-  expect(tooltip.style.opacity).toBe("1")
   const activeDots = document.querySelectorAll(".recharts-active-dot circle")
   expect(activeDots).toHaveLength(0)
   expect(document.querySelector(".recharts-zIndex-layer_1300")).not.toBeNull()
@@ -99,6 +85,7 @@ it("renders eight accessible points on honest linear series", async () => {
       activeSpeedKph={20}
       activeAssistance={1}
       onPointChange={vi.fn()}
+      onPointCommit={vi.fn()}
     />
   )
   const maximumAssistanceMarker = document.querySelector(
@@ -121,6 +108,7 @@ it("renders eight accessible points on honest linear series", async () => {
       activeSpeedKph={null}
       activeAssistance={null}
       onPointChange={vi.fn()}
+      onPointCommit={vi.fn()}
     />
   )
   const stoppedMarker = document.querySelector(".recharts-reference-line line")

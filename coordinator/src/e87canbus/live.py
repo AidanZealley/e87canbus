@@ -6,9 +6,14 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import assert_never
 
 from e87canbus.adapters.socketcan import SocketCanBus
+from e87canbus.adapters.sqlite_profiles import (
+    BUILT_IN_PROFILE_ID,
+    SqliteSteeringProfileRepository,
+)
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import (
     ButtonFeedbackDeadlineReached,
@@ -17,6 +22,7 @@ from e87canbus.application.events import (
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.features.steering import initial_active_steering_curve
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -202,6 +208,7 @@ class LiveControllerRuntime:
         bus_factory: Callable[[str], SocketCanBus] = SocketCanBus,
         synthetic_vehicle: SyntheticVehicleSource | None = None,
         clock: Callable[[], float] = time.monotonic,
+        profile_database_path: str | Path | None = None,
     ) -> None:
         configured_tx = frozenset(
             item.network for item in config.can_networks if item.enabled and item.tx_enabled
@@ -232,6 +239,25 @@ class LiveControllerRuntime:
             config.custom_can_ids,
             button_input_enabled=button_pad_source is DeviceSource.PHYSICAL,
         )
+        startup_curve = None
+        if profile_database_path is not None:
+            repo = SqliteSteeringProfileRepository(profile_database_path)
+            repo.initialize()
+            profiles = repo.list_profiles()
+            if profiles:
+                saved = next(
+                    (
+                        profile
+                        for profile in profiles
+                        if profile.profile_id == BUILT_IN_PROFILE_ID
+                    ),
+                    profiles[0],
+                )
+                startup_curve = initial_active_steering_curve(
+                    saved.definition,
+                    saved_profile_id=saved.profile_id,
+                    saved_profile_revision=saved.revision,
+                )
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
@@ -242,6 +268,7 @@ class LiveControllerRuntime:
                 DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
             },
             servotronic_output_available=False,
+            active_steering_curve=startup_curve,
         )
         self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}

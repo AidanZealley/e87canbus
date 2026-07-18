@@ -430,6 +430,11 @@ export const zUpdateApplicationSettingsBody = zUpdateApplicationSettingsRequest
 export const zUpdateApplicationSettingsResponse = zApplicationSettingsResponse
 
 /**
+ * Successful Response
+ */
+export const zGetSavedSteeringProfileResponse = zSteeringProfileResponse
+
+/**
  * Response Liststeeringprofiles
  *
  * Successful Response

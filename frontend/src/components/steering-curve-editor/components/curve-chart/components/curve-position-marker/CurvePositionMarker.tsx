@@ -1,6 +1,6 @@
 import { ReferenceLine } from "recharts"
 
-import { assistanceToPercent } from "../../utils"
+import { assistanceToPercent } from "../../../../utils"
 
 type CurvePositionMarkerProps = {
   speedKph: number | null

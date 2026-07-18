@@ -1,32 +1,28 @@
-import { useShallow } from "zustand/react/shallow"
-
+import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
 import { CurveChart } from "../curve-chart"
-import { useSteeringCurveEditorStore } from "../../store-context"
 
 type EditorCurveChartProps = {
+  activeDefinition: SteeringCurveDefinition
   speedKph: number | null
   activeAssistance: number | null
+  className?: string
+  onPointCommit: (definition: SteeringCurveDefinition) => void
 }
 
 export const EditorCurveChart = ({
+  activeDefinition,
   speedKph,
   activeAssistance,
-}: EditorCurveChartProps) => {
-  const { activeDefinition, draft, changePoint } = useSteeringCurveEditorStore(
-    useShallow((state) => ({
-      activeDefinition: state.active.definition,
-      draft: state.draft,
-      changePoint: state.changePoint,
-    }))
-  )
-
-  return (
-    <CurveChart
-      active={activeDefinition}
-      draft={draft}
-      activeSpeedKph={speedKph}
-      activeAssistance={activeAssistance}
-      onPointChange={changePoint}
-    />
-  )
-}
+  className,
+  onPointCommit,
+}: EditorCurveChartProps) => (
+  <CurveChart
+    active={activeDefinition}
+    draft={activeDefinition}
+    activeSpeedKph={speedKph}
+    activeAssistance={activeAssistance}
+    className={className}
+    onPointChange={() => undefined}
+    onPointCommit={onPointCommit}
+  />
+)

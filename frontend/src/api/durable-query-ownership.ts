@@ -2,12 +2,14 @@ import type { QueryClient } from "@tanstack/react-query"
 
 import {
   getApplicationSettingsQueryKey,
+  getSavedSteeringProfileQueryKey,
   getSteeringProfileQueryKey,
   listSteeringProfilesQueryKey,
 } from "./http/@tanstack/react-query.gen"
 import type { ResourceChangedEvent } from "./live-contract.gen"
 
 const steeringQueryIds = new Set([
+  getSavedSteeringProfileQueryKey()[0]._id,
   listSteeringProfilesQueryKey()[0]._id,
   getSteeringProfileQueryKey({ path: { profile_id: "" } })[0]._id,
 ])
@@ -23,6 +25,10 @@ export const invalidateChangedResource = (
     })
   }
   const invalidations: Promise<unknown>[] = [
+    queryClient.invalidateQueries({
+      queryKey: getSavedSteeringProfileQueryKey(),
+      exact: true,
+    }),
     queryClient.invalidateQueries({
       queryKey: listSteeringProfilesQueryKey(),
       exact: true,

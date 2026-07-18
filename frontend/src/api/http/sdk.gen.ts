@@ -35,6 +35,9 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
+  GetSavedSteeringProfileData,
+  GetSavedSteeringProfileErrors,
+  GetSavedSteeringProfileResponses,
   GetSteeringProfileData,
   GetSteeringProfileErrors,
   GetSteeringProfileResponses,
@@ -103,6 +106,7 @@ import {
   zDeleteSteeringProfileResponse,
   zDisconnectSimulationDeviceResponse,
   zGetApplicationSettingsResponse,
+  zGetSavedSteeringProfileResponse,
   zGetSteeringProfileResponse,
   zListSteeringProfilesResponse,
   zRebootSimulationDeviceResponse,
@@ -692,6 +696,30 @@ export const updateApplicationSettings = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Get Saved Steering Profile
+ */
+export const getSavedSteeringProfile = <ThrowOnError extends boolean = true>(
+  options?: Options<GetSavedSteeringProfileData, ThrowOnError>
+): RequestResult<
+  GetSavedSteeringProfileResponses,
+  GetSavedSteeringProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetSavedSteeringProfileResponses,
+    GetSavedSteeringProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetSavedSteeringProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/profile",
+    ...options,
   })
 
 /**
