@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import type { DeviceRegistryEntry } from "@/api/live-events"
+import type { DeviceRegistryEntryState } from "@/api/live-contract.gen"
 
 export type SimulatedDeviceAction =
   | "connect"
@@ -25,8 +25,8 @@ export type SimulatedDeviceActionCallbacks = Partial<
 export type SimulatedDeviceStatusControl = "normal" | "incompatible" | "fault"
 
 export type SimulatedDeviceCardProps = {
-  role: DeviceRegistryEntry["role"]
-  registryEntry: DeviceRegistryEntry
+  role: DeviceRegistryEntryState["role"]
+  registryEntry: DeviceRegistryEntryState
   availableActions: SimulatedDeviceActionAvailability
   callbacks: SimulatedDeviceActionCallbacks
   pendingAction?: SimulatedDeviceAction | null

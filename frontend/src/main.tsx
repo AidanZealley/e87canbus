@@ -5,6 +5,10 @@ import { RouterProvider } from "@tanstack/react-router"
 
 import "./index.css"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import {
+  getApplicationSettingsQueryKey,
+  listSteeringProfilesQueryKey,
+} from "@/api/http/@tanstack/react-query.gen"
 import { Toaster } from "@/components/ui/sonner"
 import { startLiveTransport } from "@/live/transport"
 import { router } from "@/router"
@@ -21,6 +25,20 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+const durableQueryDefaults = {
+  staleTime: 30_000,
+  refetchOnReconnect: false,
+  refetchOnWindowFocus: false,
+}
+queryClient.setQueryDefaults(
+  getApplicationSettingsQueryKey(),
+  durableQueryDefaults
+)
+queryClient.setQueryDefaults(
+  listSteeringProfilesQueryKey(),
+  durableQueryDefaults
+)
 
 startLiveTransport(queryClient)
 

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import type { DevicesState, TraceRow } from "@/api/live-events"
+import type { DevicesState, TraceRow } from "@/api/live-contract.gen"
 
 type CanNetwork = TraceRow["network"]
 type NetworkStatus = DevicesState["networks"][number]
@@ -15,7 +15,10 @@ export const NetworkFilters = ({
   selected,
   onToggle,
 }: NetworkFiltersProps) => (
-  <div className="flex flex-wrap items-center gap-1" aria-label="CAN network filters">
+  <div
+    className="flex flex-wrap items-center gap-1"
+    aria-label="CAN network filters"
+  >
     {networks.map((network) => {
       const active = selected.has(network.id)
       return (

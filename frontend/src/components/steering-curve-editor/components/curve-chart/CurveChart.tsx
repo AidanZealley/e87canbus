@@ -11,7 +11,7 @@ import {
   useYAxisScale,
 } from "recharts"
 
-import type { SteeringCurveDefinition } from "@/api/steering"
+import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
 import {
   ChartContainer,
   ChartTooltip,

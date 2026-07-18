@@ -1,4 +1,4 @@
-import type { SpeedUnit, TemperatureUnit } from "@/api/settings"
+import type { SpeedUnit, TemperatureUnit } from "@/api/http/types.gen"
 
 export type ApplicationSettingsDraft = {
   sourceRevision: number

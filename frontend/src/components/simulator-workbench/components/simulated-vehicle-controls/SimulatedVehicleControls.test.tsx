@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, expect, it, vi } from "vitest"
 
@@ -16,7 +22,10 @@ const api = vi.hoisted(() => ({
   silenceCoolantTemperature: vi.fn(),
 }))
 
-vi.mock("@/api/simulator", () => api)
+vi.mock("@/api/http/sdk.gen", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/http/sdk.gen")>()),
+  ...api,
+}))
 
 vi.mock("@/components/ui/slider", () => ({
   Slider: ({
@@ -73,10 +82,16 @@ it("starts a realistic warm, idling car", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start car" }))
 
   await waitFor(() => {
-    expect(api.setVehicleSpeed).toHaveBeenCalledWith(0)
-    expect(api.setEngineRpm).toHaveBeenCalledWith(600)
-    expect(api.setOilTemperature).toHaveBeenCalledWith(90)
-    expect(api.setCoolantTemperature).toHaveBeenCalledWith(90)
+    expect(api.setVehicleSpeed).toHaveBeenCalledWith({
+      body: { speed_kph: 0 },
+    })
+    expect(api.setEngineRpm).toHaveBeenCalledWith({ body: { rpm: 600 } })
+    expect(api.setOilTemperature).toHaveBeenCalledWith({
+      body: { temperature_c: 90 },
+    })
+    expect(api.setCoolantTemperature).toHaveBeenCalledWith({
+      body: { temperature_c: 90 },
+    })
   })
 })
 
@@ -96,11 +111,14 @@ it("stops every simulated vehicle signal together", async () => {
 it("commits a slider value without a separate set action", async () => {
   renderControls(0)
 
-  fireEvent.click(
-    screen.getByRole("button", { name: "Vehicle speed" })
-  )
+  fireEvent.click(screen.getByRole("button", { name: "Vehicle speed" }))
 
-  await waitFor(() => expect(api.setVehicleSpeed.mock.calls[0]?.[0]).toBe(1))
+  await waitFor(() =>
+    expect(api.setVehicleSpeed.mock.calls[0]?.[0]).toEqual({
+      body: { speed_kph: 1 },
+      throwOnError: true,
+    })
+  )
 })
 
 it("shows the observed virtual-car high-beam indicator", () => {

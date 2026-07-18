@@ -8,12 +8,22 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from e87canbus.api.models.errors import ApiProblemCode, ApiProblemResponse
+
+PROBLEM_RESPONSE: dict[str, Any] = {"model": ApiProblemResponse}
+
+
+def api_problem_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
+    """Describe the shared problem envelope for the supplied status codes."""
+
+    return {status_code: PROBLEM_RESPONSE for status_code in status_codes}
+
 
 class ApiProblem(Exception):
     def __init__(
         self,
         status_code: int,
-        code: str,
+        code: ApiProblemCode,
         message: str,
         *,
         current_revision: int | None = None,

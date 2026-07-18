@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import type { TraceRow } from "@/api/live-events"
+import type { TraceRow } from "@/api/live-contract.gen"
 
 import { CanTraceTable } from "./components/can-trace-table/CanTraceTable"
 import { FrameDetail } from "./components/frame-detail/FrameDetail"

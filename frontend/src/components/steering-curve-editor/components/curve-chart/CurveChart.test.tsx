@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
-import type { SteeringCurveDefinition } from "@/api/steering"
+import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
 import { CurveChart } from "./CurveChart"
 
 afterEach(cleanup)
@@ -49,7 +49,7 @@ it("renders eight accessible points on honest linear series", async () => {
         speed_deci_kph,
         assistance_per_mille: [1000, 890, 780, 670, 380, 0, 0, 0][index] ?? 0,
       })
-    ),
+    ) as SteeringCurveDefinition["points"],
   }
 
   const { rerender } = render(
@@ -123,9 +123,7 @@ it("renders eight accessible points on honest linear series", async () => {
       onPointChange={vi.fn()}
     />
   )
-  const stoppedMarker = document.querySelector(
-    ".recharts-reference-line line"
-  )
+  const stoppedMarker = document.querySelector(".recharts-reference-line line")
   expect(stoppedMarker).not.toBeNull()
   expect(stoppedMarker?.getAttribute("y1")).toBe(
     maximumAssistanceMarker?.getAttribute("y1")

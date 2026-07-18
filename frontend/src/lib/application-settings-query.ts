@@ -1,28 +1,18 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 
-import {
-  applicationSettingsQueryKey,
-  applicationSettingsQueryOptions,
-  DEFAULT_APPLICATION_SETTINGS,
-  updateApplicationSettings,
-  type ApplicationSettings,
-  type UpdateApplicationSettingsRequest,
-} from "../api/settings.ts"
+import { getApplicationSettingsOptions } from "@/api/http/@tanstack/react-query.gen"
+import type { ApplicationSettingsResponse } from "@/api/http/types.gen"
+import { DEFAULT_APPLICATION_SETTINGS } from "./application-settings"
 
 export type EffectiveApplicationSettings = {
-  settings: ApplicationSettings
+  settings: ApplicationSettingsResponse
   isAuthoritative: boolean
   persistenceFault: boolean
   canSave: boolean
 }
 
 export const resolveEffectiveApplicationSettings = (
-  settings: ApplicationSettings | undefined,
+  settings: ApplicationSettingsResponse | undefined,
   loadFailed: boolean
 ): EffectiveApplicationSettings => {
   if (settings !== undefined) {
@@ -41,17 +31,8 @@ export const resolveEffectiveApplicationSettings = (
   }
 }
 
-export const saveApplicationSettings = async (
-  queryClient: QueryClient,
-  request: UpdateApplicationSettingsRequest
-) => {
-  const committed = await updateApplicationSettings(request)
-  queryClient.setQueryData(applicationSettingsQueryKey, committed)
-  return committed
-}
-
 export const useEffectiveApplicationSettings = () => {
-  const query = useQuery(applicationSettingsQueryOptions())
+  const query = useQuery(getApplicationSettingsOptions())
   return {
     ...resolveEffectiveApplicationSettings(query.data, query.isError),
     error: query.error,
@@ -61,12 +42,4 @@ export const useEffectiveApplicationSettings = () => {
       await query.refetch()
     },
   }
-}
-
-export const useUpdateApplicationSettings = () => {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (request: UpdateApplicationSettingsRequest) =>
-      saveApplicationSettings(queryClient, request),
-  })
 }

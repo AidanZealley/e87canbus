@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
-import type { DevicesState, TraceRow } from "@/api/live-events"
+import type { DevicesState, TraceRow } from "@/api/live-contract.gen"
 
 type CanTraceEntry = TraceRow
 type NetworkStatus = DevicesState["networks"][number]

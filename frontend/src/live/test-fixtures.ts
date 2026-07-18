@@ -1,7 +1,8 @@
 import type {
-  ControllerSnapshotData,
-  LiveEnvelope,
-} from "@/api/live-events"
+  ButtonsState,
+  ServerEventPayload,
+  SteeringCurveDefinition,
+} from "@/api/live-contract.gen"
 
 const steering = {
   mode: "auto" as const,
@@ -15,7 +16,7 @@ const steering = {
           speed_deci_kph,
           assistance_per_mille: Math.max(0, 1000 - index * 140),
         })
-      ),
+      ) as SteeringCurveDefinition["points"],
     },
     fingerprint: "curve",
     activation_revision: 1,
@@ -29,7 +30,7 @@ const steering = {
 export const snapshot = (
   bootId: string,
   revision: number
-): LiveEnvelope<ControllerSnapshotData> => ({
+): ServerEventPayload<"controller.snapshot"> => ({
   protocol_version: 1,
   boot_id: bootId,
   revision,
@@ -53,7 +54,11 @@ export const snapshot = (
     },
     steering,
     buttons: {
-      led_rgb: Array.from({ length: 16 }, () => [revision, revision, revision] as [number, number, number]),
+      led_rgb: Array.from({ length: 16 }, () => [
+        revision,
+        revision,
+        revision,
+      ]) as ButtonsState["led_rgb"],
     },
     lighting: {
       high_beam_enabled: false,

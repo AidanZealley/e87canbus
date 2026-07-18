@@ -1,11 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import type { SteeringState } from "../../api/live-events.ts"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import type {
   SteeringCurveDefinition,
-  StoredSteeringProfile,
-} from "../../api/steering.ts"
+  SteeringState,
+} from "../../api/live-contract.gen"
 import { activeProfileLabel, steeringModeLabel } from "./utils.ts"
 
 const definition: SteeringCurveDefinition = {
@@ -15,7 +15,7 @@ const definition: SteeringCurveDefinition = {
       speed_deci_kph,
       assistance_per_mille: [1000, 890, 780, 670, 380, 0, 0, 0][index] ?? 0,
     })
-  ),
+  ) as SteeringCurveDefinition["points"],
 }
 const steering: SteeringState = {
   mode: "auto",
@@ -31,11 +31,11 @@ const steering: SteeringState = {
   },
   servotronic: null,
 }
-const profile: StoredSteeringProfile = {
+const profile: SteeringProfileResponse = {
   profile_id: steering.active_curve.saved_profile_id!,
   name: "Dry track",
   revision: 3,
-  definition,
+  definition: definition as SteeringProfileResponse["definition"],
   created_at: "2026-07-14T00:00:00.000000Z",
   updated_at: "2026-07-14T00:00:00.000000Z",
 }

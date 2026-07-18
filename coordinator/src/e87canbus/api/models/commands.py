@@ -4,7 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.api.models.steering import SteeringCurveDefinitionRequest
+from e87canbus.api.models.steering import (
+    CANONICAL_UUID_PATTERN,
+    SteeringCurveDefinitionRequest,
+)
 
 
 class StrictCommandRequest(BaseModel):
@@ -21,7 +24,7 @@ class SetSteeringModeRequest(StrictCommandRequest):
 
 
 class ActivateSteeringProfileRequest(StrictCommandRequest):
-    profile_id: str
+    profile_id: str = Field(pattern=CANONICAL_UUID_PATTERN)
     expected_revision: int = Field(ge=1)
 
 

@@ -1,5 +1,5 @@
-import type { StoredSteeringProfile } from "../../api/steering.ts"
-import type { SteeringState } from "../../api/live-events.ts"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
+import type { SteeringState } from "../../api/live-contract.gen"
 import { definitionsEqual } from "../steering-curve-editor/utils.ts"
 
 export const steeringModeLabel = (
@@ -17,7 +17,7 @@ export const activeProfileLabel = ({
   catalogAvailable,
 }: {
   steering: SteeringState
-  profiles: readonly StoredSteeringProfile[]
+  profiles: readonly SteeringProfileResponse[]
   catalogAvailable: boolean
 }) => {
   const active = steering.active_curve

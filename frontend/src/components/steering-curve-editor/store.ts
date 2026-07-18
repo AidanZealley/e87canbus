@@ -1,7 +1,8 @@
 import { createStore, type StoreApi } from "zustand/vanilla"
 
-import { SteeringApiError } from "@/api/steering"
-import type { ActiveSteeringCurve, StoredSteeringProfile } from "@/api/steering"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
+import { isApiProblemResponse } from "@/api/is-api-problem"
+import type { ActiveSteeringCurveState } from "@/api/live-contract.gen"
 import type {
   CurveEditorState,
   PendingCurveAction,
@@ -14,12 +15,12 @@ import {
 } from "./utils"
 
 export type SteeringCurveEditorStore = CurveEditorState & {
-  profiles: StoredSteeringProfile[]
+  profiles: SteeringProfileResponse[]
   profilesError: unknown
   newProfileName: string
   effects: SteeringCurveEditorEffects
-  syncActiveCurve: (activeCurve: ActiveSteeringCurve) => void
-  syncProfiles: (profiles: StoredSteeringProfile[], error: unknown) => void
+  syncActiveCurve: (activeCurve: ActiveSteeringCurveState) => void
+  syncProfiles: (profiles: SteeringProfileResponse[], error: unknown) => void
   syncEffects: (effects: SteeringCurveEditorEffects) => void
   changePoint: (index: number, value: number) => void
   selectProfile: (profileId: string | null) => void
@@ -29,7 +30,7 @@ export type SteeringCurveEditorStore = CurveEditorState & {
   applyDraft: () => Promise<void>
   saveRevision: () => Promise<void>
   saveAs: () => Promise<void>
-  deleteSaved: (profile: StoredSteeringProfile) => Promise<void>
+  deleteSaved: (profile: SteeringProfileResponse) => Promise<void>
 }
 
 type Store = StoreApi<SteeringCurveEditorStore>
@@ -40,8 +41,8 @@ export const createSteeringCurveEditorStore = ({
   profilesError,
   effects,
 }: {
-  activeCurve: ActiveSteeringCurve
-  profiles: StoredSteeringProfile[]
+  activeCurve: ActiveSteeringCurveState
+  profiles: SteeringProfileResponse[]
   profilesError: unknown
   effects: SteeringCurveEditorEffects
 }): Store =>
@@ -110,10 +111,7 @@ export const createSteeringCurveEditorStore = ({
         const savedProvenance = status.draftMatchesSelectedSaved
           ? (status.selectedProfile ?? undefined)
           : undefined
-        await state.effects.activate(
-          state.draft,
-          savedProvenance
-        )
+        await state.effects.activate(state.draft, savedProvenance)
         set({ lastError: null })
       }),
     saveRevision: () => {
@@ -159,8 +157,8 @@ const runAction = async (
     set({
       lastError: errorMessage(error),
       revisionConflict:
-        error instanceof SteeringApiError &&
-        error.code === "profile_revision_conflict",
+        isApiProblemResponse(error) &&
+        error.error.code === "profile_revision_conflict",
     })
   } finally {
     set({ pendingAction: null })
@@ -168,7 +166,11 @@ const runAction = async (
 }
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Unknown steering API error."
+  isApiProblemResponse(error)
+    ? error.error.message
+    : error instanceof Error
+      ? error.message
+      : "Unknown steering API error."
 
 export const selectStatus = (state: SteeringCurveEditorStore) =>
   deriveEditorStatus(state, state.profiles)

@@ -40,7 +40,11 @@ export const LightingStatus = () => {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-2" role="status" aria-live="polite">
+        <div
+          className="grid grid-cols-2 gap-2"
+          role="status"
+          aria-live="polite"
+        >
           <div className="rounded-md border p-3">
             <div className="text-xs text-muted-foreground">Requested</div>
             <Badge className="mt-1" variant={requested ? "default" : "outline"}>
@@ -48,7 +52,9 @@ export const LightingStatus = () => {
             </Badge>
           </div>
           <div className="rounded-md border p-3">
-            <div className="text-xs text-muted-foreground">Virtual car observed</div>
+            <div className="text-xs text-muted-foreground">
+              Virtual car observed
+            </div>
             <Badge className="mt-1" variant={observed ? "default" : "outline"}>
               {observed === null
                 ? "Unavailable"

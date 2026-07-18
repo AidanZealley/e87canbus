@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 
 import type {
-  ActiveSteeringCurve,
+  ActiveSteeringCurveState,
   SteeringCurveDefinition,
-} from "../../api/steering.ts"
+} from "@/api/live-contract.gen"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import type { CurveEditorState } from "./types.ts"
 import {
   assistanceBoundsAt,
@@ -30,13 +31,13 @@ const definition = (
       speed_deci_kph,
       assistance_per_mille: values[index] ?? 0,
     })
-  ),
+  ) as SteeringCurveDefinition["points"],
 })
 
 const active = (
   value = definition(),
   activationRevision = 1
-): ActiveSteeringCurve => ({
+): ActiveSteeringCurveState => ({
   definition: value,
   fingerprint: `fingerprint-${activationRevision}`,
   activation_revision: activationRevision,
@@ -80,11 +81,11 @@ test("definition equality and dirty state compare complete integer definitions",
     lastError: null,
     revisionConflict: false,
   }
-  const saved = {
+  const saved: SteeringProfileResponse = {
     profile_id: "profile",
     name: "Track",
     revision: 1,
-    definition: draft,
+    definition: draft as SteeringProfileResponse["definition"],
     created_at: "",
     updated_at: "",
   }
@@ -103,7 +104,9 @@ test("smooth evaluation holds endpoints and uses the selected definition", () =>
   const activeDefinition = definition()
   const draftDefinition = replaceAssistanceAt(activeDefinition, 1, 800)
   assert.equal(evaluateSteeringCurve(activeDefinition, -5), 1)
-  assert.ok(Math.abs(evaluateSteeringCurve(activeDefinition, 5) - 0.945) < 1e-12)
+  assert.ok(
+    Math.abs(evaluateSteeringCurve(activeDefinition, 5) - 0.945) < 1e-12
+  )
   assert.equal(evaluateSteeringCurve(activeDefinition, 300), 0)
   assert.equal(evaluateSteeringCurve(activeDefinition, 10), 0.89)
   assert.equal(evaluateSteeringCurve(draftDefinition, 10), 0.8)
@@ -133,7 +136,7 @@ test("monotone cubic matches the shared language-neutral golden vectors", () => 
 
   assert.equal(vectors.algorithm, "monotone-cubic-v1")
   for (const vector of vectors.cases) {
-    const value: SteeringCurveDefinition = {
+    const value: Parameters<typeof evaluateSteeringCurve>[0] = {
       schema_version: 1,
       points: vectors.speeds_deci_kph.map((speed_deci_kph, index) => ({
         speed_deci_kph,
@@ -187,7 +190,7 @@ test("invalid evaluation inputs fail closed", () => {
 })
 
 test("two-point monotone cubic reduces exactly to its secant line", () => {
-  const value: SteeringCurveDefinition = {
+  const value: Parameters<typeof evaluateSteeringCurve>[0] = {
     schema_version: 1,
     points: [
       { speed_deci_kph: 30, assistance_per_mille: 900 },
@@ -201,7 +204,7 @@ test("two-point monotone cubic reduces exactly to its secant line", () => {
 })
 
 test("defensive smooth evaluator handles unequal spans and rejects non-positive spans", () => {
-  const value: SteeringCurveDefinition = {
+  const value: Parameters<typeof evaluateSteeringCurve>[0] = {
     schema_version: 1,
     points: [
       { speed_deci_kph: 0, assistance_per_mille: 1000 },
@@ -305,7 +308,7 @@ test("same-revision active updates adopt authoritative provenance and status", (
     lastError: null,
     revisionConflict: false,
   }
-  const incoming: ActiveSteeringCurve = {
+  const incoming: ActiveSteeringCurveState = {
     ...initial,
     status: "activation_failed",
     saved_profile_id: "11111111-1111-4111-8111-111111111111",

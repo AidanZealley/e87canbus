@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.device import DeviceRole
+from e87canbus.features.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
+STEERING_CURVE_POINT_COUNT = len(STEERING_CURVE_V1_SPEEDS_DECI_KPH)
 
 
 class LiveModel(BaseModel):
@@ -50,7 +52,10 @@ class SteeringCurvePoint(LiveModel):
 
 class SteeringCurveDefinition(LiveModel):
     schema_version: Literal[1]
-    points: tuple[SteeringCurvePoint, ...]
+    points: tuple[SteeringCurvePoint, ...] = Field(
+        min_length=STEERING_CURVE_POINT_COUNT,
+        max_length=STEERING_CURVE_POINT_COUNT,
+    )
 
 
 class ActiveSteeringCurveState(LiveModel):
@@ -239,12 +244,15 @@ LiveData = (
 )
 
 
-class LiveEnvelope(LiveModel):
+LivePayload = TypeVar("LivePayload", bound=LiveModel)
+
+
+class LiveEnvelope(LiveModel, Generic[LivePayload]):
     protocol_version: Literal[1] = PROTOCOL_VERSION
     boot_id: str = Field(min_length=1)
     revision: int = Field(ge=0)
     emitted_at: datetime
-    data: LiveData
+    data: LivePayload
 
 
 def snapshot_data(snapshot: ControllerServiceSnapshot) -> ControllerSnapshotData:

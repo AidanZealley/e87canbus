@@ -12,21 +12,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import {
-  applicationSettingsQueryKey,
-  DEFAULT_APPLICATION_SETTINGS,
-  type ApplicationSettings,
-} from "@/api/settings"
-import {
-  steeringProfilesQueryKey,
-  type ActiveSteeringCurve,
-  type SteeringCurveDefinition,
-  type StoredSteeringProfile,
-} from "@/api/steering"
+  getApplicationSettingsQueryKey,
+  listSteeringProfilesQueryKey,
+} from "@/api/http/@tanstack/react-query.gen"
+import type {
+  ApplicationSettingsResponse,
+  SteeringProfileResponse,
+} from "@/api/http/types.gen"
+import type {
+  ActiveSteeringCurveState,
+  SteeringCurveDefinition,
+} from "@/api/live-contract.gen"
 import { CarDrive } from "@/components/car-drive"
 import { CarOverview } from "@/components/car-overview"
 import { CarSettingsForm } from "@/components/car-settings-form"
 import { CarSteeringEditor } from "@/components/car-steering-editor"
 import { ThemeProvider } from "@/components/theme-provider"
+import { DEFAULT_APPLICATION_SETTINGS } from "@/lib/application-settings"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 
@@ -59,21 +61,21 @@ const definition = (
       speed_deci_kph,
       assistance_per_mille: values[index] ?? 0,
     })
-  ),
+  ) as SteeringCurveDefinition["points"],
 })
 
 const profile = (
   name = "Dry track",
   value = definition(),
   revision = 1
-): StoredSteeringProfile => ({
+): SteeringProfileResponse => ({
   profile_id:
     name === "Dry track"
       ? "11111111-1111-4111-8111-111111111111"
       : "22222222-2222-4222-8222-222222222222",
   name,
   revision,
-  definition: value,
+  definition: value as SteeringProfileResponse["definition"],
   created_at: "2026-07-14T00:00:00.000000Z",
   updated_at: "2026-07-14T00:00:00.000000Z",
 })
@@ -81,8 +83,8 @@ const profile = (
 const active = (
   value = definition(),
   revision = 1,
-  saved: StoredSteeringProfile | null = profile()
-): ActiveSteeringCurve => ({
+  saved: SteeringProfileResponse | null = profile()
+): ActiveSteeringCurveState => ({
   definition: value,
   fingerprint: `fingerprint-${revision}`,
   activation_revision: revision,
@@ -96,6 +98,20 @@ const jsonResponse = (body: unknown, status = 200) =>
     status,
     headers: { "Content-Type": "application/json" },
   })
+
+const requestUrl = (input: RequestInfo | URL) =>
+  input instanceof Request ? input.url : String(input)
+
+const requestMethod = (input: RequestInfo | URL, init?: RequestInit) =>
+  input instanceof Request ? input.method : (init?.method ?? "GET")
+
+const requestBody = async (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Record<string, unknown>> =>
+  JSON.parse(
+    input instanceof Request ? await input.clone().text() : String(init?.body)
+  ) as Record<string, unknown>
 
 const prepareLiveState = () => {
   const value = snapshot("screens-boot", 3)
@@ -140,8 +156,8 @@ const prepareLiveState = () => {
 
 const settingsAt = (
   revision: number,
-  overrides: Partial<ApplicationSettings> = {}
-): ApplicationSettings => ({
+  overrides: Partial<ApplicationSettingsResponse> = {}
+): ApplicationSettingsResponse => ({
   ...DEFAULT_APPLICATION_SETTINGS,
   revision,
   updated_at: `2026-07-14T12:00:0${revision}.000000Z`,
@@ -151,8 +167,8 @@ const settingsAt = (
 const renderScreen = (
   children: ReactNode,
   options: {
-    settings?: ApplicationSettings | null
-    profiles?: StoredSteeringProfile[]
+    settings?: ApplicationSettingsResponse | null
+    profiles?: SteeringProfileResponse[]
   } = {}
 ) => {
   const client = new QueryClient({
@@ -160,11 +176,11 @@ const renderScreen = (
   })
   if (options.settings !== null) {
     client.setQueryData(
-      applicationSettingsQueryKey,
+      getApplicationSettingsQueryKey(),
       options.settings ?? DEFAULT_APPLICATION_SETTINGS
     )
   }
-  client.setQueryData(steeringProfilesQueryKey, options.profiles ?? [])
+  client.setQueryData(listSteeringProfilesQueryKey(), options.profiles ?? [])
   return {
     client,
     ...render(
@@ -273,8 +289,8 @@ it("keeps steering draft local across active updates and activates without false
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
-      requests.push({ url: String(input), body })
+      const body = await requestBody(input, init)
+      requests.push({ url: requestUrl(input), body })
       return jsonResponse({
         accepted: true,
         boot_id: "screens-boot",
@@ -334,8 +350,8 @@ it("loads settings only from authority and saves one canonical document", async 
   const requests: Record<string, unknown>[] = []
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = await requestBody(input, init)
       requests.push(body)
       return jsonResponse(settingsAt(2, body))
     })
@@ -382,8 +398,8 @@ it("keeps theme and retry available after an initial settings load failure", asy
 
 it("retains a conflicting settings draft until reload is confirmed", async () => {
   const fetchMock = vi.fn(
-    async (_input: RequestInfo | URL, init?: RequestInit) =>
-      init?.method === "PUT"
+    async (input: RequestInfo | URL, init?: RequestInit) =>
+      requestMethod(input, init) === "PUT"
         ? jsonResponse(
             {
               error: {

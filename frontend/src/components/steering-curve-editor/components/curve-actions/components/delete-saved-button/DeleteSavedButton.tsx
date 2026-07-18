@@ -2,7 +2,7 @@ import { useRef, useState } from "react"
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog"
 import { Trash2Icon } from "lucide-react"
 
-import type { StoredSteeringProfile } from "@/api/steering"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,10 +18,10 @@ import {
 import { Button } from "@/components/ui/button"
 
 type DeleteSavedButtonProps = {
-  profile: StoredSteeringProfile | null
+  profile: SteeringProfileResponse | null
   pending: boolean
   deleting: boolean
-  onConfirm: (profile: StoredSteeringProfile) => void
+  onConfirm: (profile: SteeringProfileResponse) => void
 }
 
 export const DeleteSavedButton = ({

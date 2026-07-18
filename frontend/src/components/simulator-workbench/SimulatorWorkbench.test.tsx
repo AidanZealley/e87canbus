@@ -7,20 +7,23 @@ import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorWorkbench } from "./SimulatorWorkbench"
 
-vi.mock("./components/simulated-vehicle-controls/SimulatedVehicleControls", () => ({
-  SimulatedVehicleControls: ({
-    speedKph,
-    engine,
-  }: {
-    speedKph: number | null
-    engine: { rpm: { value: number | null; status: string } }
-  }) => (
-    <div data-testid="vehicle-controls">
-      speed={speedKph ?? "unavailable"};rpm={engine.rpm.value ?? "unavailable"};
-      status={engine.rpm.status}
-    </div>
-  ),
-}))
+vi.mock(
+  "./components/simulated-vehicle-controls/SimulatedVehicleControls",
+  () => ({
+    SimulatedVehicleControls: ({
+      speedKph,
+      engine,
+    }: {
+      speedKph: number | null
+      engine: { rpm: { value: number | null; status: string } }
+    }) => (
+      <div data-testid="vehicle-controls">
+        speed={speedKph ?? "unavailable"};rpm=
+        {engine.rpm.value ?? "unavailable"}; status={engine.rpm.status}
+      </div>
+    ),
+  })
+)
 vi.mock("./components/steering-curve-card", () => ({
   SteeringCurveCard: () => <div>Live steering curve</div>,
 }))

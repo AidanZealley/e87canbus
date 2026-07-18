@@ -112,6 +112,7 @@ Build the frontend:
 
 ```bash
 cd frontend
+pnpm api:check
 pnpm build
 ```
 

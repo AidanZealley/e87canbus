@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { DEFAULT_APPLICATION_SETTINGS } from "../../api/settings.ts"
-import type { SteeringState } from "../../api/live-events.ts"
+import { DEFAULT_APPLICATION_SETTINGS } from "../../lib/application-settings.ts"
+import type { SteeringState } from "../../api/live-contract.gen"
 import {
   celsiusToFahrenheit,
   deriveRpmPresentation,
