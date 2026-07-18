@@ -16,6 +16,7 @@ from e87canbus.application.events import (
 from e87canbus.can_io import CanReceiver
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.features.steering import ActiveSteeringCurve
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -125,6 +126,7 @@ class SimulatedControllerRuntime:
         self._servotronic_factory = servotronic_factory
         self._session_id = 0
         self._started = False
+        self._initial_steering_curve: ActiveSteeringCurve | None = None
         self._execution_commits: list[Commit] = []
         self._previous_projection: ControllerAdapterSnapshot | None = None
         self._previous_diagnostics: DiagnosticSnapshot | None = None
@@ -135,6 +137,11 @@ class SimulatedControllerRuntime:
         self.servotronic: SimulatedServotronicPeer
         self.kernel: CoordinatorKernel
         self.executor: EffectExecutor
+
+    def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
+        if self._started:
+            raise RuntimeError("initial steering curve must be configured before startup")
+        self._initial_steering_curve = curve
 
     def start(self, submit_input: RuntimeInputSink | None = None) -> RuntimeExecution:
         del submit_input
@@ -323,6 +330,7 @@ class SimulatedControllerRuntime:
                 ),
             },
             servotronic_output_available=kcan_enabled,
+            active_steering_curve=self._initial_steering_curve,
         )
         self.executor = EffectExecutor(
             transmitters,

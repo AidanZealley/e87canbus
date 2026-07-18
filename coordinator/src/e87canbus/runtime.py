@@ -429,6 +429,14 @@ class CoordinatorKernel:
             self._steering_curve_activation_status,
         )
 
+    def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
+        """Install persisted state before the kernel begins processing inputs."""
+
+        if self._lifecycle is not KernelLifecycle.CREATED or self._revision != 0:
+            raise RuntimeError("initial steering curve must be configured before startup")
+        validate_active_steering_curve(curve)
+        self._active_steering_curve = curve
+
     def diagnostics(self) -> DiagnosticSnapshot:
         return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
 

@@ -9,13 +9,17 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from fastapi import FastAPI
 
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
+from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
+from e87canbus.features.profile_repository import SteeringProfileRepository
+from e87canbus.features.steering import initial_active_steering_curve
 from e87canbus.service import ControllerService, RuntimeExecution
 
 
 def create_lifespan(
     service: ControllerService,
     database: SqliteApplicationDatabase | None,
+    profiles: SteeringProfileRepository,
     publisher: LiveStatePublisher,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
@@ -23,6 +27,27 @@ def create_lifespan(
         try:
             if database is not None:
                 await asyncio.to_thread(database.initialize)
+            stored_profiles = (
+                await asyncio.to_thread(profiles.list_profiles)
+                if service.load_persisted_steering_curve
+                else ()
+            )
+            if stored_profiles:
+                saved = next(
+                    (
+                        profile
+                        for profile in stored_profiles
+                        if profile.profile_id == BUILT_IN_PROFILE_ID
+                    ),
+                    stored_profiles[0],
+                )
+                service.configure_initial_steering_curve(
+                    initial_active_steering_curve(
+                        saved.definition,
+                        saved_profile_id=saved.profile_id,
+                        saved_profile_revision=saved.revision,
+                    )
+                )
             service.mark_persistence_available()
         except BaseException as exc:
             service.mark_persistence_fault(str(exc))

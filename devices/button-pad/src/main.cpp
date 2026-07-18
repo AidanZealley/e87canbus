@@ -55,6 +55,7 @@ button_pad::IsoTpTransport transport(CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORD
 DeviceState state = DeviceState::BOOTING;
 DisplayMode displayMode = DisplayMode::DISCOVERING;
 bool canReady = false;
+bool canTransmitFault = false;
 bool trellisReady = false;
 bool controllerLease = false;
 uint16_t deviceSession = 0;
@@ -193,7 +194,30 @@ bool freshControllerLease(uint32_t now) {
     return controllerLease && (now - lastControllerAckMs <= CONTROLLER_TIMEOUT_MS);
 }
 
+bool initializeCanController() {
+    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
+    if (status != CAN_OK) {
+        canReady = false;
+        Serial.print("CAN initialization failed status=");
+        Serial.println(status);
+        return false;
+    }
+
+    canBus.setMode(MCP_NORMAL);
+    canReady = true;
+    canTransmitFault = false;
+    return true;
+}
+
 bool sendHello(uint32_t now) {
+    // With the Pi powered down there may be nobody left to ACK CAN frames. The
+    // MCP2515 then eventually enters bus-off, which persists after the Pi comes
+    // back. Reinitializing after a failed transmit resets its error counters so
+    // the next discovery attempt can actually reach the restarted coordinator.
+    if (canTransmitFault && !initializeCanController()) {
+        nextHelloMs = cadence(now, HELLO_INTERVAL_MS);
+        return false;
+    }
     if (!canReady) {
         return false;
     }
@@ -209,6 +233,7 @@ bool sendHello(uint32_t now) {
                       ? now + INCOMPATIBLE_RETRY_MS
                       : cadence(now, HELLO_INTERVAL_MS);
     if (status != CAN_OK) {
+        canTransmitFault = true;
         Serial.print("HELLO send failed status=");
         Serial.println(status);
         return false;
@@ -232,6 +257,7 @@ bool sendHeartbeat(uint32_t now) {
     const button_pad::DeviceStatus sendResult = button_pad::heartbeatSendCompleted(
         {state, deviceStatusCode}, status == CAN_OK);
     if (status != CAN_OK) {
+        canTransmitFault = true;
         Serial.print("HEARTBEAT send failed status=");
         Serial.println(status);
         deviceStatusCode = sendResult.code;
@@ -358,6 +384,7 @@ bool sendButtonEvent(uint8_t buttonIndex, bool pressed) {
     const byte status = canBus.sendMsgBuf(CAN_ID_BUTTON_EVENT, 0,
                                           BUTTON_EVENT_LENGTH, payload);
     if (status != CAN_OK) {
+        canTransmitFault = true;
         Serial.print("button event send failed status=");
         Serial.println(status);
         return false;
@@ -388,17 +415,12 @@ void setup() {
 
     // This MCP2515 module has an 8 MHz crystal; this is independent of the
     // Pro Micro's 16 MHz ATmega32U4 CPU clock.
-    const byte status = canBus.begin(MCP_ANY, CAN_SPEED, MCP_8MHZ);
-    if (status != CAN_OK) {
-        Serial.print("CAN init failed status=");
-        Serial.println(status);
+    if (!initializeCanController()) {
         Serial.println("check MCP2515 wiring, CS pin 10, bitrate 100000, and module clock");
         enterLocalFault(STATUS_LOCAL_FAULT, "MCP2515 initialization failed");
         return;
     }
 
-    canBus.setMode(MCP_NORMAL);
-    canReady = true;
     Serial.println("CAN init ok at 100000 bit/s; handshake is controller-managed");
 
     // NeoTrellis on hardware I²C: SDA=D2, SCL=D3 (ATmega32U4 TWI).

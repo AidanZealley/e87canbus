@@ -18,6 +18,7 @@ from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.deployment import DeploymentSpec
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import DeviceRegistryEntry
+from e87canbus.features.steering import ActiveSteeringCurve
 from e87canbus.runtime import (
     DiagnosticSnapshot,
     InboxOverflowed,
@@ -154,6 +155,8 @@ class ControllerRuntimeAdapter(Protocol):
     @property
     def config(self) -> AppConfig: ...
 
+    def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None: ...
+
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution: ...
 
     def execute(self, work: object) -> RuntimeExecution: ...
@@ -196,10 +199,12 @@ class ControllerService:
         *,
         deployment: DeploymentSpec,
         clock: Callable[[], float] = time.monotonic,
+        load_persisted_steering_curve: bool = False,
     ) -> None:
         self._runtime = runtime
         self._deployment = deployment
         self._clock = clock
+        self._load_persisted_steering_curve = load_persisted_steering_curve
         self._inbox: queue.Queue[_QueuedWork] = queue.Queue(
             maxsize=runtime.config.runtime_inbox_capacity
         )
@@ -238,6 +243,10 @@ class ControllerService:
     @property
     def deployment(self) -> DeploymentSpec:
         return self._deployment
+
+    @property
+    def load_persisted_steering_curve(self) -> bool:
+        return self._load_persisted_steering_curve
 
     @property
     def lifecycle(self) -> ControllerServiceLifecycle:
@@ -280,6 +289,14 @@ class ControllerService:
 
     def mark_persistence_available(self) -> None:
         self._update_external_health(persistence=PersistenceDiagnostics(True, None))
+
+    def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
+        with self._lock:
+            if self._lifecycle is not ControllerServiceLifecycle.CREATED:
+                raise ControllerServiceError(
+                    "initial steering curve must be configured before service startup"
+                )
+            self._runtime.configure_initial_steering_curve(curve)
 
     def mark_persistence_fault(self, message: str) -> None:
         self._update_external_health(persistence=PersistenceDiagnostics(False, message))

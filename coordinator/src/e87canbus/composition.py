@@ -77,10 +77,10 @@ def build_live_controller_service(
                 else None
             ),
             clock=clock,
-            profile_database_path=profile_database_path,
         ),
         deployment=selected_deployment,
         clock=clock,
+        load_persisted_steering_curve=profile_database_path is not None,
     )
 
 

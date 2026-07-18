@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.main import create_app
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.composition import (
@@ -14,6 +15,7 @@ from e87canbus.composition import (
 from e87canbus.config import CanNetwork, default_config, simulator_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.device import DeviceSource
+from e87canbus.features.steering import ActiveSteeringCurve
 from e87canbus.runtime import (
     CoordinatorKernel,
     DiagnosticSnapshot,
@@ -45,6 +47,10 @@ class RecordingRuntime:
         self.stops = 0
         self.closes = 0
         self.lifecycle_events: list[str] = []
+
+    def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
+        self.lifecycle_events.append("configure-curve")
+        self.kernel.configure_initial_steering_curve(curve)
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
         del submit_input
@@ -255,6 +261,36 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
             == 404
         )
         assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
+
+
+def test_app_construction_does_not_open_or_create_the_database(tmp_path: Path) -> None:
+    database = tmp_path / "missing-parent" / "application.sqlite3"
+
+    create_app(profile=DeploymentProfile.CAR, profile_database_path=database)
+
+    assert not database.exists()
+
+
+def test_lifespan_loads_persisted_curve_before_live_controller_start(tmp_path: Path) -> None:
+    database = tmp_path / "application.sqlite3"
+    config = replace(
+        default_config(),
+        can_networks=tuple(replace(item, enabled=False) for item in default_config().can_networks),
+    )
+    app = create_app(
+        controller_service=build_live_controller_service(
+            config=config,
+            profile_database_path=database,
+        ),
+        profile_database_path=database,
+    )
+
+    assert not database.exists()
+    with TestClient(app):
+        active = app.state.controller_service.snapshot().application.active_steering_curve
+
+    assert database.exists()
+    assert active.saved_profile_id == BUILT_IN_PROFILE_ID
 
 
 def test_simulation_reset_changes_session_without_changing_service_boot(

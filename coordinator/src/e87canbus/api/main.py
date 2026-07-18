@@ -133,7 +133,7 @@ def create_app(
 
     app = FastAPI(
         title="E87 CAN Bus Controller API",
-        lifespan=create_lifespan(service, database, publisher),
+        lifespan=create_lifespan(service, database, profile_repository, publisher),
     )
     install_exception_handlers(app)
     app.add_middleware(
