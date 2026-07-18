@@ -25,8 +25,33 @@ uv run python scripts/generate_custom_protocol.py --check
 Run the dry-run CLI:
 
 ```bash
-uv run e87canbus run --mode live --dry-run
+uv run e87canbus run --profile car --dry-run
 ```
+
+The closed deployment profiles are:
+
+| Profile | Physical button pad | Vehicle telemetry | Transport | Development controls |
+|---|---|---|---|---|
+| `car` | yes | physical | SocketCAN | none |
+| `bench` | yes | synthetic | SocketCAN K-CAN | vehicle only |
+| `simulator` | emulated | synthetic | in-memory CAN | full workbench |
+
+Profiles choose the complete composition; they cannot be combined with per-device or per-network
+CLI overrides.
+
+In the `bench` profile, vehicle readings can be driven from another terminal while the Pi kiosk
+continues to display `/car`:
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/dev/simulation/vehicle/speed \
+  -H 'Content-Type: application/json' -d '{"speed_kph":42.5}'
+curl -X PUT http://127.0.0.1:8000/api/dev/simulation/vehicle/rpm \
+  -H 'Content-Type: application/json' -d '{"rpm":3500}'
+```
+
+The selected readings are refreshed on every controller timer until their corresponding
+`/silence` endpoint is called. Bench telemetry is decoded from synthetic CAN frames; the `car`
+profile does not construct that source, decoder, or API surface.
 
 ## Button-pad device
 
@@ -55,7 +80,8 @@ On Linux, the port is commonly `/dev/ttyACM0` or similar.
 
 ## Coordinator CAN
 
-Pi deployments use the boot-managed `can0` unit installed by `scripts/setup_pi.sh`:
+The `car` and `bench` Pi profiles use the boot-managed `can0` unit installed by
+`scripts/setup_pi.sh`:
 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - `can0` at `100000`

@@ -15,14 +15,16 @@ For a fresh Raspberry Pi with this repository already cloned at `/opt/e87canbus`
 
 ```bash
 cd /opt/e87canbus
-./scripts/setup_pi.sh
+./scripts/setup_pi.sh --profile bench
 ```
 
 The script installs host dependencies, enables SPI, configures the Waveshare MCP2515 overlay,
 syncs Python dependencies, builds the frontend, installs the `can0` boot unit and controller
 service, and starts the boot-managed `can0` interface. It never reboots implicitly. If boot
-configuration changes, reboot and run it again; use `./scripts/setup_pi.sh --reboot` only when an
-automatic reboot is acceptable.
+configuration changes, reboot and run it again; use `./scripts/setup_pi.sh --profile bench --reboot`
+only when an automatic reboot is acceptable. Every invocation defaults to the fail-closed `car`
+profile; pass `--profile bench` or `--profile simulator` explicitly whenever that composition is
+required.
 
 The script cannot validate physical CAN-H/CAN-L wiring, common ground, MCP2515 crystal frequency,
 or bus termination.
@@ -47,10 +49,12 @@ sudo systemctl enable --now e87canbus-can0.service
 sudo systemctl enable --now e87canbus-controller.service
 ```
 
-Configure `can0`, `can1` and `can2` independently before starting the service. The application does
-not create interfaces, grant device permissions or enable transmission. Default live composition
-has no application CAN transmit grant. Use operating-system and CAN-hardware listen-only
-configuration as an additional defense.
+The selected profile owns network enablement, device sources, TX grants and development API
+capabilities. The application does not create physical CAN interfaces or grant device permissions.
+The `car` profile has no application CAN transmit grant. Use operating-system and CAN-hardware
+listen-only configuration as an additional defense. The setup script manages `can0`; selecting the
+`car` profile additionally requires separately configured `can1` and `can2` interfaces and fails
+closed when either is absent.
 
 ## Operate
 
@@ -80,8 +84,9 @@ restore the matching application version and database backup together for rollba
 settings and profiles live in the configured SQLite file. Live telemetry, traces and socket traffic
 are process-local and are deliberately not restored.
 
-Development simulator routes are not registered in live composition. Production live mode also
-has no development CORS origins; same-origin browser requests remain allowed. Direct SPA routes
+The `car` profile registers no development simulator routes. The `bench` profile registers only
+synthetic vehicle controls; the `simulator` profile registers the complete workbench API. The car
+profile also has no development CORS origins; same-origin browser requests remain allowed. Direct SPA routes
 such as `/dev` and `/car` serve the built entry document, while missing assets and unknown
 API/health/socket routes remain 404.
 

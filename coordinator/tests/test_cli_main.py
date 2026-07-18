@@ -7,11 +7,10 @@ import time
 import pytest
 from e87canbus.api import main as api_main
 from e87canbus.cli import main as cli
-from e87canbus.config import NetworkConfigError
-from e87canbus.service import ControllerMode
+from e87canbus.deployment import DeploymentProfile
 
 
-def test_canonical_cli_selects_live_api_without_opening_adapters_before_lifespan(
+def test_canonical_cli_selects_car_profile_without_opening_adapters_before_lifespan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[object] = []
@@ -26,90 +25,62 @@ def test_canonical_cli_selects_live_api_without_opening_adapters_before_lifespan
         def run(self) -> None:
             return
 
+    monkeypatch.delenv(cli.DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE, raising=False)
     monkeypatch.setattr(cli.uvicorn, "Server", FakeServer)
 
-    result = cli.main(("run", "--mode", "live"))
-
-    assert result == 0
-    assert api_main.app.state.controller_mode is ControllerMode.LIVE
+    assert cli.main(("run", "--profile", "car")) == 0
+    assert api_main.app.state.deployment_profile is DeploymentProfile.CAR
     assert len(calls) == 1
 
 
-def test_dry_run_reports_selected_mode_without_starting_server(
+@pytest.mark.parametrize(
+    ("profile", "transport", "simulation_api"),
+    [
+        ("car", "socketcan", "none"),
+        ("bench", "socketcan", "vehicle"),
+        ("simulator", "in_memory", "full"),
+    ],
+)
+def test_dry_run_reports_closed_profile(
+    profile: str,
+    transport: str,
+    simulation_api: str,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original_app = api_main.app
-    monkeypatch.delenv(cli.PROFILE_DATABASE_ENVIRONMENT_VARIABLE, raising=False)
-    monkeypatch.delenv(cli.CONTROLLER_MODE_ENVIRONMENT_VARIABLE, raising=False)
-    monkeypatch.setattr(
-        cli.uvicorn,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail("started"),
-    )
+    monkeypatch.delenv(cli.DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE, raising=False)
 
-    assert cli.main(("run", "--mode", "simulated", "--dry-run")) == 0
+    assert cli.main(("run", "--profile", profile, "--dry-run")) == 0
     output = json.loads(capsys.readouterr().out)
 
-    assert output["mode"] == "simulated"
-    assert output["device_adapters"] == [
-        {"role": "button_pad", "source": "emulated"}
-    ]
-    assert api_main.app is original_app
-    assert cli.PROFILE_DATABASE_ENVIRONMENT_VARIABLE not in cli.os.environ
-    assert cli.CONTROLLER_MODE_ENVIRONMENT_VARIABLE not in cli.os.environ
+    assert output["profile"] == profile
+    assert output["transport"] == transport
+    assert output["simulation_api"] == simulation_api
+    assert output["device_adapters"]
 
 
-def test_cli_reports_explicit_disabled_role_in_dry_run(
+def test_profile_environment_variable_is_used_for_dry_run(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        cli.uvicorn,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail("started"),
-    )
+    monkeypatch.setenv(cli.DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE, "bench")
 
-    assert (
-        cli.main(
-            (
-                "run",
-                "--mode",
-                "simulated",
-                "--button-pad-source",
-                "disabled",
-                "--dry-run",
-            )
-        )
-        == 0
-    )
-    output = json.loads(capsys.readouterr().out)
-
-    assert output["device_adapters"] == [
-        {"role": "button_pad", "source": "disabled"}
-    ]
+    assert cli.main(("run", "--dry-run")) == 0
+    assert json.loads(capsys.readouterr().out)["profile"] == "bench"
 
 
-def test_cli_rejects_physical_button_pad_in_simulation() -> None:
-    with pytest.raises(
-        ValueError,
-        match="physical button pad requires live SocketCAN K-CAN",
-    ):
-        cli.main(
-            (
-                "run",
-                "--mode",
-                "simulated",
-                "--button-pad-source",
-                "physical",
-                "--dry-run",
-            )
-        )
-
-
-def test_live_cli_rejects_unauthenticated_non_loopback_bind() -> None:
+def test_live_profile_rejects_unauthenticated_non_loopback_bind() -> None:
     with pytest.raises(ValueError, match="loopback"):
-        cli.main(("run", "--mode", "live", "--host", "0.0.0.0", "--dry-run"))
+        cli.main(
+            (
+                "run",
+                "--profile",
+                "car",
+                "--host",
+                "0.0.0.0",
+                "--dry-run",
+            )
+        )
 
 
 def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
@@ -146,7 +117,7 @@ def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
     monkeypatch.setattr(cli, "create_app", create_app_with_fatal_service)
     monkeypatch.setattr(cli.uvicorn, "Server", FatalServer)
 
-    assert cli.main(("run", "--mode", "live")) == 1
+    assert cli.main(("run", "--profile", "car")) == 1
 
 
 def test_canonical_cli_returns_nonzero_when_uvicorn_never_started(
@@ -164,206 +135,12 @@ def test_canonical_cli_returns_nonzero_when_uvicorn_never_started(
 
     monkeypatch.setattr(cli.uvicorn, "Server", StartupFailedServer)
 
-    assert cli.main(("run", "--mode", "live")) == 1
+    assert cli.main(("run", "--profile", "car")) == 1
 
 
-class TestNetworkConfigurationCli:
-    def test_dry_run_reports_enabled_and_tx_networks(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert (
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "live",
-                    "--enabled-networks",
-                    "kcan",
-                    "--tx-networks",
-                    "kcan",
-                    "--dry-run",
-                )
-            )
-            == 0
-        )
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["enabled_networks"] == ["kcan"]
-        assert output["tx_networks"] == ["kcan"]
-
-    def test_dry_run_reports_all_three_networks(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert (
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "live",
-                    "--enabled-networks",
-                    "kcan,ptcan,fcan",
-                    "--tx-networks",
-                    "kcan",
-                    "--dry-run",
-                )
-            )
-            == 0
-        )
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["enabled_networks"] == ["kcan", "ptcan", "fcan"]
-        assert output["tx_networks"] == ["kcan"]
-
-    def test_environment_variable_fallback(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("E87CANBUS_ENABLED_NETWORKS", "kcan,ptcan")
-        monkeypatch.setenv("E87CANBUS_TX_NETWORKS", "kcan")
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert cli.main(("run", "--mode", "live", "--dry-run")) == 0
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["enabled_networks"] == ["kcan", "ptcan"]
-        assert output["tx_networks"] == ["kcan"]
-
-    def test_cli_overrides_environment_variable(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("E87CANBUS_ENABLED_NETWORKS", "kcan,ptcan,fcan")
-        monkeypatch.setenv("E87CANBUS_TX_NETWORKS", "kcan,ptcan")
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert (
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "live",
-                    "--enabled-networks",
-                    "kcan",
-                    "--tx-networks",
-                    "kcan",
-                    "--dry-run",
-                )
-            )
-            == 0
-        )
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["enabled_networks"] == ["kcan"]
-        assert output["tx_networks"] == ["kcan"]
-
-    def test_tx_network_not_enabled_fails(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        with pytest.raises(NetworkConfigError, match="TX network not enabled"):
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "live",
-                    "--enabled-networks",
-                    "kcan",
-                    "--tx-networks",
-                    "ptcan",
-                    "--dry-run",
-                )
-            )
-
-    def test_simulated_mode_ignores_network_config(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert (
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "simulated",
-                    "--enabled-networks",
-                    "kcan",
-                    "--tx-networks",
-                    "kcan",
-                    "--dry-run",
-                )
-            )
-            == 0
-        )
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["mode"] == "simulated"
-        # In simulated mode, all networks remain enabled (simulator_config behavior)
-        # The enabled_networks/tx_networks are still reported but don't change config
-        assert "enabled_networks" in output
-
-    def test_empty_tx_networks_valid(
-        self,
-        capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(
-            cli.uvicorn,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail("started"),
-        )
-
-        assert (
-            cli.main(
-                (
-                    "run",
-                    "--mode",
-                    "live",
-                    "--enabled-networks",
-                    "kcan",
-                    "--dry-run",
-                )
-            )
-            == 0
-        )
-        output = json.loads(capsys.readouterr().out)
-
-        assert output["enabled_networks"] == ["kcan"]
-        assert output["tx_networks"] == []
+def test_profile_names_are_stable() -> None:
+    assert tuple(DeploymentProfile) == (
+        DeploymentProfile.CAR,
+        DeploymentProfile.BENCH,
+        DeploymentProfile.SIMULATOR,
+    )

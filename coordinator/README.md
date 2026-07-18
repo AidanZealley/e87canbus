@@ -68,7 +68,7 @@ closed unless redundant columns, canonical definition JSON and the stored finger
 
 The unified API composes the profile and settings repositories over that shared database. Its
 default path is `steering-profiles.sqlite3` in the process working directory;
-`e87canbus run --mode simulated --profile-database PATH` (or
+`e87canbus run --profile simulator --profile-database PATH` (or
 `E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a different file.
 Startup applies migrations and seeding before accepting requests. Tests and other compositions can
 inject the repositories independently.
@@ -232,13 +232,14 @@ state. Physical NeoTrellis rendering remains deferred.
 
 ## Running the unified controller
 
-Bring up every enabled SocketCAN interface at its configured bitrate, then run:
+Bring up every SocketCAN interface required by the selected profile at its configured bitrate,
+then run:
 
 ```bash
-uv run e87canbus run --mode live
+uv run e87canbus run --profile car
 ```
 
-The default live preset opens all three networks with application transmission disabled and exposes
+The `car` profile opens all three networks with application transmission disabled and exposes
 the API after startup synchronization. It does
 not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
 deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
@@ -250,16 +251,15 @@ live high-beam work requires named captures of stalk pull and release, verified 
 message-cadence behavior, then controlled vehicle validation and a newly explicit live actuator
 capability. It must not be enabled by changing a generic K-CAN transmit grant.
 
-Run the development simulator with `uv run e87canbus run --mode simulated`. Simulator mutation
-routes are registered only in simulated mode; live mode returns `404` for those development-only
-paths. Both modes use the same HTTP/Socket.IO application composition. Use `--log-level` to change
-logging verbosity.
-Use `--button-pad-source emulated|disabled` for simulated composition and
-`--button-pad-source physical|disabled` for live composition. The selection is fixed for
-the process lifetime and invalid mode/source combinations fail before adapters start.
-`uv run e87canbus run --mode live --dry-run` prints the selection without opening CAN interfaces.
+Run the development simulator with `uv run e87canbus run --profile simulator`. The `bench`
+profile installs only synthetic vehicle routes, the `simulator` profile installs the complete
+development API, and the `car` profile returns `404` for every simulation-owned path. All profiles
+use the same HTTP/Socket.IO application composition. Device sources, network enablement, transmit
+grants and simulation API scope are fixed by the selected profile and cannot be recombined through
+CLI flags. Use `--log-level` to change logging verbosity.
+`uv run e87canbus run --profile car --dry-run` prints the selection without opening CAN interfaces.
 
-Live mode defaults to loopback, serves an optional built `frontend/dist` with
+SocketCAN profiles default to loopback, serve an optional built `frontend/dist` with
 `--frontend-directory`, registers no development mutation routes and enables no development CORS
 origins. A non-loopback live bind is rejected because this API is unauthenticated. `/health/live`
 proves the event loop responds and `/health/ready` proves the database and non-fatal controller are

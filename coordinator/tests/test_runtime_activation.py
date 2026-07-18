@@ -38,9 +38,10 @@ from e87canbus.runtime import (
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 from e87canbus.simulation.runtime import (
     RunControlTimer,
-    SetVehicleSpeed,
+    SetVehicleSignal,
     SimulatedControllerRuntime,
 )
+from e87canbus.simulation.signals import VehicleSignal
 
 SAVED_PROFILE_ID = "11111111-1111-4111-8111-111111111111"
 
@@ -164,7 +165,7 @@ def test_simulator_activation_applies_smooth_output_at_an_intermediate_speed() -
     speed_kph = 45.0
     expected = interpolate_steering_curve_definition(speed_kph, smooth)
 
-    engine.execute(SetVehicleSpeed(speed_kph))
+    engine.execute(SetVehicleSignal(VehicleSignal.SPEED, speed_kph))
     engine.execute(RunControlTimer(1.0))
     engine.execute(ActivateSteeringCurve(smooth, requested_at=1.0))
     application, _, adapter = engine.projection()

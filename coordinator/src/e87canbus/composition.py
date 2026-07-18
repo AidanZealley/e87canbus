@@ -6,22 +6,41 @@ import time
 from collections.abc import Callable
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.config import AppConfig, CanNetwork, default_config, simulator_config
-from e87canbus.device import DeviceSource
+from e87canbus.config import (
+    AppConfig,
+    CanNetwork,
+    configure_can_networks,
+    default_config,
+    simulator_config,
+)
+from e87canbus.deployment import (
+    CanTransport,
+    DeploymentProfile,
+    DeploymentSpec,
+    VehicleSource,
+    deployment_spec,
+)
+from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.live import LiveControllerRuntime
-from e87canbus.service import ControllerMode, ControllerService
+from e87canbus.service import ControllerService
 from e87canbus.simulation.devices import SimulatedServotronicPeer
 from e87canbus.simulation.runtime import SimulatedControllerRuntime
+from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 
 
 def build_live_controller_service(
     *,
     config: AppConfig | None = None,
     button_pad_source: DeviceSource | None = None,
+    servotronic_source: DeviceSource | None = None,
     tx_grants: frozenset[CanNetwork] = frozenset(),
     clock: Callable[[], float] = time.monotonic,
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
+    deployment: DeploymentSpec | None = None,
 ) -> ControllerService:
+    selected_deployment = deployment or deployment_spec(DeploymentProfile.CAR)
+    if selected_deployment.transport is not CanTransport.SOCKETCAN:
+        raise ValueError("live controller requires a SocketCAN deployment profile")
     selected_config = config or default_config()
     _validate_networks(selected_config)
     kcan_enabled = _network_enabled(selected_config, CanNetwork.KCAN)
@@ -47,11 +66,17 @@ def build_live_controller_service(
         LiveControllerRuntime(
             selected_config,
             button_pad_source=selected_button_pad,
+            servotronic_source=servotronic_source,
             tx_grants=tx_grants,
             bus_factory=socketcan_factory,
+            synthetic_vehicle=(
+                SyntheticVehicleSource()
+                if selected_deployment.vehicle_source is VehicleSource.EMULATED
+                else None
+            ),
             clock=clock,
         ),
-        mode=ControllerMode.LIVE,
+        deployment=selected_deployment,
         clock=clock,
     )
 
@@ -64,7 +89,11 @@ def build_simulated_controller_service(
     servotronic_factory: Callable[
         [float, Callable[[], float]], SimulatedServotronicPeer
     ] = SimulatedServotronicPeer,
+    deployment: DeploymentSpec | None = None,
 ) -> ControllerService:
+    selected_deployment = deployment or deployment_spec(DeploymentProfile.SIMULATOR)
+    if selected_deployment.transport is not CanTransport.IN_MEMORY:
+        raise ValueError("simulated controller requires an in-memory deployment profile")
     selected_config = config or simulator_config()
     _validate_networks(selected_config)
     kcan_enabled = _network_enabled(selected_config, CanNetwork.KCAN)
@@ -89,8 +118,48 @@ def build_simulated_controller_service(
             clock=clock,
             servotronic_factory=servotronic_factory,
         ),
-        mode=ControllerMode.SIMULATED,
+        deployment=selected_deployment,
         clock=clock,
+    )
+
+
+def build_controller_service(
+    profile: DeploymentProfile,
+    *,
+    config: AppConfig | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
+) -> ControllerService:
+    """Build one of the closed operator-facing deployment profiles."""
+
+    spec = deployment_spec(profile)
+    selected_config = config or default_config()
+    if spec.transport is CanTransport.IN_MEMORY:
+        selected_config = configure_can_networks(
+            selected_config,
+            enabled_networks=frozenset(CanNetwork),
+            tx_networks=spec.tx_grants,
+        )
+        return build_simulated_controller_service(
+            config=selected_config,
+            button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
+            clock=clock,
+            deployment=spec,
+        )
+
+    selected_config = configure_can_networks(
+        selected_config,
+        enabled_networks=spec.physical_networks,
+        tx_networks=spec.tx_grants,
+    )
+    return build_live_controller_service(
+        config=selected_config,
+        button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
+        servotronic_source=spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER),
+        tx_grants=spec.tx_grants,
+        clock=clock,
+        socketcan_factory=socketcan_factory,
+        deployment=spec,
     )
 
 

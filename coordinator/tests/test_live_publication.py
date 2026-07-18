@@ -15,9 +15,10 @@ from e87canbus.runtime import SetMaximumAssistance, StateTopic
 from e87canbus.service import ControllerService, RuntimeExecution
 from e87canbus.simulation.runtime import (
     ResetSimulation,
-    SetVehicleSpeed,
+    SetVehicleSignal,
     TapButton,
 )
+from e87canbus.simulation.signals import VehicleSignal
 from registry_test_support import activate_simulation_devices
 
 
@@ -324,7 +325,9 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
     )
     try:
         controller_result = await asyncio.wait_for(
-            asyncio.wrap_future(service.submit(SetVehicleSpeed(42.0))),
+            asyncio.wrap_future(
+                service.submit(SetVehicleSignal(VehicleSignal.SPEED, 42.0))
+            ),
             timeout=1.0,
         )
         await asyncio.wait_for(socket_server.entered.wait(), timeout=1.0)

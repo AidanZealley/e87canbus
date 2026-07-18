@@ -25,6 +25,7 @@ from e87canbus.output import (
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
+from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     ActivateSteeringCurve,
@@ -51,6 +52,12 @@ from e87canbus.service import (
     RuntimeExecution,
     RuntimeInputSink,
 )
+from e87canbus.simulation.commands import (
+    SetVehicleSignal,
+    SilenceVehicleSignal,
+)
+from e87canbus.simulation.protocol import SimulationProtocolRouter
+from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 
 LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +81,10 @@ CONTROLLER_INPUT_TYPES = (
     ActivateSteeringCurve,
     SetMaximumAssistance,
     SetSteeringMode,
+)
+VEHICLE_COMMAND_TYPES = (
+    SetVehicleSignal,
+    SilenceVehicleSignal,
 )
 
 
@@ -186,8 +197,10 @@ class LiveControllerRuntime:
         config: AppConfig,
         *,
         button_pad_source: DeviceSource = DeviceSource.PHYSICAL,
+        servotronic_source: DeviceSource | None = None,
         tx_grants: frozenset[CanNetwork] = frozenset(),
         bus_factory: Callable[[str], SocketCanBus] = SocketCanBus,
+        synthetic_vehicle: SyntheticVehicleSource | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         configured_tx = frozenset(
@@ -200,10 +213,22 @@ class LiveControllerRuntime:
         if button_pad_source is DeviceSource.EMULATED:
             raise ValueError("emulated button pad cannot use the live SocketCAN runtime")
         self._button_pad_source = button_pad_source
+        selected_servotronic_source = servotronic_source or (
+            DeviceSource.PHYSICAL
+            if any(
+                item.network is CanNetwork.KCAN and item.enabled
+                for item in config.can_networks
+            )
+            else DeviceSource.DISABLED
+        )
+        if selected_servotronic_source is DeviceSource.EMULATED:
+            raise ValueError("emulated Servotronic cannot use the SocketCAN runtime")
         self._tx_grants = tx_grants
         self._bus_factory = bus_factory
+        self._synthetic_vehicle = synthetic_vehicle
         self._clock = clock
-        self._router = ProtocolRouter(
+        router_type = SimulationProtocolRouter if synthetic_vehicle is not None else ProtocolRouter
+        self._router = router_type(
             config.custom_can_ids,
             button_input_enabled=button_pad_source is DeviceSource.PHYSICAL,
         )
@@ -214,14 +239,7 @@ class LiveControllerRuntime:
             router=self._router,
             device_sources={
                 DeviceRole.BUTTON_PAD: button_pad_source,
-                DeviceRole.SERVOTRONIC_CONTROLLER: (
-                    DeviceSource.PHYSICAL
-                    if any(
-                        item.network is CanNetwork.KCAN and item.enabled
-                        for item in config.can_networks
-                    )
-                    else DeviceSource.DISABLED
-                ),
+                DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
             },
             servotronic_output_available=False,
         )
@@ -287,6 +305,11 @@ class LiveControllerRuntime:
         return execution
 
     def execute(self, work: object) -> RuntimeExecution:
+        if isinstance(work, VEHICLE_COMMAND_TYPES):
+            if self._synthetic_vehicle is None:
+                raise TypeError(f"unsupported live controller work: {work!r}")
+            frames = self._synthetic_vehicle.execute(work)
+            return self._dispatch_synthetic_frames(frames)
         if not isinstance(work, CONTROLLER_INPUT_TYPES):
             raise TypeError(f"unsupported live controller work: {work!r}")
         execution = self._dispatch(work)
@@ -294,7 +317,15 @@ class LiveControllerRuntime:
         return completed
 
     def timer(self, now: float) -> RuntimeExecution | None:
-        return self._dispatch(TimerElapsed(now))
+        executions: list[RuntimeExecution] = []
+        if self._synthetic_vehicle is not None:
+            emitted = self._dispatch_synthetic_frames(self._synthetic_vehicle.emit())
+            if emitted.commit_count:
+                executions.append(emitted)
+        timer_execution = self._dispatch(TimerElapsed(now))
+        if timer_execution is not None:
+            executions.append(timer_execution)
+        return _merge_executions(executions)
 
     def next_deadline(self) -> float | None:
         return self._kernel.next_deadline()
@@ -400,6 +431,23 @@ class LiveControllerRuntime:
             changed_topics=(frozenset() if commit is None else commit.changed_topics),
             commit_count=0 if commit is None else 1,
         )
+
+    def _dispatch_synthetic_frames(
+        self,
+        frames: tuple[RoutedCanFrame, ...],
+    ) -> RuntimeExecution:
+        executions: list[RuntimeExecution] = []
+        for routed in frames:
+            execution = self._dispatch(
+                ReceivedCanFrame(
+                    network=routed.network,
+                    frame=routed.frame,
+                    received_at=self._clock(),
+                )
+            )
+            if execution is not None:
+                executions.append(execution)
+        return _merge_executions(executions) or RuntimeExecution()
 
     def _close_buses(self) -> None:
         for network, bus in tuple(self._raw_buses.items()):
