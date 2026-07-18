@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from e87canbus.application.events import (
     ApplicationEvent,
@@ -21,6 +23,7 @@ from e87canbus.config import CanNetwork
 from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.simulation.signals import VehicleSignal
 
 SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
 SIMULATION_ONLY_ENGINE_RPM_ID = 0x1FFFFF01
@@ -101,6 +104,14 @@ def decode_simulated_engine_rpm(frame: CanFrame) -> int:
     return rpm
 
 
+def decode_simulated_speed(frame: CanFrame) -> float:
+    if len(frame.data) != SIMULATION_ONLY_SPEED_LENGTH:
+        raise ValueError(
+            f"simulated speed payload must be exactly {SIMULATION_ONLY_SPEED_LENGTH} bytes"
+        )
+    return int.from_bytes(frame.data, "little") / 10.0
+
+
 def encode_simulated_oil_temperature(temperature_c: float) -> CanFrame:
     return _encode_simulated_temperature(
         SIMULATION_ONLY_OIL_TEMPERATURE_ID,
@@ -151,6 +162,61 @@ def _encode_simulated_temperature(arbitration_id: int, temperature_c: float) -> 
     )
 
 
+SignalDecoder = Callable[[CanFrame, float, CanNetwork], ApplicationEvent]
+
+
+@dataclass(frozen=True)
+class VehicleSignalSpec:
+    network: CanNetwork
+    arbitration_id: int
+    encode: Callable[..., CanFrame]
+    decode: SignalDecoder
+
+
+def _signal(
+    network: CanNetwork,
+    arbitration_id: int,
+    encode: Callable[..., CanFrame],
+    decode_value: Callable[[CanFrame], object],
+    sample: Callable[..., object],
+    event: Callable[..., ApplicationEvent],
+) -> VehicleSignalSpec:
+    return VehicleSignalSpec(
+        network,
+        arbitration_id,
+        encode,
+        lambda frame, at, source: event(sample(decode_value(frame), at, source)),
+    )
+
+
+VEHICLE_SIGNALS = {
+    VehicleSignal.SPEED: _signal(
+        CanNetwork.FCAN, SIMULATION_ONLY_SPEED_ID,
+        encode_simulated_speed, decode_simulated_speed, SpeedSample, SpeedObserved,
+    ),
+    VehicleSignal.RPM: _signal(
+        CanNetwork.PTCAN, SIMULATION_ONLY_ENGINE_RPM_ID,
+        encode_simulated_engine_rpm, decode_simulated_engine_rpm,
+        EngineRpmSample, EngineRpmObserved,
+    ),
+    VehicleSignal.OIL_TEMPERATURE: _signal(
+        CanNetwork.PTCAN, SIMULATION_ONLY_OIL_TEMPERATURE_ID,
+        encode_simulated_oil_temperature, decode_simulated_temperature,
+        OilTemperatureSample, OilTemperatureObserved,
+    ),
+    VehicleSignal.COOLANT_TEMPERATURE: _signal(
+        CanNetwork.PTCAN, SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+        encode_simulated_coolant_temperature, decode_simulated_temperature,
+        CoolantTemperatureSample, CoolantTemperatureObserved,
+    ),
+}
+
+SIGNAL_DECODERS = {
+    (spec.network, spec.arbitration_id): spec.decode
+    for spec in VEHICLE_SIGNALS.values()
+}
+
+
 class SimulationProtocolRouter(ProtocolRouter):
     """Add unmistakably synthetic messages to the normal project router."""
 
@@ -165,37 +231,5 @@ class SimulationProtocolRouter(ProtocolRouter):
         frame = routed.frame
         if not frame.is_extended_id:
             return None
-        if routed.network is CanNetwork.FCAN and frame.arbitration_id == SIMULATION_ONLY_SPEED_ID:
-            if len(frame.data) != SIMULATION_ONLY_SPEED_LENGTH:
-                raise ValueError(
-                    f"simulated speed payload must be exactly {SIMULATION_ONLY_SPEED_LENGTH} bytes"
-                )
-            speed_kph = int.from_bytes(frame.data, "little") / 10.0
-            return SpeedObserved(SpeedSample(speed_kph, observed_at, routed.network))
-        if routed.network is not CanNetwork.PTCAN:
-            return None
-        if frame.arbitration_id == SIMULATION_ONLY_ENGINE_RPM_ID:
-            return EngineRpmObserved(
-                EngineRpmSample(
-                    decode_simulated_engine_rpm(frame),
-                    observed_at,
-                    routed.network,
-                )
-            )
-        if frame.arbitration_id == SIMULATION_ONLY_OIL_TEMPERATURE_ID:
-            return OilTemperatureObserved(
-                OilTemperatureSample(
-                    decode_simulated_temperature(frame),
-                    observed_at,
-                    routed.network,
-                )
-            )
-        if frame.arbitration_id == SIMULATION_ONLY_COOLANT_TEMPERATURE_ID:
-            return CoolantTemperatureObserved(
-                CoolantTemperatureSample(
-                    decode_simulated_temperature(frame),
-                    observed_at,
-                    routed.network,
-                )
-            )
-        return None
+        decoder = SIGNAL_DECODERS.get((routed.network, frame.arbitration_id))
+        return None if decoder is None else decoder(frame, observed_at, routed.network)

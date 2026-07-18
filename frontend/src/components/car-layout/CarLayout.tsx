@@ -18,7 +18,7 @@ const navigation = [
 ] as const
 
 export const CarLayout = () => (
-  <div className="flex h-svh min-w-0 overflow-hidden bg-background text-foreground">
+  <div className="flex h-svh min-w-0 select-none overflow-hidden bg-background text-foreground">
     <aside className="flex w-12 shrink-0 flex-col">
       <nav
         className="flex flex-1 flex-col items-center justify-center gap-2 py-3"

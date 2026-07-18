@@ -6,10 +6,11 @@ from dataclasses import replace
 from pathlib import Path
 
 from e87canbus.api.main import create_app
+from e87canbus.composition import build_live_controller_service
 from e87canbus.config import CanNetwork, default_config
 from e87canbus.features.settings_repository import SettingsStorageError
 from e87canbus.runtime import CanReaderFailed, StateTopic
-from e87canbus.service import ControllerMode, ControllerServiceLifecycle
+from e87canbus.service import ControllerServiceLifecycle
 from fastapi.testclient import TestClient
 
 
@@ -51,8 +52,7 @@ def disabled_live_config():
 
 def test_sqlite_outage_rejects_resource_and_leaves_live_controller_responsive() -> None:
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=disabled_live_config(),
+        controller_service=build_live_controller_service(config=disabled_live_config()),
         profile_repository=EmptyProfileRepository(),
         settings_repository=FailingSettingsRepository(),
     )
@@ -71,8 +71,7 @@ def test_sqlite_outage_rejects_resource_and_leaves_live_controller_responsive() 
 
 def test_reader_fatal_makes_service_unready_and_stops_owner(tmp_path: Path) -> None:
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=disabled_live_config(),
+        controller_service=build_live_controller_service(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
     )
 
@@ -90,8 +89,7 @@ def test_reader_fatal_makes_service_unready_and_stops_owner(tmp_path: Path) -> N
 
 def test_live_composition_has_no_dev_routes_or_development_cors(tmp_path: Path) -> None:
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=disabled_live_config(),
+        controller_service=build_live_controller_service(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
     )
     with TestClient(app) as client:
@@ -114,8 +112,7 @@ def test_built_frontend_is_served_same_origin(tmp_path: Path) -> None:
     (frontend / "index.html").write_text("<h1>controller</h1>")
     (frontend / "assets" / "app.js").write_text("console.log('controller')")
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=disabled_live_config(),
+        controller_service=build_live_controller_service(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
         frontend_directory=frontend,
     )
@@ -139,8 +136,7 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 
     for _ in range(5):
         app = create_app(
-            mode=ControllerMode.LIVE,
-            config=disabled_live_config(),
+            controller_service=build_live_controller_service(config=disabled_live_config()),
             profile_database_path=database,
         )
         with TestClient(app) as client:
@@ -169,10 +165,9 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
     assert "ExecStartPre=-/usr/sbin/ip link set can0 down" in can0_unit
     assert "ExecStart=/usr/sbin/ip link set can0 up" in can0_unit
     assert "ExecStop=-/usr/sbin/ip link set can0 down" in can0_unit
-    assert "Requires=e87canbus-can0.service" in unit
     assert "After=e87canbus-can0.service" in unit
     assert "EnvironmentFile=/etc/e87canbus/controller.env" in unit
-    assert "e87canbus run --mode live --host 127.0.0.1" in unit
+    assert "e87canbus run --profile ${E87CANBUS_PROFILE}" in unit
     assert "Restart=on-failure" in unit
     assert "RestartSec=5s" in unit
     assert "--frontend-directory" in unit

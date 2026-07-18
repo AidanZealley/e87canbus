@@ -8,11 +8,12 @@ Linux.
 Run the FastAPI backend:
 
 ```bash
-uv run e87canbus run --mode simulated --reload
+uv run e87canbus run --profile simulator --reload
 ```
 
-Use `--button-pad-source disabled` to inspect the disabled composition role. The default simulated
-role is `emulated`; source changes require restart.
+The simulator profile selects the emulated button pad, vehicle and Servotronic as one closed
+composition. Use the `bench` profile when the Pi must use a physical button pad with only the
+vehicle telemetry emulated.
 
 Run the browser frontend:
 
@@ -28,10 +29,10 @@ Default URLs:
 - Frontend: `http://127.0.0.1:5173`
 
 The workbench selects one in-memory simulated runtime adapter behind the same `ControllerService`
-used by live mode. A bounded controller inbox serializes button actions, periodic control timers,
+used by the SocketCAN profiles. A bounded controller inbox serializes button actions, periodic control timers,
 and resets through one owner thread; an overloaded API request receives HTTP 503. Its
 `CoordinatorKernel` uses the same
-decode, transition, commit, effect-execution, and TX-policy path as the live Pi runner. Simulated
+decode, transition, commit, effect-execution, and TX-policy path as the physical Pi profiles. Simulated
 devices emit frames onto the in-memory networks, and the adapter timestamps those frames at receipt
 before submitting them through the kernel's sole `dispatch` entry point.
 

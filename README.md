@@ -54,13 +54,13 @@ uv sync
 Run the dry-run CLI:
 
 ```bash
-uv run e87canbus run --mode live --dry-run
+uv run e87canbus run --profile car --dry-run
 ```
 
 Run the visual simulator workbench:
 
 ```bash
-uv run e87canbus run --mode simulated --reload
+uv run e87canbus run --profile simulator --reload
 cd frontend
 pnpm install
 pnpm dev

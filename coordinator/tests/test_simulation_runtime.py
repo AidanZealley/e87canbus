@@ -52,17 +52,14 @@ from e87canbus.simulation.runtime import (
     ReleaseButton,
     ResetSimulation,
     RunControlTimer,
-    SetCoolantTemperature,
-    SetEngineRpm,
-    SetOilTemperature,
     SetSimulatedDeviceProtocolVersion,
     SetSimulatedDeviceStatusCode,
-    SetVehicleSpeed,
-    SilenceOilTemperature,
-    SilenceVehicleSpeed,
+    SetVehicleSignal,
+    SilenceVehicleSignal,
     SimulatedControllerRuntime,
     TapButton,
 )
+from e87canbus.simulation.signals import VehicleSignal
 
 TEST_SIMULATOR_CONFIG = replace(
     simulator_config(),
@@ -563,17 +560,16 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     controller = build_test_engine()
     controller.execute(PressButton(0))
-    controller.execute(SetVehicleSpeed(42.5))
-    controller.execute(SetEngineRpm(3500))
-    controller.execute(SetOilTemperature(112.5))
-    controller.execute(SetCoolantTemperature(98.0))
+    controller.execute(SetVehicleSignal(VehicleSignal.SPEED, 42.5))
+    controller.execute(SetVehicleSignal(VehicleSignal.RPM, 3500))
+    controller.execute(SetVehicleSignal(VehicleSignal.OIL_TEMPERATURE, 112.5))
+    controller.execute(SetVehicleSignal(VehicleSignal.COOLANT_TEMPERATURE, 98.0))
     controller.execute(ResetSimulation())
     current_application = application(controller)
     current_adapter = adapter(controller)
 
     assert current_application.steering_mode is SteeringMode.AUTO
-    assert controller.vehicle.speed_kph is None
-    assert controller.vehicle.rpm is None
+    assert controller.vehicle.signals.active == {}
     assert all(
         value.status is EngineTelemetryStatus.NEVER_OBSERVED and value.value is None
         for value in (
@@ -867,7 +863,7 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     clock = MutableClock(10.0)
     controller = build_test_engine(clock=clock)
 
-    controller.execute(SetVehicleSpeed(15.0))
+    controller.execute(SetVehicleSignal(VehicleSignal.SPEED, 15.0))
     speed = application(controller)
     speed_trace = controller.topology.trace()
     clock.now = 10.1
@@ -877,7 +873,7 @@ def test_simulated_speed_uses_can_decode_transition_and_actuator_path() -> None:
     assert speed_trace[-1].source == "simulated-vehicle"
     assert speed_trace[-1].network is CanNetwork.FCAN
     assert speed.vehicle_speed_kph == 15.0
-    assert controller.vehicle.speed_kph == 15.0
+    assert VehicleSignal.SPEED in controller.vehicle.signals.active
     assert controlled.servotronic is not None
     assert controlled.servotronic.effective_assistance == pytest.approx(
         5 / 6, abs=ASSISTANCE_QUANTIZATION_TOLERANCE
@@ -889,9 +885,9 @@ def test_engine_signals_use_trace_decode_transition_and_canonical_snapshot_path(
     clock = MutableClock(10.0)
     controller = build_test_engine(clock=clock)
 
-    controller.execute(SetEngineRpm(3500))
-    controller.execute(SetOilTemperature(112.54))
-    controller.execute(SetCoolantTemperature(98.0))
+    controller.execute(SetVehicleSignal(VehicleSignal.RPM, 3500))
+    controller.execute(SetVehicleSignal(VehicleSignal.OIL_TEMPERATURE, 112.54))
+    controller.execute(SetVehicleSignal(VehicleSignal.COOLANT_TEMPERATURE, 98.0))
     current_application = application(controller)
 
     engine_frames = [
@@ -922,10 +918,10 @@ def test_engine_signals_use_trace_decode_transition_and_canonical_snapshot_path(
 def test_timer_reemits_active_engine_signals_and_silence_ages_only_one() -> None:
     clock = MutableClock(1.0)
     controller = build_test_engine(clock=clock)
-    controller.execute(SetEngineRpm(3500))
-    controller.execute(SetOilTemperature(112.5))
-    controller.execute(SetCoolantTemperature(98.0))
-    controller.execute(SilenceOilTemperature())
+    controller.execute(SetVehicleSignal(VehicleSignal.RPM, 3500))
+    controller.execute(SetVehicleSignal(VehicleSignal.OIL_TEMPERATURE, 112.5))
+    controller.execute(SetVehicleSignal(VehicleSignal.COOLANT_TEMPERATURE, 98.0))
+    controller.execute(SilenceVehicleSignal(VehicleSignal.OIL_TEMPERATURE))
 
     clock.now = 2.001
     controller.execute(RunControlTimer(clock()))
@@ -946,7 +942,7 @@ def test_timer_reemits_active_engine_signals_and_silence_ages_only_one() -> None
 def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     clock = MutableClock(1.0)
     controller = build_test_engine(clock=clock)
-    controller.execute(SetVehicleSpeed(30.0))
+    controller.execute(SetVehicleSignal(VehicleSignal.SPEED, 30.0))
 
     clock.now = 2.001
     first_execution = controller.execute(RunControlTimer(clock()))
@@ -972,14 +968,14 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
 def test_speed_silence_becomes_stale_and_setting_speed_recovers_auto() -> None:
     clock = MutableClock(1.0)
     controller = build_test_engine(clock=clock)
-    controller.execute(SetVehicleSpeed(30.0))
-    controller.execute(SilenceVehicleSpeed())
+    controller.execute(SetVehicleSignal(VehicleSignal.SPEED, 30.0))
+    controller.execute(SilenceVehicleSignal(VehicleSignal.SPEED))
 
     clock.now = 2.001
     controller.execute(RunControlTimer(clock()))
     stale_application = application(controller)
     stale_adapter = adapter(controller)
-    controller.execute(SetVehicleSpeed(30.0))
+    controller.execute(SetVehicleSignal(VehicleSignal.SPEED, 30.0))
     controller.execute(RunControlTimer(clock()))
     recovered_application = application(controller)
     recovered_adapter = adapter(controller)

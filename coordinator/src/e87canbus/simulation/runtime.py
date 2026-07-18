@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any, assert_never
 
 from e87canbus.application.controller import ApplicationSnapshot
@@ -53,6 +53,20 @@ from e87canbus.service import (
     SimulationDeviceUnavailable,
 )
 from e87canbus.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
+from e87canbus.simulation.commands import (
+    ConnectSimulatedDevice,
+    DisconnectSimulatedDevice,
+    PressButton,
+    RebootSimulatedDevice,
+    ReleaseButton,
+    ResetSimulation,
+    RunControlTimer,
+    SetSimulatedDeviceProtocolVersion,
+    SetSimulatedDeviceStatusCode,
+    SetVehicleSignal,
+    SilenceVehicleSignal,
+    TapButton,
+)
 from e87canbus.simulation.devices import (
     SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
@@ -68,127 +82,6 @@ MAX_VIRTUAL_DRAIN_ITERATIONS = 32
 MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION = 256
 MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION = 128
 
-
-@dataclass(frozen=True)
-class PressButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class ReleaseButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class TapButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class RunControlTimer:
-    now: float
-
-
-@dataclass(frozen=True)
-class SetVehicleSpeed:
-    speed_kph: float
-
-
-@dataclass(frozen=True)
-class SilenceVehicleSpeed:
-    pass
-
-
-@dataclass(frozen=True)
-class SetEngineRpm:
-    rpm: int
-
-
-@dataclass(frozen=True)
-class SilenceEngineRpm:
-    pass
-
-
-@dataclass(frozen=True)
-class SetOilTemperature:
-    temperature_c: float
-
-
-@dataclass(frozen=True)
-class SilenceOilTemperature:
-    pass
-
-
-@dataclass(frozen=True)
-class SetCoolantTemperature:
-    temperature_c: float
-
-
-@dataclass(frozen=True)
-class SilenceCoolantTemperature:
-    pass
-
-
-@dataclass(frozen=True)
-class ResetSimulation:
-    pass
-
-
-@dataclass(frozen=True)
-class ConnectSimulatedDevice:
-    role: DeviceRole
-
-
-@dataclass(frozen=True)
-class DisconnectSimulatedDevice:
-    role: DeviceRole
-
-
-@dataclass(frozen=True)
-class RebootSimulatedDevice:
-    role: DeviceRole
-
-
-@dataclass(frozen=True)
-class SetSimulatedDeviceProtocolVersion:
-    role: DeviceRole
-    protocol_version: int
-
-    def __post_init__(self) -> None:
-        _require_device_role(self.role)
-        _require_byte(self.protocol_version, "protocol_version")
-
-
-@dataclass(frozen=True)
-class SetSimulatedDeviceStatusCode:
-    role: DeviceRole
-    status_code: int
-
-    def __post_init__(self) -> None:
-        _require_device_role(self.role)
-        _require_byte(self.status_code, "status_code")
-
-
-SimulationCommand = (
-    PressButton
-    | ReleaseButton
-    | TapButton
-    | RunControlTimer
-    | SetVehicleSpeed
-    | SilenceVehicleSpeed
-    | SetEngineRpm
-    | SilenceEngineRpm
-    | SetOilTemperature
-    | SilenceOilTemperature
-    | SetCoolantTemperature
-    | SilenceCoolantTemperature
-    | ResetSimulation
-    | ConnectSimulatedDevice
-    | DisconnectSimulatedDevice
-    | RebootSimulatedDevice
-    | SetSimulatedDeviceProtocolVersion
-    | SetSimulatedDeviceStatusCode
-)
 
 EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
 
@@ -272,28 +165,11 @@ class SimulatedControllerRuntime:
                 self._send_button(index, pressed=True)
                 self._send_button(index, pressed=False)
             case RunControlTimer(now):
-                self.vehicle.emit_speed()
-                self.vehicle.emit_engine_rpm()
-                self.vehicle.emit_oil_temperature()
-                self.vehicle.emit_coolant_temperature()
+                self.vehicle.emit()
                 self._drain_kernel_inputs()
                 self._dispatch(TimerElapsed(now))
-            case SetVehicleSpeed(speed_kph):
-                self.vehicle.set_speed(speed_kph)
-            case SilenceVehicleSpeed():
-                self.vehicle.silence_speed()
-            case SetEngineRpm(rpm):
-                self.vehicle.set_engine_rpm(rpm)
-            case SilenceEngineRpm():
-                self.vehicle.silence_engine_rpm()
-            case SetOilTemperature(temperature_c):
-                self.vehicle.set_oil_temperature(temperature_c)
-            case SilenceOilTemperature():
-                self.vehicle.silence_oil_temperature()
-            case SetCoolantTemperature(temperature_c):
-                self.vehicle.set_coolant_temperature(temperature_c)
-            case SilenceCoolantTemperature():
-                self.vehicle.silence_coolant_temperature()
+            case SetVehicleSignal() | SilenceVehicleSignal():
+                self.vehicle.execute(command)
             case ReceivedCanFrame():
                 self._dispatch(command)
             case ResetSimulation():
@@ -617,7 +493,8 @@ class SimulatedControllerRuntime:
         )
 
     def _peer_for(self, role: DeviceRole) -> SimulatedRegistryPeer:
-        _require_device_role(role)
+        if not isinstance(role, DeviceRole):
+            raise ValueError("simulation device role must be a supported DeviceRole")
         peer = {
             DeviceRole.BUTTON_PAD: self.neotrellis,
             DeviceRole.SERVOTRONIC_CONTROLLER: self.servotronic,
@@ -707,16 +584,6 @@ class SimulatedControllerRuntime:
     def _require_started(self) -> None:
         if not self._started:
             raise RuntimeError("simulated controller runtime has not started")
-
-
-def _require_device_role(role: DeviceRole) -> None:
-    if not isinstance(role, DeviceRole):
-        raise ValueError("simulation device role must be a supported DeviceRole")
-
-
-def _require_byte(value: int, name: str) -> None:
-    if type(value) is not int or not 0 <= value <= 0xFF:
-        raise ValueError(f"{name} must fit in an unsigned byte")
 
 
 def _effect_failure_input(

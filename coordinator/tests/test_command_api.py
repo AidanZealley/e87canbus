@@ -5,13 +5,13 @@ from typing import Any
 
 from e87canbus.api.main import create_app
 from e87canbus.application.state import SteeringMode
+from e87canbus.composition import build_live_controller_service
 from e87canbus.config import default_config, simulator_config
 from e87canbus.runtime import (
     ActivateSteeringCurve,
     SetMaximumAssistance,
     SetSteeringMode,
 )
-from e87canbus.service import ControllerMode
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 
@@ -190,8 +190,7 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
         tick_interval_s=60.0,
     )
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=disabled,
+        controller_service=build_live_controller_service(config=disabled),
         profile_database_path=tmp_path / "app.sqlite3",
     )
 

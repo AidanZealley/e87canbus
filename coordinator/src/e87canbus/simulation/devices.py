@@ -6,7 +6,7 @@ import logging
 import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from e87canbus.application.events import (
@@ -27,21 +27,19 @@ from e87canbus.protocol.can import (
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
     RgbSnapshotPayload,
+    RoutedCanFrame,
     decode_rgb_snapshot,
     decode_welcome_ack,
     encode_button_event,
     encode_heartbeat,
     encode_hello,
 )
+from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     decode_simulated_high_beam_command,
-    decode_simulated_temperature,
-    encode_simulated_coolant_temperature,
-    encode_simulated_engine_rpm,
-    encode_simulated_oil_temperature,
-    encode_simulated_speed,
 )
+from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
@@ -459,75 +457,18 @@ class SimulatedVehicleNode:
     """External simulation node with explicitly synthetic vehicle messages."""
 
     buses: dict[CanNetwork, CanEndpoint]
-    speed_kph: float | None = None
-    rpm: int | None = None
-    oil_temperature_c: float | None = None
-    coolant_temperature_c: float | None = None
+    signals: SyntheticVehicleSource = field(default_factory=SyntheticVehicleSource)
     high_beam_enabled: bool = False
 
-    def set_speed(self, speed_kph: float) -> CanFrame:
-        frame = encode_simulated_speed(speed_kph)
-        self.speed_kph = speed_kph
-        self.buses[CanNetwork.FCAN].send(frame)
-        return frame
+    def execute(self, command: SetVehicleSignal | SilenceVehicleSignal) -> None:
+        self._send(self.signals.execute(command))
 
-    def emit_speed(self) -> CanFrame | None:
-        if self.speed_kph is None:
-            return None
-        frame = encode_simulated_speed(self.speed_kph)
-        self.buses[CanNetwork.FCAN].send(frame)
-        return frame
+    def emit(self) -> None:
+        self._send(self.signals.emit())
 
-    def silence_speed(self) -> None:
-        self.speed_kph = None
-
-    def set_engine_rpm(self, rpm: int) -> CanFrame:
-        frame = encode_simulated_engine_rpm(rpm)
-        self.rpm = rpm
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def emit_engine_rpm(self) -> CanFrame | None:
-        if self.rpm is None:
-            return None
-        frame = encode_simulated_engine_rpm(self.rpm)
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def silence_engine_rpm(self) -> None:
-        self.rpm = None
-
-    def set_oil_temperature(self, temperature_c: float) -> CanFrame:
-        frame = encode_simulated_oil_temperature(temperature_c)
-        self.oil_temperature_c = decode_simulated_temperature(frame)
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def emit_oil_temperature(self) -> CanFrame | None:
-        if self.oil_temperature_c is None:
-            return None
-        frame = encode_simulated_oil_temperature(self.oil_temperature_c)
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def silence_oil_temperature(self) -> None:
-        self.oil_temperature_c = None
-
-    def set_coolant_temperature(self, temperature_c: float) -> CanFrame:
-        frame = encode_simulated_coolant_temperature(temperature_c)
-        self.coolant_temperature_c = decode_simulated_temperature(frame)
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def emit_coolant_temperature(self) -> CanFrame | None:
-        if self.coolant_temperature_c is None:
-            return None
-        frame = encode_simulated_coolant_temperature(self.coolant_temperature_c)
-        self.buses[CanNetwork.PTCAN].send(frame)
-        return frame
-
-    def silence_coolant_temperature(self) -> None:
-        self.coolant_temperature_c = None
+    def _send(self, frames: tuple[RoutedCanFrame, ...]) -> None:
+        for routed in frames:
+            self.buses[routed.network].send(routed.frame)
 
     def drain_pending(self) -> int:
         drained = 0

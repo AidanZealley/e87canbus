@@ -7,6 +7,7 @@ CONFIG_FILE=""
 CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
+DEPLOYMENT_PROFILE="car"
 
 if [[ "${EUID}" -eq 0 ]]; then
     echo "Run this script as the checkout owner, not as root; it uses sudo for system changes." >&2
@@ -19,12 +20,32 @@ if [[ "${REPO_ROOT}" != "${EXPECTED_ROOT}" ]]; then
     exit 1
 fi
 
-for argument in "$@"; do
-    case "${argument}" in
-        --reboot) REBOOT_REQUESTED=1 ;;
-        *) echo "Usage: $0 [--reboot]" >&2; exit 2 ;;
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --profile)
+            if [[ "$#" -lt 2 ]]; then
+                echo "--profile requires car, bench, or simulator" >&2
+                exit 2
+            fi
+            DEPLOYMENT_PROFILE="$2"
+            shift 2
+            ;;
+        --reboot)
+            REBOOT_REQUESTED=1
+            shift
+            ;;
+        *) echo "Usage: $0 [--profile car|bench|simulator] [--reboot]" >&2; exit 2 ;;
     esac
 done
+
+case "${DEPLOYMENT_PROFILE}" in
+    car|bench|simulator) ;;
+    *)
+        echo "Unsupported deployment profile: ${DEPLOYMENT_PROFILE}" >&2
+        exit 2
+        ;;
+esac
+echo "Deployment profile: ${DEPLOYMENT_PROFILE}"
 
 # ---------------------------------------------------------------------------
 # Kiosk mode detection
@@ -106,19 +127,21 @@ fi
 # ---------------------------------------------------------------------------
 # SPI and Waveshare MCP2515 overlay
 # ---------------------------------------------------------------------------
-echo "Configuring SPI and the Waveshare MCP2515 interface..."
-sudo cp -n "${CONFIG_FILE}" "${CONFIG_FILE}.e87canbus-before-setup" || true
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    echo "Configuring SPI and the Waveshare MCP2515 interface..."
+    sudo cp -n "${CONFIG_FILE}" "${CONFIG_FILE}.e87canbus-before-setup" || true
 
-if ! sudo grep -Eq '^[[:space:]]*dtparam=spi=on([[:space:]]|$)' "${CONFIG_FILE}"; then
-    echo 'dtparam=spi=on' | sudo tee -a "${CONFIG_FILE}" >/dev/null
-    REBOOT_REQUIRED=1
-fi
+    if ! sudo grep -Eq '^[[:space:]]*dtparam=spi=on([[:space:]]|$)' "${CONFIG_FILE}"; then
+        echo 'dtparam=spi=on' | sudo tee -a "${CONFIG_FILE}" >/dev/null
+        REBOOT_REQUIRED=1
+    fi
 
-OVERLAY='dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000'
-if ! sudo grep -Fxq "${OVERLAY}" "${CONFIG_FILE}"; then
-    sudo sed -i '/^[[:space:]]*dtoverlay=mcp2515-can0,/d' "${CONFIG_FILE}"
-    echo "${OVERLAY}" | sudo tee -a "${CONFIG_FILE}" >/dev/null
-    REBOOT_REQUIRED=1
+    OVERLAY='dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000'
+    if ! sudo grep -Fxq "${OVERLAY}" "${CONFIG_FILE}"; then
+        sudo sed -i '/^[[:space:]]*dtoverlay=mcp2515-can0,/d' "${CONFIG_FILE}"
+        echo "${OVERLAY}" | sudo tee -a "${CONFIG_FILE}" >/dev/null
+        REBOOT_REQUIRED=1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -177,9 +200,12 @@ sudo install -o root -g root -m 0644 \
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/controller.env.example" \
     /etc/e87canbus/controller.env
+sudo sed -i \
+    "s/^E87CANBUS_PROFILE=.*/E87CANBUS_PROFILE=${DEPLOYMENT_PROFILE}/" \
+    /etc/e87canbus/controller.env
 
 # ---------------------------------------------------------------------------
-# Kiosk startup script (shared by both modes)
+# Kiosk startup script (shared by desktop and headless environments)
 # ---------------------------------------------------------------------------
 echo "Installing kiosk startup script..."
 sudo install -o root -g root -m 0755 \
@@ -187,7 +213,7 @@ sudo install -o root -g root -m 0755 \
     /usr/local/bin/e87canbus-kiosk
 
 # ---------------------------------------------------------------------------
-# Kiosk launch — mode-specific
+# Kiosk launch — environment-specific
 # ---------------------------------------------------------------------------
 if [[ "${KIOSK_MODE}" == "desktop" ]]; then
     echo "Configuring desktop autostart for user '${USER}'..."
@@ -241,7 +267,11 @@ fi
 # Enable services
 # ---------------------------------------------------------------------------
 sudo systemctl daemon-reload
-sudo systemctl enable e87canbus-can0.service
+if [[ "${DEPLOYMENT_PROFILE}" == "simulator" ]]; then
+    sudo systemctl disable e87canbus-can0.service 2>/dev/null || true
+else
+    sudo systemctl enable e87canbus-can0.service
+fi
 sudo systemctl enable e87canbus-controller.service
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     sudo systemctl enable e87canbus-kiosk.service
@@ -264,18 +294,30 @@ if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     exit 0
 fi
 
-if ! ip link show can0 >/dev/null 2>&1; then
-    echo "can0 is not available; leaving the service stopped." >&2
-    echo "Check the HAT wiring/overlay, then reboot if the boot config changed." >&2
-    exit 1
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    REQUIRED_CAN_INTERFACES=(can0)
+    if [[ "${DEPLOYMENT_PROFILE}" == "car" ]]; then
+        REQUIRED_CAN_INTERFACES+=(can1 can2)
+    fi
+    for interface in "${REQUIRED_CAN_INTERFACES[@]}"; do
+        if ! ip link show "${interface}" >/dev/null 2>&1; then
+            echo "${interface} is not available; leaving the controller stopped." >&2
+            echo "Check the CAN hardware and interface units, then rerun setup." >&2
+            sudo systemctl stop e87canbus-controller.service 2>/dev/null || true
+            exit 1
+        fi
+    done
 fi
 
-echo "Starting the boot-managed can0 service..."
-sudo systemctl start e87canbus-can0.service
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    echo "Starting the boot-managed can0 service..."
+    sudo systemctl start e87canbus-can0.service
+fi
 sudo systemctl restart e87canbus-controller.service
 
 echo
 echo "Pi setup complete. Check:"
+echo "  installed profile: ${DEPLOYMENT_PROFILE}"
 echo "  systemctl status e87canbus-controller.service"
 echo "  journalctl -u e87canbus-controller.service -f"
 echo "  candump can0"

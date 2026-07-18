@@ -18,6 +18,7 @@ from e87canbus.protocol.generated import (
     BUTTON_RELEASED,
 )
 from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
+from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
 from e87canbus.simulation.devices import (
     SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
@@ -31,6 +32,7 @@ from e87canbus.simulation.protocol import (
     encode_simulated_oil_temperature,
     encode_simulated_speed,
 )
+from e87canbus.simulation.signals import VehicleSignal
 
 
 class MutableClock:
@@ -158,18 +160,16 @@ def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() ->
         {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork}
     )
 
-    frame = vehicle.set_speed(42.5)
+    vehicle.execute(SetVehicleSignal(VehicleSignal.SPEED, 42.5))
+    frame = encode_simulated_speed(42.5)
 
-    assert vehicle.speed_kph == 42.5
-    assert frame == encode_simulated_speed(42.5)
     assert pi_bus.receive(timeout_s=0) == frame
 
-    assert vehicle.emit_speed() == frame
+    vehicle.emit()
     assert pi_bus.receive(timeout_s=0) == frame
 
-    vehicle.silence_speed()
-    assert vehicle.speed_kph is None
-    assert vehicle.emit_speed() is None
+    vehicle.execute(SilenceVehicleSignal(VehicleSignal.SPEED))
+    vehicle.emit()
     assert pi_bus.receive(timeout_s=0) is None
 
 
@@ -180,22 +180,19 @@ def test_simulated_vehicle_engine_signals_emit_and_silence_independently_on_ptca
         {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork}
     )
 
-    assert vehicle.set_engine_rpm(3500) == encode_simulated_engine_rpm(3500)
-    assert vehicle.set_oil_temperature(112.54) == encode_simulated_oil_temperature(112.54)
-    assert vehicle.set_coolant_temperature(98.0) == encode_simulated_coolant_temperature(98.0)
-    assert vehicle.oil_temperature_c == 112.5
+    vehicle.execute(SetVehicleSignal(VehicleSignal.RPM, 3500))
+    vehicle.execute(SetVehicleSignal(VehicleSignal.OIL_TEMPERATURE, 112.54))
+    vehicle.execute(SetVehicleSignal(VehicleSignal.COOLANT_TEMPERATURE, 98.0))
     assert [pi_bus.receive(timeout_s=0) for _ in range(3)] == [
         encode_simulated_engine_rpm(3500),
         encode_simulated_oil_temperature(112.5),
         encode_simulated_coolant_temperature(98.0),
     ]
 
-    vehicle.silence_oil_temperature()
-    vehicle.silence_oil_temperature()
+    vehicle.execute(SilenceVehicleSignal(VehicleSignal.OIL_TEMPERATURE))
+    vehicle.execute(SilenceVehicleSignal(VehicleSignal.OIL_TEMPERATURE))
 
-    assert vehicle.emit_engine_rpm() == encode_simulated_engine_rpm(3500)
-    assert vehicle.emit_oil_temperature() is None
-    assert vehicle.emit_coolant_temperature() == encode_simulated_coolant_temperature(98.0)
+    vehicle.emit()
     assert [pi_bus.receive(timeout_s=0) for _ in range(2)] == [
         encode_simulated_engine_rpm(3500),
         encode_simulated_coolant_temperature(98.0),

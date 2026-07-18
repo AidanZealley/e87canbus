@@ -15,6 +15,7 @@ from typing import Protocol
 
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.deployment import DeploymentSpec
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import DeviceRegistryEntry
 from e87canbus.runtime import (
@@ -55,11 +56,6 @@ class ControllerServiceLifecycle(StrEnum):
     CREATED = "created"
     RUNNING = "running"
     STOPPED = "stopped"
-
-
-class ControllerMode(StrEnum):
-    LIVE = "live"
-    SIMULATED = "simulated"
 
 
 @dataclass(frozen=True)
@@ -198,11 +194,11 @@ class ControllerService:
         self,
         runtime: ControllerRuntimeAdapter,
         *,
-        mode: ControllerMode,
+        deployment: DeploymentSpec,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._runtime = runtime
-        self._mode = mode
+        self._deployment = deployment
         self._clock = clock
         self._inbox: queue.Queue[_QueuedWork] = queue.Queue(
             maxsize=runtime.config.runtime_inbox_capacity
@@ -240,8 +236,8 @@ class ControllerService:
         return self._runtime.config
 
     @property
-    def mode(self) -> ControllerMode:
-        return self._mode
+    def deployment(self) -> DeploymentSpec:
+        return self._deployment
 
     @property
     def lifecycle(self) -> ControllerServiceLifecycle:

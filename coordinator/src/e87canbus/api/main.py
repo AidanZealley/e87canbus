@@ -22,19 +22,17 @@ from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
-from e87canbus.api.routes import commands, health, settings, simulation, steering
-from e87canbus.composition import (
-    build_live_controller_service,
-    build_simulated_controller_service,
-)
+from e87canbus.api.routes import commands, health, settings, steering
+from e87canbus.composition import build_controller_service
 from e87canbus.config import AppConfig
-from e87canbus.device import DeviceSource
+from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.settings_repository import ApplicationSettingsRepository
-from e87canbus.service import ControllerMode, ControllerService
+from e87canbus.service import ControllerService
+from e87canbus.simulation.api import install_simulation_api
 
 PROFILE_DATABASE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE_DATABASE"
-CONTROLLER_MODE_ENVIRONMENT_VARIABLE = "E87CANBUS_MODE"
+DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE"
 DEFAULT_PROFILE_DATABASE = Path(
     os.environ.get(PROFILE_DATABASE_ENVIRONMENT_VARIABLE, "steering-profiles.sqlite3")
 )
@@ -87,9 +85,8 @@ def socket_origin_policy(
 def create_app(
     *,
     controller_service: ControllerService | None = None,
-    mode: ControllerMode = ControllerMode.SIMULATED,
+    profile: DeploymentProfile | None = None,
     config: AppConfig | None = None,
-    button_pad_source: DeviceSource | None = None,
     clock: Callable[[], float] = time.monotonic,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
@@ -97,31 +94,21 @@ def create_app(
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
 ) -> FastAPI:
-    if controller_service is not None and (
-        config is not None or button_pad_source is not None
-    ):
+    if controller_service is not None and (profile is not None or config is not None):
         raise ValueError("inject either controller_service or composition configuration, not both")
-    service = controller_service or (
-        build_simulated_controller_service(
-            config=config,
-            button_pad_source=button_pad_source,
-            clock=clock,
-        )
-        if mode is ControllerMode.SIMULATED
-        else build_live_controller_service(
-            config=config,
-            button_pad_source=button_pad_source,
-            clock=clock,
-        )
+    service = controller_service or build_controller_service(
+        profile or DeploymentProfile.SIMULATOR,
+        config=config,
+        clock=clock,
     )
-    if service.mode is not mode:
-        raise ValueError(
-            f"controller service mode {service.mode.value} does not match API mode {mode.value}"
-        )
     selected_cors_origins = (
         tuple(cors_origins)
         if cors_origins is not None
-        else (DEFAULT_CORS_ORIGINS if mode is ControllerMode.SIMULATED else ())
+        else (
+            DEFAULT_CORS_ORIGINS
+            if service.deployment.simulation_api is not SimulationApiScope.NONE
+            else ()
+        )
     )
     database = (
         SqliteApplicationDatabase(profile_database_path)
@@ -156,7 +143,8 @@ def create_app(
     )
 
     app.state.controller_service = service
-    app.state.controller_mode = mode
+    app.state.deployment_profile = service.deployment.profile
+    app.state.deployment = service.deployment
     app.state.socketio = sio
     app.state.live_publisher = publisher
     app.state.profile_repository = profile_repository
@@ -167,8 +155,7 @@ def create_app(
     app.include_router(settings.router)
     app.include_router(steering.router)
     app.include_router(commands.router)
-    if mode is ControllerMode.SIMULATED:
-        app.include_router(simulation.router)
+    install_simulation_api(app, service.deployment.simulation_api)
     static_app = (
         SpaStaticFiles(directory=frontend_directory, html=True)
         if frontend_directory is not None
@@ -179,7 +166,10 @@ def create_app(
 
 
 app = create_app(
-    mode=ControllerMode(
-        os.environ.get(CONTROLLER_MODE_ENVIRONMENT_VARIABLE, ControllerMode.SIMULATED)
+    profile=DeploymentProfile(
+        os.environ.get(
+            DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE,
+            DeploymentProfile.CAR,
+        )
     )
 )

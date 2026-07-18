@@ -61,8 +61,6 @@ def test_wire_codecs_do_not_import_application_types() -> None:
 
 
 def test_simulation_commands_do_not_construct_application_events() -> None:
-    path = PACKAGE / "simulation" / "runtime.py"
-    tree = ast.parse(path.read_text(), filename=str(path))
     forbidden = {
         "ButtonPressed",
         "SpeedObserved",
@@ -72,13 +70,17 @@ def test_simulation_commands_do_not_construct_application_events() -> None:
         "ControlTimerElapsed",
         "SteeringFallbackRequested",
     }
-    constructed = {
-        node.func.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-
-    assert constructed.isdisjoint(forbidden)
+    for path in (
+        PACKAGE / "simulation" / "commands.py",
+        PACKAGE / "simulation" / "runtime.py",
+    ):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        constructed = {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        assert constructed.isdisjoint(forbidden)
 
 
 def test_default_live_composition_has_no_transmit_grant() -> None:
@@ -90,14 +92,15 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
         PACKAGE / "composition.py": {
             "e87canbus.simulation.devices",
             "e87canbus.simulation.runtime",
+            "e87canbus.simulation.vehicle_source",
         },
-        **{
-            path: {"e87canbus.simulation.runtime"}
-                for path in (
-                    PACKAGE / "api" / "internal" / "simulation.py",
-                    PACKAGE / "api" / "routes" / "simulation.py",
-                )
+        PACKAGE / "deployment.py": set(),
+        PACKAGE / "live.py": {
+            "e87canbus.simulation.commands",
+            "e87canbus.simulation.protocol",
+            "e87canbus.simulation.vehicle_source",
         },
+        PACKAGE / "api" / "main.py": {"e87canbus.simulation.api"},
     }
     for path in PACKAGE.rglob("*.py"):
         if "simulation" in path.relative_to(PACKAGE).parts:

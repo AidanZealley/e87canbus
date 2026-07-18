@@ -12,6 +12,7 @@ from e87canbus.composition import (
     build_simulated_controller_service,
 )
 from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.device import DeviceSource
 from e87canbus.runtime import (
     CoordinatorKernel,
@@ -21,7 +22,6 @@ from e87canbus.runtime import (
 )
 from e87canbus.service import (
     ControllerAdapterSnapshot,
-    ControllerMode,
     ControllerService,
     ControllerServiceError,
     ControllerServiceLifecycle,
@@ -151,7 +151,11 @@ class DeadlineOrderingRuntime(RecordingRuntime):
 def test_service_dispatches_coincident_deadline_before_periodic_tick() -> None:
     clock = MutableClock()
     runtime = DeadlineOrderingRuntime()
-    service = ControllerService(runtime, mode=ControllerMode.LIVE, clock=clock)
+    service = ControllerService(
+        runtime,
+        deployment=deployment_spec(DeploymentProfile.CAR),
+        clock=clock,
+    )
 
     service.start()
     try:
@@ -169,10 +173,9 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = RecordingRuntime()
-    service = ControllerService(runtime, mode=ControllerMode.LIVE)
+    service = ControllerService(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
     app = create_app(
         controller_service=service,
-        mode=ControllerMode.LIVE,
         profile_database_path=tmp_path / "app.sqlite3",
     )
     publisher = app.state.live_publisher
@@ -197,8 +200,12 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
 
 
 def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
-    first = ControllerService(RecordingRuntime(), mode=ControllerMode.LIVE)
-    second = ControllerService(RecordingRuntime(), mode=ControllerMode.LIVE)
+    first = ControllerService(
+        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
+    )
+    second = ControllerService(
+        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
+    )
 
     first.start()
     second.start()
@@ -214,7 +221,7 @@ def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
 
 def test_unexpected_post_start_owner_failure_requires_fatal_process_exit() -> None:
     runtime = FailingTimerRuntime()
-    service = ControllerService(runtime, mode=ControllerMode.LIVE)
+    service = ControllerService(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
 
     service.start()
 
@@ -234,8 +241,7 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
         can_networks=tuple(replace(item, enabled=False) for item in default_config().can_networks),
     )
     app = create_app(
-        mode=ControllerMode.LIVE,
-        config=config,
+        controller_service=build_live_controller_service(config=config),
         profile_database_path=tmp_path / "app.sqlite3",
     )
 
@@ -267,13 +273,15 @@ def test_simulation_reset_changes_session_without_changing_service_boot(
         assert app.state.controller_service.boot_id == boot_id
 
 
-def test_fastapi_rejects_an_injected_service_for_a_different_mode() -> None:
-    service = ControllerService(RecordingRuntime(), mode=ControllerMode.LIVE)
+def test_fastapi_rejects_profile_configuration_with_an_injected_service() -> None:
+    service = ControllerService(
+        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
+    )
 
-    with pytest.raises(ValueError, match="does not match API mode"):
+    with pytest.raises(ValueError, match="inject either controller_service"):
         create_app(
             controller_service=service,
-            mode=ControllerMode.SIMULATED,
+            profile=DeploymentProfile.SIMULATOR,
         )
 
     assert service.lifecycle is ControllerServiceLifecycle.CREATED
@@ -312,8 +320,10 @@ def test_repeated_app_construction_does_not_leak_controller_owner_threads(
     for index in range(3):
         runtime = RecordingRuntime()
         app = create_app(
-            controller_service=ControllerService(runtime, mode=ControllerMode.LIVE),
-            mode=ControllerMode.LIVE,
+            controller_service=ControllerService(
+                runtime,
+                deployment=deployment_spec(DeploymentProfile.CAR),
+            ),
             profile_database_path=tmp_path / f"app-{index}.sqlite3",
         )
         with TestClient(app) as client:
