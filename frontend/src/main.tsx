@@ -7,6 +7,7 @@ import "./index.css"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import {
   getApplicationSettingsQueryKey,
+  getSavedSteeringProfileQueryKey,
   listSteeringProfilesQueryKey,
 } from "@/api/http/@tanstack/react-query.gen"
 import { Toaster } from "@/components/ui/sonner"
@@ -37,6 +38,10 @@ queryClient.setQueryDefaults(
 )
 queryClient.setQueryDefaults(
   listSteeringProfilesQueryKey(),
+  durableQueryDefaults
+)
+queryClient.setQueryDefaults(
+  getSavedSteeringProfileQueryKey(),
   durableQueryDefaults
 )
 

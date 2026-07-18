@@ -17,6 +17,7 @@ import {
   deleteSteeringProfile,
   disconnectSimulationDevice,
   getApplicationSettings,
+  getSavedSteeringProfile,
   getSteeringProfile,
   listSteeringProfiles,
   type Options,
@@ -65,6 +66,9 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsError,
   GetApplicationSettingsResponse,
+  GetSavedSteeringProfileData,
+  GetSavedSteeringProfileError,
+  GetSavedSteeringProfileResponse,
   GetSteeringProfileData,
   GetSteeringProfileError,
   GetSteeringProfileResponse,
@@ -689,6 +693,32 @@ export const updateApplicationSettingsMutation = (
   }
   return mutationOptions
 }
+
+export const getSavedSteeringProfileQueryKey = (
+  options?: Options<GetSavedSteeringProfileData>
+) => createQueryKey("getSavedSteeringProfile", options)
+
+/**
+ * Get Saved Steering Profile
+ */
+export const getSavedSteeringProfileOptions = (
+  options?: Options<GetSavedSteeringProfileData>
+) =>
+  queryOptions<
+    GetSavedSteeringProfileResponse,
+    GetSavedSteeringProfileError,
+    GetSavedSteeringProfileResponse,
+    ReturnType<typeof getSavedSteeringProfileQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await getSavedSteeringProfile({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: getSavedSteeringProfileQueryKey(options),
+  })
 
 export const listSteeringProfilesQueryKey = (
   options?: Options<ListSteeringProfilesData>

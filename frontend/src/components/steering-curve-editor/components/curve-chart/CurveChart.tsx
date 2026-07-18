@@ -1,33 +1,16 @@
-import { useMemo, useState } from "react"
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-  ZIndexLayer,
-  useXAxisScale,
-  useYAxisInverseScale,
-  useYAxisScale,
-} from "recharts"
+import { useMemo, useRef, useState } from "react"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
-import {
-  assistanceBoundsAt,
   assistanceToPercent,
-  assistancePerMilleToPercent,
   evaluateSteeringCurve,
+  replaceAssistanceAt,
   sampleSteeringCurve,
-  speedDeciKphToKph,
 } from "../../utils"
-import { DraggableCurvePoint } from "./DraggableCurvePoint"
-import { CurvePositionMarker } from "./CurvePositionMarker"
+import { CurvePositionMarker } from "./components/curve-position-marker"
+import { CurvePoints } from "./components/curve-points"
 import { cn } from "@/lib/utils"
 
 type CurveChartProps = {
@@ -36,12 +19,12 @@ type CurveChartProps = {
   activeSpeedKph?: number | null
   activeAssistance?: number | null
   className?: string
-  onPointChange: (index: number, value: number) => void
+  onPointChange?: (index: number, value: number) => void
+  onPointCommit?: (definition: SteeringCurveDefinition) => void
 }
 
 const chartConfig = {
-  active: { label: "Active", color: "var(--color-chart-3)" },
-  draft: { label: "Draft", color: "var(--color-primary)" },
+  assistance: { label: "Assistance", color: "white" },
 } satisfies ChartConfig
 
 const CHART_MARGIN = { top: 18, right: 18, bottom: 8, left: 0 } as const
@@ -56,13 +39,6 @@ const ASSISTANCE_DOMAIN = [0, 100] as const
 const ASSISTANCE_TICKS = [0, 25, 50, 75, 100] as const
 const formatSpeedTick = (value: number) => `${value}`
 const formatAssistanceTick = (value: number) => `${value}%`
-const tooltipWrapperStyle = (isAdjustingPoint: boolean) =>
-  ({
-    pointerEvents: "none",
-    opacity: isAdjustingPoint ? 0 : 1,
-    transition: "opacity 150ms ease",
-  }) as const
-
 export const CurveChart = ({
   active,
   draft,
@@ -70,62 +46,39 @@ export const CurveChart = ({
   activeAssistance = null,
   className,
   onPointChange,
+  onPointCommit = () => undefined,
 }: CurveChartProps) => {
-  const [isAdjustingPoint, setIsAdjustingPoint] = useState(false)
+  const [preview, setPreview] = useState(draft)
+  const previewRef = useRef(preview)
+
+  const handlePointChange = (index: number, value: number) => {
+    const next = replaceAssistanceAt(previewRef.current, index, value)
+    previewRef.current = next
+    setPreview(next)
+    onPointChange?.(index, value)
+  }
+
+  const handlePointCommit = () => onPointCommit(previewRef.current)
   const markerSpeedKph = activeSpeedKph ?? 0
   const markerAssistance =
     activeAssistance ?? evaluateSteeringCurve(active, markerSpeedKph)
-  const data = useMemo(() => {
-    const activeSamples = sampleSteeringCurve(active)
-    const draftSamples = sampleSteeringCurve(draft)
-    const samples = draftSamples.map((sample, index) => ({
-      speedKph: sample.speedKph,
-      draft: assistanceToPercent(sample.assistance),
-      active: assistanceToPercent(
-        activeSamples[index]?.assistance ?? sample.assistance
-      ),
-    }))
-    return samples
-  }, [active, draft])
+  const data = useMemo(
+    () =>
+      sampleSteeringCurve(preview).map((sample) => ({
+        speedKph: sample.speedKph,
+        assistance: assistanceToPercent(sample.assistance),
+      })),
+    [preview]
+  )
   return (
     <ChartContainer
       config={chartConfig}
       className={cn("aspect-auto h-75 min-h-75 w-full sm:h-90", className)}
       role="group"
-      aria-label="Steering assistance curve. Solid line is active; dashed line is the editable draft."
+      aria-label="Steering assistance curve. Drag the points to edit; changes apply immediately."
     >
       <LineChart data={data} margin={CHART_MARGIN}>
         <CartesianGrid vertical={false} />
-        <ChartTooltip
-          cursor={false}
-          isAnimationActive={false}
-          wrapperStyle={tooltipWrapperStyle(isAdjustingPoint)}
-          content={
-            <ChartTooltipContent
-              indicator="line"
-              labelFormatter={(_, payload) => {
-                const tooltipSpeed = payload[0]?.payload?.speedKph
-                return typeof tooltipSpeed === "number"
-                  ? `${tooltipSpeed.toFixed(1)} km/h`
-                  : null
-              }}
-              formatter={(value, name) => (
-                <div className="flex flex-1 items-center justify-between gap-4">
-                  <span className="text-muted-foreground">
-                    {name === "active"
-                      ? chartConfig.active.label
-                      : name === "draft"
-                        ? chartConfig.draft.label
-                        : name}
-                  </span>
-                  <span className="font-mono font-medium text-foreground tabular-nums">
-                    {Number(value).toFixed(1)}%
-                  </span>
-                </div>
-              )}
-            />
-          }
-        />
         <XAxis
           dataKey="speedKph"
           type="number"
@@ -146,20 +99,10 @@ export const CurveChart = ({
           width={42}
         />
         <Line
-          dataKey="active"
+          dataKey="assistance"
           type="linear"
-          stroke="var(--color-active)"
-          strokeWidth={3}
-          dot={false}
-          activeDot={false}
-          isAnimationActive={false}
-        />
-        <Line
-          dataKey="draft"
-          type="linear"
-          stroke="var(--color-draft)"
+          stroke="white"
           strokeWidth={2}
-          strokeDasharray="6 5"
           dot={false}
           activeDot={false}
           isAnimationActive={false}
@@ -169,59 +112,11 @@ export const CurveChart = ({
           activeAssistance={markerAssistance}
         />
         <CurvePoints
-          definition={draft}
-          onPointChange={onPointChange}
-          onAdjustingChange={setIsAdjustingPoint}
+          definition={preview}
+          onPointChange={handlePointChange}
+          onPointCommit={handlePointCommit}
         />
       </LineChart>
     </ChartContainer>
-  )
-}
-
-const CurvePoints = ({
-  definition,
-  onPointChange,
-  onAdjustingChange,
-}: {
-  definition: SteeringCurveDefinition
-  onPointChange: (index: number, value: number) => void
-  onAdjustingChange: (isAdjusting: boolean) => void
-}) => {
-  const xScale = useXAxisScale()
-  const yScale = useYAxisScale()
-  const inverseY = useYAxisInverseScale()
-  if (!xScale || !yScale || !inverseY) return null
-
-  return (
-    <ZIndexLayer zIndex={1300}>
-      <g aria-label="Draft curve points">
-        {definition.points.map((point, index) => {
-          const speedKph = speedDeciKphToKph(point.speed_deci_kph)
-          const x = xScale(speedKph)
-          const y = yScale(
-            assistancePerMilleToPercent(point.assistance_per_mille)
-          )
-          const { minimum, maximum } = assistanceBoundsAt(definition, index)
-          if (typeof x !== "number" || typeof y !== "number") return null
-          return (
-            <DraggableCurvePoint
-              key={point.speed_deci_kph}
-              x={x}
-              y={y}
-              speedKph={speedKph}
-              assistancePerMille={point.assistance_per_mille}
-              minimum={minimum}
-              maximum={maximum}
-              inverseY={(pixelValue) => {
-                const percent = inverseY(pixelValue)
-                return typeof percent === "number" ? percent * 10 : percent
-              }}
-              onChange={(value) => onPointChange(index, value)}
-              onAdjustingChange={onAdjustingChange}
-            />
-          )
-        })}
-      </g>
-    </ZIndexLayer>
   )
 }

@@ -1197,6 +1197,37 @@ export type UpdateApplicationSettingsResponses = {
 export type UpdateApplicationSettingsResponse =
   UpdateApplicationSettingsResponses[keyof UpdateApplicationSettingsResponses]
 
+export type GetSavedSteeringProfileData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/steering/profile"
+}
+
+export type GetSavedSteeringProfileErrors = {
+  /**
+   * Not Found
+   */
+  404: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type GetSavedSteeringProfileError =
+  GetSavedSteeringProfileErrors[keyof GetSavedSteeringProfileErrors]
+
+export type GetSavedSteeringProfileResponses = {
+  /**
+   * Successful Response
+   */
+  200: SteeringProfileResponse
+}
+
+export type GetSavedSteeringProfileResponse =
+  GetSavedSteeringProfileResponses[keyof GetSavedSteeringProfileResponses]
+
 export type ListSteeringProfilesData = {
   body?: never
   path?: never

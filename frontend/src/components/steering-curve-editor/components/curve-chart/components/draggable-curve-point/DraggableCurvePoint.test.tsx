@@ -6,7 +6,7 @@ import { DraggableCurvePoint } from "./DraggableCurvePoint"
 
 afterEach(cleanup)
 
-const renderPoint = (onChange = vi.fn(), onAdjustingChange = vi.fn()) => {
+const renderPoint = (onChange = vi.fn(), onRelease = vi.fn()) => {
   const result = render(
     <svg viewBox="0 0 320 200">
       <DraggableCurvePoint
@@ -18,7 +18,7 @@ const renderPoint = (onChange = vi.fn(), onAdjustingChange = vi.fn()) => {
         maximum={700}
         inverseY={(value) => value * 5}
         onChange={onChange}
-        onAdjustingChange={onAdjustingChange}
+        onRelease={onRelease}
       />
     </svg>
   )
@@ -44,7 +44,7 @@ describe("DraggableCurvePoint", () => {
     renderPoint()
 
     expect(
-      document.querySelector(".peer-focus-visible\\:opacity-100")
+      document.querySelector(".peer-focus\\:opacity-100")
     ).not.toBeNull()
     expect(
       document.querySelector(".peer-focus-visible\\:stroke-ring")
@@ -53,8 +53,7 @@ describe("DraggableCurvePoint", () => {
 
   it("uses pointer capture movement and stops safely on cancel", () => {
     const onChange = vi.fn()
-    const onAdjustingChange = vi.fn()
-    renderPoint(onChange, onAdjustingChange)
+    renderPoint(onChange)
     const handle = screen.getByRole("slider", {
       name: "Assistance at 60 km/h",
     })
@@ -77,7 +76,6 @@ describe("DraggableCurvePoint", () => {
     fireEvent.pointerCancel(handle, { pointerId: 4 })
     fireEvent.pointerMove(handle, { pointerId: 4, clientY: 60 })
     expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onAdjustingChange.mock.calls).toEqual([[true], [false]])
   })
 
   it("focuses the point when a drag begins so keyboard controls are available", () => {

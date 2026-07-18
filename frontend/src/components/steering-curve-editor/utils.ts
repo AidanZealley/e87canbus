@@ -1,10 +1,7 @@
-import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import type {
-  ActiveSteeringCurveState,
   SteeringCurveDefinition,
   SteeringCurvePoint,
 } from "@/api/live-contract.gen"
-import type { CurveEditorState, CurveEditorStatus } from "./types"
 
 export const ASSISTANCE_INCREMENT_PER_MILLE = 10
 export const ASSISTANCE_PAGE_INCREMENT_PER_MILLE = 100
@@ -184,53 +181,4 @@ export const sampleSteeringCurve = (
     speedKph: speedDeciKph / 10,
     assistance: evaluateSteeringCurve(definition, speedDeciKph / 10),
   }))
-}
-
-export const deriveEditorStatus = (
-  state: CurveEditorState,
-  savedCatalog: SteeringProfileResponse[]
-): CurveEditorStatus => {
-  const selectedProfile =
-    savedCatalog.find(
-      (profile) => profile.profile_id === state.selectedProfileId
-    ) ?? null
-  return {
-    selectedProfile,
-    draftMatchesActive: definitionsEqual(state.draft, state.active.definition),
-    draftMatchesSelectedSaved:
-      selectedProfile !== null &&
-      definitionsEqual(state.draft, selectedProfile.definition),
-    activeChangedExternally:
-      (state.draftBaseActivationRevision !== state.active.activation_revision ||
-        state.draftBaseFingerprint !== state.active.fingerprint) &&
-      !definitionsEqual(state.draft, state.active.definition),
-  }
-}
-
-export const reconcileActiveCurve = (
-  state: CurveEditorState,
-  active: ActiveSteeringCurveState
-): CurveEditorState => {
-  if (
-    state.active.activation_revision === active.activation_revision &&
-    state.active.fingerprint === active.fingerprint &&
-    state.active.status === active.status &&
-    state.active.saved_profile_id === active.saved_profile_id &&
-    state.active.saved_profile_revision === active.saved_profile_revision &&
-    definitionsEqual(state.active.definition, active.definition)
-  ) {
-    return state
-  }
-  const draftWasClean = definitionsEqual(state.draft, state.active.definition)
-  return {
-    ...state,
-    active,
-    draft: draftWasClean ? active.definition : state.draft,
-    draftBaseActivationRevision: draftWasClean
-      ? active.activation_revision
-      : state.draftBaseActivationRevision,
-    draftBaseFingerprint: draftWasClean
-      ? active.fingerprint
-      : state.draftBaseFingerprint,
-  }
 }

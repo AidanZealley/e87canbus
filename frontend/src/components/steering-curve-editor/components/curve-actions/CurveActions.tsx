@@ -1,56 +1,62 @@
-import { useShallow } from "zustand/react/shallow"
+import { RotateCcw, Save } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { selectStatus } from "../../store"
-import { useSteeringCurveEditorStore } from "../../store-context"
-import { DeleteSavedButton } from "./components/delete-saved-button/DeleteSavedButton"
-import { ReloadActiveButton } from "./components/reload-active-button/ReloadActiveButton"
+import type { Mode } from "@/api/live-contract.gen"
+import { LoadingButton } from "@/components/loading-button"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import type { PendingCurveAction } from "../../types"
 
-export const CurveActions = () => {
-  const {
-    pendingAction,
-    applyDraft,
-    saveRevision,
-    reloadActive,
-    deleteSaved,
-  } = useSteeringCurveEditorStore(
-    useShallow((state) => ({
-      pendingAction: state.pendingAction,
-      applyDraft: state.applyDraft,
-      saveRevision: state.saveRevision,
-      reloadActive: state.reloadActive,
-      deleteSaved: state.deleteSaved,
-    }))
-  )
-  const status = useSteeringCurveEditorStore(useShallow(selectStatus))
-  const pending = pendingAction !== null
-  const canApply = !status.draftMatchesActive
-  const canSave =
-    status.selectedProfile !== null && !status.draftMatchesSelectedSaved
-  const canRevert = !status.draftMatchesActive
+export const CurveActions = ({
+  mode,
+  pendingAction,
+  activeMatchesSaved,
+  hasSavedProfile,
+  onModeChange,
+  onSave,
+  onReset,
+}: {
+  mode: Mode
+  pendingAction: PendingCurveAction
+  activeMatchesSaved: boolean
+  hasSavedProfile: boolean
+  onModeChange: (mode: Mode) => void
+  onSave: () => void
+  onReset: () => void
+}) => {
+  const canAct = !activeMatchesSaved && hasSavedProfile
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!canApply || pending} onClick={() => void applyDraft()}>
-        {pendingAction === "apply" ? "Applying…" : "Apply draft"}
-      </Button>
-      <Button
-        variant="secondary"
-        disabled={!canSave || pending}
-        onClick={() => void saveRevision()}
-      >
-        {pendingAction === "save" ? "Saving…" : "Save revision"}
-      </Button>
-      <ReloadActiveButton
-        disabled={!canRevert || pending}
-        onConfirm={reloadActive}
-      />
-      <DeleteSavedButton
-        profile={status.selectedProfile}
-        pending={pending}
-        deleting={pendingAction === "delete"}
-        onConfirm={(profile) => void deleteSaved(profile)}
-      />
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Switch
+          id="auto-assist"
+          checked={mode === "auto"}
+          disabled={pendingAction !== null}
+          onCheckedChange={(checked) =>
+            onModeChange(checked ? "auto" : "manual")
+          }
+        />
+        <Label htmlFor="auto-assist">Auto</Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <LoadingButton
+          variant="outline"
+          disabled={!canAct || pendingAction !== null}
+          isLoading={pendingAction === "reset"}
+          onClick={onReset}
+        >
+          <RotateCcw />
+          Reset
+        </LoadingButton>
+        <LoadingButton
+          disabled={!canAct || pendingAction !== null}
+          isLoading={pendingAction === "save"}
+          onClick={onSave}
+        >
+          <Save />
+          Save
+        </LoadingButton>
+      </div>
     </div>
   )
 }

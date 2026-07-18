@@ -1950,6 +1950,47 @@
         ]
       }
     },
+    "/api/steering/profile": {
+      "get": {
+        "operationId": "getSavedSteeringProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteeringProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Saved Steering Profile",
+        "tags": [
+          "steering"
+        ]
+      }
+    },
     "/api/steering/profiles": {
       "get": {
         "operationId": "listSteeringProfiles",

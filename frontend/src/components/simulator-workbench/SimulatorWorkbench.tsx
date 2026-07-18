@@ -96,6 +96,7 @@ const LiveSteeringCurveCard = () => {
     <section className="min-w-0" aria-label="Steering curve settings">
       <SteeringCurveCard
         activeCurve={steering.active_curve}
+        mode={steering.mode}
         speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
         activeAssistance={
           steering.maximum_assistance_active

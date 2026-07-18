@@ -2,21 +2,14 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 
-import type {
-  ActiveSteeringCurveState,
-  SteeringCurveDefinition,
-} from "@/api/live-contract.gen"
-import type { SteeringProfileResponse } from "@/api/http/types.gen"
-import type { CurveEditorState } from "./types.ts"
+import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
 import {
   assistanceBoundsAt,
   assistancePercentToPerMille,
   assistancePerMilleToPercent,
   definitionsEqual,
-  deriveEditorStatus,
   evaluateSteeringCurve,
   normalizeAssistanceAt,
-  reconcileActiveCurve,
   replaceAssistanceAt,
   sampleSteeringCurve,
   speedDeciKphToKph,
@@ -32,18 +25,6 @@ const definition = (
       assistance_per_mille: values[index] ?? 0,
     })
   ) as SteeringCurveDefinition["points"],
-})
-
-const active = (
-  value = definition(),
-  activationRevision = 1
-): ActiveSteeringCurveState => ({
-  definition: value,
-  fingerprint: `fingerprint-${activationRevision}`,
-  activation_revision: activationRevision,
-  status: "active",
-  saved_profile_id: null,
-  saved_profile_revision: null,
 })
 
 test("integer units convert to display units without changing authority", () => {
@@ -68,36 +49,12 @@ test("snap and monotonic neighbor bounds constrain one point", () => {
   assert.equal(changed.points[3], value.points[3])
 })
 
-test("definition equality and dirty state compare complete integer definitions", () => {
+test("definition equality compares complete integer definitions", () => {
   const first = definition()
   const draft = replaceAssistanceAt(first, 2, 810)
-  const state: CurveEditorState = {
-    active: active(first),
-    draft,
-    draftBaseActivationRevision: 1,
-    draftBaseFingerprint: "fingerprint-1",
-    selectedProfileId: "profile",
-    pendingAction: null,
-    lastError: null,
-    revisionConflict: false,
-  }
-  const saved: SteeringProfileResponse = {
-    profile_id: "profile",
-    name: "Track",
-    revision: 1,
-    definition: draft as SteeringProfileResponse["definition"],
-    created_at: "",
-    updated_at: "",
-  }
 
   assert.equal(definitionsEqual(first, definition()), true)
   assert.equal(definitionsEqual(first, draft), false)
-  assert.deepEqual(deriveEditorStatus(state, [saved]), {
-    draftMatchesActive: false,
-    draftMatchesSelectedSaved: true,
-    activeChangedExternally: false,
-    selectedProfile: saved,
-  })
 })
 
 test("smooth evaluation holds endpoints and uses the selected definition", () => {
@@ -253,78 +210,4 @@ test("defensive smooth evaluator handles unequal spans and rejects non-positive 
       /strictly increasing/
     )
   }
-})
-
-test("an external active change preserves dirty drafts but advances clean drafts", () => {
-  const initial = active()
-  const dirty = replaceAssistanceAt(initial.definition, 2, 810)
-  const state: CurveEditorState = {
-    active: initial,
-    draft: dirty,
-    draftBaseActivationRevision: 1,
-    draftBaseFingerprint: initial.fingerprint,
-    selectedProfileId: null,
-    pendingAction: null,
-    lastError: null,
-    revisionConflict: false,
-  }
-  const external = active(replaceAssistanceAt(initial.definition, 1, 850), 2)
-  const restarted = {
-    ...external,
-    activation_revision: 1,
-    fingerprint: "restart-fingerprint",
-  }
-
-  const retained = reconcileActiveCurve(state, external)
-  const advanced = reconcileActiveCurve(
-    { ...state, draft: initial.definition },
-    external
-  )
-  const retainedAcrossRestart = reconcileActiveCurve(state, restarted)
-
-  assert.equal(retained.draft, dirty)
-  assert.equal(retained.draftBaseActivationRevision, 1)
-  assert.equal(retained.draftBaseFingerprint, initial.fingerprint)
-  assert.equal(deriveEditorStatus(retained, []).activeChangedExternally, true)
-  assert.equal(
-    deriveEditorStatus(retainedAcrossRestart, []).activeChangedExternally,
-    true
-  )
-  assert.equal(advanced.draft, external.definition)
-  assert.equal(advanced.draftBaseActivationRevision, 2)
-  assert.equal(advanced.draftBaseFingerprint, external.fingerprint)
-})
-
-test("same-revision active updates adopt authoritative provenance and status", () => {
-  const initial = active()
-  const dirty = replaceAssistanceAt(initial.definition, 2, 810)
-  const state: CurveEditorState = {
-    active: initial,
-    draft: dirty,
-    draftBaseActivationRevision: initial.activation_revision,
-    draftBaseFingerprint: initial.fingerprint,
-    selectedProfileId: null,
-    pendingAction: null,
-    lastError: null,
-    revisionConflict: false,
-  }
-  const incoming: ActiveSteeringCurveState = {
-    ...initial,
-    status: "activation_failed",
-    saved_profile_id: "11111111-1111-4111-8111-111111111111",
-    saved_profile_revision: 3,
-  }
-
-  const reconciled = reconcileActiveCurve(state, incoming)
-
-  assert.equal(reconciled.active, incoming)
-  assert.equal(reconciled.active.saved_profile_id, incoming.saved_profile_id)
-  assert.equal(
-    reconciled.active.saved_profile_revision,
-    incoming.saved_profile_revision
-  )
-  assert.equal(reconciled.active.status, "activation_failed")
-  assert.equal(reconciled.draft, dirty)
-  assert.equal(reconciled.draftBaseActivationRevision, 1)
-  assert.equal(reconciled.draftBaseFingerprint, initial.fingerprint)
 })
