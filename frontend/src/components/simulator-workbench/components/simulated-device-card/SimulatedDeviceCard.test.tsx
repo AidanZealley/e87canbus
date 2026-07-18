@@ -1,9 +1,11 @@
 import { expect, it } from "vitest"
 
-import type { DeviceRegistryEntry } from "@/api/live-events"
+import type { DeviceRegistryEntryState } from "@/api/live-contract.gen"
 import { simulatedDeviceActions, statusActionForControl } from "./index"
 
-const entry = (status: DeviceRegistryEntry["status"]): DeviceRegistryEntry => ({
+const entry = (
+  status: DeviceRegistryEntryState["status"]
+): DeviceRegistryEntryState => ({
   role: "button_pad",
   label: "Button pad",
   device_id: 1,

@@ -46,11 +46,23 @@ Physical NeoTrellis rendering, mapping, brightness, and electrical limits remain
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
 
-`live-events-v1.schema.json` is the generated Pydantic-owned Socket.IO payload schema. Run
-`uv run python scripts/generate_live_contract.py` after changing a live payload model and use
-`--check` in verification. The explicit TypeScript event map in
-`frontend/src/api/live-events.ts` is checked against the schema's fixed event names; it contains
-transport types only and does not duplicate controller behavior or CAN constants.
+## Frontend contracts
+
+Python is the source of truth for both frontend transport contracts. FastAPI routes and Pydantic
+models generate the canonical simulator-superset `openapi.json`; the backend event registry owns
+every Socket.IO event name, direction and exact argument type and generates
+`live-events-v1.schema.json`. Runtime publication and handlers consume that same event registry.
+
+The schemas in this directory and the TypeScript outputs in `frontend/src/api/http/` and
+`frontend/src/api/live-contract.gen.ts` are committed generated artifacts. Never edit them by hand.
+From `frontend/`, use `pnpm api:generate` to regenerate all four artifacts in dependency order and
+`pnpm api:check` to check them without changing the worktree. The narrower `http:*` and `live:*`
+commands are available when working on only one contract. No backend process or hardware is needed.
+
+The OpenAPI document deliberately describes the simulator deployment, which is the superset of the
+HTTP surface. Generated methods therefore do not prove that a car or bench deployment exposes a
+simulator-only capability; the UI must still respect the deployment capabilities reported at
+runtime.
 
 The device-registry phase owns the static role vocabulary and wire codecs. The current adapter
 projection remains a temporary pre-registry transport surface until the registry kernel and live

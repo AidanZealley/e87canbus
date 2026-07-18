@@ -1,14 +1,16 @@
 import type {
-  ActiveSteeringCurve,
+  CommandAcknowledgement,
+  SteeringProfileResponse,
+} from "@/api/http/types.gen"
+import type {
+  ActiveSteeringCurveState,
   SteeringCurveDefinition,
-  StoredSteeringProfile,
-} from "@/api/steering"
-import type { CommandAcknowledgement } from "@/api/commands"
+} from "@/api/live-contract.gen"
 
 export type PendingCurveAction = "apply" | "save" | "save-as" | "delete" | null
 
 export type CurveEditorState = {
-  active: ActiveSteeringCurve
+  active: ActiveSteeringCurveState
   draft: SteeringCurveDefinition
   draftBaseActivationRevision: number
   draftBaseFingerprint: string
@@ -22,21 +24,21 @@ export type CurveEditorStatus = {
   draftMatchesActive: boolean
   draftMatchesSelectedSaved: boolean
   activeChangedExternally: boolean
-  selectedProfile: StoredSteeringProfile | null
+  selectedProfile: SteeringProfileResponse | null
 }
 
 export type SteeringCurveEditorEffects = {
   activate: (
     definition: SteeringCurveDefinition,
-    savedProfile?: StoredSteeringProfile
+    savedProfile?: SteeringProfileResponse
   ) => Promise<CommandAcknowledgement>
   createProfile: (
     name: string,
     definition: SteeringCurveDefinition
-  ) => Promise<StoredSteeringProfile>
+  ) => Promise<SteeringProfileResponse>
   updateProfile: (
-    profile: StoredSteeringProfile,
+    profile: SteeringProfileResponse,
     definition: SteeringCurveDefinition
-  ) => Promise<StoredSteeringProfile>
-  deleteProfile: (profile: StoredSteeringProfile) => Promise<void>
+  ) => Promise<SteeringProfileResponse>
+  deleteProfile: (profile: SteeringProfileResponse) => Promise<void>
 }

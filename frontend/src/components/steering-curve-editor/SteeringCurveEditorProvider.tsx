@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 
-import type { ActiveSteeringCurve, StoredSteeringProfile } from "@/api/steering"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
+import type { ActiveSteeringCurveState } from "@/api/live-contract.gen"
 import { createSteeringCurveEditorStore } from "./store"
 import { SteeringCurveEditorContext } from "./store-context"
 import type { SteeringCurveEditorEffects } from "./types"
@@ -12,8 +13,8 @@ export const SteeringCurveEditorProvider = ({
   effects,
   children,
 }: {
-  activeCurve: ActiveSteeringCurve
-  profiles: StoredSteeringProfile[]
+  activeCurve: ActiveSteeringCurveState
+  profiles: SteeringProfileResponse[]
   profilesError: unknown
   effects: SteeringCurveEditorEffects
   children: ReactNode

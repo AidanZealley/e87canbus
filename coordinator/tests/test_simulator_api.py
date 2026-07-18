@@ -311,7 +311,10 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
     )
 
     assert response.status_code == 422
-    assert "button_index" in response.json()["error"]["message"]
+    assert response.json()["error"]["issues"][0]["location"] == [
+        "path",
+        "button_index",
+    ]
 
 
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
@@ -333,7 +336,10 @@ def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) ->
     )
 
     assert response.status_code == 422
-    assert "simulated speed" in response.json()["error"]["message"]
+    assert response.json()["error"]["issues"][0]["location"] == [
+        "body",
+        "speed_kph",
+    ]
 
 
 def test_development_simulation_requests_reject_unknown_fields(

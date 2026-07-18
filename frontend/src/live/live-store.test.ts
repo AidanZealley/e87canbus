@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { TraceRow } from "@/api/live-events"
+import type { TraceRow } from "@/api/live-contract.gen"
 import { snapshot } from "./test-fixtures"
 import { TRACE_CAPACITY, useTraceStore } from "./trace-store"
 import { useLiveStore } from "./live-store"
@@ -142,32 +142,28 @@ describe("live ownership", () => {
         monotonic_s: sequence,
       })
     )
-    useTraceStore
-      .getState()
-      .applyBatch(
-        {
-          protocol_version: 1,
-          boot_id: "boot",
-          revision: 10,
-          emitted_at: "2026-07-15T00:00:00Z",
-          data: { rows },
-        },
-        "boot"
-      )
+    useTraceStore.getState().applyBatch(
+      {
+        protocol_version: 1,
+        boot_id: "boot",
+        revision: 10,
+        emitted_at: "2026-07-15T00:00:00Z",
+        data: { rows },
+      },
+      "boot"
+    )
     expect(useTraceStore.getState().rows).toHaveLength(TRACE_CAPACITY)
     expect(useTraceStore.getState().rows[0]?.sequence).toBe(25)
-    useTraceStore
-      .getState()
-      .applyBatch(
-        {
-          protocol_version: 1,
-          boot_id: "boot",
-          revision: 11,
-          emitted_at: "2026-07-15T00:00:00Z",
-          data: { rows: [{ ...rows[0]!, session_id: 3 }] },
-        },
-        "boot"
-      )
+    useTraceStore.getState().applyBatch(
+      {
+        protocol_version: 1,
+        boot_id: "boot",
+        revision: 11,
+        emitted_at: "2026-07-15T00:00:00Z",
+        data: { rows: [{ ...rows[0]!, session_id: 3 }] },
+      },
+      "boot"
+    )
     expect(useTraceStore.getState().rows).toHaveLength(1)
     expect(useTraceStore.getState().sessionId).toBe(3)
   })

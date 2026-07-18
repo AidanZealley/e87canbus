@@ -7,10 +7,8 @@ import {
 } from "@tanstack/react-query"
 import { afterEach, expect, it } from "vitest"
 
-import {
-  applicationSettingsQueryOptions,
-  DEFAULT_APPLICATION_SETTINGS,
-} from "@/api/settings"
+import { getApplicationSettingsOptions } from "@/api/http/@tanstack/react-query.gen"
+import { DEFAULT_APPLICATION_SETTINGS } from "@/lib/application-settings"
 import { useLiveStore } from "./live-store"
 import { snapshot } from "./test-fixtures"
 
@@ -32,12 +30,12 @@ it("rerenders a vehicle subscriber without rerendering settings or button panels
   }
   const SettingsPanel = () => {
     renders.settings += 1
-    const settings = useQuery(applicationSettingsQueryOptions())
+    const settings = useQuery(getApplicationSettingsOptions())
     return <span>{settings.data?.speed_unit}</span>
   }
   const queryClient = new QueryClient()
   queryClient.setQueryData(
-    applicationSettingsQueryOptions().queryKey,
+    getApplicationSettingsOptions().queryKey,
     DEFAULT_APPLICATION_SETTINGS
   )
   render(

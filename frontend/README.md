@@ -25,6 +25,11 @@ pnpm install
 pnpm dev
 ```
 
+`pnpm dev` runs Vite together with the contract watcher. It performs one complete generation on
+startup, then watches Python backend and generator sources with a debounce and regenerates after
+changes. A temporarily invalid Python save reports the failed generation but leaves the watcher
+running; the last generated TypeScript remains available until the next valid change.
+
 The frontend defaults to `http://127.0.0.1:5173` and expects the API at
 `http://127.0.0.1:8000`. Override the backend origin with `VITE_API_BASE`.
 Socket.IO owns reconnection and the UI remains unsynchronized until the backend's complete
@@ -78,8 +83,8 @@ protocol supplies no evidence; it does not turn desired output into observed sta
 
 ## Application settings data
 
-`src/api/settings.ts` defines the complete revisioned settings request/response contract, compiled
-seed defaults and stable TanStack Query options. `src/lib/application-settings-query.ts` exposes an
+The generated HTTP client defines the complete revisioned settings request/response contract and
+stable TanStack Query options. `src/lib/application-settings-query.ts` exposes an
 effective value that distinguishes authoritative data from defaults and reports a separate
 persistence-fault flag. Saving is unavailable until an authoritative revision exists; a successful
 full-document update replaces the cache with the committed response, while a failed update leaves
@@ -132,7 +137,9 @@ operations remain simulation-only and grant no physical output authority.
 
 ## Structure
 
-- `src/api/` — shared HTTP client, resource/query contracts and Socket.IO event types.
+- `src/api/http/` — Hey API generated HTTP types, SDK, validators and TanStack Query helpers; never edit.
+- `src/api/live-contract.gen.ts` — generated Socket.IO payload and event-map types; never edit.
+- `src/api/http-client-config.ts` — handwritten Hey API runtime client configuration.
 - `src/live/` — singleton Socket.IO transport plus current-state and bounded-trace Zustand stores.
 - `src/components/steering-curve-editor/` — draft/active/saved curve editing and profile actions.
 - `src/components/simulator-workbench/` — workbench composition and feature components.
@@ -147,6 +154,37 @@ when adding or updating UI primitives:
 ```bash
 pnpm dlx shadcn@latest add <component>
 ```
+
+## Contract generation
+
+The backend contract sources and generated-artifact policy are documented in
+[`protocol/README.md`](../protocol/README.md#frontend-contracts). Common commands are:
+
+```bash
+pnpm api:generate  # regenerate OpenAPI, HTTP TypeScript, Socket.IO schema and Socket.IO TypeScript
+pnpm api:check     # non-mutating drift check used by CI
+pnpm api:watch     # initial generation followed by debounced backend-source watching
+```
+
+Generated files are committed so editors, production builds and clean checkouts do not require
+Python at build time. CI runs `api:check` before frontend typechecking, tests and builds and rejects
+stale generated output.
+
+Generator versions are intentionally exact. To upgrade, replace each placeholder with that
+package's independently reviewed version and run, from `frontend/`:
+
+```bash
+pnpm add --save-exact --save-dev @hey-api/openapi-ts@<hey-api-version>
+pnpm add --save-exact --save-dev json-schema-to-typescript@<json-schema-to-typescript-version>
+pnpm add --save-exact zod@<zod-version>
+uv add --project .. --dev watchfiles==<watchfiles-version>
+pnpm add --save-exact --save-dev concurrently@<concurrently-version>
+pnpm api:generate
+pnpm api:check && pnpm typecheck && pnpm test && pnpm build
+```
+
+Commit the manifest, both lockfiles and regenerated artifacts together. Review generated diffs for
+operation-name or wire-shape changes before merging.
 
 ## Verification
 

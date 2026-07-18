@@ -1,8 +1,8 @@
 import type {
-  ApplicationSettings,
+  ApplicationSettingsResponse,
   TemperatureUnit,
   UpdateApplicationSettingsRequest,
-} from "../../api/settings.ts"
+} from "@/api/http/types.gen"
 import {
   celsiusToFahrenheit,
   fahrenheitThresholdToCelsius,
@@ -15,7 +15,7 @@ const displayTemperature = (valueC: number, unit: TemperatureUnit) =>
   )
 
 export const settingsToDraft = (
-  settings: ApplicationSettings
+  settings: ApplicationSettingsResponse
 ): ApplicationSettingsDraft => ({
   sourceRevision: settings.revision,
   speedUnit: settings.speed_unit,
@@ -163,7 +163,7 @@ export const validateSettingsDraft = (
 
 export const settingsDraftMatches = (
   draft: ApplicationSettingsDraft,
-  settings: ApplicationSettings
+  settings: ApplicationSettingsResponse
 ) => {
   const result = validateSettingsDraft(draft)
   if (result.request === null) return false

@@ -4,16 +4,15 @@ import {
   LIVE_PROTOCOL_VERSION,
   type ButtonsState,
   type ControllerHealthState,
-  type ControllerSnapshotData,
   type DevicesState,
   type EngineState,
   type LightingState,
-  type LiveEnvelope,
+  type ServerEventPayload,
+  type ServerToClientEvents,
   type SteeringState,
-  type TopicName,
   type TopicRevisions,
   type VehicleState,
-} from "@/api/live-events"
+} from "@/api/live-contract.gen"
 
 export type LiveConnectionStatus =
   | "connecting"
@@ -50,15 +49,29 @@ export type LiveState = LiveSlices & {
   transportConnected: (reconnecting: boolean) => void
   transportDisconnected: () => void
   transportError: (message: string) => void
-  applySnapshot: (envelope: LiveEnvelope<ControllerSnapshotData>) => boolean
-  applyVehicle: (envelope: LiveEnvelope<VehicleState>) => TopicApplyDecision
-  applyEngine: (envelope: LiveEnvelope<EngineState>) => TopicApplyDecision
-  applySteering: (envelope: LiveEnvelope<SteeringState>) => TopicApplyDecision
-  applyButtons: (envelope: LiveEnvelope<ButtonsState>) => TopicApplyDecision
-  applyLighting: (envelope: LiveEnvelope<LightingState>) => TopicApplyDecision
-  applyDevices: (envelope: LiveEnvelope<DevicesState>) => TopicApplyDecision
+  applySnapshot: (
+    envelope: ServerEventPayload<"controller.snapshot">
+  ) => boolean
+  applyVehicle: (
+    envelope: ServerEventPayload<"vehicle.state">
+  ) => TopicApplyDecision
+  applyEngine: (
+    envelope: ServerEventPayload<"engine.state">
+  ) => TopicApplyDecision
+  applySteering: (
+    envelope: ServerEventPayload<"steering.state">
+  ) => TopicApplyDecision
+  applyButtons: (
+    envelope: ServerEventPayload<"buttons.state">
+  ) => TopicApplyDecision
+  applyLighting: (
+    envelope: ServerEventPayload<"lighting.state">
+  ) => TopicApplyDecision
+  applyDevices: (
+    envelope: ServerEventPayload<"devices.state">
+  ) => TopicApplyDecision
   applyHealth: (
-    envelope: LiveEnvelope<ControllerHealthState>
+    envelope: ServerEventPayload<"controller.health">
   ) => TopicApplyDecision
   reset: () => void
 }
@@ -84,7 +97,11 @@ const emptySlices = (): LiveSlices => ({
     coolant_temperature_c: { value: null, status: "never_observed" },
   },
   steering: null,
-  buttons: { led_rgb: Array.from({ length: 16 }, () => [0, 0, 0] as [number, number, number]) },
+  buttons: {
+    led_rgb: Array.from({ length: 16 }, () => [
+      0, 0, 0,
+    ]) as ButtonsState["led_rgb"],
+  },
   lighting: {
     high_beam_enabled: false,
     high_beam_strobe_active: false,
@@ -188,7 +205,8 @@ const reconcileDevices = (
   }
   if (
     registry.button_pad === previous.registry.button_pad &&
-    registry.servotronic_controller === previous.registry.servotronic_controller &&
+    registry.servotronic_controller ===
+      previous.registry.servotronic_controller &&
     previous.networks === next.networks
   ) {
     return previous
@@ -197,10 +215,15 @@ const reconcileDevices = (
 }
 
 export const useLiveStore = create<LiveState>((set, get) => {
-  const applyTopic = <Topic extends TopicName, Value>(
-    topic: Topic,
-    field: Topic,
-    envelope: LiveEnvelope<Value>
+  type TopicName = keyof TopicRevisions
+  type TopicEventName = Exclude<
+    keyof ServerToClientEvents,
+    "controller.snapshot" | "resources.changed" | "trace.batch"
+  >
+  const applyTopic = (
+    topic: TopicName,
+    field: TopicName,
+    envelope: ServerEventPayload<TopicEventName>
   ): TopicApplyDecision => {
     const current = get()
     if (envelope.protocol_version !== LIVE_PROTOCOL_VERSION) {

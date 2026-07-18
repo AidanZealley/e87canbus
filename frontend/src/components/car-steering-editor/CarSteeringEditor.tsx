@@ -1,14 +1,18 @@
 import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 
-import type { SteeringState, VehicleState } from "@/api/live-events"
+import type {
+  ActiveSteeringCurveState,
+  SteeringCurveDefinition,
+  SteeringState,
+  VehicleState,
+} from "@/api/live-contract.gen"
 
 import {
-  activateSteeringCurve,
-  steeringProfilesQueryOptions,
-  type ActiveSteeringCurve,
-  type SteeringCurveDefinition,
-} from "@/api/steering"
+  activateSteeringCurveMutation,
+  activateSteeringProfileMutation,
+  listSteeringProfilesOptions,
+} from "@/api/http/@tanstack/react-query.gen"
 import { CurveChart } from "@/components/steering-curve-editor/components/curve-chart"
 import { steeringDependency } from "@/components/car-layout/car-ui"
 import {
@@ -91,10 +95,10 @@ const LoadedSteeringEditor = ({
   steering: SteeringState
   vehicle: VehicleState
   servotronic: NonNullable<SteeringState["servotronic"]>
-  initialActive: ActiveSteeringCurve
+  initialActive: ActiveSteeringCurveState
 }) => {
   const liveActive = steering.active_curve
-  const profilesQuery = useQuery(steeringProfilesQueryOptions())
+  const profilesQuery = useQuery(listSteeringProfilesOptions())
   const profiles = profilesQuery.data ?? []
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     initialActive.saved_profile_id
@@ -105,15 +109,10 @@ const LoadedSteeringEditor = ({
   const [draftBase, setDraftBase] = useState<SteeringCurveDefinition>(
     initialActive.definition
   )
-  const activation = useMutation({
-    mutationFn: ({
-      definition,
-      savedProfile,
-    }: {
-      definition: SteeringCurveDefinition
-      savedProfile?: Parameters<typeof activateSteeringCurve>[1]
-    }) => activateSteeringCurve(definition, savedProfile),
-  })
+  const curveActivation = useMutation(activateSteeringCurveMutation())
+  const profileActivation = useMutation(activateSteeringProfileMutation())
+  const activationPending =
+    curveActivation.isPending || profileActivation.isPending
   const [lastError, setLastError] = useState<string | null>(null)
   const [activationMessage, setActivationMessage] = useState<string | null>(
     null
@@ -160,16 +159,26 @@ const LoadedSteeringEditor = ({
 
   const sourceName = draftMatchesSelected ? selectedProfile?.name : undefined
   const apply = async () => {
-    if (activation.isPending || draftMatchesActive) return
+    if (
+      curveActivation.isPending ||
+      profileActivation.isPending ||
+      draftMatchesActive
+    ) {
+      return
+    }
     setLastError(null)
     setActivationMessage(null)
     try {
-      await activation.mutateAsync({
-        definition: draft,
-        savedProfile: draftMatchesSelected
-          ? (selectedProfile ?? undefined)
-          : undefined,
-      })
+      if (draftMatchesSelected && selectedProfile !== null) {
+        await profileActivation.mutateAsync({
+          body: {
+            profile_id: selectedProfile.profile_id,
+            expected_revision: selectedProfile.revision,
+          },
+        })
+      } else {
+        await curveActivation.mutateAsync({ body: { definition: draft } })
+      }
       setActivationMessage(
         "Activation accepted. Live state will confirm the active curve."
       )
@@ -201,7 +210,8 @@ const LoadedSteeringEditor = ({
             })),
           ]}
           disabled={
-            activation.isPending ||
+            curveActivation.isPending ||
+            profileActivation.isPending ||
             profilesQuery.isLoading ||
             profilesQuery.isError
           }
@@ -250,7 +260,7 @@ const LoadedSteeringEditor = ({
       <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="outline"
-          disabled={activation.isPending || !dirty}
+          disabled={activationPending || !dirty}
           onClick={() => {
             setDraft(draftBase)
             setLastError(null)
@@ -260,10 +270,10 @@ const LoadedSteeringEditor = ({
           Revert draft
         </Button>
         <Button
-          disabled={activation.isPending || draftMatchesActive}
+          disabled={activationPending || draftMatchesActive}
           onClick={() => setConfirmApply(true)}
         >
-          {activation.isPending ? "Applying…" : "Apply"}
+          {activationPending ? "Applying…" : "Apply"}
         </Button>
         <p
           className="min-w-0 truncate text-xs text-muted-foreground"
@@ -287,11 +297,11 @@ const LoadedSteeringEditor = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={activation.isPending}>
+            <AlertDialogCancel disabled={activationPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={activation.isPending}
+              disabled={activationPending}
               onClick={() => void apply()}
             >
               Confirm activation

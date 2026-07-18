@@ -1,13 +1,16 @@
 import { useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import {
-  applicationSettingsQueryKey,
-  SettingsApiError,
-  type ApplicationSettings,
-  type SpeedUnit,
-  type TemperatureUnit,
-} from "@/api/settings"
+  getApplicationSettingsQueryKey,
+  updateApplicationSettingsMutation,
+} from "@/api/http/@tanstack/react-query.gen"
+import type {
+  ApplicationSettingsResponse,
+  SpeedUnit,
+  TemperatureUnit,
+} from "@/api/http/types.gen"
+import { isApiProblemResponse } from "@/api/is-api-problem"
 import { ModeToggle } from "@/components/mode-toggle"
 import {
   AlertDialog,
@@ -30,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useUpdateApplicationSettings } from "@/lib/application-settings-query"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import type { ApplicationSettingsDraft } from "./types"
 import {
@@ -96,7 +98,7 @@ const UnavailableSettings = ({
   onRetry,
 }: {
   loading: boolean
-  error: Error | null
+  error: unknown
   refetching: boolean
   onRetry: () => Promise<void>
 }) => (
@@ -123,10 +125,14 @@ const UnavailableSettings = ({
 const AuthoritativeSettingsForm = ({
   settings,
 }: {
-  settings: ApplicationSettings
+  settings: ApplicationSettingsResponse
 }) => {
   const queryClient = useQueryClient()
-  const update = useUpdateApplicationSettings()
+  const update = useMutation({
+    ...updateApplicationSettingsMutation(),
+    onSuccess: (committed) =>
+      queryClient.setQueryData(getApplicationSettingsQueryKey(), committed),
+  })
   const [authoritative, setAuthoritative] = useState(settings)
   const [draft, setDraft] = useState<ApplicationSettingsDraft>(() =>
     settingsToDraft(settings)
@@ -163,21 +169,21 @@ const AuthoritativeSettingsForm = ({
     setLastError(null)
     setConflictRevision(null)
     try {
-      const committed = await update.mutateAsync(validation.request)
+      const committed = await update.mutateAsync({ body: validation.request })
       setAuthoritative(committed)
       setDraft(settingsToDraft(committed))
       setLastSavedRevision(committed.revision)
     } catch (error) {
       if (
-        error instanceof SettingsApiError &&
-        error.code === "settings_revision_conflict"
+        isApiProblemResponse(error) &&
+        error.error.code === "settings_revision_conflict"
       ) {
-        setConflictRevision(error.currentRevision ?? null)
+        setConflictRevision(error.error.current_revision ?? null)
         setLastError(
-          `Settings changed elsewhere${error.currentRevision ? ` (revision ${error.currentRevision})` : ""}. Your draft was retained.`
+          `Settings changed elsewhere${error.error.current_revision ? ` (revision ${error.error.current_revision})` : ""}. Your draft was retained.`
         )
         await queryClient.invalidateQueries({
-          queryKey: applicationSettingsQueryKey,
+          queryKey: getApplicationSettingsQueryKey(),
         })
       } else {
         setLastError(

@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import type { EngineTelemetryValue } from "@/api/live-events"
+import type { EngineTelemetryValue } from "@/api/live-contract.gen"
 import {
   transitionTemperatureSeverity,
   type TemperatureSeverity,

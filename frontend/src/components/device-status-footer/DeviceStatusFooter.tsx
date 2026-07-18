@@ -1,11 +1,11 @@
-import type { DeviceRegistryEntry } from "@/api/live-events"
+import type { DeviceRegistryEntryState } from "@/api/live-contract.gen"
 import { cn } from "@/lib/utils"
 
 export const DeviceStatusFooter = ({
   entries,
   className,
 }: {
-  entries: readonly DeviceRegistryEntry[]
+  entries: readonly DeviceRegistryEntryState[]
   className?: string
 }) => {
   const observed = entries.filter(
@@ -50,7 +50,7 @@ export const DeviceStatusFooter = ({
   )
 }
 
-const deviceStatusLabel = (device: DeviceRegistryEntry) => {
+const deviceStatusLabel = (device: DeviceRegistryEntryState) => {
   switch (device.status) {
     case "pending":
       return "pending — waiting for heartbeat"

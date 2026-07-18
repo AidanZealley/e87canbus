@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, RadioTowerIcon } from "lucide-react"
-import type { DevicesState, TraceRow } from "@/api/live-events"
+import type { DevicesState, TraceRow } from "@/api/live-contract.gen"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"

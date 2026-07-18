@@ -11,16 +11,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, expect, it, vi } from "vitest"
 
-import { tapButton } from "@/api/simulator"
+import { tapSimulationButton } from "@/api/http/sdk.gen"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 
-vi.mock("@/api/simulator", () => ({
-  tapButton: vi.fn(),
-  connectSimulatedDevice: vi.fn(),
-  disconnectSimulatedDevice: vi.fn(),
-  rebootSimulatedDevice: vi.fn(),
+vi.mock("@/api/http/sdk.gen", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/http/sdk.gen")>()),
+  tapSimulationButton: vi.fn(),
+  connectSimulationDevice: vi.fn(),
+  disconnectSimulationDevice: vi.fn(),
+  rebootSimulationDevice: vi.fn(),
 }))
 
 const renderWithQueryClient = (ui: ReactNode) =>
@@ -61,7 +62,10 @@ it("clears retained LED observations and disables controls when unsynchronized",
 
 it("sends emulator taps when the emulated source is selected", async () => {
   const value = snapshot("dev-boot", 5)
-  value.data.buttons.led_rgb = [[0, 255, 0], ...Array.from({ length: 15 }, () => [0, 0, 0] as [number, number, number])]
+  value.data.buttons.led_rgb = [
+    [0, 255, 0],
+    ...Array.from({ length: 15 }, () => [0, 0, 0] as [number, number, number]),
+  ] as typeof value.data.buttons.led_rgb
   value.data.devices.registry.button_pad = {
     ...value.data.devices.registry.button_pad,
     source_mode: "emulated",
@@ -75,7 +79,12 @@ it("sends emulator taps when the emulated source is selected", async () => {
   const firstButton = screen.getByRole("button", { name: "Button 0" })
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 255 0")
   fireEvent.click(firstButton)
-  await waitFor(() => expect(tapButton).toHaveBeenCalledWith(0))
+  await waitFor(() =>
+    expect(tapSimulationButton).toHaveBeenCalledWith({
+      path: { button_index: 0 },
+      throwOnError: true,
+    })
+  )
 })
 
 it("disables wire controls for a physical button-pad source", async () => {
@@ -93,5 +102,5 @@ it("disables wire controls for a physical button-pad source", async () => {
   const wireButton = screen.getByRole("button", { name: "Button 0" })
   expect((wireButton as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(wireButton)
-  expect(tapButton).not.toHaveBeenCalled()
+  expect(tapSimulationButton).not.toHaveBeenCalled()
 })

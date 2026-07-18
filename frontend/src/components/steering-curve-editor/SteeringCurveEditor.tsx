@@ -1,4 +1,5 @@
-import type { ActiveSteeringCurve, StoredSteeringProfile } from "@/api/steering"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
+import type { ActiveSteeringCurveState } from "@/api/live-contract.gen"
 import { Card, CardContent } from "@/components/ui/card"
 import { CurveActionError } from "./components/curve-action-error/CurveActionError"
 import { CurveActions } from "./components/curve-actions/CurveActions"
@@ -12,8 +13,8 @@ import { SteeringCurveEditorProvider } from "./SteeringCurveEditorProvider"
 import type { SteeringCurveEditorEffects } from "./types"
 
 type SteeringCurveEditorProps = {
-  activeCurve: ActiveSteeringCurve
-  profiles: StoredSteeringProfile[]
+  activeCurve: ActiveSteeringCurveState
+  profiles: SteeringProfileResponse[]
   profilesError?: unknown
   effects: SteeringCurveEditorEffects
   speedKph: number | null
@@ -51,9 +52,9 @@ export const SteeringCurveEditor = ({
         <ProfileSelector />
         <CurveActions />
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          Editing changes browser draft state only. Save creates a saved revision;
-          Apply consciously activates the draft.
-          Neither grants physical steering output authority.
+          Editing changes browser draft state only. Save creates a saved
+          revision; Apply consciously activates the draft. Neither grants
+          physical steering output authority.
         </p>
       </CardContent>
     </Card>

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Request
 
+from e87canbus.api.errors import api_problem_responses
 from e87canbus.api.internal import operational_commands
 from e87canbus.api.models.commands import (
     ActivateSteeringCurveRequest,
@@ -14,7 +15,11 @@ from e87canbus.api.models.commands import (
 router = APIRouter(prefix="/api/commands", tags=["commands"])
 
 
-@router.put("/maximum-assistance")
+@router.put(
+    "/maximum-assistance",
+    operation_id="setMaximumAssistance",
+    responses=api_problem_responses(409, 422, 503),
+)
 async def set_maximum_assistance(
     request: Request,
     body: SetMaximumAssistanceRequest,
@@ -22,7 +27,11 @@ async def set_maximum_assistance(
     return await operational_commands.set_maximum_assistance(request.app, body)
 
 
-@router.put("/steering-mode")
+@router.put(
+    "/steering-mode",
+    operation_id="setSteeringMode",
+    responses=api_problem_responses(409, 422, 503),
+)
 async def set_steering_mode(
     request: Request,
     body: SetSteeringModeRequest,
@@ -30,7 +39,11 @@ async def set_steering_mode(
     return await operational_commands.set_steering_mode(request.app, body)
 
 
-@router.post("/activate-steering-profile")
+@router.post(
+    "/activate-steering-profile",
+    operation_id="activateSteeringProfile",
+    responses=api_problem_responses(404, 409, 422, 503),
+)
 async def activate_steering_profile(
     request: Request,
     body: ActivateSteeringProfileRequest,
@@ -42,7 +55,11 @@ async def activate_steering_profile(
     )
 
 
-@router.put("/steering-curve")
+@router.put(
+    "/steering-curve",
+    operation_id="activateSteeringCurve",
+    responses=api_problem_responses(409, 422, 503),
+)
 async def activate_steering_curve(
     request: Request,
     body: ActivateSteeringCurveRequest,

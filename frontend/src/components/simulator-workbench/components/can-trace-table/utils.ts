@@ -1,4 +1,4 @@
-import type { TraceRow } from "@/api/live-events"
+import type { TraceRow } from "@/api/live-contract.gen"
 export const decodeMeaning = (entry: TraceRow) => {
   if (entry.network !== "kcan") return "unknown"
 

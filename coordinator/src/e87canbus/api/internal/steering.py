@@ -48,9 +48,8 @@ def definition_from_request(
 
 async def list_profiles(
     repository: SteeringProfileRepository,
-) -> dict[str, tuple[StoredSteeringProfile, ...]]:
-    profiles = await repository_operation(repository.list_profiles)
-    return {"profiles": profiles}
+) -> tuple[StoredSteeringProfile, ...]:
+    return await repository_operation(repository.list_profiles)
 
 
 async def create_profile(

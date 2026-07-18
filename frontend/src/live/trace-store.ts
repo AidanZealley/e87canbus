@@ -2,10 +2,9 @@ import { create } from "zustand"
 
 import {
   LIVE_PROTOCOL_VERSION,
-  type LiveEnvelope,
-  type TraceBatch,
+  type ServerEventPayload,
   type TraceRow,
-} from "@/api/live-events"
+} from "@/api/live-contract.gen"
 
 export const TRACE_CAPACITY = 2_000
 
@@ -15,7 +14,7 @@ type TraceState = {
   revision: number
   rows: TraceRow[]
   applyBatch: (
-    envelope: LiveEnvelope<TraceBatch>,
+    envelope: ServerEventPayload<"trace.batch">,
     liveBootId: string | null
   ) => void
   clear: () => void

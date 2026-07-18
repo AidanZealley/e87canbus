@@ -1,1107 +1,1786 @@
 {
-  "client_transport_events": [
-    "controller.resync",
-    "trace.subscribe",
-    "trace.unsubscribe"
-  ],
-  "live_envelope": {
-    "$defs": {
-      "ActiveSteeringCurveState": {
-        "additionalProperties": false,
-        "properties": {
-          "activation_revision": {
-            "title": "Activation Revision",
-            "type": "integer"
-          },
-          "definition": {
-            "$ref": "#/$defs/SteeringCurveDefinition"
-          },
-          "fingerprint": {
-            "title": "Fingerprint",
-            "type": "string"
-          },
-          "saved_profile_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Saved Profile Id"
-          },
-          "saved_profile_revision": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Saved Profile Revision"
-          },
-          "status": {
-            "enum": [
-              "active",
-              "activating",
-              "activation_failed"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
+  "$id": "https://e87canbus.local/protocol/live-events-v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "ActiveSteeringCurveState": {
+      "additionalProperties": false,
+      "properties": {
+        "activation_revision": {
+          "title": "Activation Revision",
+          "type": "integer"
         },
-        "required": [
-          "definition",
-          "fingerprint",
-          "activation_revision",
-          "status",
-          "saved_profile_id",
-          "saved_profile_revision"
-        ],
-        "title": "ActiveSteeringCurveState",
-        "type": "object"
-      },
-      "ButtonsState": {
-        "additionalProperties": false,
-        "properties": {
-          "led_rgb": {
-            "items": {
-              "maxItems": 3,
-              "minItems": 3,
-              "prefixItems": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "type": "array"
-            },
-            "maxItems": 16,
-            "minItems": 16,
-            "title": "Led Rgb",
-            "type": "array"
-          }
+        "definition": {
+          "$ref": "#/definitions/SteeringCurveDefinition"
         },
-        "required": [
-          "led_rgb"
-        ],
-        "title": "ButtonsState",
-        "type": "object"
-      },
-      "ControllerHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "devices": {
-            "items": {
-              "$ref": "#/$defs/DeviceHealthState"
-            },
-            "title": "Devices",
-            "type": "array"
-          },
-          "fatal": {
-            "title": "Fatal",
-            "type": "boolean"
-          },
-          "inbox": {
-            "$ref": "#/$defs/InboxHealthState"
-          },
-          "networks": {
-            "items": {
-              "$ref": "#/$defs/NetworkHealthState"
-            },
-            "title": "Networks",
-            "type": "array"
-          },
-          "persistence": {
-            "$ref": "#/$defs/PersistenceHealthState"
-          },
-          "publisher": {
-            "$ref": "#/$defs/PublisherHealthState"
-          },
-          "ready": {
-            "title": "Ready",
-            "type": "boolean"
-          },
-          "steering": {
-            "$ref": "#/$defs/SteeringCapabilityHealthState"
-          }
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
         },
-        "required": [
-          "ready",
-          "fatal",
-          "networks",
-          "inbox",
-          "devices",
-          "steering",
-          "persistence",
-          "publisher"
-        ],
-        "title": "ControllerHealthState",
-        "type": "object"
-      },
-      "ControllerSnapshotData": {
-        "additionalProperties": false,
-        "properties": {
-          "buttons": {
-            "$ref": "#/$defs/ButtonsState"
-          },
-          "devices": {
-            "$ref": "#/$defs/DevicesState"
-          },
-          "engine": {
-            "$ref": "#/$defs/EngineState"
-          },
-          "health": {
-            "$ref": "#/$defs/ControllerHealthState"
-          },
-          "lighting": {
-            "$ref": "#/$defs/LightingState"
-          },
-          "simulation_session_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Simulation Session Id"
-          },
-          "steering": {
-            "$ref": "#/$defs/SteeringState"
-          },
-          "topic_revisions": {
-            "$ref": "#/$defs/TopicRevisions"
-          },
-          "vehicle": {
-            "$ref": "#/$defs/VehicleState"
-          }
-        },
-        "required": [
-          "topic_revisions",
-          "simulation_session_id",
-          "vehicle",
-          "engine",
-          "steering",
-          "buttons",
-          "lighting",
-          "devices",
-          "health"
-        ],
-        "title": "ControllerSnapshotData",
-        "type": "object"
-      },
-      "DeviceHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "fault": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "role": {
-            "enum": [
-              "button_pad",
-              "servotronic_controller"
-            ],
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "fault"
-        ],
-        "title": "DeviceHealthState",
-        "type": "object"
-      },
-      "DeviceRegistryEntryState": {
-        "additionalProperties": false,
-        "properties": {
-          "device_id": {
-            "maximum": 65535,
-            "minimum": 0,
-            "title": "Device Id",
-            "type": "integer"
-          },
-          "device_session_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Session Id"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "last_status_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Status Code"
-          },
-          "last_transition_monotonic_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Transition Monotonic S"
-          },
-          "protocol_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Protocol Version"
-          },
-          "role": {
-            "enum": [
-              "button_pad",
-              "servotronic_controller"
-            ],
-            "title": "Role",
-            "type": "string"
-          },
-          "source_mode": {
-            "enum": [
-              "physical",
-              "emulated",
-              "disabled"
-            ],
-            "title": "Source Mode",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "disabled",
-              "not_found",
-              "pending",
-              "active",
-              "stale",
-              "incompatible",
-              "fault"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "label",
-          "device_id",
-          "source_mode",
-          "status",
-          "protocol_version",
-          "device_session_id",
-          "last_status_code",
-          "last_transition_monotonic_s"
-        ],
-        "title": "DeviceRegistryEntryState",
-        "type": "object"
-      },
-      "DeviceRegistryState": {
-        "additionalProperties": false,
-        "properties": {
-          "button_pad": {
-            "$ref": "#/$defs/DeviceRegistryEntryState"
-          },
-          "servotronic_controller": {
-            "$ref": "#/$defs/DeviceRegistryEntryState"
-          }
-        },
-        "required": [
-          "button_pad",
-          "servotronic_controller"
-        ],
-        "title": "DeviceRegistryState",
-        "type": "object"
-      },
-      "DevicesState": {
-        "additionalProperties": false,
-        "properties": {
-          "networks": {
-            "items": {
-              "$ref": "#/$defs/NetworkState"
-            },
-            "title": "Networks",
-            "type": "array"
-          },
-          "registry": {
-            "$ref": "#/$defs/DeviceRegistryState"
-          }
-        },
-        "required": [
-          "registry",
-          "networks"
-        ],
-        "title": "DevicesState",
-        "type": "object"
-      },
-      "EngineState": {
-        "additionalProperties": false,
-        "properties": {
-          "coolant_temperature_c": {
-            "$ref": "#/$defs/EngineTelemetryValue"
-          },
-          "oil_temperature_c": {
-            "$ref": "#/$defs/EngineTelemetryValue"
-          },
-          "rpm": {
-            "$ref": "#/$defs/EngineTelemetryValue"
-          }
-        },
-        "required": [
-          "rpm",
-          "oil_temperature_c",
-          "coolant_temperature_c"
-        ],
-        "title": "EngineState",
-        "type": "object"
-      },
-      "EngineTelemetryValue": {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "enum": [
-              "valid",
-              "never_observed",
-              "stale"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "required": [
-          "value",
-          "status"
-        ],
-        "title": "EngineTelemetryValue",
-        "type": "object"
-      },
-      "InboxHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "capacity": {
-            "exclusiveMinimum": 0,
-            "title": "Capacity",
-            "type": "integer"
-          },
-          "current_latency_s": {
-            "minimum": 0,
-            "title": "Current Latency S",
-            "type": "number"
-          },
-          "depth": {
-            "minimum": 0,
-            "title": "Depth",
-            "type": "integer"
-          },
-          "latency_warning": {
-            "title": "Latency Warning",
-            "type": "boolean"
-          },
-          "overflow_latched": {
-            "title": "Overflow Latched",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "depth",
-          "capacity",
-          "current_latency_s",
-          "latency_warning",
-          "overflow_latched"
-        ],
-        "title": "InboxHealthState",
-        "type": "object"
-      },
-      "LightingState": {
-        "additionalProperties": false,
-        "properties": {
-          "high_beam_enabled": {
-            "title": "High Beam Enabled",
-            "type": "boolean"
-          },
-          "high_beam_strobe_active": {
-            "title": "High Beam Strobe Active",
-            "type": "boolean"
-          },
-          "high_beam_strobe_cycles_remaining": {
-            "minimum": 0,
-            "title": "High Beam Strobe Cycles Remaining",
-            "type": "integer"
-          },
-          "observed_high_beam_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Observed High Beam Enabled"
-          }
-        },
-        "required": [
-          "high_beam_enabled",
-          "high_beam_strobe_active",
-          "high_beam_strobe_cycles_remaining",
-          "observed_high_beam_enabled"
-        ],
-        "title": "LightingState",
-        "type": "object"
-      },
-      "NetworkHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "fault": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "network": {
-            "enum": [
-              "kcan",
-              "ptcan",
-              "fcan"
-            ],
-            "title": "Network",
-            "type": "string"
-          }
-        },
-        "required": [
-          "network",
-          "fault"
-        ],
-        "title": "NetworkHealthState",
-        "type": "object"
-      },
-      "NetworkState": {
-        "additionalProperties": false,
-        "properties": {
-          "bitrate": {
-            "exclusiveMinimum": 0,
-            "title": "Bitrate",
-            "type": "integer"
-          },
-          "connected": {
-            "title": "Connected",
-            "type": "boolean"
-          },
-          "id": {
-            "enum": [
-              "kcan",
-              "ptcan",
-              "fcan"
-            ],
-            "title": "Id",
-            "type": "string"
-          },
-          "interface": {
-            "title": "Interface",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "nodes": {
-            "items": {
+        "saved_profile_id": {
+          "anyOf": [
+            {
               "type": "string"
             },
-            "title": "Nodes",
-            "type": "array"
-          }
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Saved Profile Id"
         },
-        "required": [
-          "id",
-          "label",
-          "interface",
-          "bitrate",
-          "connected",
-          "nodes"
-        ],
-        "title": "NetworkState",
-        "type": "object"
-      },
-      "PersistenceHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "available": {
-            "title": "Available",
-            "type": "boolean"
-          },
-          "fault": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fault"
-          }
-        },
-        "required": [
-          "available",
-          "fault"
-        ],
-        "title": "PersistenceHealthState",
-        "type": "object"
-      },
-      "PublisherHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "failures": {
-            "minimum": 0,
-            "title": "Failures",
-            "type": "integer"
-          },
-          "fault": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fault"
-          },
-          "resource_changes_dropped": {
-            "minimum": 0,
-            "title": "Resource Changes Dropped",
-            "type": "integer"
-          },
-          "running": {
-            "title": "Running",
-            "type": "boolean"
-          },
-          "trace_rows_dropped": {
-            "minimum": 0,
-            "title": "Trace Rows Dropped",
-            "type": "integer"
-          },
-          "transport_queue_saturations": {
-            "minimum": 0,
-            "title": "Transport Queue Saturations",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "running",
-          "failures",
-          "trace_rows_dropped",
-          "resource_changes_dropped",
-          "transport_queue_saturations",
-          "fault"
-        ],
-        "title": "PublisherHealthState",
-        "type": "object"
-      },
-      "RuntimeFaultState": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "enum": [
-              "can_reader",
-              "can_effect_execution",
-              "steering_actuator",
-              "inbox_overflow",
-              "device_adapter"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "monotonic_s": {
-            "title": "Monotonic S",
-            "type": "number"
-          }
-        },
-        "required": [
-          "kind",
-          "monotonic_s",
-          "message"
-        ],
-        "title": "RuntimeFaultState",
-        "type": "object"
-      },
-      "ServotronicState": {
-        "additionalProperties": false,
-        "properties": {
-          "effective_assistance": {
-            "title": "Effective Assistance",
-            "type": "number"
-          },
-          "last_command_reason": {
-            "anyOf": [
-              {
-                "enum": [
-                  "auto",
-                  "manual",
-                  "maximum",
-                  "speed_never_observed",
-                  "speed_stale",
-                  "can_reader_failure",
-                  "inbox_overflow",
-                  "shutdown"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Command Reason"
-          },
-          "watchdog_timed_out": {
-            "title": "Watchdog Timed Out",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "effective_assistance",
-          "last_command_reason",
-          "watchdog_timed_out"
-        ],
-        "title": "ServotronicState",
-        "type": "object"
-      },
-      "SteeringCapabilityHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "fault": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "fault"
-        ],
-        "title": "SteeringCapabilityHealthState",
-        "type": "object"
-      },
-      "SteeringCurveDefinition": {
-        "additionalProperties": false,
-        "properties": {
-          "points": {
-            "items": {
-              "$ref": "#/$defs/SteeringCurvePoint"
+        "saved_profile_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
             },
-            "title": "Points",
-            "type": "array"
-          },
-          "schema_version": {
-            "const": 1,
-            "title": "Schema Version",
-            "type": "integer"
-          }
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Saved Profile Revision"
         },
-        "required": [
-          "schema_version",
-          "points"
-        ],
-        "title": "SteeringCurveDefinition",
-        "type": "object"
+        "status": {
+          "enum": [
+            "active",
+            "activating",
+            "activation_failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
       },
-      "SteeringCurvePoint": {
-        "additionalProperties": false,
-        "properties": {
-          "assistance_per_mille": {
-            "title": "Assistance Per Mille",
-            "type": "integer"
-          },
-          "speed_deci_kph": {
-            "title": "Speed Deci Kph",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "speed_deci_kph",
-          "assistance_per_mille"
-        ],
-        "title": "SteeringCurvePoint",
-        "type": "object"
-      },
-      "SteeringState": {
-        "additionalProperties": false,
-        "properties": {
-          "active_curve": {
-            "$ref": "#/$defs/ActiveSteeringCurveState"
-          },
-          "manual_assistance_level": {
-            "minimum": 0,
-            "title": "Manual Assistance Level",
-            "type": "integer"
-          },
-          "maximum_assistance_active": {
-            "title": "Maximum Assistance Active",
-            "type": "boolean"
-          },
-          "mode": {
-            "enum": [
-              "auto",
-              "manual"
-            ],
-            "title": "Mode",
-            "type": "string"
-          },
-          "servotronic": {
-            "anyOf": [
+      "required": [
+        "activation_revision",
+        "definition",
+        "fingerprint",
+        "saved_profile_id",
+        "saved_profile_revision",
+        "status"
+      ],
+      "title": "ActiveSteeringCurveState",
+      "type": "object"
+    },
+    "ButtonsState": {
+      "additionalProperties": false,
+      "properties": {
+        "led_rgb": {
+          "items": {
+            "additionalItems": false,
+            "items": [
               {
-                "$ref": "#/$defs/ServotronicState"
+                "type": "integer"
               },
               {
-                "type": "null"
+                "type": "integer"
+              },
+              {
+                "type": "integer"
               }
-            ]
-          }
-        },
-        "required": [
-          "mode",
-          "manual_assistance_level",
-          "maximum_assistance_active",
-          "active_curve",
-          "servotronic"
-        ],
-        "title": "SteeringState",
-        "type": "object"
-      },
-      "TopicRevisions": {
-        "additionalProperties": false,
-        "properties": {
-          "buttons": {
-            "minimum": 0,
-            "title": "Buttons",
-            "type": "integer"
-          },
-          "devices": {
-            "minimum": 0,
-            "title": "Devices",
-            "type": "integer"
-          },
-          "engine": {
-            "minimum": 0,
-            "title": "Engine",
-            "type": "integer"
-          },
-          "health": {
-            "minimum": 0,
-            "title": "Health",
-            "type": "integer"
-          },
-          "lighting": {
-            "minimum": 0,
-            "title": "Lighting",
-            "type": "integer"
-          },
-          "steering": {
-            "minimum": 0,
-            "title": "Steering",
-            "type": "integer"
-          },
-          "vehicle": {
-            "minimum": 0,
-            "title": "Vehicle",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "vehicle",
-          "engine",
-          "steering",
-          "buttons",
-          "lighting",
-          "devices",
-          "health"
-        ],
-        "title": "TopicRevisions",
-        "type": "object"
-      },
-      "TraceBatchData": {
-        "additionalProperties": false,
-        "properties": {
-          "rows": {
-            "items": {
-              "$ref": "#/$defs/TraceRow"
-            },
-            "title": "Rows",
-            "type": "array"
-          }
-        },
-        "required": [
-          "rows"
-        ],
-        "title": "TraceBatchData",
-        "type": "object"
-      },
-      "TraceRow": {
-        "additionalProperties": false,
-        "properties": {
-          "arbitration_id": {
-            "minimum": 0,
-            "title": "Arbitration Id",
-            "type": "integer"
-          },
-          "arbitration_id_hex": {
-            "title": "Arbitration Id Hex",
-            "type": "string"
-          },
-          "data_hex": {
-            "title": "Data Hex",
-            "type": "string"
-          },
-          "is_extended_id": {
-            "title": "Is Extended Id",
-            "type": "boolean"
-          },
-          "monotonic_s": {
-            "title": "Monotonic S",
-            "type": "number"
-          },
-          "network": {
-            "enum": [
-              "kcan",
-              "ptcan",
-              "fcan"
             ],
-            "title": "Network",
-            "type": "string"
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
           },
-          "sequence": {
-            "minimum": 1,
-            "title": "Sequence",
-            "type": "integer"
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "integer"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          },
-          "type": {
-            "const": "frame",
-            "default": "frame",
-            "title": "Type",
-            "type": "string"
-          }
+          "maxItems": 16,
+          "minItems": 16,
+          "title": "Led Rgb",
+          "type": "array"
+        }
+      },
+      "required": [
+        "led_rgb"
+      ],
+      "title": "ButtonsState",
+      "type": "object"
+    },
+    "ButtonsStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_ButtonsState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
         },
-        "required": [
-          "session_id",
-          "sequence",
-          "network",
-          "source",
-          "arbitration_id",
-          "arbitration_id_hex",
-          "data_hex",
-          "is_extended_id",
-          "monotonic_s"
-        ],
-        "title": "TraceRow",
-        "type": "object"
+        "event": {
+          "const": "buttons.state",
+          "title": "Event",
+          "type": "string"
+        }
       },
-      "VehicleState": {
-        "additionalProperties": false,
-        "properties": {
-          "speed_kph": {
-            "title": "Speed Kph",
-            "type": "number"
-          },
-          "speed_valid": {
-            "title": "Speed Valid",
-            "type": "boolean"
-          }
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ButtonsStateEvent",
+      "type": "object"
+    },
+    "ClientToServerEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ControllerResyncEvent"
         },
-        "required": [
-          "speed_kph",
-          "speed_valid"
-        ],
-        "title": "VehicleState",
-        "type": "object"
-      }
+        {
+          "$ref": "#/definitions/TraceSubscribeEvent"
+        },
+        {
+          "$ref": "#/definitions/TraceUnsubscribeEvent"
+        }
+      ]
     },
-    "additionalProperties": false,
-    "properties": {
-      "boot_id": {
-        "minLength": 1,
-        "title": "Boot Id",
-        "type": "string"
+    "ControllerHealthEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_ControllerHealthState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "controller.health",
+          "title": "Event",
+          "type": "string"
+        }
       },
-      "data": {
-        "anyOf": [
-          {
-            "$ref": "#/$defs/ControllerSnapshotData"
-          },
-          {
-            "$ref": "#/$defs/VehicleState"
-          },
-          {
-            "$ref": "#/$defs/EngineState"
-          },
-          {
-            "$ref": "#/$defs/SteeringState"
-          },
-          {
-            "$ref": "#/$defs/ButtonsState"
-          },
-          {
-            "$ref": "#/$defs/LightingState"
-          },
-          {
-            "$ref": "#/$defs/DevicesState"
-          },
-          {
-            "$ref": "#/$defs/ControllerHealthState"
-          },
-          {
-            "$ref": "#/$defs/TraceBatchData"
-          }
-        ],
-        "title": "Data"
-      },
-      "emitted_at": {
-        "format": "date-time",
-        "title": "Emitted At",
-        "type": "string"
-      },
-      "protocol_version": {
-        "const": 1,
-        "default": 1,
-        "title": "Protocol Version",
-        "type": "integer"
-      },
-      "revision": {
-        "minimum": 0,
-        "title": "Revision",
-        "type": "integer"
-      }
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ControllerHealthEvent",
+      "type": "object"
     },
-    "required": [
-      "boot_id",
-      "revision",
-      "emitted_at",
-      "data"
-    ],
-    "title": "LiveEnvelope",
-    "type": "object"
-  },
-  "protocol_version": 1,
-  "resource_changed": {
-    "additionalProperties": false,
-    "properties": {
-      "id": {
-        "anyOf": [
-          {
+    "ControllerHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "devices": {
+          "items": {
+            "$ref": "#/definitions/DeviceHealthState"
+          },
+          "title": "Devices",
+          "type": "array"
+        },
+        "fatal": {
+          "title": "Fatal",
+          "type": "boolean"
+        },
+        "inbox": {
+          "$ref": "#/definitions/InboxHealthState"
+        },
+        "networks": {
+          "items": {
+            "$ref": "#/definitions/NetworkHealthState"
+          },
+          "title": "Networks",
+          "type": "array"
+        },
+        "persistence": {
+          "$ref": "#/definitions/PersistenceHealthState"
+        },
+        "publisher": {
+          "$ref": "#/definitions/PublisherHealthState"
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "steering": {
+          "$ref": "#/definitions/SteeringCapabilityHealthState"
+        }
+      },
+      "required": [
+        "devices",
+        "fatal",
+        "inbox",
+        "networks",
+        "persistence",
+        "publisher",
+        "ready",
+        "steering"
+      ],
+      "title": "ControllerHealthState",
+      "type": "object"
+    },
+    "ControllerResyncEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "maxItems": 0,
+          "minItems": 0,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "controller.resync",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ControllerResyncEvent",
+      "type": "object"
+    },
+    "ControllerSnapshotData": {
+      "additionalProperties": false,
+      "properties": {
+        "buttons": {
+          "$ref": "#/definitions/ButtonsState"
+        },
+        "devices": {
+          "$ref": "#/definitions/DevicesState"
+        },
+        "engine": {
+          "$ref": "#/definitions/EngineState"
+        },
+        "health": {
+          "$ref": "#/definitions/ControllerHealthState"
+        },
+        "lighting": {
+          "$ref": "#/definitions/LightingState"
+        },
+        "simulation_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Simulation Session Id"
+        },
+        "steering": {
+          "$ref": "#/definitions/SteeringState"
+        },
+        "topic_revisions": {
+          "$ref": "#/definitions/TopicRevisions"
+        },
+        "vehicle": {
+          "$ref": "#/definitions/VehicleState"
+        }
+      },
+      "required": [
+        "buttons",
+        "devices",
+        "engine",
+        "health",
+        "lighting",
+        "simulation_session_id",
+        "steering",
+        "topic_revisions",
+        "vehicle"
+      ],
+      "title": "ControllerSnapshotData",
+      "type": "object"
+    },
+    "ControllerSnapshotEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_ControllerSnapshotData_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "controller.snapshot",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ControllerSnapshotEvent",
+      "type": "object"
+    },
+    "DeviceHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "fault": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RuntimeFaultState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "enum": [
+            "button_pad",
+            "servotronic_controller"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fault",
+        "role"
+      ],
+      "title": "DeviceHealthState",
+      "type": "object"
+    },
+    "DeviceRegistryEntryState": {
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "maximum": 65535,
+          "minimum": 0,
+          "title": "Device Id",
+          "type": "integer"
+        },
+        "device_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Device Session Id"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "last_status_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Status Code"
+        },
+        "last_transition_monotonic_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Transition Monotonic S"
+        },
+        "protocol_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Protocol Version"
+        },
+        "role": {
+          "enum": [
+            "button_pad",
+            "servotronic_controller"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "source_mode": {
+          "enum": [
+            "physical",
+            "emulated",
+            "disabled"
+          ],
+          "title": "Source Mode",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "not_found",
+            "pending",
+            "active",
+            "stale",
+            "incompatible",
+            "fault"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "device_id",
+        "device_session_id",
+        "label",
+        "last_status_code",
+        "last_transition_monotonic_s",
+        "protocol_version",
+        "role",
+        "source_mode",
+        "status"
+      ],
+      "title": "DeviceRegistryEntryState",
+      "type": "object"
+    },
+    "DeviceRegistryState": {
+      "additionalProperties": false,
+      "properties": {
+        "button_pad": {
+          "$ref": "#/definitions/DeviceRegistryEntryState"
+        },
+        "servotronic_controller": {
+          "$ref": "#/definitions/DeviceRegistryEntryState"
+        }
+      },
+      "required": [
+        "button_pad",
+        "servotronic_controller"
+      ],
+      "title": "DeviceRegistryState",
+      "type": "object"
+    },
+    "DevicesState": {
+      "additionalProperties": false,
+      "properties": {
+        "networks": {
+          "items": {
+            "$ref": "#/definitions/NetworkState"
+          },
+          "title": "Networks",
+          "type": "array"
+        },
+        "registry": {
+          "$ref": "#/definitions/DeviceRegistryState"
+        }
+      },
+      "required": [
+        "networks",
+        "registry"
+      ],
+      "title": "DevicesState",
+      "type": "object"
+    },
+    "DevicesStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_DevicesState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "devices.state",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "DevicesStateEvent",
+      "type": "object"
+    },
+    "EngineState": {
+      "additionalProperties": false,
+      "properties": {
+        "coolant_temperature_c": {
+          "$ref": "#/definitions/EngineTelemetryValue"
+        },
+        "oil_temperature_c": {
+          "$ref": "#/definitions/EngineTelemetryValue"
+        },
+        "rpm": {
+          "$ref": "#/definitions/EngineTelemetryValue"
+        }
+      },
+      "required": [
+        "coolant_temperature_c",
+        "oil_temperature_c",
+        "rpm"
+      ],
+      "title": "EngineState",
+      "type": "object"
+    },
+    "EngineStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_EngineState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "engine.state",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "EngineStateEvent",
+      "type": "object"
+    },
+    "EngineTelemetryValue": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "valid",
+            "never_observed",
+            "stale"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "status",
+        "value"
+      ],
+      "title": "EngineTelemetryValue",
+      "type": "object"
+    },
+    "InboxHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "capacity": {
+          "exclusiveMinimum": 0,
+          "title": "Capacity",
+          "type": "integer"
+        },
+        "current_latency_s": {
+          "minimum": 0,
+          "title": "Current Latency S",
+          "type": "number"
+        },
+        "depth": {
+          "minimum": 0,
+          "title": "Depth",
+          "type": "integer"
+        },
+        "latency_warning": {
+          "title": "Latency Warning",
+          "type": "boolean"
+        },
+        "overflow_latched": {
+          "title": "Overflow Latched",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "capacity",
+        "current_latency_s",
+        "depth",
+        "latency_warning",
+        "overflow_latched"
+      ],
+      "title": "InboxHealthState",
+      "type": "object"
+    },
+    "LightingState": {
+      "additionalProperties": false,
+      "properties": {
+        "high_beam_enabled": {
+          "title": "High Beam Enabled",
+          "type": "boolean"
+        },
+        "high_beam_strobe_active": {
+          "title": "High Beam Strobe Active",
+          "type": "boolean"
+        },
+        "high_beam_strobe_cycles_remaining": {
+          "minimum": 0,
+          "title": "High Beam Strobe Cycles Remaining",
+          "type": "integer"
+        },
+        "observed_high_beam_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observed High Beam Enabled"
+        }
+      },
+      "required": [
+        "high_beam_enabled",
+        "high_beam_strobe_active",
+        "high_beam_strobe_cycles_remaining",
+        "observed_high_beam_enabled"
+      ],
+      "title": "LightingState",
+      "type": "object"
+    },
+    "LightingStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_LightingState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "lighting.state",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "LightingStateEvent",
+      "type": "object"
+    },
+    "LiveEnvelope_ButtonsState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/ButtonsState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[ButtonsState]",
+      "type": "object"
+    },
+    "LiveEnvelope_ControllerHealthState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/ControllerHealthState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[ControllerHealthState]",
+      "type": "object"
+    },
+    "LiveEnvelope_ControllerSnapshotData_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/ControllerSnapshotData"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[ControllerSnapshotData]",
+      "type": "object"
+    },
+    "LiveEnvelope_DevicesState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/DevicesState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[DevicesState]",
+      "type": "object"
+    },
+    "LiveEnvelope_EngineState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/EngineState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[EngineState]",
+      "type": "object"
+    },
+    "LiveEnvelope_LightingState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/LightingState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[LightingState]",
+      "type": "object"
+    },
+    "LiveEnvelope_SteeringState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/SteeringState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[SteeringState]",
+      "type": "object"
+    },
+    "LiveEnvelope_TraceBatchData_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/TraceBatchData"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[TraceBatchData]",
+      "type": "object"
+    },
+    "LiveEnvelope_VehicleState_": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/VehicleState"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "LiveEnvelope[VehicleState]",
+      "type": "object"
+    },
+    "NetworkHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "fault": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RuntimeFaultState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "network": {
+          "enum": [
+            "kcan",
+            "ptcan",
+            "fcan"
+          ],
+          "title": "Network",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fault",
+        "network"
+      ],
+      "title": "NetworkHealthState",
+      "type": "object"
+    },
+    "NetworkState": {
+      "additionalProperties": false,
+      "properties": {
+        "bitrate": {
+          "exclusiveMinimum": 0,
+          "title": "Bitrate",
+          "type": "integer"
+        },
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "id": {
+          "enum": [
+            "kcan",
+            "ptcan",
+            "fcan"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "interface": {
+          "title": "Interface",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
             "type": "string"
           },
-          {
-            "type": "null"
-          }
-        ],
-        "title": "Id"
+          "title": "Nodes",
+          "type": "array"
+        }
       },
-      "resource": {
-        "enum": [
-          "settings",
-          "steering_profile"
-        ],
-        "title": "Resource",
-        "type": "string"
-      },
-      "revision": {
-        "minimum": 1,
-        "title": "Revision",
-        "type": "integer"
-      },
-      "type": {
-        "const": "resources.changed",
-        "default": "resources.changed",
-        "title": "Type",
-        "type": "string"
-      }
+      "required": [
+        "bitrate",
+        "connected",
+        "id",
+        "interface",
+        "label",
+        "nodes"
+      ],
+      "title": "NetworkState",
+      "type": "object"
     },
-    "required": [
-      "resource",
-      "id",
-      "revision"
-    ],
-    "title": "ResourceChangedEvent",
-    "type": "object"
+    "PersistenceHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "fault": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Fault"
+        }
+      },
+      "required": [
+        "available",
+        "fault"
+      ],
+      "title": "PersistenceHealthState",
+      "type": "object"
+    },
+    "PublisherHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "failures": {
+          "minimum": 0,
+          "title": "Failures",
+          "type": "integer"
+        },
+        "fault": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Fault"
+        },
+        "resource_changes_dropped": {
+          "minimum": 0,
+          "title": "Resource Changes Dropped",
+          "type": "integer"
+        },
+        "running": {
+          "title": "Running",
+          "type": "boolean"
+        },
+        "trace_rows_dropped": {
+          "minimum": 0,
+          "title": "Trace Rows Dropped",
+          "type": "integer"
+        },
+        "transport_queue_saturations": {
+          "minimum": 0,
+          "title": "Transport Queue Saturations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "failures",
+        "fault",
+        "resource_changes_dropped",
+        "running",
+        "trace_rows_dropped",
+        "transport_queue_saturations"
+      ],
+      "title": "PublisherHealthState",
+      "type": "object"
+    },
+    "ResourceChangedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Id"
+        },
+        "resource": {
+          "enum": [
+            "settings",
+            "steering_profile"
+          ],
+          "title": "Resource",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "type": {
+          "const": "resources.changed",
+          "default": "resources.changed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "resource",
+        "revision",
+        "type"
+      ],
+      "title": "ResourceChangedEvent",
+      "type": "object"
+    },
+    "ResourcesChangedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/ResourceChangedEvent"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "resources.changed",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ResourcesChangedEvent",
+      "type": "object"
+    },
+    "RuntimeFaultState": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "can_reader",
+            "can_effect_execution",
+            "steering_actuator",
+            "inbox_overflow",
+            "device_adapter"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "monotonic_s": {
+          "title": "Monotonic S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "monotonic_s"
+      ],
+      "title": "RuntimeFaultState",
+      "type": "object"
+    },
+    "ServerToClientEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ControllerSnapshotEvent"
+        },
+        {
+          "$ref": "#/definitions/VehicleStateEvent"
+        },
+        {
+          "$ref": "#/definitions/EngineStateEvent"
+        },
+        {
+          "$ref": "#/definitions/SteeringStateEvent"
+        },
+        {
+          "$ref": "#/definitions/ButtonsStateEvent"
+        },
+        {
+          "$ref": "#/definitions/LightingStateEvent"
+        },
+        {
+          "$ref": "#/definitions/DevicesStateEvent"
+        },
+        {
+          "$ref": "#/definitions/ControllerHealthEvent"
+        },
+        {
+          "$ref": "#/definitions/ResourcesChangedEvent"
+        },
+        {
+          "$ref": "#/definitions/TraceBatchEvent"
+        }
+      ]
+    },
+    "ServotronicState": {
+      "additionalProperties": false,
+      "properties": {
+        "effective_assistance": {
+          "title": "Effective Assistance",
+          "type": "number"
+        },
+        "last_command_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "manual",
+                "maximum",
+                "speed_never_observed",
+                "speed_stale",
+                "can_reader_failure",
+                "inbox_overflow",
+                "shutdown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Command Reason"
+        },
+        "watchdog_timed_out": {
+          "title": "Watchdog Timed Out",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "effective_assistance",
+        "last_command_reason",
+        "watchdog_timed_out"
+      ],
+      "title": "ServotronicState",
+      "type": "object"
+    },
+    "SteeringCapabilityHealthState": {
+      "additionalProperties": false,
+      "properties": {
+        "fault": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RuntimeFaultState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "fault"
+      ],
+      "title": "SteeringCapabilityHealthState",
+      "type": "object"
+    },
+    "SteeringCurveDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/definitions/SteeringCurvePoint"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "title": "Points",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "points",
+        "schema_version"
+      ],
+      "title": "SteeringCurveDefinition",
+      "type": "object"
+    },
+    "SteeringCurvePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "assistance_per_mille": {
+          "title": "Assistance Per Mille",
+          "type": "integer"
+        },
+        "speed_deci_kph": {
+          "title": "Speed Deci Kph",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assistance_per_mille",
+        "speed_deci_kph"
+      ],
+      "title": "SteeringCurvePoint",
+      "type": "object"
+    },
+    "SteeringState": {
+      "additionalProperties": false,
+      "properties": {
+        "active_curve": {
+          "$ref": "#/definitions/ActiveSteeringCurveState"
+        },
+        "manual_assistance_level": {
+          "minimum": 0,
+          "title": "Manual Assistance Level",
+          "type": "integer"
+        },
+        "maximum_assistance_active": {
+          "title": "Maximum Assistance Active",
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "servotronic": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ServotronicState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "active_curve",
+        "manual_assistance_level",
+        "maximum_assistance_active",
+        "mode",
+        "servotronic"
+      ],
+      "title": "SteeringState",
+      "type": "object"
+    },
+    "SteeringStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_SteeringState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "steering.state",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "SteeringStateEvent",
+      "type": "object"
+    },
+    "TopicRevisions": {
+      "additionalProperties": false,
+      "properties": {
+        "buttons": {
+          "minimum": 0,
+          "title": "Buttons",
+          "type": "integer"
+        },
+        "devices": {
+          "minimum": 0,
+          "title": "Devices",
+          "type": "integer"
+        },
+        "engine": {
+          "minimum": 0,
+          "title": "Engine",
+          "type": "integer"
+        },
+        "health": {
+          "minimum": 0,
+          "title": "Health",
+          "type": "integer"
+        },
+        "lighting": {
+          "minimum": 0,
+          "title": "Lighting",
+          "type": "integer"
+        },
+        "steering": {
+          "minimum": 0,
+          "title": "Steering",
+          "type": "integer"
+        },
+        "vehicle": {
+          "minimum": 0,
+          "title": "Vehicle",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "buttons",
+        "devices",
+        "engine",
+        "health",
+        "lighting",
+        "steering",
+        "vehicle"
+      ],
+      "title": "TopicRevisions",
+      "type": "object"
+    },
+    "TraceBatchData": {
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/definitions/TraceRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "TraceBatchData",
+      "type": "object"
+    },
+    "TraceBatchEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_TraceBatchData_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "trace.batch",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "TraceBatchEvent",
+      "type": "object"
+    },
+    "TraceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "arbitration_id": {
+          "minimum": 0,
+          "title": "Arbitration Id",
+          "type": "integer"
+        },
+        "arbitration_id_hex": {
+          "title": "Arbitration Id Hex",
+          "type": "string"
+        },
+        "data_hex": {
+          "title": "Data Hex",
+          "type": "string"
+        },
+        "is_extended_id": {
+          "title": "Is Extended Id",
+          "type": "boolean"
+        },
+        "monotonic_s": {
+          "title": "Monotonic S",
+          "type": "number"
+        },
+        "network": {
+          "enum": [
+            "kcan",
+            "ptcan",
+            "fcan"
+          ],
+          "title": "Network",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "integer"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "type": {
+          "const": "frame",
+          "default": "frame",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arbitration_id",
+        "arbitration_id_hex",
+        "data_hex",
+        "is_extended_id",
+        "monotonic_s",
+        "network",
+        "sequence",
+        "session_id",
+        "source",
+        "type"
+      ],
+      "title": "TraceRow",
+      "type": "object"
+    },
+    "TraceSubscribeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "maxItems": 0,
+          "minItems": 0,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "trace.subscribe",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "TraceSubscribeEvent",
+      "type": "object"
+    },
+    "TraceUnsubscribeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "maxItems": 0,
+          "minItems": 0,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "trace.unsubscribe",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "TraceUnsubscribeEvent",
+      "type": "object"
+    },
+    "VehicleState": {
+      "additionalProperties": false,
+      "properties": {
+        "speed_kph": {
+          "title": "Speed Kph",
+          "type": "number"
+        },
+        "speed_valid": {
+          "title": "Speed Valid",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "speed_kph",
+        "speed_valid"
+      ],
+      "title": "VehicleState",
+      "type": "object"
+    },
+    "VehicleStateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/LiveEnvelope_VehicleState_"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "vehicle.state",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "VehicleStateEvent",
+      "type": "object"
+    }
   },
-  "server_events": [
-    "controller.snapshot",
-    "vehicle.state",
-    "engine.state",
-    "steering.state",
-    "buttons.state",
-    "lighting.state",
-    "devices.state",
-    "controller.health",
-    "resources.changed",
-    "trace.batch"
-  ]
+  "description": "Generated Socket.IO protocol contract. The protocol version is encoded in each server payload envelope and in this document's identifier.",
+  "properties": {
+    "client_to_server_event": {
+      "$ref": "#/definitions/ClientToServerEvent"
+    },
+    "protocol_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "server_to_client_event": {
+      "$ref": "#/definitions/ServerToClientEvent"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "server_to_client_event",
+    "client_to_server_event"
+  ],
+  "title": "LiveSocketContract",
+  "type": "object"
 }

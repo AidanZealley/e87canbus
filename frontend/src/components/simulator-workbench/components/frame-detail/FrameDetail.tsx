@@ -17,7 +17,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Separator } from "@/components/ui/separator"
-import type { TraceRow } from "@/api/live-events"
+import type { TraceRow } from "@/api/live-contract.gen"
 
 type FrameDetailProps = {
   frame: TraceRow | null
@@ -39,9 +39,7 @@ export const FrameDetail = ({ frame }: FrameDetailProps) => (
           <dl className="flex flex-col gap-2">
             <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
               <dt className="font-medium text-muted-foreground">Network</dt>
-              <dd className="min-w-0 font-mono break-words">
-                {frame.network}
-              </dd>
+              <dd className="min-w-0 font-mono break-words">{frame.network}</dd>
             </div>
             <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
               <dt className="font-medium text-muted-foreground">Sequence</dt>

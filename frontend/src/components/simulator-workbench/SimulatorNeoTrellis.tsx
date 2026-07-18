@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 
-import { tapButton } from "@/api/simulator"
+import { tapSimulationButtonMutation } from "@/api/http/@tanstack/react-query.gen"
 import {
   runSimulatedDeviceAction,
   SimulatedDeviceCard,
@@ -15,11 +15,14 @@ import {
 } from "./components/neo-trellis-panel/NeoTrellisPanel"
 import { LED_COUNT, notifySimulatorError } from "./utils"
 
-const unavailableLedRgb = Array.from({ length: LED_COUNT }, () => [0, 0, 0] as const)
+const unavailableLedRgb = Array.from(
+  { length: LED_COUNT },
+  () => [0, 0, 0] as const
+)
 
 export const SimulatorNeoTrellis = () => {
   const { mutate: tapButtonMutation } = useMutation({
-    mutationFn: (index: number) => tapButton(index),
+    ...tapSimulationButtonMutation(),
     onError: notifySimulatorError,
   })
   const deviceEntry = useLiveStore((state) => state.devices.registry.button_pad)
@@ -71,7 +74,9 @@ export const SimulatorNeoTrellis = () => {
       <NeoTrellisPanel
         buttons={buttons}
         emulatorControlsAvailable={emulatorControlsAvailable}
-        onClick={tapButtonMutation}
+        onClick={(index) =>
+          tapButtonMutation({ path: { button_index: index } })
+        }
       />
     </SimulatedDeviceCard>
   )

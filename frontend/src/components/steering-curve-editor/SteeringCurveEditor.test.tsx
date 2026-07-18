@@ -10,12 +10,12 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { listSteeringProfilesQueryKey } from "@/api/http/@tanstack/react-query.gen"
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import type {
-  ActiveSteeringCurve,
+  ActiveSteeringCurveState,
   SteeringCurveDefinition,
-  StoredSteeringProfile,
-} from "@/api/steering"
-import { steeringProfilesQueryKey } from "@/api/steering"
+} from "@/api/live-contract.gen"
 import { SteeringCurveCard } from "@/components/simulator-workbench/components/steering-curve-card"
 
 vi.mock("./components/curve-chart", () => ({
@@ -44,15 +44,15 @@ const definition = (
       speed_deci_kph,
       assistance_per_mille: values[index] ?? 0,
     })
-  ),
+  ) as SteeringCurveDefinition["points"],
 })
 
 const active = (
   value = definition(),
   revision = 1,
-  profile: StoredSteeringProfile | null = null
-): ActiveSteeringCurve => ({
-  definition: value,
+  profile: SteeringProfileResponse | null = null
+): ActiveSteeringCurveState => ({
+  definition: value as SteeringProfileResponse["definition"],
   fingerprint: `fingerprint-${revision}`,
   activation_revision: revision,
   status: "active",
@@ -63,11 +63,11 @@ const active = (
 const profile = (
   value = definition(),
   revision = 1
-): StoredSteeringProfile => ({
+): SteeringProfileResponse => ({
   profile_id: "11111111-1111-4111-8111-111111111111",
   name: "Dry track",
   revision,
-  definition: value,
+  definition: value as SteeringProfileResponse["definition"],
   created_at: "2026-07-14T00:00:00.000000Z",
   updated_at: "2026-07-14T00:00:00.000000Z",
 })
@@ -78,8 +78,22 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   })
 
+const requestUrl = (input: RequestInfo | URL) =>
+  input instanceof Request ? input.url : String(input)
+
+const requestMethod = (input: RequestInfo | URL, init?: RequestInit) =>
+  input instanceof Request ? input.method : (init?.method ?? "GET")
+
+const requestBody = async <Body,>(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Body> =>
+  JSON.parse(
+    input instanceof Request ? await input.clone().text() : String(init?.body)
+  ) as Body
+
 const renderEditor = (
-  activeCurve: ActiveSteeringCurve,
+  activeCurve: ActiveSteeringCurveState,
   speedKph: number | null = 10,
   activeAssistance: number | null = null
 ) => {
@@ -127,7 +141,7 @@ describe("SteeringCurveEditor", () => {
   it("keeps current manual assistance on the chart without a speed sample", () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ profiles: [] }))
+      vi.fn(async () => jsonResponse([]))
     )
 
     renderEditor(active(), null, 3 / 7)
@@ -142,7 +156,7 @@ describe("SteeringCurveEditor", () => {
   it("always presents a smooth curve without an interpolation control", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ profiles: [] }))
+      vi.fn(async () => jsonResponse([]))
     )
     renderEditor(active())
     expect(await screen.findByText(/smooth assistance/)).toBeTruthy()
@@ -159,19 +173,19 @@ describe("SteeringCurveEditor", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
+        const url = requestUrl(input)
+        const method = requestMethod(input, init)
         requests.push({ url, method })
         if (url.endsWith("/api/steering/profiles") && method === "GET") {
-          return jsonResponse({ profiles: [saved] })
+          return jsonResponse([saved])
         }
         if (url.endsWith("/api/commands/steering-curve")) {
           return commandResponse()
         }
         if (url.includes(`/api/steering/profiles/${saved.profile_id}`)) {
-          const request = JSON.parse(String(init?.body)) as {
+          const request = await requestBody<{
             definition: SteeringCurveDefinition
-          }
+          }>(input, init)
           return jsonResponse({
             ...saved,
             revision: 2,
@@ -184,7 +198,7 @@ describe("SteeringCurveEditor", () => {
 
     const { client } = renderEditor(active())
     await waitFor(() =>
-      expect(client.getQueryState(steeringProfilesQueryKey)?.status).toBe(
+      expect(client.getQueryState(listSteeringProfilesQueryKey())?.status).toBe(
         "success"
       )
     )
@@ -225,7 +239,7 @@ describe("SteeringCurveEditor", () => {
   it("preserves a dirty draft when active state changes externally", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ profiles: [] }))
+      vi.fn(async () => jsonResponse([]))
     )
     const initial = active()
     const { rerender } = renderEditor(initial)
@@ -259,13 +273,11 @@ describe("SteeringCurveEditor", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
+        const url = requestUrl(input)
+        const method = requestMethod(input, init)
         if (url.endsWith("/api/steering/profiles") && method === "GET") {
           listCount += 1
-          return jsonResponse({
-            profiles: [listCount === 1 ? original : refreshed],
-          })
+          return jsonResponse([listCount === 1 ? original : refreshed])
         }
         if (method === "PUT") {
           return jsonResponse(
@@ -316,15 +328,15 @@ describe("SteeringCurveEditor", () => {
       resolveActivation = resolve
     })
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
-      String(input).endsWith("/api/steering/profiles")
-        ? jsonResponse({ profiles: [] })
+      requestUrl(input).endsWith("/api/steering/profiles")
+        ? jsonResponse([])
         : activation
     )
     vi.stubGlobal("fetch", fetchMock)
 
     const { client } = renderEditor(active())
     await waitFor(() =>
-      expect(client.getQueryState(steeringProfilesQueryKey)?.status).toBe(
+      expect(client.getQueryState(listSteeringProfilesQueryKey())?.status).toBe(
         "success"
       )
     )
@@ -336,7 +348,7 @@ describe("SteeringCurveEditor", () => {
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.filter(([input]) =>
-          String(input).includes("/api/commands/")
+          requestUrl(input).includes("/api/commands/")
         )
       ).toHaveLength(1)
     )
@@ -350,11 +362,11 @@ describe("SteeringCurveEditor", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
+        const url = requestUrl(input)
+        const method = requestMethod(input, init)
         requests.push({ url, method })
         if (url.endsWith("/api/steering/profiles") && method === "GET") {
-          return jsonResponse({ profiles: [] })
+          return jsonResponse([])
         }
         if (url.endsWith("/api/steering/profiles") && method === "POST") {
           return jsonResponse(created, 201)
@@ -366,9 +378,9 @@ describe("SteeringCurveEditor", () => {
 
     const { client: saveAsClient } = renderEditor(active())
     await waitFor(() =>
-      expect(saveAsClient.getQueryState(steeringProfilesQueryKey)?.status).toBe(
-        "success"
-      )
+      expect(
+        saveAsClient.getQueryState(listSteeringProfilesQueryKey())?.status
+      ).toBe("success")
     )
     fireEvent.click(screen.getByText("Simulate point drag"))
     fireEvent.change(
@@ -415,7 +427,7 @@ describe("SteeringCurveEditor", () => {
 
   it("delete confirmation identifies and deletes the selected profile", async () => {
     const first = profile()
-    const second: StoredSteeringProfile = {
+    const second: SteeringProfileResponse = {
       ...profile(),
       profile_id: "22222222-2222-4222-8222-222222222222",
       name: "Wet track",
@@ -424,11 +436,11 @@ describe("SteeringCurveEditor", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? "GET"
+        const url = requestUrl(input)
+        const method = requestMethod(input, init)
         requests.push({ url, method })
         if (method === "GET") {
-          return jsonResponse({ profiles: [first, second] })
+          return jsonResponse([first, second])
         }
         if (method === "DELETE") return new Response(null, { status: 204 })
         throw new Error(`Unexpected request: ${method} ${url}`)

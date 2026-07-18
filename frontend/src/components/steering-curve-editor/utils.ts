@@ -1,8 +1,9 @@
+import type { SteeringProfileResponse } from "@/api/http/types.gen"
 import type {
-  ActiveSteeringCurve,
+  ActiveSteeringCurveState,
   SteeringCurveDefinition,
-  StoredSteeringProfile,
-} from "@/api/steering"
+  SteeringCurvePoint,
+} from "@/api/live-contract.gen"
 import type { CurveEditorState, CurveEditorStatus } from "./types"
 
 export const ASSISTANCE_INCREMENT_PER_MILLE = 10
@@ -62,11 +63,15 @@ export const replaceAssistanceAt = (
           assistance_per_mille: normalizeAssistanceAt(definition, index, value),
         }
       : point
-  ),
+  ) as SteeringCurveDefinition["points"],
 })
 
+type CurveForEvaluation = Pick<SteeringCurveDefinition, "schema_version"> & {
+  points: readonly SteeringCurvePoint[]
+}
+
 export const evaluateSteeringCurve = (
-  definition: SteeringCurveDefinition,
+  definition: CurveForEvaluation,
   speedKph: number
 ) => {
   if (!Number.isFinite(speedKph)) {
@@ -76,7 +81,7 @@ export const evaluateSteeringCurve = (
 }
 
 const evaluateMonotoneCubicCurve = (
-  definition: SteeringCurveDefinition,
+  definition: CurveForEvaluation,
   speedKph: number
 ) => {
   const points = definition.points
@@ -183,7 +188,7 @@ export const sampleSteeringCurve = (
 
 export const deriveEditorStatus = (
   state: CurveEditorState,
-  savedCatalog: StoredSteeringProfile[]
+  savedCatalog: SteeringProfileResponse[]
 ): CurveEditorStatus => {
   const selectedProfile =
     savedCatalog.find(
@@ -204,7 +209,7 @@ export const deriveEditorStatus = (
 
 export const reconcileActiveCurve = (
   state: CurveEditorState,
-  active: ActiveSteeringCurve
+  active: ActiveSteeringCurveState
 ): CurveEditorState => {
   if (
     state.active.activation_revision === active.activation_revision &&

@@ -8,13 +8,14 @@ import threading
 from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 import socketio  # type: ignore[import-untyped]
 
 from e87canbus.api.models.live import (
     LiveData,
     LiveEnvelope,
+    LiveModel,
     TraceBatchData,
     TraceRow,
     buttons_state,
@@ -26,6 +27,7 @@ from e87canbus.api.models.live import (
     steering_state,
     vehicle_state,
 )
+from e87canbus.api.models.live_contract import ClientEvent, ServerEvent
 from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import AppConfig
 from e87canbus.runtime import StateTopic
@@ -37,16 +39,17 @@ from e87canbus.service import (
 )
 
 LOGGER = logging.getLogger(__name__)
+EnvelopePayload = TypeVar("EnvelopePayload", bound=LiveModel)
 TRACE_ROOM = "trace-subscribers"
 TELEMETRY_TOPICS = frozenset({StateTopic.VEHICLE, StateTopic.ENGINE})
 TOPIC_EVENTS = {
-    StateTopic.VEHICLE: "vehicle.state",
-    StateTopic.ENGINE: "engine.state",
-    StateTopic.STEERING: "steering.state",
-    StateTopic.BUTTONS: "buttons.state",
-    StateTopic.LIGHTING: "lighting.state",
-    StateTopic.DEVICES: "devices.state",
-    StateTopic.HEALTH: "controller.health",
+    StateTopic.VEHICLE: ServerEvent.VEHICLE_STATE,
+    StateTopic.ENGINE: ServerEvent.ENGINE_STATE,
+    StateTopic.STEERING: ServerEvent.STEERING_STATE,
+    StateTopic.BUTTONS: ServerEvent.BUTTONS_STATE,
+    StateTopic.LIGHTING: ServerEvent.LIGHTING_STATE,
+    StateTopic.DEVICES: ServerEvent.DEVICES_STATE,
+    StateTopic.HEALTH: ServerEvent.CONTROLLER_HEALTH,
 }
 
 class LiveStatePublisher:
@@ -171,7 +174,7 @@ class LiveStatePublisher:
     async def send_snapshot(self, sid: str) -> None:
         snapshot = self._service.snapshot()
         await self._emit(
-            "controller.snapshot",
+            ServerEvent.CONTROLLER_SNAPSHOT,
             self._envelope(snapshot, snapshot_data(snapshot)),
             to=sid,
         )
@@ -288,20 +291,20 @@ class LiveStatePublisher:
                 self._envelope(snapshot, _topic_data(topic, snapshot)),
             )
         for resource in resources:
-            await self._emit("resources.changed", resource.model_dump())
+            await self._emit(ServerEvent.RESOURCES_CHANGED, resource.model_dump())
         if trace_rows and self._trace_subscribers:
             snapshot = self._service.snapshot()
             batch = TraceBatchData(rows=tuple(TraceRow.model_validate(row) for row in trace_rows))
             await self._emit(
-                "trace.batch",
+                ServerEvent.TRACE_BATCH,
                 self._envelope(snapshot, batch),
                 room=TRACE_ROOM,
             )
 
     async def _emit(
         self,
-        event: str,
-        payload: LiveEnvelope | dict[str, object],
+        event: ServerEvent,
+        payload: LiveEnvelope[Any] | dict[str, object],
         *,
         to: str | None = None,
         room: str | None = None,
@@ -319,7 +322,7 @@ class LiveStatePublisher:
             with self._lock:
                 self._failures += 1
                 self._last_fault = f"Socket.IO publication failed: {event}"
-            self._sync_service_health(enqueue=event != "controller.health")
+            self._sync_service_health(enqueue=event is not ServerEvent.CONTROLLER_HEALTH)
             return
     def _sync_service_health(self, *, enqueue: bool = True) -> None:
         execution = self._service.update_publisher_health(self.diagnostics)
@@ -337,8 +340,8 @@ class LiveStatePublisher:
     @staticmethod
     def _envelope(
         snapshot: ControllerServiceSnapshot,
-        data: LiveData,
-    ) -> LiveEnvelope:
+        data: EnvelopePayload,
+    ) -> LiveEnvelope[EnvelopePayload]:
         return LiveEnvelope(
             boot_id=snapshot.boot_id,
             revision=snapshot.revision,
@@ -361,17 +364,17 @@ def install_socket_handlers(
         del reason
         publisher.disconnect(sid)
 
-    @sio.on("controller.resync")  # type: ignore[untyped-decorator]
+    @sio.on(ClientEvent.CONTROLLER_RESYNC)  # type: ignore[untyped-decorator]
     async def resync(sid: str, payload: object = None) -> None:
         del payload
         await publisher.send_snapshot(sid)
 
-    @sio.on("trace.subscribe")  # type: ignore[untyped-decorator]
+    @sio.on(ClientEvent.TRACE_SUBSCRIBE)  # type: ignore[untyped-decorator]
     async def trace_subscribe(sid: str, payload: object = None) -> None:
         del payload
         await publisher.subscribe_trace(sid)
 
-    @sio.on("trace.unsubscribe")  # type: ignore[untyped-decorator]
+    @sio.on(ClientEvent.TRACE_UNSUBSCRIBE)  # type: ignore[untyped-decorator]
     async def trace_unsubscribe(sid: str, payload: object = None) -> None:
         del payload
         await publisher.unsubscribe_trace(sid)

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import type { TraceRow as CanTraceEntry } from "@/api/live-events"
+import type { TraceRow as CanTraceEntry } from "@/api/live-contract.gen"
 import { decodeMeaning } from "./utils.ts"
 
 const buttonFrame = (data_hex: string): CanTraceEntry => ({

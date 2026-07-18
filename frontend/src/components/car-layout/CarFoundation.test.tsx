@@ -74,13 +74,15 @@ it("renders severity and RPM stage as text in addition to color", () => {
       .getByRole("progressbar", { name: "Oil temperature position" })
       .getAttribute("aria-valuenow")
   ).toBe("50")
-  const criticalBadge = within(screen.getByLabelText("Oil temperature")).getByText(
-    "Critical"
-  )
+  const criticalBadge = within(
+    screen.getByLabelText("Oil temperature")
+  ).getByText("Critical")
   expect(criticalBadge.getAttribute("data-variant")).toBe("destructive")
   expect(criticalBadge.className).toContain("motion-safe:animate-strobe")
   expect(criticalBadge.className).not.toContain("animate-pulse")
-  expect(criticalBadge.querySelector("svg[data-icon=inline-start]")).toBeTruthy()
+  expect(
+    criticalBadge.querySelector("svg[data-icon=inline-start]")
+  ).toBeTruthy()
 })
 
 it("does not render disabled or not-found registry entries", () => {

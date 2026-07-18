@@ -1,35 +1,65 @@
-import type { DeviceRegistryEntry } from "@/api/live-events"
+import type { DeviceRegistryEntryState } from "@/api/live-contract.gen"
 import {
-  connectSimulatedDevice,
-  disconnectSimulatedDevice,
-  rebootSimulatedDevice,
-  setSimulatedDeviceProtocolVersion,
-  setSimulatedDeviceStatusCode,
-} from "@/api/simulator"
+  connectSimulationDevice,
+  disconnectSimulationDevice,
+  rebootSimulationDevice,
+  setSimulationDeviceProtocolVersion,
+  setSimulationDeviceStatusCode,
+} from "@/api/http/sdk.gen"
 import type {
   SimulatedDeviceAction,
   SimulatedDeviceActionAvailability,
   SimulatedDeviceStatusControl,
 } from "./types"
 
-type DeviceStatus = DeviceRegistryEntry["status"]
-type ActionHandler = (role: DeviceRegistryEntry["role"]) => Promise<void>
+type DeviceStatus = DeviceRegistryEntryState["status"]
+type ActionHandler = (
+  role: DeviceRegistryEntryState["role"]
+) => Promise<unknown>
 
 const actionHandlers: Record<SimulatedDeviceAction, ActionHandler> = {
-  connect: connectSimulatedDevice,
-  disconnect: disconnectSimulatedDevice,
-  reboot: rebootSimulatedDevice,
-  incompatible: (role) => setSimulatedDeviceProtocolVersion(role, 2),
-  "restore-compatible": (role) => setSimulatedDeviceProtocolVersion(role, 1),
+  connect: (role) => connectSimulationDevice({ path: { role } }),
+  disconnect: (role) => disconnectSimulationDevice({ path: { role } }),
+  reboot: (role) => rebootSimulationDevice({ path: { role } }),
+  incompatible: (role) =>
+    setSimulationDeviceProtocolVersion({
+      path: { role },
+      body: { protocol_version: 2 },
+    }),
+  "restore-compatible": (role) =>
+    setSimulationDeviceProtocolVersion({
+      path: { role },
+      body: { protocol_version: 1 },
+    }),
   "recover-and-incompatible": async (role) => {
-    await setSimulatedDeviceStatusCode(role, 0)
-    await setSimulatedDeviceProtocolVersion(role, 2)
+    await setSimulationDeviceStatusCode({
+      path: { role },
+      body: { status_code: 0 },
+    })
+    await setSimulationDeviceProtocolVersion({
+      path: { role },
+      body: { protocol_version: 2 },
+    })
   },
-  fault: (role) => setSimulatedDeviceStatusCode(role, 1),
-  "clear-fault": (role) => setSimulatedDeviceStatusCode(role, 0),
+  fault: (role) =>
+    setSimulationDeviceStatusCode({
+      path: { role },
+      body: { status_code: 1 },
+    }),
+  "clear-fault": (role) =>
+    setSimulationDeviceStatusCode({
+      path: { role },
+      body: { status_code: 0 },
+    }),
   "recover-and-fault": async (role) => {
-    await setSimulatedDeviceProtocolVersion(role, 1)
-    await setSimulatedDeviceStatusCode(role, 1)
+    await setSimulationDeviceProtocolVersion({
+      path: { role },
+      body: { protocol_version: 1 },
+    })
+    await setSimulationDeviceStatusCode({
+      path: { role },
+      body: { status_code: 1 },
+    })
   },
 }
 
@@ -115,12 +145,12 @@ const statusControlActions: Record<
 }
 
 export const runSimulatedDeviceAction = (
-  role: DeviceRegistryEntry["role"],
+  role: DeviceRegistryEntryState["role"],
   action: SimulatedDeviceAction
 ) => actionHandlers[action](role)
 
 export const simulatedDeviceActions = (
-  entry: DeviceRegistryEntry,
+  entry: DeviceRegistryEntryState,
   synchronized: boolean
 ): SimulatedDeviceActionAvailability => {
   const controllable = synchronized && entry.source_mode === "emulated"
@@ -132,25 +162,25 @@ export const simulatedDeviceActions = (
   ) as SimulatedDeviceActionAvailability
 }
 
-export const formatStatus = (status: DeviceRegistryEntry["status"]) =>
+export const formatStatus = (status: DeviceRegistryEntryState["status"]) =>
   status
     .replaceAll("_", " ")
     .replace(/^./, (character) => character.toUpperCase())
 
 export const statusBadgeVariant = (
-  status: DeviceRegistryEntry["status"]
+  status: DeviceRegistryEntryState["status"]
 ): "default" | "outline" | "warning" | "destructive" =>
   statusBadgeVariants[status]
 
 export const connectionActionForStatus = (
-  status: DeviceRegistryEntry["status"]
+  status: DeviceRegistryEntryState["status"]
 ): "connect" | "disconnect" => connectionActions[status]
 
 export const statusControlForStatus = (
-  status: DeviceRegistryEntry["status"]
+  status: DeviceRegistryEntryState["status"]
 ): SimulatedDeviceStatusControl => statusControlsForStatus[status]
 
 export const statusActionForControl = (
-  status: DeviceRegistryEntry["status"],
+  status: DeviceRegistryEntryState["status"],
   control: SimulatedDeviceStatusControl
 ): SimulatedDeviceAction | null => statusControlActions[control][status]

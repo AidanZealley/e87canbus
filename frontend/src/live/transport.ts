@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query"
 import { io, type Socket } from "socket.io-client"
 
-import { API_BASE } from "@/api/client"
+import { API_BASE } from "@/api/http-client-config"
 import {
   reconcileDurableResources,
   invalidateChangedResource,
@@ -9,7 +9,7 @@ import {
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
-} from "@/api/live-events"
+} from "@/api/live-contract.gen"
 import { useLiveStore, type TopicApplyDecision } from "./live-store"
 import { useTraceStore } from "./trace-store"
 

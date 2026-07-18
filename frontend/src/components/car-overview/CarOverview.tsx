@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { steeringProfilesQueryOptions } from "@/api/steering"
+import { listSteeringProfilesOptions } from "@/api/http/@tanstack/react-query.gen"
 import {
   celsiusToFahrenheit,
   roundDisplayValue,
@@ -42,7 +42,7 @@ export const CarOverview = () => {
     deviceAdapterFault: servotronicAdapterFault,
   })
   const settings = useEffectiveApplicationSettings().settings
-  const profiles = useQuery(steeringProfilesQueryOptions())
+  const profiles = useQuery(listSteeringProfilesOptions())
   const oilSeverity = useTemperatureSeverity({
     telemetry: oilTelemetry,
     connected,

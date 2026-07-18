@@ -1,10 +1,10 @@
-import type { ApplicationSettings } from "@/api/settings"
+import type { ApplicationSettingsResponse } from "@/api/http/types.gen"
 import type {
-  DeviceRegistryEntry,
+  DeviceRegistryEntryState,
   EngineTelemetryValue,
   RuntimeFaultState,
   SteeringState,
-} from "@/api/live-events"
+} from "@/api/live-contract.gen"
 
 export type TemperatureSeverity =
   "normal" | "warning" | "critical" | "unavailable"
@@ -39,7 +39,7 @@ export const steeringDependency = ({
   deviceAdapterFault,
 }: {
   synchronized: boolean
-  status: DeviceRegistryEntry["status"]
+  status: DeviceRegistryEntryState["status"]
   steering: SteeringState | null
   steeringFault: RuntimeFaultState | null
   deviceAdapterFault: RuntimeFaultState | null
@@ -132,7 +132,7 @@ export const deriveRpmPresentation = ({
   status: EngineTelemetryValue["status"]
   connected: boolean
   settings: Pick<
-    ApplicationSettings,
+    ApplicationSettingsResponse,
     "shift_stage_1_rpm" | "shift_stage_2_rpm" | "redline_rpm"
   >
 }): RpmPresentation => {

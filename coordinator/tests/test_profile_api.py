@@ -88,7 +88,7 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
     created = create_profile(client)
 
     assert initial.status_code == 200
-    assert len(initial.json()["profiles"]) == 1
+    assert len(initial.json()) == 1
     assert set(created) == {
         "profile_id",
         "name",
@@ -122,7 +122,7 @@ def test_profile_crud_serializes_complete_authoritative_values(client: TestClien
     assert updated.json()["name"] == "Wet track"
     assert updated.json()["definition"] == definition_json(second_assistance=800)
     assert updated.json()["created_at"] == created["created_at"]
-    assert [item["name"] for item in listed.json()["profiles"]] == [
+    assert [item["name"] for item in listed.json()] == [
         "Built-in default",
         "Wet track",
     ]
@@ -288,7 +288,7 @@ def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
         json={"definition": applied_definition},
     )
     active_after_apply = client.app.state.controller_service.snapshot().application
-    catalog_after_apply = client.get("/api/steering/profiles").json()["profiles"]
+    catalog_after_apply = client.get("/api/steering/profiles").json()
     saved = create_profile(client, "Saved only")
     curve_after_save = client.app.state.controller_service.snapshot().application
 

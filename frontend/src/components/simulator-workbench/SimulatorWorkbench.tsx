@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 
-import { resetSimulator } from "@/api/simulator"
+import { resetSimulationMutation } from "@/api/http/@tanstack/react-query.gen"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
@@ -20,7 +20,7 @@ const unavailableEngine = {
 export const SimulatorWorkbench = () => {
   const connection = useLiveStore((state) => state.connection)
   const reset = useMutation({
-    mutationFn: resetSimulator,
+    ...resetSimulationMutation(),
     onError: notifySimulatorError,
   })
 
@@ -29,7 +29,7 @@ export const SimulatorWorkbench = () => {
       <SimulatorToolbar
         connectionState={connection.status}
         onReset={() => {
-          reset.mutate()
+          reset.mutate({})
         }}
         resetPending={reset.isPending}
       />
@@ -84,7 +84,12 @@ const LiveSteeringCurveCard = () => {
   const vehicle = useLiveStore((state) => state.vehicle)
   const servotronic = useLiveStore((state) => state.steering?.servotronic)
 
-  if (!synchronized || steering === null || servotronic === undefined || servotronic === null)
+  if (
+    !synchronized ||
+    steering === null ||
+    servotronic === undefined ||
+    servotronic === null
+  )
     return null
 
   return (
