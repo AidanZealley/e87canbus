@@ -19,7 +19,9 @@ Confirmed defaults for the Pi deployment:
 - MCP2515 overlay interrupt BCM `25`.
 - `can0` bitrate `100000`.
 - Arduino Micro / ATmega32U4 with MCP2515 CS pin `10`.
-- Arduino MCP2515 library clock setting currently `MCP_16MHZ`.
+- Button-pad Pro Micro pin-to-pin wiring is documented in
+  [`devices/button-pad/README.md`](../devices/button-pad/README.md#pro-micro-to-mcp2515-wiring).
+- Button-pad MCP2515 library clock setting currently `MCP_8MHZ` for the module's 8 MHz crystal.
 
 Wire CAN-H to CAN-H, CAN-L to CAN-L, and ensure the bench bus has correct termination.
 

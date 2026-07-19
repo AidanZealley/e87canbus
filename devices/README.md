@@ -3,6 +3,10 @@
 Each directory is an independently buildable firmware project for one physical CAN device. Name
 directories after the device's purpose, not its current microcontroller family.
 
+Each device README should document its current bench wiring with a pin-to-pin diagram or table.
+Mark deliberately unused pins explicitly, and keep unverified vehicle-side connections separate
+from confirmed bench wiring.
+
 - `button-pad/` — NeoTrellis input and LED-output node.
 - `servotronic-controller/` — reserved for the future Servotronic current controller.
 

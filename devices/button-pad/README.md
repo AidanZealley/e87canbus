@@ -7,6 +7,34 @@ The current hardware-validation setup is a 5 V/16 MHz Pro Micro with an MCP2515 
 using an 8 MHz crystal. The firmware's `MCP_8MHZ` CAN-controller setting refers
 to the MCP2515 module crystal and is independent of the Pro Micro CPU clock.
 
+## Pro Micro to MCP2515 wiring
+
+```text
+5 V Pro Micro                         MCP2515 module
+
+VCC / 5V  -------------------------- VCC
+GND       -------------------------- GND
+D15 / SCK -------------------------- SCK
+D16 / MOSI ------------------------- SI / MOSI
+D14 / MISO ------------------------- SO / MISO
+D10       -------------------------- CS / C̅S
+                                      INT  (not connected)
+```
+
+| MCP2515 module | Pro Micro |
+|---|---|
+| `VCC` | `VCC/5V` |
+| `GND` | `GND` |
+| `SCK` | `D15` / hardware SCK |
+| `SI` or `MOSI` | `D16` / hardware MOSI |
+| `SO` or `MISO` | `D14` / hardware MISO |
+| `CS` or `C̅S` | `D10` |
+| `INT` | Not currently required; leave disconnected |
+
+This pinout is for the current 5 V Pro Micro bench build. The firmware polls the MCP2515, so it
+does not configure or read an interrupt pin. Connect the module's CAN-H and CAN-L terminals only
+to a correctly terminated bench CAN bus; vehicle-side wiring remains unverified.
+
 `DEVICE_ID` defaults to `1` in the checked-in firmware source and is checked as
 an unsigned 16-bit build-time value. An explicit compiler flag may override it
 without redefining a project build flag for a separately provisioned hardware
