@@ -1,0 +1,7 @@
+{
+  "name": "isotp_transport",
+  "version": "0.1.0",
+  "description": "Small Arduino ISO-TP transport wrapper for e87canbus devices",
+  "frameworks": "arduino",
+  "platforms": "*"
+}

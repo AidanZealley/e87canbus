@@ -4,7 +4,7 @@
 
 #include <isotp.h>
 
-namespace button_pad {
+namespace e87canbus {
 
 constexpr uint16_t ISOTP_MAXIMUM_PAYLOAD_LENGTH = 64;
 
@@ -20,9 +20,10 @@ class IsoTpTransport {
     bool receive(uint8_t *payload, uint16_t capacity, uint16_t *length);
 
    private:
+    IsoTpSendFrame sendFrame_;
     IsoTpLink link_{};
     uint8_t sendBuffer_[ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
     uint8_t receiveBuffer_[ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
 };
 
-}  // namespace button_pad
+}  // namespace e87canbus

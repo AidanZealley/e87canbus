@@ -20,6 +20,7 @@ simulator does not forward traffic between networks.
 
 - `coordinator/` - central Raspberry Pi application and its tests.
 - `devices/` - one independently buildable firmware project per physical device.
+- `embedded-libs/` - repository-owned libraries shared by device firmware projects.
 - `frontend/` - React UI shared by the development simulator and future in-car display.
 - `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
 - `docs/` - setup, wiring, decoded-message, architecture-decision, and remaining-work notes.

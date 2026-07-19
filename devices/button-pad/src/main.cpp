@@ -50,8 +50,8 @@ bool sendIsoTpFrame(uint32_t arbitrationId, const uint8_t *payload, uint8_t leng
     return canBus.sendMsgBuf(arbitrationId, 0, length, const_cast<uint8_t *>(payload)) == CAN_OK;
 }
 
-button_pad::IsoTpTransport transport(CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR,
-                                     sendIsoTpFrame);
+e87canbus::IsoTpTransport transport(CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR,
+                                    sendIsoTpFrame);
 DeviceState state = DeviceState::BOOTING;
 DisplayMode displayMode = DisplayMode::DISCOVERING;
 bool canReady = false;
@@ -446,7 +446,7 @@ void loop() {
     pollCan(now);
     transport.poll();
 
-    uint8_t transportPayload[button_pad::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
+    uint8_t transportPayload[e87canbus::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
     uint16_t transportLength = 0;
     if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
         if (transportLength == RGB_PAYLOAD_LENGTH) {

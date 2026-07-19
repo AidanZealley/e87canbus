@@ -72,7 +72,7 @@ No RGB, UI, public-state, acknowledgement, or physical LED work was added.
 - `protocol/custom.toml` and generated artifacts — transport IDs and limit.
 - `coordinator/src/e87canbus/transport/isotp.py` — bounded Python CAN adapter.
 - `coordinator/src/e87canbus/simulation/devices.py` — simulated pad transport endpoint.
-- `devices/button-pad/lib/isotp_transport/` — reusable firmware wrapper and licence attribution.
+- `embedded-libs/isotp_transport/` — reusable firmware wrapper and licence attribution.
 - `devices/button-pad/src/main.cpp` — MCP2515 frame/time bridge only.
 
 #### Public contract or wire changes
