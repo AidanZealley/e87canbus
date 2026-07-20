@@ -153,7 +153,7 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert topic_revisions["vehicle"] == 1
     assert topic_revisions["engine"] == 1
     assert topic_revisions["steering"] >= 1
-    assert topic_revisions["buttons"] == 1
+    assert 1 <= topic_revisions["buttons"] <= payload["revision"]
     assert topic_revisions["lighting"] == 1
     assert 1 < topic_revisions["devices"] < topic_revisions["health"]
     health = payload["data"]["health"]

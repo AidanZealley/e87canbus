@@ -260,6 +260,7 @@ def snapshot(
     engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
+    servotronic_usable: bool = True,
 ) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -299,7 +300,7 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
-        button_pad_program=button_pad_program(state),
+        button_pad_program=button_pad_program(state, servotronic_usable),
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
@@ -556,13 +557,18 @@ def _steering_projection(
     return steering.mode, steering.manual_level, False
 
 
-def button_led_state(state: ApplicationState) -> ButtonLedState:
+def button_led_state(state: ApplicationState, servotronic_usable: bool = True) -> ButtonLedState:
     """Derive the complete button-pad LED projection from application state."""
 
     steering = state.steering
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    mode_colour = RGB_BLUE if mode is SteeringMode.AUTO else RGB_AMBER
-    maximum_colour = RGB_WHITE if isinstance(state.steering, MaximumAssistance) else RGB_OFF
+    mode_colour = RGB_BLUE if servotronic_usable and mode is SteeringMode.AUTO else RGB_OFF
+    mode_colour = RGB_AMBER if servotronic_usable and mode is SteeringMode.MANUAL else mode_colour
+    maximum_colour = (
+        RGB_WHITE
+        if servotronic_usable and isinstance(state.steering, MaximumAssistance)
+        else RGB_OFF
+    )
     normal = tuple(
         mode_colour
         if index == STEERING_MODE_BUTTON_INDEX
@@ -580,15 +586,20 @@ def button_led_state(state: ApplicationState) -> ButtonLedState:
 
 
 @lru_cache(maxsize=16)
-def button_led_effect(state: ApplicationState) -> SetButtonPadProgram:
+def button_led_effect(
+    state: ApplicationState, servotronic_usable: bool = True
+) -> SetButtonPadProgram:
     """Return the complete device program; static RGB remains the normal case.
 
     Memoized because a single commit compares the effect for the same state
     several times; the frozen ``SetButtonPadProgram`` result is safe to share.
     """
 
-    displayed = button_led_state(replace(state, button_feedback_deadlines=(None,) * 16)).rgb
-    tracks = [solid_track(rgb) for rgb in displayed]
+    command_leds = button_led_state(
+        replace(state, button_feedback_deadlines=(None,) * 16), servotronic_usable
+    ).rgb
+    displayed = command_leds
+    tracks = [solid_track(rgb) for rgb in command_leds]
     if state.button_pad_gradient_enabled:
         tracks = [solid_track(rgb) for rgb in static_cyan_to_pink_gradient()]
     elif state.button_pad_travelling_gradient_enabled:
@@ -600,6 +611,11 @@ def button_led_effect(state: ApplicationState) -> SetButtonPadProgram:
                 GradientDirection.NORTH_WEST_TO_SOUTH_EAST,
             )
         ] * BUTTON_LED_COUNT
+    # Gradients are backgrounds. A lit command indicator remains legible above
+    # them; an unlit indicator deliberately leaves the background visible.
+    for index in (STEERING_MODE_BUTTON_INDEX, MAXIMUM_ASSISTANCE_BUTTON_INDEX):
+        if command_leds[index] != RGB_OFF:
+            tracks[index] = solid_track(command_leds[index])
     if state.button_pad_demo_breathe_enabled:
         tracks[DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
             DEMO_BREATHE_RGB,
@@ -622,8 +638,8 @@ def button_led_effect(state: ApplicationState) -> SetButtonPadProgram:
     return SetButtonPadProgram(resolved_button_pad_program(tuple(tracks)))
 
 
-def button_pad_program(state: ApplicationState) -> ButtonPadProgram:
-    return button_led_effect(state).program
+def button_pad_program(state: ApplicationState, servotronic_usable: bool = True) -> ButtonPadProgram:
+    return button_led_effect(state, servotronic_usable).program
 
 
 def static_cyan_to_pink_gradient() -> tuple[tuple[int, int, int], ...]:

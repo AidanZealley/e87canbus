@@ -429,7 +429,13 @@ class CoordinatorKernel:
             self._engine_telemetry_config,
             self._active_steering_curve,
             self._steering_curve_activation_status,
+            self._servotronic_usable,
         )
+
+    def _button_led_effect(self) -> SetButtonPadProgram:
+        """Project runtime command availability into the button-pad scene."""
+
+        return button_led_effect(self._state, self._servotronic_usable)
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         """Install persisted state before the kernel begins processing inputs."""
@@ -495,7 +501,7 @@ class CoordinatorKernel:
                 if role is not DeviceRole.SERVOTRONIC_CONTROLLER:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
-                previous_button_leds = button_led_effect(self._state)
+                previous_button_leds = self._button_led_effect()
                 cleared = clear_maximum_assistance(self._state)
                 self._state = cleared.state
                 return self._commit_application_result(
@@ -534,7 +540,7 @@ class CoordinatorKernel:
                 if self._lifecycle is KernelLifecycle.STOPPED:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
-                previous_button_leds = button_led_effect(self._state)
+                previous_button_leds = self._button_led_effect()
                 cleared = clear_maximum_assistance(self._state)
                 self._state = cleared.state
                 if origin_button_index is not None:
@@ -647,7 +653,7 @@ class CoordinatorKernel:
     ) -> Commit:
         prior_snapshot = self.snapshot() if previous_snapshot is None else previous_snapshot
         prior_button_leds = (
-            button_led_effect(self._state) if previous_button_leds is None else previous_button_leds
+            self._button_led_effect() if previous_button_leds is None else previous_button_leds
         )
         result = transition(
             self._state,
@@ -683,12 +689,15 @@ class CoordinatorKernel:
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             committed_snapshot,
-            buttons_changed=button_led_effect(self._state) != previous_button_leds,
+            buttons_changed=self._button_led_effect() != previous_button_leds,
             health_changed=(previous_health is not None and self._health != previous_health),
         )
         changed_topics |= extra_topics
         effect_requests = tuple(
-            EffectRequest(effect, origin_button_index if origin_button_index is not None else None)
+            EffectRequest(
+                self._button_led_effect() if isinstance(effect, SetButtonPadProgram) else effect,
+                origin_button_index if origin_button_index is not None else None,
+            )
             for effect in (*extra_effects, *result.effects)
         )
         return Commit(
@@ -698,7 +707,7 @@ class CoordinatorKernel:
             changed_topics=frozenset(changed_topics),
             state_changed=(
                 committed_snapshot != previous_snapshot
-                or button_led_effect(self._state) != previous_button_leds
+                or self._button_led_effect() != previous_button_leds
             ),
         )
 
@@ -783,7 +792,7 @@ class CoordinatorKernel:
 
     def _timer(self, now: float) -> Commit:
         previous_snapshot = self.snapshot()
-        previous_button_leds = button_led_effect(self._state)
+        previous_button_leds = self._button_led_effect()
         previous_registry = self._registry
         extra_effects: list[OutputEffect] = []
         self._registry = tuple(expire_entry(entry, now) for entry in self._registry)
@@ -835,8 +844,9 @@ class CoordinatorKernel:
         if next_entry == previous_entry and result.acknowledgement is None:
             return None
         previous_snapshot = self.snapshot()
-        previous_button_leds = button_led_effect(self._state)
+        previous_button_leds = self._button_led_effect()
         previous_registry = self._registry
+        previous_servotronic_usable = self._servotronic_usable
         self._registry = tuple(
             next_entry if entry.role is role else entry for entry in self._registry
         )
@@ -858,7 +868,7 @@ class CoordinatorKernel:
             and next_entry.status is DeviceLifecycleStatus.ACTIVE
         ):
             if role is DeviceRole.BUTTON_PAD:
-                effects.append(button_led_effect(self._state))
+                effects.append(self._button_led_effect())
             elif self._servotronic_usable:
                 effects.append(
                     steering_command_for_current_state(
@@ -867,10 +877,15 @@ class CoordinatorKernel:
                         self._active_steering_curve.definition,
                     )
                 )
+        if (
+            previous_servotronic_usable != self._servotronic_usable
+            and self.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.ACTIVE
+        ):
+            effects.append(self._button_led_effect())
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             self.snapshot(),
-            buttons_changed=button_led_effect(self._state) != previous_button_leds,
+            buttons_changed=self._button_led_effect() != previous_button_leds,
             health_changed=False,
         )
         if self._registry != previous_registry:
@@ -879,7 +894,16 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=self._gate_effects(tuple(EffectRequest(effect) for effect in effects)),
+            effects=self._gate_effects(
+                tuple(
+                    EffectRequest(
+                        self._button_led_effect()
+                        if isinstance(effect, SetButtonPadProgram)
+                        else effect
+                    )
+                    for effect in effects
+                )
+            ),
             changed_topics=frozenset(changed_topics),
             state_changed=(
                 self.snapshot() != previous_snapshot or self._registry != previous_registry

@@ -43,7 +43,6 @@ class ButtonPadEffects {
     uint32_t blink_started_at_ms_[BUTTON_PAD_LED_COUNT] = {};
     uint8_t blink_rgb_[BUTTON_PAD_LED_COUNT][3] = {};
     uint16_t blink_mask_ = 0;
-    uint16_t breathe_control_mask_ = 0;
     uint16_t breathe_mask_ = 0;
 };
 

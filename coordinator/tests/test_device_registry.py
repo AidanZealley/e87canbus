@@ -172,6 +172,14 @@ def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:
     assert active.changed_topics == {StateTopic.DEVICES}
     assert active.effects[0].effect.routed.frame.arbitration_id == IDS.button_pad_welcome_ack
     assert active.effects[1].effect == SetButtonPadProgram(
+        static_button_pad_program((RGB_OFF,) * 16)
+    )
+
+    receive(kernel, hello(DeviceRole.SERVOTRONIC_CONTROLLER), 2.0)
+    servotronic_active = receive(
+        kernel, heartbeat(kernel, DeviceRole.SERVOTRONIC_CONTROLLER), 2.1
+    )
+    assert servotronic_active.effects[-1].effect == SetButtonPadProgram(
         static_button_pad_program((RGB_BLUE,) + (RGB_OFF,) * 15)
     )
 
@@ -303,9 +311,7 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     assert expired is not None
     assert kernel.state.button_feedback_deadlines[0] is None
     assert expired.effects == ()
-    assert expired.snapshot.button_pad_program == static_button_pad_program(
-        (RGB_BLUE,) + (RGB_OFF,) * 15
-    )
+    assert expired.snapshot.button_pad_program == static_button_pad_program((RGB_OFF,) * 16)
 
 
 def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfatal() -> None:

@@ -206,9 +206,7 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
         uint8_t *rgb = out + index * 3;
         const uint16_t bit = 1U << index;
-        if ((breathe_control_mask_ & bit) && !(breathe_mask_ & bit)) {
-            memcpy(rgb, tracks_[index].final_rgb, 3);
-        } else if (breathe_mask_ & bit) {
+        if (breathe_mask_ & bit) {
             const uint32_t phase = now_ms % OVERLAY_BREATHE_PERIOD_MS;
             const uint16_t halfPeriod = OVERLAY_BREATHE_PERIOD_MS / 2;
             const uint16_t triangle =
@@ -250,7 +248,6 @@ uint16_t ButtonPadEffects::animationMask(uint32_t now_ms) const {
             mask |= 1U << index;
         }
     }
-    mask &= ~(breathe_control_mask_ & ~breathe_mask_);
     mask |= breathe_mask_;
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
         if ((blink_mask_ & (1U << index)) &&
@@ -287,7 +284,6 @@ bool ButtonPadEffects::setBreathe(uint8_t button_index, bool enabled) {
         return false;
     }
     const uint16_t bit = 1U << button_index;
-    breathe_control_mask_ |= bit;
     if (enabled) {
         breathe_mask_ |= bit;
     } else {

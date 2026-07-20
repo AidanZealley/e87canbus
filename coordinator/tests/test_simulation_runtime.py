@@ -580,7 +580,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
         )
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
-    assert button_led_rgb(current_application) == AUTO_LEDS
+    assert button_led_rgb(current_application) == (RGB_OFF,) * 16
     assert controller.topology.trace() == ()
 
     inject_registry_frames(controller)

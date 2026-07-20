@@ -165,7 +165,7 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
     assert topic_revisions["vehicle"] == 1
     assert topic_revisions["engine"] == 1
     assert topic_revisions["steering"] >= 1
-    assert topic_revisions["buttons"] == 1
+    assert 1 <= topic_revisions["buttons"] <= snapshot_revision
     assert topic_revisions["lighting"] == 1
     assert 2 <= topic_revisions["devices"] <= snapshot_revision
     assert first_payload["data"]["lighting"] == {
