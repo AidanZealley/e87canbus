@@ -13,6 +13,9 @@ const schemaDocument = JSON.parse(await readFile(schema, "utf8"))
 const generated = await compileFromFile(schema, {
   bannerComment:
     "/** Generated from protocol/live-events-v1.schema.json. Do not edit. */",
+  // Avoid expanding wide bounded arrays into a union of every possible tuple
+  // length. Exact fixed-size tuples, such as 16-byte commands, are preserved.
+  maxItems: 10,
   style: { semi: false, singleQuote: false, tabWidth: 2, trailingComma: "all" },
 })
 
