@@ -45,7 +45,11 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.button_pad import solid_track, static_button_pad_program
+from e87canbus.button_pad import (
+    resolve_button_pad_tracks,
+    solid_track,
+    static_button_pad_program,
+)
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
@@ -167,6 +171,25 @@ def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
 
     assert not stopped.state.button_pad_demo_breathe_enabled
     assert stopped.effects == (SetButtonPadBreathe(15, False),)
+
+
+def test_button_twelve_toggles_a_static_cyan_to_pink_gradient() -> None:
+    started = transition(ApplicationState(), ButtonPressed(12, 1.0), CONFIG)
+
+    assert started.state.button_pad_gradient_enabled
+    assert started.effects == (controller.button_led_effect(started.state),)
+    assert tuple(
+        track.rgb for track in resolve_button_pad_tracks(started.effects[0].program)
+    ) == (
+        (0, 220, 255),
+        (85, 146, 223),
+        (170, 73, 191),
+        (255, 0, 160),
+    ) * 4
+
+    stopped = transition(started.state, ButtonPressed(12, 2.0), CONFIG)
+    assert not stopped.state.button_pad_gradient_enabled
+    assert stopped.effects == (static_effect(AUTO_LEDS),)
 
 
 def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:

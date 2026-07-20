@@ -66,8 +66,12 @@ from e87canbus.features.steering import (
 
 STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
+GRADIENT_TOGGLE_BUTTON_INDEX = 12
 DEMO_BREATHE_BUTTON_INDEX = 15
 SERVOTRONIC_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
+BUTTON_PAD_COLUMNS = 4
+GRADIENT_CYAN: tuple[int, int, int] = (0, 220, 255)
+GRADIENT_PINK: tuple[int, int, int] = (255, 0, 160)
 DEMO_BREATHE_RGB: tuple[int, int, int] = (0, 220, 255)
 DEMO_BREATHE_MINIMUM_BRIGHTNESS = 20
 DEMO_BREATHE_MAXIMUM_BRIGHTNESS = 255
@@ -205,6 +209,7 @@ def transition(
             strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
             available_buttons = SERVOTRONIC_BUTTON_INDEXES | {
                 strobe_config.button_index,
+                GRADIENT_TOGGLE_BUTTON_INDEX,
                 DEMO_BREATHE_BUTTON_INDEX,
             }
             if button_index not in available_buttons:
@@ -345,6 +350,11 @@ def _button_transition(
             return _toggle_maximum_assistance(state)
         case index if index == high_beam_strobe_config.button_index:
             return _start_high_beam_strobe(state, observed_at, high_beam_strobe_config)
+        case index if index == GRADIENT_TOGGLE_BUTTON_INDEX:
+            return replace(
+                state,
+                button_pad_gradient_enabled=not state.button_pad_gradient_enabled,
+            )
         case index if index == DEMO_BREATHE_BUTTON_INDEX:
             return replace(
                 state,
@@ -563,7 +573,11 @@ def button_led_effect(state: ApplicationState) -> SetButtonPadProgram:
     several times; the frozen ``SetButtonPadProgram`` result is safe to share.
     """
 
-    displayed = button_led_state(replace(state, button_feedback_deadlines=(None,) * 16)).rgb
+    displayed = (
+        static_cyan_to_pink_gradient()
+        if state.button_pad_gradient_enabled
+        else button_led_state(replace(state, button_feedback_deadlines=(None,) * 16)).rgb
+    )
     tracks = [solid_track(rgb) for rgb in displayed]
     if state.button_pad_demo_breathe_enabled:
         tracks[DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
@@ -589,6 +603,22 @@ def button_led_effect(state: ApplicationState) -> SetButtonPadProgram:
 
 def button_pad_program(state: ApplicationState) -> ButtonPadProgram:
     return button_led_effect(state).program
+
+
+def static_cyan_to_pink_gradient() -> tuple[tuple[int, int, int], ...]:
+    """Return a left-to-right cyan-to-pink gradient for the 4×4 pad."""
+
+    def channel(start: int, end: int, column: int) -> int:
+        return start + ((end - start) * column) // (BUTTON_PAD_COLUMNS - 1)
+
+    return tuple(
+        (
+            channel(GRADIENT_CYAN[0], GRADIENT_PINK[0], index % BUTTON_PAD_COLUMNS),
+            channel(GRADIENT_CYAN[1], GRADIENT_PINK[1], index % BUTTON_PAD_COLUMNS),
+            channel(GRADIENT_CYAN[2], GRADIENT_PINK[2], index % BUTTON_PAD_COLUMNS),
+        )
+        for index in range(BUTTON_LED_COUNT)
+    )
 
 
 def _steering_command(
