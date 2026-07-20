@@ -5,14 +5,14 @@ from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
     RGB_WHITE,
+    ButtonFeedbackColour,
     ButtonLedState,
-    SetButtonPadProgram,
     SetButtonPadBreathe,
+    SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
     TriggerButtonPadBlink,
-    ButtonFeedbackColour,
 )
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, TxPolicyConfig

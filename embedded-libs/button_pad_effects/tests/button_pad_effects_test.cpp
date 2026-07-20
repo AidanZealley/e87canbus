@@ -167,9 +167,9 @@ int main() {
         }
         uint8_t rendered[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
         effects.render(STARTED_AT_MS + 400, rendered);
-        if (memcmp(rendered + 45, base.frames[1].rgb.data() + 45, 3) != 0 ||
-            !(effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
-            return fail("incremental_overlays", "breathe disable did not reveal base track");
+        if (rendered[45] != 0 || rendered[46] != 0 || rendered[47] != 0 ||
+            (effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
+            return fail("incremental_overlays", "breathe disable did not suppress base track");
         }
         if (!effects.setBreathe(15, true) ||
             !(effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
@@ -191,25 +191,15 @@ int main() {
         if (rendered[6] != 255 || rendered[7] != 0 || rendered[8] != 0) {
             return fail("incremental_overlays", "repeated blink did not restart");
         }
-    }
-
-    // Disabling an overlay must resume a travelling base track at its current
-    // phase rather than freezing the track's final RGB.
-    {
-        e87canbus::ButtonPadEffects effects;
-        const auto &gradient = VALID_PROGRAMS[3];
-        for (const auto &command : gradient.commands) {
-            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS)) {
-                return fail("travelling_gradient_overlay", "initial command was rejected");
-            }
+        if (!effects.triggerSingleBlink(2, 255, 255, 255, STARTED_AT_MS + 700)) {
+            return fail("incremental_overlays", "single blink trigger was rejected");
         }
-        if (!effects.setBreathe(15, true) || !effects.setBreathe(15, false)) {
-            return fail("travelling_gradient_overlay", "breathe overlay was rejected");
+        effects.render(STARTED_AT_MS + 700, rendered);
+        if (rendered[6] != 255 || rendered[7] != 255 || rendered[8] != 255) {
+            return fail("incremental_overlays", "single blink did not overlay white");
         }
-        uint8_t rendered[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
-        effects.render(STARTED_AT_MS + 600, rendered);
-        if (memcmp(rendered + 45, gradient.frames[1].rgb.data() + 45, 3) != 0) {
-            return fail("travelling_gradient_overlay", "gradient did not resume", 600);
+        if (effects.animationMask(STARTED_AT_MS + 900) & (1U << 2)) {
+            return fail("incremental_overlays", "single blink did not stop after one cycle");
         }
     }
 

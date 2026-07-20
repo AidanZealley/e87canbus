@@ -11,8 +11,6 @@ constexpr uint8_t COMMIT = 0x80;
 constexpr uint8_t SOLID = 1;
 constexpr uint8_t BLINK = 2;
 constexpr uint8_t BREATHE = 3;
-constexpr uint8_t TRAVELLING_GRADIENT = 4;
-constexpr uint16_t GRADIENT_NORTH_WEST_TO_SOUTH_EAST = 1;
 constexpr uint16_t COMMAND_LENGTH = 16;
 constexpr uint16_t OVERLAY_BLINK_ON_MS = 100;
 constexpr uint16_t OVERLAY_BLINK_OFF_MS = 100;
@@ -39,10 +37,6 @@ bool trackValid(uint8_t kind, uint16_t parameterA, uint16_t parameterB, uint8_t 
         const uint8_t minimum = parameterB & 0xFF;
         const uint8_t maximum = parameterB >> 8;
         return parameterA >= 250 && parameterA <= 10000 && minimum <= maximum;
-    }
-    if (kind == TRAVELLING_GRADIENT) {
-        return parameterA >= 250 && parameterA <= 10000 &&
-               parameterB == GRADIENT_NORTH_WEST_TO_SOUTH_EAST;
     }
     return false;
 }
@@ -159,7 +153,7 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
             memcpy(rgb, track.rgb, 3);
             continue;
         }
-        if (track.kind != BLINK && track.kind != BREATHE && track.kind != TRAVELLING_GRADIENT) {
+        if (track.kind != BLINK && track.kind != BREATHE) {
             memset(rgb, 0, 3);
             continue;
         }
@@ -170,22 +164,6 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
                 memcpy(rgb, track.rgb, 3);
             } else {
                 memcpy(rgb, track.final_rgb, 3);
-            }
-            continue;
-        }
-        if (track.kind == TRAVELLING_GRADIENT) {
-            const uint16_t timePhase = static_cast<uint16_t>(
-                ((elapsed % track.parameter_a) * 256UL) / track.parameter_a);
-            const uint8_t row = index / 4;
-            const uint8_t column = index % 4;
-            const uint16_t position = static_cast<uint16_t>(
-                (timePhase + (static_cast<uint16_t>(row + column) * 256U) / 6U) & 0xFFU);
-            const uint16_t blend = position <= 128 ? position * 2U : (256U - position) * 2U;
-            for (uint8_t channel = 0; channel < 3; ++channel) {
-                const int16_t difference = static_cast<int16_t>(track.final_rgb[channel]) -
-                                           track.rgb[channel];
-                rgb[channel] = static_cast<uint8_t>(
-                    static_cast<int16_t>(track.rgb[channel]) + (difference * blend) / 256);
             }
             continue;
         }
@@ -206,7 +184,9 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
         uint8_t *rgb = out + index * 3;
         const uint16_t bit = 1U << index;
-        if (breathe_mask_ & bit) {
+        if ((breathe_control_mask_ & bit) && !(breathe_mask_ & bit)) {
+            memcpy(rgb, tracks_[index].final_rgb, 3);
+        } else if (breathe_mask_ & bit) {
             const uint32_t phase = now_ms % OVERLAY_BREATHE_PERIOD_MS;
             const uint16_t halfPeriod = OVERLAY_BREATHE_PERIOD_MS / 2;
             const uint16_t triangle =
@@ -221,8 +201,10 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
             rgb[1] = static_cast<uint8_t>((220UL * brightness) / 255);
             rgb[2] = static_cast<uint8_t>(brightness);
         }
-        if ((blink_mask_ & (1U << index)) &&
-            now_ms - blink_started_at_ms_[index] < OVERLAY_BLINK_DURATION_MS) {
+        const uint32_t duration = (single_blink_mask_ & bit)
+                                      ? OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS
+                                      : OVERLAY_BLINK_DURATION_MS;
+        if ((blink_mask_ & bit) && now_ms - blink_started_at_ms_[index] < duration) {
             const uint16_t phase = static_cast<uint16_t>(
                 (now_ms - blink_started_at_ms_[index]) /
                 (OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS));
@@ -242,16 +224,19 @@ uint16_t ButtonPadEffects::animationMask(uint32_t now_ms) const {
     }
     uint16_t mask = 0;
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
-        if ((tracks_[index].kind == BLINK || tracks_[index].kind == BREATHE ||
-             tracks_[index].kind == TRAVELLING_GRADIENT) &&
+        if ((tracks_[index].kind == BLINK || tracks_[index].kind == BREATHE) &&
             !complete(tracks_[index], now_ms)) {
             mask |= 1U << index;
         }
     }
+    mask &= ~(breathe_control_mask_ & ~breathe_mask_);
     mask |= breathe_mask_;
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
-        if ((blink_mask_ & (1U << index)) &&
-            now_ms - blink_started_at_ms_[index] < OVERLAY_BLINK_DURATION_MS) {
+        const uint16_t bit = 1U << index;
+        const uint32_t duration = (single_blink_mask_ & bit)
+                                      ? OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS
+                                      : OVERLAY_BLINK_DURATION_MS;
+        if ((blink_mask_ & bit) && now_ms - blink_started_at_ms_[index] < duration) {
             mask |= 1U << index;
         }
     }
@@ -276,6 +261,16 @@ bool ButtonPadEffects::triggerDoubleBlink(uint8_t button_index, uint8_t red, uin
     blink_rgb_[button_index][1] = green;
     blink_rgb_[button_index][2] = blue;
     blink_mask_ |= 1U << button_index;
+    single_blink_mask_ &= ~(1U << button_index);
+    return true;
+}
+
+bool ButtonPadEffects::triggerSingleBlink(uint8_t button_index, uint8_t red, uint8_t green,
+                                          uint8_t blue, uint32_t now_ms) {
+    if (!triggerDoubleBlink(button_index, red, green, blue, now_ms)) {
+        return false;
+    }
+    single_blink_mask_ |= 1U << button_index;
     return true;
 }
 
@@ -284,6 +279,7 @@ bool ButtonPadEffects::setBreathe(uint8_t button_index, bool enabled) {
         return false;
     }
     const uint16_t bit = 1U << button_index;
+    breathe_control_mask_ |= bit;
     if (enabled) {
         breathe_mask_ |= bit;
     } else {

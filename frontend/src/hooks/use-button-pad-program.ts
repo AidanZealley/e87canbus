@@ -51,7 +51,5 @@ export const useButtonPadProgram = (
     return () => cancelAnimationFrame(frame)
   }, [active, commands, key, renderer])
 
-  // A new program is rendered from an effect. Retain the previous frame during
-  // that one-render hand-off rather than briefly displaying all LEDs as black.
-  return active ? (rendered?.value ?? null) : null
+  return rendered?.key === key ? rendered.value : null
 }

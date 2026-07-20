@@ -408,16 +408,18 @@ void handleButtonPadEffect(const uint8_t *payload, uint8_t length, uint32_t now)
     const uint8_t buttonIndex = payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE];
     bool applied = false;
     if ((opcode == BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE ||
-         opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ||
+         opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ||
          opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE) &&
         payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1) {
         const uint8_t red = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 255 :
-                            opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 255;
+                            opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 255;
         const uint8_t green = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 191 :
-                              opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 0;
+                              opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 0;
         const uint8_t blue = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 0 :
-                             opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 0;
-        applied = effects.triggerDoubleBlink(buttonIndex, red, green, blue, now);
+                             opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 0;
+        applied = opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE
+                      ? effects.triggerSingleBlink(buttonIndex, red, green, blue, now)
+                      : effects.triggerDoubleBlink(buttonIndex, red, green, blue, now);
     } else if (opcode == BUTTON_PAD_EFFECT_BREATHE &&
                payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] <= 1) {
         applied = effects.setBreathe(buttonIndex, payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1);

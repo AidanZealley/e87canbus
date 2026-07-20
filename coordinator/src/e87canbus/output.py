@@ -13,21 +13,21 @@ from typing import Protocol, assert_never
 from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
-    SetButtonPadProgram,
+    ButtonFeedbackColour,
     SetButtonPadBreathe,
+    SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
     TriggerButtonPadBlink,
-    ButtonFeedbackColour,
 )
 from e87canbus.button_pad import pack_button_pad_transfers
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.generated import (
-    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE,
     BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
+    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
+    BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
     BUTTON_PAD_EFFECT_BREATHE,
     BUTTON_PAD_EFFECT_LENGTH,
 )
@@ -225,7 +225,7 @@ class EffectExecutor:
         opcode = (
             {
                 ButtonFeedbackColour.RED: BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-                ButtonFeedbackColour.WHITE: BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE,
+                ButtonFeedbackColour.WHITE: BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
                 ButtonFeedbackColour.AMBER: BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
             }[effect.colour]
             if isinstance(effect, TriggerButtonPadBlink)

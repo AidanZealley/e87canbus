@@ -34,7 +34,7 @@ a separate deployment defense.
 |---|---|
 | `0x01` | blink_red_double |
 | `0x02` | breathe |
-| `0x03` | blink_white_double |
+| `0x03` | blink_white_single |
 | `0x04` | blink_amber_double |
 <!-- END GENERATED CUSTOM PROTOCOL -->
 

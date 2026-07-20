@@ -39,7 +39,7 @@ def test_definition_owns_ids_lengths_positions_and_values() -> None:
     assert dict(effect.values) == {
         "blink_red_double": 1,
         "breathe": 2,
-        "blink_white_double": 3,
+        "blink_white_single": 3,
         "blink_amber_double": 4,
     }
 

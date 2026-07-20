@@ -31,8 +31,8 @@ from e87canbus.application.events import (
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
     OilTemperatureObserved,
-    SetButtonPadProgram,
     SetButtonPadBreathe,
+    SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
@@ -50,13 +50,10 @@ from e87canbus.application.state import (
 )
 from e87canbus.button_pad import (
     ButtonPadProgram,
-    GradientDirection,
     blink_track,
     breathe_track,
-    gradient_coordinate,
     resolved_button_pad_program,
     solid_track,
-    travelling_gradient_track,
 )
 from e87canbus.config import EngineTelemetryConfig, HighBeamStrobeConfig, SteeringConfig
 from e87canbus.features.steering import (
@@ -69,13 +66,8 @@ from e87canbus.features.steering import (
 
 STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
-GRADIENT_TOGGLE_BUTTON_INDEX = 12
-TRAVELLING_GRADIENT_TOGGLE_BUTTON_INDEX = 13
 DEMO_BREATHE_BUTTON_INDEX = 15
 SERVOTRONIC_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
-GRADIENT_CYAN: tuple[int, int, int] = (0, 220, 255)
-GRADIENT_PINK: tuple[int, int, int] = (255, 0, 160)
-TRAVELLING_GRADIENT_PERIOD_MS = 2400
 DEMO_BREATHE_RGB: tuple[int, int, int] = (0, 220, 255)
 DEMO_BREATHE_MINIMUM_BRIGHTNESS = 20
 DEMO_BREATHE_MAXIMUM_BRIGHTNESS = 255
@@ -213,8 +205,6 @@ def transition(
             strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
             available_buttons = SERVOTRONIC_BUTTON_INDEXES | {
                 strobe_config.button_index,
-                GRADIENT_TOGGLE_BUTTON_INDEX,
-                TRAVELLING_GRADIENT_TOGGLE_BUTTON_INDEX,
                 DEMO_BREATHE_BUTTON_INDEX,
             }
             if button_index not in available_buttons:
@@ -237,18 +227,43 @@ def transition(
             effects: tuple[ApplicationEffect, ...] = ()
             if new_leds != previous_leds:
                 effects += (
-                    SetButtonPadBreathe(
-                        DEMO_BREATHE_BUTTON_INDEX,
-                        new_state.button_pad_demo_breathe_enabled,
-                    ),
-                ) if (
-                    new_state.button_pad_demo_breathe_enabled
-                    != state.button_pad_demo_breathe_enabled
-                ) else (new_leds,)
+                    (
+                        SetButtonPadBreathe(
+                            DEMO_BREATHE_BUTTON_INDEX,
+                            new_state.button_pad_demo_breathe_enabled,
+                        ),
+                    )
+                    if (
+                        new_state.button_pad_demo_breathe_enabled
+                        != state.button_pad_demo_breathe_enabled
+                    )
+                    else (new_leds,)
+                )
             if new_state.steering != state.steering:
                 effects += (_steering_command(new_state, config, active_definition),)
             if new_state.high_beam_enabled != state.high_beam_enabled:
                 effects += (SetHighBeam(new_state.high_beam_enabled),)
+            button_visual_changed = (
+                button_led_state(new_state).rgb[button_index]
+                != button_led_state(state).rgb[button_index]
+                or (
+                    button_index == DEMO_BREATHE_BUTTON_INDEX
+                    and new_state.button_pad_demo_breathe_enabled
+                    != state.button_pad_demo_breathe_enabled
+                )
+            )
+            if not button_visual_changed:
+                feedback = transition(
+                    new_state,
+                    ButtonCommandFailed(
+                        button_index, observed_at, ButtonFeedbackColour.WHITE
+                    ),
+                    config,
+                    active_definition,
+                    high_beam_strobe_config,
+                )
+                new_state = feedback.state
+                effects += feedback.effects
             return Transition(new_state, effects)
         case _:
             assert_never(event)
@@ -356,20 +371,6 @@ def _button_transition(
             return _toggle_maximum_assistance(state)
         case index if index == high_beam_strobe_config.button_index:
             return _start_high_beam_strobe(state, observed_at, high_beam_strobe_config)
-        case index if index == GRADIENT_TOGGLE_BUTTON_INDEX:
-            return replace(
-                state,
-                button_pad_gradient_enabled=not state.button_pad_gradient_enabled,
-                button_pad_travelling_gradient_enabled=False,
-            )
-        case index if index == TRAVELLING_GRADIENT_TOGGLE_BUTTON_INDEX:
-            return replace(
-                state,
-                button_pad_gradient_enabled=False,
-                button_pad_travelling_gradient_enabled=(
-                    not state.button_pad_travelling_gradient_enabled
-                ),
-            )
         case index if index == DEMO_BREATHE_BUTTON_INDEX:
             return replace(
                 state,
@@ -562,8 +563,13 @@ def button_led_state(state: ApplicationState, servotronic_usable: bool = True) -
 
     steering = state.steering
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    mode_colour = RGB_BLUE if servotronic_usable and mode is SteeringMode.AUTO else RGB_OFF
-    mode_colour = RGB_AMBER if servotronic_usable and mode is SteeringMode.MANUAL else mode_colour
+    mode_colour = (
+        RGB_BLUE
+        if servotronic_usable and mode is SteeringMode.AUTO
+        else RGB_AMBER
+        if servotronic_usable
+        else RGB_OFF
+    )
     maximum_colour = (
         RGB_WHITE
         if servotronic_usable and isinstance(state.steering, MaximumAssistance)
@@ -595,27 +601,10 @@ def button_led_effect(
     several times; the frozen ``SetButtonPadProgram`` result is safe to share.
     """
 
-    command_leds = button_led_state(
+    displayed = button_led_state(
         replace(state, button_feedback_deadlines=(None,) * 16), servotronic_usable
     ).rgb
-    displayed = command_leds
-    tracks = [solid_track(rgb) for rgb in command_leds]
-    if state.button_pad_gradient_enabled:
-        tracks = [solid_track(rgb) for rgb in static_cyan_to_pink_gradient()]
-    elif state.button_pad_travelling_gradient_enabled:
-        tracks = [
-            travelling_gradient_track(
-                GRADIENT_CYAN,
-                GRADIENT_PINK,
-                TRAVELLING_GRADIENT_PERIOD_MS,
-                GradientDirection.NORTH_WEST_TO_SOUTH_EAST,
-            )
-        ] * BUTTON_LED_COUNT
-    # Gradients are backgrounds. A lit command indicator remains legible above
-    # them; an unlit indicator deliberately leaves the background visible.
-    for index in (STEERING_MODE_BUTTON_INDEX, MAXIMUM_ASSISTANCE_BUTTON_INDEX):
-        if command_leds[index] != RGB_OFF:
-            tracks[index] = solid_track(command_leds[index])
+    tracks = [solid_track(rgb) for rgb in displayed]
     if state.button_pad_demo_breathe_enabled:
         tracks[DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
             DEMO_BREATHE_RGB,
@@ -638,27 +627,10 @@ def button_led_effect(
     return SetButtonPadProgram(resolved_button_pad_program(tuple(tracks)))
 
 
-def button_pad_program(state: ApplicationState, servotronic_usable: bool = True) -> ButtonPadProgram:
+def button_pad_program(
+    state: ApplicationState, servotronic_usable: bool = True
+) -> ButtonPadProgram:
     return button_led_effect(state, servotronic_usable).program
-
-
-def static_cyan_to_pink_gradient() -> tuple[tuple[int, int, int], ...]:
-    """Return a north-west-to-south-east cyan-to-pink gradient for the 4×4 pad."""
-
-    def channel(start: int, end: int, position: int) -> int:
-        position, maximum = gradient_coordinate(
-            GradientDirection.NORTH_WEST_TO_SOUTH_EAST, position
-        )
-        return start + ((end - start) * position) // maximum
-
-    return tuple(
-        (
-            channel(GRADIENT_CYAN[0], GRADIENT_PINK[0], index),
-            channel(GRADIENT_CYAN[1], GRADIENT_PINK[1], index),
-            channel(GRADIENT_CYAN[2], GRADIENT_PINK[2], index),
-        )
-        for index in range(BUTTON_LED_COUNT)
-    )
 
 
 def _steering_command(

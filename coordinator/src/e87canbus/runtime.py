@@ -31,8 +31,8 @@ from e87canbus.application.events import (
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
-    SetButtonPadProgram,
     SetButtonPadBreathe,
+    SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringFallbackReason,
     SteeringFallbackRequested,
@@ -433,8 +433,6 @@ class CoordinatorKernel:
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:
-        """Project runtime command availability into the button-pad scene."""
-
         return button_led_effect(self._state, self._servotronic_usable)
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
@@ -845,8 +843,8 @@ class CoordinatorKernel:
             return None
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
-        previous_registry = self._registry
         previous_servotronic_usable = self._servotronic_usable
+        previous_registry = self._registry
         self._registry = tuple(
             next_entry if entry.role is role else entry for entry in self._registry
         )
@@ -894,16 +892,7 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=self._gate_effects(
-                tuple(
-                    EffectRequest(
-                        self._button_led_effect()
-                        if isinstance(effect, SetButtonPadProgram)
-                        else effect
-                    )
-                    for effect in effects
-                )
-            ),
+            effects=self._gate_effects(tuple(EffectRequest(effect) for effect in effects)),
             changed_topics=frozenset(changed_topics),
             state_changed=(
                 self.snapshot() != previous_snapshot or self._registry != previous_registry

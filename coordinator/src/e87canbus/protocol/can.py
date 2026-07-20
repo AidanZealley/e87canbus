@@ -69,8 +69,6 @@ BUTTON_PAD_COMMIT = 0x80
 BUTTON_PAD_TRACK_SOLID = 1
 BUTTON_PAD_TRACK_BLINK = 2
 BUTTON_PAD_TRACK_BREATHE = 3
-BUTTON_PAD_TRACK_TRAVELLING_GRADIENT = 4
-BUTTON_PAD_GRADIENT_DIRECTION_NORTH_WEST_TO_SOUTH_EAST = 1
 BUTTON_PAD_COMMAND_LENGTH = 16
 BUTTON_PAD_TRANSFER_MAX_LENGTH = 64
 
@@ -89,7 +87,6 @@ class ButtonPadTrackPayload:
             BUTTON_PAD_TRACK_SOLID,
             BUTTON_PAD_TRACK_BLINK,
             BUTTON_PAD_TRACK_BREATHE,
-            BUTTON_PAD_TRACK_TRAVELLING_GRADIENT,
         ):
             raise ValueError("unsupported button-pad track kind")
         for name, rgb in (("track", self.rgb), ("final", self.final_rgb)):
@@ -113,13 +110,6 @@ class ButtonPadTrackPayload:
             maximum = self.parameter_b >> 8
             if not 250 <= self.parameter_a <= 10_000 or minimum > maximum:
                 raise ValueError("breathe tracks require a bounded period and brightness")
-        if self.kind == BUTTON_PAD_TRACK_TRAVELLING_GRADIENT and not (
-            250 <= self.parameter_a <= 10_000
-            and self.parameter_b == BUTTON_PAD_GRADIENT_DIRECTION_NORTH_WEST_TO_SOUTH_EAST
-        ):
-            raise ValueError(
-                "travelling gradient tracks require a bounded period and supported direction"
-            )
 
 
 @dataclass(frozen=True)

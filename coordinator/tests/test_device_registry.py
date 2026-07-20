@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from e87canbus.application.controller import button_led_effect
 from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
@@ -176,9 +175,7 @@ def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:
     )
 
     receive(kernel, hello(DeviceRole.SERVOTRONIC_CONTROLLER), 2.0)
-    servotronic_active = receive(
-        kernel, heartbeat(kernel, DeviceRole.SERVOTRONIC_CONTROLLER), 2.1
-    )
+    servotronic_active = receive(kernel, heartbeat(kernel, DeviceRole.SERVOTRONIC_CONTROLLER), 2.1)
     assert servotronic_active.effects[-1].effect == SetButtonPadProgram(
         static_button_pad_program((RGB_BLUE,) + (RGB_OFF,) * 15)
     )

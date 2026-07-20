@@ -21,8 +21,6 @@ const COMMIT = 0x80
 const SOLID = 1
 const BLINK = 2
 const BREATHE = 3
-const TRAVELLING_GRADIENT = 4
-const GRADIENT_NORTH_WEST_TO_SOUTH_EAST = 1
 const LED_COUNT = 16
 const COMMAND_LENGTH = 16
 
@@ -83,11 +81,7 @@ const decode = (
       (track.kind === BREATHE &&
         track.parameterA >= 250 &&
         track.parameterA <= 10_000 &&
-        minimum <= maximum) ||
-      (track.kind === TRAVELLING_GRADIENT &&
-        track.parameterA >= 250 &&
-        track.parameterA <= 10_000 &&
-        track.parameterB === GRADIENT_NORTH_WEST_TO_SOUTH_EAST))
+        minimum <= maximum))
   return valid
     ? {
         mask,
@@ -100,7 +94,6 @@ const decode = (
 
 const renderTrack = (
   track: Track,
-  index: number,
   elapsedMs: number
 ): { rgb: Rgb; animated: boolean } => {
   if (track.kind === SOLID) return { rgb: track.rgb, animated: false }
@@ -115,24 +108,6 @@ const renderTrack = (
   if (track.kind === BLINK) {
     return {
       rgb: phase < track.parameterA ? track.rgb : track.finalRgb,
-      animated: true,
-    }
-  }
-  if (track.kind === TRAVELLING_GRADIENT) {
-    const timePhase = Math.floor(
-      ((Math.floor(elapsedMs) % track.parameterA) * 256) / track.parameterA
-    )
-    const row = Math.floor(index / 4)
-    const column = index % 4
-    const position = (timePhase + ((row + column) * 256) / 6) & 0xff
-    const blend = position <= 128 ? position * 2 : (256 - position) * 2
-    const channel = (channelIndex: 0 | 1 | 2) =>
-      track.rgb[channelIndex] +
-      Math.trunc(
-        ((track.finalRgb[channelIndex] - track.rgb[channelIndex]) * blend) / 256
-      )
-    return {
-      rgb: [channel(0), channel(1), channel(2)],
       animated: true,
     }
   }
@@ -192,7 +167,7 @@ export const typescriptButtonPadRenderer: ButtonPadRenderer = {
       return null
     let animationMask = 0
     const frame = state.tracks.map((track, index) => {
-      const rendered = renderTrack(track, index, nowMs - state.startedAt[index])
+      const rendered = renderTrack(track, nowMs - state.startedAt[index])
       if (rendered.animated) animationMask |= 1 << index
       return rendered.rgb
     })
