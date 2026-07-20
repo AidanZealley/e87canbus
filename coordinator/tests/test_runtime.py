@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from e87canbus.application.controller import SOFT_WHITE
 from e87canbus.application.events import (
     RGB_AMBER,
     RGB_BLUE,
@@ -55,9 +56,18 @@ def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
     return SetButtonPadProgram(static_button_pad_program(leds.rgb))
 
 
-AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
-MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
-MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12)
+RESTING_LEDS = (
+    RGB_OFF,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
+MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
+MAXIMUM_LEDS = ButtonLedState(
+    (RGB_AMBER, SOFT_WHITE, SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:]
+)
 
 
 def activate_devices(kernel: CoordinatorKernel) -> None:

@@ -430,10 +430,15 @@ class CoordinatorKernel:
             self._active_steering_curve,
             self._steering_curve_activation_status,
             self._servotronic_usable,
+            self._high_beam_strobe_config.button_index,
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:
-        return button_led_effect(self._state, self._servotronic_usable)
+        return button_led_effect(
+            self._state,
+            self._servotronic_usable,
+            self._high_beam_strobe_config.button_index,
+        )
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         """Install persisted state before the kernel begins processing inputs."""

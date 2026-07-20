@@ -10,6 +10,7 @@ from threading import Event
 import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
+from e87canbus.application.controller import SOFT_WHITE
 from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
@@ -279,7 +280,9 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
             track.rgb
             for track in resolve_button_pad_tracks(snapshot.application.button_pad_program)
         )
-        == (RGB_BLUE,) + (RGB_OFF,) * 15
+        == (RGB_BLUE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE)
+        + (RGB_OFF,) * 10
+        + (SOFT_WHITE,)
     )
 
 

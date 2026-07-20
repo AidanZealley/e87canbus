@@ -45,7 +45,7 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.button_pad import static_button_pad_program
+from e87canbus.button_pad import resolve_button_pad_tracks, static_button_pad_program
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
@@ -63,9 +63,19 @@ CONFIG = SteeringConfig()
 ENGINE_CONFIG = EngineTelemetryConfig()
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
-AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
-MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
-MANUAL_MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12)
+RESTING_LEDS = (
+    RGB_OFF,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+) + (RGB_OFF,) * 10 + (controller.SOFT_WHITE,)
+AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
+MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
+MANUAL_MAXIMUM_LEDS = ButtonLedState(
+    (RGB_AMBER, controller.SOFT_WHITE, controller.SOFT_WHITE, RGB_WHITE)
+    + RESTING_LEDS[4:]
+)
 
 
 def static_effect(leds: ButtonLedState) -> SetButtonPadProgram:
@@ -200,7 +210,7 @@ def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() 
         config,
     )
     assert repeated.state.high_beam_next_transition_at == started.state.high_beam_next_transition_at
-    assert repeated.state.button_feedback_deadlines[4] == pytest.approx(12.41)
+    assert repeated.state.button_feedback_deadlines[4] == pytest.approx(12.21)
     assert repeated.effects == (
         TriggerButtonPadBlink(4, ButtonFeedbackColour.WHITE),
     )
@@ -388,8 +398,12 @@ def test_unknown_button_uses_default_white_feedback() -> None:
 
     result = transition(state, ButtonPressed(9, observed_at=2.0), CONFIG)
 
-    assert result.state.button_feedback_deadlines[9] == pytest.approx(2.4)
+    assert result.state.button_feedback_deadlines[9] == pytest.approx(2.2)
     assert result.effects == (TriggerButtonPadBlink(9, ButtonFeedbackColour.WHITE),)
+    feedback_track = resolve_button_pad_tracks(controller.button_pad_program(result.state))[9]
+    assert feedback_track.kind == 2
+    assert feedback_track.rgb == RGB_WHITE
+    assert feedback_track.repeat == 1
 
 
 def test_manual_assistance_is_clamped_to_configured_bounds() -> None:

@@ -10,7 +10,6 @@ from typing import assert_never
 from e87canbus.application.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
-    BUTTON_FEEDBACK_BLINK_REPEAT,
     BUTTON_FEEDBACK_DURATION_S,
     BUTTON_LED_COUNT,
     RGB_AMBER,
@@ -68,6 +67,8 @@ STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3
 DEMO_BREATHE_BUTTON_INDEX = 15
 SERVOTRONIC_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
+SOFT_WHITE: tuple[int, int, int] = (8, 8, 8)
+SOFT_AMBER: tuple[int, int, int] = (8, 6, 0)
 DEMO_BREATHE_RGB: tuple[int, int, int] = (0, 220, 255)
 DEMO_BREATHE_MINIMUM_BRIGHTNESS = 20
 DEMO_BREATHE_MAXIMUM_BRIGHTNESS = 255
@@ -186,8 +187,19 @@ def transition(
             )
         case ButtonCommandFailed(button_index, occurred_at, blink_colour):
             deadlines: list[float | None] = list(state.button_feedback_deadlines)
-            deadlines[button_index] = occurred_at + BUTTON_FEEDBACK_DURATION_S
-            next_state = replace(state, button_feedback_deadlines=tuple(deadlines))
+            colours = list(state.button_feedback_colours)
+            duration_s = (
+                (BUTTON_FEEDBACK_BLINK_ON_MS + BUTTON_FEEDBACK_BLINK_OFF_MS) / 1000
+                if blink_colour is ButtonFeedbackColour.WHITE
+                else BUTTON_FEEDBACK_DURATION_S
+            )
+            deadlines[button_index] = occurred_at + duration_s
+            colours[button_index] = blink_colour
+            next_state = replace(
+                state,
+                button_feedback_deadlines=tuple(deadlines),
+                button_feedback_colours=tuple(colours),
+            )
             return Transition(next_state, (TriggerButtonPadBlink(button_index, blink_colour),))
         case ButtonFeedbackDeadlineReached(now):
             next_deadlines: tuple[float | None, ...] = tuple(
@@ -196,7 +208,19 @@ def transition(
             )
             if next_deadlines == state.button_feedback_deadlines:
                 return Transition(state)
-            next_state = replace(state, button_feedback_deadlines=next_deadlines)
+            next_colours = tuple(
+                None if deadline is not None and deadline <= now else colour
+                for deadline, colour in zip(
+                    state.button_feedback_deadlines,
+                    state.button_feedback_colours,
+                    strict=True,
+                )
+            )
+            next_state = replace(
+                state,
+                button_feedback_deadlines=next_deadlines,
+                button_feedback_colours=next_colours,
+            )
             # Blink tracks carry final_rgb and stop themselves. Publishing the
             # cleared state is sufficient; transmitting a cleanup scene can
             # overwrite a blink that is still queued in the ISO-TP transport.
@@ -222,8 +246,12 @@ def transition(
                 config,
                 strobe_config,
             )
-            previous_leds = button_led_effect(state)
-            new_leds = button_led_effect(new_state)
+            previous_leds = button_led_effect(
+                state, high_beam_button_index=strobe_config.button_index
+            )
+            new_leds = button_led_effect(
+                new_state, high_beam_button_index=strobe_config.button_index
+            )
             effects: tuple[ApplicationEffect, ...] = ()
             if new_leds != previous_leds:
                 effects += (
@@ -244,8 +272,12 @@ def transition(
             if new_state.high_beam_enabled != state.high_beam_enabled:
                 effects += (SetHighBeam(new_state.high_beam_enabled),)
             button_visual_changed = (
-                button_led_state(new_state).rgb[button_index]
-                != button_led_state(state).rgb[button_index]
+                button_led_state(
+                    new_state, high_beam_button_index=strobe_config.button_index
+                ).rgb[button_index]
+                != button_led_state(
+                    state, high_beam_button_index=strobe_config.button_index
+                ).rgb[button_index]
                 or (
                     button_index == DEMO_BREATHE_BUTTON_INDEX
                     and new_state.button_pad_demo_breathe_enabled
@@ -276,6 +308,7 @@ def snapshot(
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
     servotronic_usable: bool = True,
+    high_beam_button_index: int = HighBeamStrobeConfig().button_index,
 ) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -315,7 +348,9 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
-        button_pad_program=button_pad_program(state, servotronic_usable),
+        button_pad_program=button_pad_program(
+            state, servotronic_usable, high_beam_button_index
+        ),
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
@@ -558,7 +593,11 @@ def _steering_projection(
     return steering.mode, steering.manual_level, False
 
 
-def button_led_state(state: ApplicationState, servotronic_usable: bool = True) -> ButtonLedState:
+def button_led_state(
+    state: ApplicationState,
+    servotronic_usable: bool = True,
+    high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+) -> ButtonLedState:
     """Derive the complete button-pad LED projection from application state."""
 
     steering = state.steering
@@ -568,32 +607,37 @@ def button_led_state(state: ApplicationState, servotronic_usable: bool = True) -
         if servotronic_usable and mode is SteeringMode.AUTO
         else RGB_AMBER
         if servotronic_usable
-        else RGB_OFF
+        else SOFT_AMBER
     )
     maximum_colour = (
         RGB_WHITE
         if servotronic_usable and isinstance(state.steering, MaximumAssistance)
         else RGB_OFF
     )
+    assigned_buttons = SERVOTRONIC_BUTTON_INDEXES | {
+        high_beam_button_index,
+        DEMO_BREATHE_BUTTON_INDEX,
+    }
     normal = tuple(
         mode_colour
         if index == STEERING_MODE_BUTTON_INDEX
         else maximum_colour
-        if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX
+        if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX and maximum_colour != RGB_OFF
+        else SOFT_AMBER
+        if index in SERVOTRONIC_BUTTON_INDEXES and not servotronic_usable
+        else SOFT_WHITE
+        if index in assigned_buttons
         else RGB_OFF
         for index in range(BUTTON_LED_COUNT)
     )
-    return ButtonLedState(
-        tuple(
-            RGB_RED if deadline is not None else normal[index]
-            for index, deadline in enumerate(state.button_feedback_deadlines)
-        )
-    )
+    return ButtonLedState(normal)
 
 
 @lru_cache(maxsize=16)
 def button_led_effect(
-    state: ApplicationState, servotronic_usable: bool = True
+    state: ApplicationState,
+    servotronic_usable: bool = True,
+    high_beam_button_index: int = HighBeamStrobeConfig().button_index,
 ) -> SetButtonPadProgram:
     """Return the complete device program; static RGB remains the normal case.
 
@@ -602,7 +646,7 @@ def button_led_effect(
     """
 
     displayed = button_led_state(
-        replace(state, button_feedback_deadlines=(None,) * 16), servotronic_usable
+        state, servotronic_usable, high_beam_button_index
     ).rgb
     tracks = [solid_track(rgb) for rgb in displayed]
     if state.button_pad_demo_breathe_enabled:
@@ -613,24 +657,29 @@ def button_led_effect(
             DEMO_BREATHE_PERIOD_MS,
             final_rgb=displayed[DEMO_BREATHE_BUTTON_INDEX],
         )
-    for index, deadline in enumerate(state.button_feedback_deadlines):
-        if deadline is not None:
-            # Device self-terminates this blink to displayed[index]; the feedback deadline
-            # resyncs coordinator state to solid so the two stay converged (see events.py).
+    feedback_rgb = {
+        ButtonFeedbackColour.RED: RGB_RED,
+        ButtonFeedbackColour.AMBER: RGB_AMBER,
+        ButtonFeedbackColour.WHITE: RGB_WHITE,
+    }
+    for index, colour in enumerate(state.button_feedback_colours):
+        if colour is not None:
             tracks[index] = blink_track(
-                RGB_RED,
+                feedback_rgb[colour],
                 BUTTON_FEEDBACK_BLINK_ON_MS,
                 BUTTON_FEEDBACK_BLINK_OFF_MS,
-                BUTTON_FEEDBACK_BLINK_REPEAT,
+                1 if colour is ButtonFeedbackColour.WHITE else 2,
                 displayed[index],
             )
     return SetButtonPadProgram(resolved_button_pad_program(tuple(tracks)))
 
 
 def button_pad_program(
-    state: ApplicationState, servotronic_usable: bool = True
+    state: ApplicationState,
+    servotronic_usable: bool = True,
+    high_beam_button_index: int = HighBeamStrobeConfig().button_index,
 ) -> ButtonPadProgram:
-    return button_led_effect(state, servotronic_usable).program
+    return button_led_effect(state, servotronic_usable, high_beam_button_index).program
 
 
 def _steering_command(

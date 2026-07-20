@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.application.state import (
+    ButtonFeedbackColour,
     CoolantTemperatureSample,
     EngineRpmSample,
     OilTemperatureSample,
@@ -14,6 +15,8 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 from e87canbus.button_pad import ButtonPadProgram
+
+__all__ = ["ButtonFeedbackColour"]
 
 BUTTON_LED_COUNT = 16
 # Press feedback is rendered and self-terminated on the device. The deadline only
@@ -30,12 +33,6 @@ RGB_RED: Rgb = (255, 0, 0)
 RGB_BLUE: Rgb = (0, 0, 255)
 RGB_AMBER: Rgb = (255, 191, 0)
 RGB_WHITE: Rgb = (255, 255, 255)
-
-
-class ButtonFeedbackColour(StrEnum):
-    RED = "red"
-    AMBER = "amber"
-    WHITE = "white"
 
 
 @dataclass(frozen=True)

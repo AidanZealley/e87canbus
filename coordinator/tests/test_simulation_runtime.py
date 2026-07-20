@@ -5,6 +5,8 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.application.controller import (
+    SOFT_AMBER,
+    SOFT_WHITE,
     ApplicationSnapshot,
     EngineTelemetryStatus,
     EngineTelemetryValue,
@@ -72,14 +74,21 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
-AUTO_LEDS = (RGB_BLUE,) + (RGB_OFF,) * (BUTTON_LED_COUNT - 1)
-MANUAL_LEDS = (RGB_AMBER,) + (RGB_OFF,) * (BUTTON_LED_COUNT - 1)
+RESTING_LEDS = (
+    RGB_OFF,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
+MANUAL_LEDS = (RGB_AMBER,) + RESTING_LEDS[1:]
 MAXIMUM_LEDS = (
     RGB_AMBER,
-    RGB_OFF,
-    RGB_OFF,
+    SOFT_WHITE,
+    SOFT_WHITE,
     RGB_WHITE,
-) + (RGB_OFF,) * (BUTTON_LED_COUNT - 4)
+) + RESTING_LEDS[4:]
 
 
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
@@ -544,7 +553,7 @@ def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> 
 
     assert any(entry.source == "pi" and entry.frame.arbitration_id == 0x708 for entry in trace)
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert button_led_rgb(application(controller)) == (RGB_AMBER,) + (RGB_OFF,) * 15
+    assert button_led_rgb(application(controller)) == MANUAL_LEDS
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
@@ -555,7 +564,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     assert controller.topology.trace()[-1].frame.data == b"\x00\x00"
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert button_led_rgb(application(controller)) == (RGB_AMBER,) + (RGB_OFF,) * 15
+    assert button_led_rgb(application(controller)) == MANUAL_LEDS
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
@@ -580,7 +589,9 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
         )
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
-    assert button_led_rgb(current_application) == (RGB_OFF,) * 16
+    assert button_led_rgb(current_application) == (
+        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+    )
     assert controller.topology.trace() == ()
 
     inject_registry_frames(controller)
@@ -712,7 +723,7 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     assert application(controller).maximum_assistance_active is False
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
-    assert button_led_rgb(application(controller))[3] == RGB_OFF
+    assert button_led_rgb(application(controller))[3] == SOFT_WHITE
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
@@ -729,7 +740,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
     assert application(controller).maximum_assistance_active is False
-    assert button_led_rgb(application(controller))[3] == RGB_OFF
+    assert button_led_rgb(application(controller))[3] == SOFT_WHITE
 
 
 def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> None:
@@ -788,7 +799,7 @@ def test_high_beam_strobe_emits_all_pulses_to_virtual_vehicle_without_control_ti
     inject_registry_frames(controller)
 
     controller.execute(TapButton(4))
-    for _ in range(10):
+    while application(controller).high_beam_strobe_active:
         assert controller.next_deadline() is not None
         clock.now = controller.next_deadline()
         controller.deadline(clock.now)
