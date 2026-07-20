@@ -210,9 +210,7 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
                 (now_ms - blink_started_at_ms_[index]) %
                 (OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS));
             if (phase < OVERLAY_BLINK_REPEAT && withinCycle < OVERLAY_BLINK_ON_MS) {
-                rgb[0] = 255;
-                rgb[1] = 0;
-                rgb[2] = 0;
+                memcpy(rgb, blink_rgb_[index], 3);
             }
         }
     }
@@ -245,10 +243,18 @@ bool ButtonPadEffects::animated(uint32_t now_ms) const { return animationMask(no
 bool ButtonPadEffects::committed() const { return last_command_committed_; }
 
 bool ButtonPadEffects::triggerRedDoubleBlink(uint8_t button_index, uint32_t now_ms) {
+    return triggerDoubleBlink(button_index, 255, 0, 0, now_ms);
+}
+
+bool ButtonPadEffects::triggerDoubleBlink(uint8_t button_index, uint8_t red, uint8_t green,
+                                          uint8_t blue, uint32_t now_ms) {
     if (button_index >= BUTTON_PAD_LED_COUNT) {
         return false;
     }
     blink_started_at_ms_[button_index] = now_ms;
+    blink_rgb_[button_index][0] = red;
+    blink_rgb_[button_index][1] = green;
+    blink_rgb_[button_index][2] = blue;
     blink_mask_ |= 1U << button_index;
     return true;
 }

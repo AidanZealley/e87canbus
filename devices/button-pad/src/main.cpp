@@ -102,7 +102,7 @@ void applyPixelDisplay(uint32_t now) {
         const uint16_t ramp = phase <= halfPeriod ? phase : DISCOVERY_BREATHE_PERIOD_MS - phase;
         const uint8_t brightness = static_cast<uint8_t>(
             DISCOVERY_BREATHE_MINIMUM +
-            (static_cast<uint32_t>(255 - DISCOVERY_BREATHE_MINIMUM) * ramp) / halfPeriod);
+            (static_cast<uint32_t>(128 - DISCOVERY_BREATHE_MINIMUM) * ramp) / halfPeriod);
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
             renderedPixels[i * 3] = brightness;
             renderedPixels[i * 3 + 1] = brightness;
@@ -407,9 +407,17 @@ void handleButtonPadEffect(const uint8_t *payload, uint8_t length, uint32_t now)
     const uint8_t opcode = payload[BUTTON_PAD_EFFECT_OPCODE_BYTE];
     const uint8_t buttonIndex = payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE];
     bool applied = false;
-    if (opcode == BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE &&
+    if ((opcode == BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE ||
+         opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ||
+         opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE) &&
         payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1) {
-        applied = effects.triggerRedDoubleBlink(buttonIndex, now);
+        const uint8_t red = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 255 :
+                            opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 255;
+        const uint8_t green = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 191 :
+                              opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 0;
+        const uint8_t blue = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 0 :
+                             opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE ? 255 : 0;
+        applied = effects.triggerDoubleBlink(buttonIndex, red, green, blue, now);
     } else if (opcode == BUTTON_PAD_EFFECT_BREATHE &&
                payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] <= 1) {
         applied = effects.setBreathe(buttonIndex, payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1);

@@ -8,6 +8,7 @@ from e87canbus.application.controller import button_led_effect
 from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
+    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     SetButtonPadProgram,
     SetSteeringAssistance,
@@ -294,7 +295,9 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     unavailable = kernel.dispatch(ReceivedCanFrame(CanNetwork.KCAN, button, 3.0))
     assert unavailable is not None
     assert kernel.state.button_feedback_deadlines[0] == pytest.approx(3.4)
-    assert unavailable.effects == (EffectRequest(TriggerButtonPadBlink(0)),)
+    assert unavailable.effects == (
+        EffectRequest(TriggerButtonPadBlink(0, ButtonFeedbackColour.AMBER)),
+    )
 
     expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.4))
     assert expired is not None

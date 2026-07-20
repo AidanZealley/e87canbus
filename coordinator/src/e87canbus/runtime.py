@@ -25,6 +25,7 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
+    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ButtonPressed,
     ControlTimerElapsed,
@@ -626,7 +627,11 @@ class CoordinatorKernel:
         if button_entry.status is not DeviceLifecycleStatus.ACTIVE:
             return None
         if event.button_index in SERVOTRONIC_BUTTON_INDEXES and not self._servotronic_usable:
-            return self._transition(ButtonCommandFailed(event.button_index, event.observed_at))
+            return self._transition(
+                ButtonCommandFailed(
+                    event.button_index, event.observed_at, ButtonFeedbackColour.AMBER
+                )
+            )
         return self._transition(event, origin_button_index=event.button_index)
 
     def _transition(

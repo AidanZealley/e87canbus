@@ -36,6 +36,8 @@ from e87canbus.protocol.can import (
 )
 from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
+    BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE,
+    BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
     BUTTON_PAD_EFFECT_BREATHE,
     BUTTON_PAD_EFFECT_LENGTH,
     CUSTOM_DEVICE_PROTOCOL_VERSION,
@@ -442,7 +444,12 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
                     and len(frame.data) == BUTTON_PAD_EFFECT_LENGTH
                     and frame.data[0] == 1
                     and frame.data[1]
-                    in (BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE, BUTTON_PAD_EFFECT_BREATHE)
+                    in (
+                        BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
+                        BUTTON_PAD_EFFECT_BLINK_WHITE_DOUBLE,
+                        BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
+                        BUTTON_PAD_EFFECT_BREATHE,
+                    )
                     and frame.data[2] < BUTTON_LED_COUNT
                     and frame.data[4] <= 1
                     and frame.data[5:] == b"\x00\x00\x00"

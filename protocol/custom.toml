@@ -43,6 +43,8 @@ reserved_7 = 7
 [button_pad_effect.values]
 blink_red_double = 0x01
 breathe = 0x02
+blink_white_double = 0x03
+blink_amber_double = 0x04
 
 [button_pad_hello]
 can_id = 0x702

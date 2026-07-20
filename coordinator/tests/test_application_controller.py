@@ -18,6 +18,7 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonLedState,
+    ButtonFeedbackColour,
     ButtonPressed,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
@@ -368,7 +369,7 @@ def test_unknown_button_double_blinks_red_and_returns_to_its_displayed_colour() 
     result = transition(state, ButtonPressed(9, observed_at=2.0), CONFIG)
 
     assert result.state.button_feedback_deadlines[9] == pytest.approx(2.4)
-    assert result.effects == (TriggerButtonPadBlink(9),)
+    assert result.effects == (TriggerButtonPadBlink(9, ButtonFeedbackColour.WHITE),)
 
 
 def test_manual_assistance_is_clamped_to_configured_bounds() -> None:

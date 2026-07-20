@@ -12,6 +12,7 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
     TriggerButtonPadBlink,
+    ButtonFeedbackColour,
 )
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, TxPolicyConfig
@@ -102,6 +103,8 @@ def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:
     executor.execute(
         (
             EffectRequest(TriggerButtonPadBlink(3)),
+            EffectRequest(TriggerButtonPadBlink(4, ButtonFeedbackColour.WHITE)),
+            EffectRequest(TriggerButtonPadBlink(5, ButtonFeedbackColour.AMBER)),
             EffectRequest(SetButtonPadBreathe(15, True)),
             EffectRequest(SetButtonPadBreathe(15, False)),
         )
@@ -109,8 +112,10 @@ def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:
 
     assert raw.sent == [
         CanFrame(0x701, b"\x01\x01\x03\x00\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x02\x0f\x01\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x02\x0f\x02\x00\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x03\x04\x01\x01\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x04\x05\x02\x01\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x02\x0f\x03\x01\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x02\x0f\x04\x00\x00\x00\x00"),
     ]
 
 

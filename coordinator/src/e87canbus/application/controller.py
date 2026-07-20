@@ -21,6 +21,7 @@ from e87canbus.application.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
+    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ButtonLedState,
     ButtonPressed,
@@ -183,11 +184,11 @@ def transition(
                     ),
                 ),
             )
-        case ButtonCommandFailed(button_index, occurred_at):
+        case ButtonCommandFailed(button_index, occurred_at, blink_colour):
             deadlines: list[float | None] = list(state.button_feedback_deadlines)
             deadlines[button_index] = occurred_at + BUTTON_FEEDBACK_DURATION_S
             next_state = replace(state, button_feedback_deadlines=tuple(deadlines))
-            return Transition(next_state, (TriggerButtonPadBlink(button_index),))
+            return Transition(next_state, (TriggerButtonPadBlink(button_index, blink_colour),))
         case ButtonFeedbackDeadlineReached(now):
             next_deadlines: tuple[float | None, ...] = tuple(
                 None if deadline is not None and deadline <= now else deadline
@@ -209,7 +210,7 @@ def transition(
             if button_index not in available_buttons:
                 return transition(
                     state,
-                    ButtonCommandFailed(button_index, observed_at),
+                    ButtonCommandFailed(button_index, observed_at, ButtonFeedbackColour.WHITE),
                     config,
                     active_definition,
                     high_beam_strobe_config,

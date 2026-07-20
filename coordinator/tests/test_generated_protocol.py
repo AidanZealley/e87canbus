@@ -36,7 +36,12 @@ def test_definition_owns_ids_lengths_positions_and_values() -> None:
     effect = definition.message("button_pad_effect")
     assert effect.can_id == 0x701
     assert effect.length == 8
-    assert dict(effect.values) == {"blink_red_double": 1, "breathe": 2}
+    assert dict(effect.values) == {
+        "blink_red_double": 1,
+        "breathe": 2,
+        "blink_white_double": 3,
+        "blink_amber_double": 4,
+    }
 
 
 def test_registry_messages_have_fixed_ids_and_layouts() -> None:

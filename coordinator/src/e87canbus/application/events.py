@@ -32,6 +32,12 @@ RGB_AMBER: Rgb = (255, 191, 0)
 RGB_WHITE: Rgb = (255, 255, 255)
 
 
+class ButtonFeedbackColour(StrEnum):
+    RED = "red"
+    AMBER = "amber"
+    WHITE = "white"
+
+
 @dataclass(frozen=True)
 class ButtonLedState:
     rgb: tuple[Rgb, ...]
@@ -64,12 +70,15 @@ class ButtonPressed:
 class ButtonCommandFailed:
     button_index: int
     occurred_at: float
+    blink_colour: ButtonFeedbackColour = ButtonFeedbackColour.RED
 
     def __post_init__(self) -> None:
         if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
             raise ValueError("button failure index must identify a button LED")
         if not math.isfinite(self.occurred_at):
             raise ValueError("button failure time must be finite")
+        if not isinstance(self.blink_colour, ButtonFeedbackColour):
+            raise ValueError("button failure colour must be a ButtonFeedbackColour")
 
 
 @dataclass(frozen=True)
@@ -174,10 +183,13 @@ class SetButtonPadProgram:
 @dataclass(frozen=True)
 class TriggerButtonPadBlink:
     button_index: int
+    colour: ButtonFeedbackColour = ButtonFeedbackColour.RED
 
     def __post_init__(self) -> None:
         if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
             raise ValueError("button blink index must identify a button LED")
+        if not isinstance(self.colour, ButtonFeedbackColour):
+            raise ValueError("button blink colour must be a ButtonFeedbackColour")
 
 
 @dataclass(frozen=True)
