@@ -172,6 +172,27 @@ class SetButtonPadProgram:
 
 
 @dataclass(frozen=True)
+class TriggerButtonPadBlink:
+    button_index: int
+
+    def __post_init__(self) -> None:
+        if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
+            raise ValueError("button blink index must identify a button LED")
+
+
+@dataclass(frozen=True)
+class SetButtonPadBreathe:
+    button_index: int
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
+            raise ValueError("button breathe index must identify a button LED")
+        if type(self.enabled) is not bool:
+            raise ValueError("button breathe enabled must be a boolean")
+
+
+@dataclass(frozen=True)
 class SetSteeringAssistance:
     """Dimensionless command for a capability supplied by composition."""
 
@@ -194,4 +215,10 @@ class SetHighBeam:
             raise ValueError("high-beam enabled must be a boolean")
 
 
-ApplicationEffect = SetButtonPadProgram | SetSteeringAssistance | SetHighBeam
+ApplicationEffect = (
+    SetButtonPadProgram
+    | TriggerButtonPadBlink
+    | SetButtonPadBreathe
+    | SetSteeringAssistance
+    | SetHighBeam
+)

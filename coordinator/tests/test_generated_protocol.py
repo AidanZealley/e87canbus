@@ -28,17 +28,21 @@ def test_definition_owns_ids_lengths_positions_and_values() -> None:
     button_event = definition.message("button_event")
 
     assert definition.protocol_version == 1
-    assert len(definition.messages) == 7
+    assert len(definition.messages) == 8
     assert button_event.can_id == 0x700
     assert button_event.length == 2
     assert dict(button_event.byte_positions) == {"button_index": 0, "state": 1}
     assert dict(button_event.values) == {"released": 0, "pressed": 1}
+    effect = definition.message("button_pad_effect")
+    assert effect.can_id == 0x701
+    assert effect.length == 8
+    assert dict(effect.values) == {"blink_red_double": 1, "breathe": 2}
 
 
 def test_registry_messages_have_fixed_ids_and_layouts() -> None:
     definition = load_definition(ROOT / "protocol" / "custom.toml")
 
-    assert [message.can_id for message in definition.messages] == [0x700, *range(0x702, 0x708)]
+    assert [message.can_id for message in definition.messages] == list(range(0x700, 0x708))
     assert all(message.length == 8 for message in definition.messages[2:])
     assert dict(definition.message("button_pad_hello").byte_positions) == {
         "protocol_version": 0,

@@ -31,6 +31,7 @@ from e87canbus.application.events import (
     MaximumAssistanceSet,
     OilTemperatureObserved,
     SetButtonPadProgram,
+    SetButtonPadBreathe,
     SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
@@ -38,6 +39,7 @@ from e87canbus.application.events import (
     SteeringFallbackReason,
     SteeringFallbackRequested,
     SteeringModeSet,
+    TriggerButtonPadBlink,
 )
 from e87canbus.application.state import (
     ApplicationState,
@@ -185,7 +187,7 @@ def transition(
             deadlines: list[float | None] = list(state.button_feedback_deadlines)
             deadlines[button_index] = occurred_at + BUTTON_FEEDBACK_DURATION_S
             next_state = replace(state, button_feedback_deadlines=tuple(deadlines))
-            return Transition(next_state, (button_led_effect(next_state),))
+            return Transition(next_state, (TriggerButtonPadBlink(button_index),))
         case ButtonFeedbackDeadlineReached(now):
             next_deadlines: tuple[float | None, ...] = tuple(
                 None if deadline is not None and deadline <= now else deadline
@@ -223,7 +225,15 @@ def transition(
             new_leds = button_led_effect(new_state)
             effects: tuple[ApplicationEffect, ...] = ()
             if new_leds != previous_leds:
-                effects += (new_leds,)
+                effects += (
+                    SetButtonPadBreathe(
+                        DEMO_BREATHE_BUTTON_INDEX,
+                        new_state.button_pad_demo_breathe_enabled,
+                    ),
+                ) if (
+                    new_state.button_pad_demo_breathe_enabled
+                    != state.button_pad_demo_breathe_enabled
+                ) else (new_leds,)
             if new_state.steering != state.steering:
                 effects += (_steering_command(new_state, config, active_definition),)
             if new_state.high_beam_enabled != state.high_beam_enabled:

@@ -246,6 +246,10 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
         constants.append((f"{prefix}_LENGTH", message.length))
         if message.name == "button_event":
             constants.extend((f"BUTTON_{name.upper()}", value) for name, value in message.values)
+        elif message.values and message.name != "led_snapshot":
+            constants.extend(
+                (f"{prefix}_{name.upper()}", value) for name, value in message.values
+            )
         elif message.name == "led_snapshot":
             constants.extend(
                 [

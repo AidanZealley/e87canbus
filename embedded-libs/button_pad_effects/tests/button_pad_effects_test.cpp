@@ -152,6 +152,47 @@ int main() {
         }
     }
 
+    // Incremental overlays compose over the synchronized base scene without
+    // replacing it, and repeated finite triggers restart immediately.
+    {
+        e87canbus::ButtonPadEffects effects;
+        const auto &base = VALID_PROGRAMS.front();
+        for (const auto &command : base.commands) {
+            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS)) {
+                return fail("incremental_overlays", "base program was rejected");
+            }
+        }
+        if (!effects.setBreathe(15, false)) {
+            return fail("incremental_overlays", "breathe disable was rejected");
+        }
+        uint8_t rendered[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
+        effects.render(STARTED_AT_MS + 400, rendered);
+        if (rendered[45] != 0 || rendered[46] != 0 || rendered[47] != 0 ||
+            (effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
+            return fail("incremental_overlays", "breathe disable did not suppress base track");
+        }
+        if (!effects.setBreathe(15, true) ||
+            !(effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
+            return fail("incremental_overlays", "breathe enable did not animate");
+        }
+        if (!effects.triggerRedDoubleBlink(2, STARTED_AT_MS + 500)) {
+            return fail("incremental_overlays", "blink trigger was rejected");
+        }
+        effects.render(STARTED_AT_MS + 500, rendered);
+        if (rendered[6] != 255 || rendered[7] != 0 || rendered[8] != 0) {
+            return fail("incremental_overlays", "blink did not overlay red");
+        }
+        effects.render(STARTED_AT_MS + 600, rendered);
+        if (rendered[6] == 255 && rendered[7] == 0 && rendered[8] == 0) {
+            return fail("incremental_overlays", "blink off phase did not reveal base");
+        }
+        effects.triggerRedDoubleBlink(2, STARTED_AT_MS + 650);
+        effects.render(STARTED_AT_MS + 650, rendered);
+        if (rendered[6] != 255 || rendered[7] != 0 || rendered[8] != 0) {
+            return fail("incremental_overlays", "repeated blink did not restart");
+        }
+    }
+
     for (const auto &vector : INVALID_PROGRAMS) {
         e87canbus::ButtonPadEffects effects;
         if (effects.apply(vector.payload.data(), vector.payload.size(), STARTED_AT_MS)) {

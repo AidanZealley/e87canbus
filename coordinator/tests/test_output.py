@@ -7,9 +7,11 @@ from e87canbus.application.events import (
     RGB_WHITE,
     ButtonLedState,
     SetButtonPadProgram,
+    SetButtonPadBreathe,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
+    TriggerButtonPadBlink,
 )
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, TxPolicyConfig
@@ -91,6 +93,25 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
 
     # Two distinct tracks pack into one 32-byte transfer (First Frame length 0x020).
     assert raw.sent == [CanFrame(0x708, b"\x10\x20\x02\x01\x01\x00\x01\x00")]
+
+
+def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:
+    raw = FakeTransmitter()
+    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
+
+    executor.execute(
+        (
+            EffectRequest(TriggerButtonPadBlink(3)),
+            EffectRequest(SetButtonPadBreathe(15, True)),
+            EffectRequest(SetButtonPadBreathe(15, False)),
+        )
+    )
+
+    assert raw.sent == [
+        CanFrame(0x701, b"\x01\x01\x03\x00\x01\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x02\x0f\x01\x01\x00\x00\x00"),
+        CanFrame(0x701, b"\x01\x02\x0f\x02\x00\x00\x00\x00"),
+    ]
 
 
 def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:

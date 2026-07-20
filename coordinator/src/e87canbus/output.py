@@ -14,13 +14,20 @@ from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
     SetButtonPadProgram,
+    SetButtonPadBreathe,
     SetHighBeam,
     SetSteeringAssistance,
+    TriggerButtonPadBlink,
 )
 from e87canbus.button_pad import pack_button_pad_transfers
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
+from e87canbus.protocol.generated import (
+    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
+    BUTTON_PAD_EFFECT_BREATHE,
+    BUTTON_PAD_EFFECT_LENGTH,
+)
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.transport.isotp import IsoTpEndpoint
 
@@ -47,7 +54,14 @@ class EffectRequest:
     def __post_init__(self) -> None:
         if not isinstance(
             self.effect,
-            (SetButtonPadProgram, SetSteeringAssistance, SetHighBeam, SendRegistryFrame),
+            (
+                SetButtonPadProgram,
+                TriggerButtonPadBlink,
+                SetButtonPadBreathe,
+                SetSteeringAssistance,
+                SetHighBeam,
+                SendRegistryFrame,
+            ),
         ):
             raise ValueError("effect request must contain an executable effect")
         if self.origin_button_index is not None and (
@@ -144,6 +158,7 @@ class EffectExecutor:
         self._router = router or ProtocolRouter()
         self._steering_actuator = steering_actuator
         self._high_beam_actuator = high_beam_actuator
+        self._button_pad_effect_sequence = 0
         transmitter = self._transmitters.get(CanNetwork.KCAN)
 
         def send_transport_frame(frame: CanFrame) -> None:
@@ -183,6 +198,10 @@ class EffectExecutor:
                     can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
+                case TriggerButtonPadBlink() | SetButtonPadBreathe():
+                    can_failure = self._execute_button_pad_effect(effect, origin_button_index)
+                    if can_failure is not None:
+                        failures.append(can_failure)
                 case SetHighBeam():
                     high_beam_failure = self._execute_high_beam(effect, origin_button_index)
                     if high_beam_failure is not None:
@@ -194,6 +213,32 @@ class EffectExecutor:
                 case _:
                     assert_never(effect)
         return tuple(failures)
+
+    def _execute_button_pad_effect(
+        self,
+        effect: TriggerButtonPadBlink | SetButtonPadBreathe,
+        origin_button_index: int | None,
+    ) -> CanEffectFailure | None:
+        opcode = (
+            BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE
+            if isinstance(effect, TriggerButtonPadBlink)
+            else BUTTON_PAD_EFFECT_BREATHE
+        )
+        enabled = 1 if isinstance(effect, TriggerButtonPadBlink) or effect.enabled else 0
+        payload = bytes(
+            (1, opcode, effect.button_index, self._button_pad_effect_sequence, enabled, 0, 0, 0)
+        )
+        assert len(payload) == BUTTON_PAD_EFFECT_LENGTH
+        self._button_pad_effect_sequence = (self._button_pad_effect_sequence + 1) & 0xFF
+        return self._execute_routed_can(
+            SendRegistryFrame(
+                RoutedCanFrame(
+                    CanNetwork.KCAN,
+                    CanFrame(self._router.ids.button_pad_effect, payload),
+                )
+            ),
+            origin_button_index,
+        )
 
     def _execute_can(
         self,

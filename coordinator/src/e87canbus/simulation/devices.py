@@ -34,6 +34,12 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
+from e87canbus.protocol.generated import (
+    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
+    BUTTON_PAD_EFFECT_BREATHE,
+    BUTTON_PAD_EFFECT_LENGTH,
+    CUSTOM_DEVICE_PROTOCOL_VERSION,
+)
 from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
 from e87canbus.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
@@ -78,7 +84,7 @@ class SimulatedRegistryPeer:
         self.ids = ids or CustomCanIds()
         self.clock = clock
         self.device_id = 1
-        self.protocol_version = 1
+        self.protocol_version = CUSTOM_DEVICE_PROTOCOL_VERSION
         self.status_code = 0
         self.connected = True
         self.session_id = 0
@@ -384,6 +390,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self._pending_led_rgb: list[tuple[int, int, int]] | None = None
         self.button_pad_program: ButtonPadProgramPayload | None = None
         self.last_seen_monotonic_s: float | None = None
+        self.effect_commands: list[tuple[int, int, bool, int]] = []
         self.transport = IsoTpEndpoint(
             tx_id=ids.button_pad_transport_device_to_coordinator,
             rx_id=ids.button_pad_transport_coordinator_to_device,
@@ -428,6 +435,22 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         while processed < limit and (frame := bus.receive(timeout_s=0)) is not None:
             processed += 1
             if self._consume_registry_frame(frame, now):
+                continue
+            if frame.arbitration_id == self.ids.button_pad_effect:
+                if (
+                    self._operational_with_fresh_lease(now)
+                    and len(frame.data) == BUTTON_PAD_EFFECT_LENGTH
+                    and frame.data[0] == 1
+                    and frame.data[1]
+                    in (BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE, BUTTON_PAD_EFFECT_BREATHE)
+                    and frame.data[2] < BUTTON_LED_COUNT
+                    and frame.data[4] <= 1
+                    and frame.data[5:] == b"\x00\x00\x00"
+                ):
+                    self.effect_commands.append(
+                        (frame.data[1], frame.data[2], bool(frame.data[4]), frame.data[3])
+                    )
+                    self.last_seen_monotonic_s = now
                 continue
             self.transport.on_frame(frame)
         self.transport.poll()

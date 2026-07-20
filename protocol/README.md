@@ -43,9 +43,10 @@ Button-pad program v2 is an ordered sequence of 16-byte ISO-TP commands on `0x70
 first command opens a whole-pad replacement, every button is assigned exactly once across the
 command masks, and bit 7 of the final opcode atomically commits the scene. Each command contains a 16-bit target mask and one resolved
 track: solid, blink, or breathe; RGB, two kind-specific parameters, `repeat`, and final RGB. A repeat
-of zero runs forever and a positive repeat count finishes on final RGB. The controller resolves any
-composition before encoding, so the AVR stores exactly one fixed-size track per button and contains
-no layering policy. Commands are paced below the shared CAN safety ceiling, while commit gives all
+of zero runs forever and a positive repeat count finishes on final RGB. The controller resolves the
+base scene before encoding, so the AVR stores exactly one fixed-size base track per button. A
+single-frame command on `0x701` starts finite red feedback or enables/disables a per-button breathe
+overlay without replacing that base scene. Commands are paced below the shared CAN safety ceiling, while commit gives all
 changed tracks one device-local start time while unchanged tracks retain their phase. Malformed or unsupported commands are ignored; there is
 deliberately no acknowledgement layer.
 

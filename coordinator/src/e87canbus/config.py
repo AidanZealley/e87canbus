@@ -9,6 +9,7 @@ from enum import StrEnum
 from e87canbus.protocol.generated import (
     BUTTON_PAD_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH,
     CAN_ID_BUTTON_EVENT,
+    CAN_ID_BUTTON_PAD_EFFECT,
     CAN_ID_BUTTON_PAD_HEARTBEAT,
     CAN_ID_BUTTON_PAD_HELLO,
     CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE,
@@ -51,6 +52,7 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
 @dataclass(frozen=True)
 class CustomCanIds:
     button_event: int = CAN_ID_BUTTON_EVENT
+    button_pad_effect: int = CAN_ID_BUTTON_PAD_EFFECT
     button_pad_hello: int = CAN_ID_BUTTON_PAD_HELLO
     button_pad_welcome_ack: int = CAN_ID_BUTTON_PAD_WELCOME_ACK
     button_pad_heartbeat: int = CAN_ID_BUTTON_PAD_HEARTBEAT

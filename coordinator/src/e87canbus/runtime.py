@@ -31,10 +31,12 @@ from e87canbus.application.events import (
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
     SetButtonPadProgram,
+    SetButtonPadBreathe,
     SetSteeringAssistance,
     SteeringFallbackReason,
     SteeringFallbackRequested,
     SteeringModeSet,
+    TriggerButtonPadBlink,
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import (
@@ -926,7 +928,13 @@ class CoordinatorKernel:
         return tuple(
             request
             for request in effects
-            if (not isinstance(request.effect, SetButtonPadProgram) or button_active)
+            if (
+                not isinstance(
+                    request.effect,
+                    (SetButtonPadProgram, TriggerButtonPadBlink, SetButtonPadBreathe),
+                )
+                or button_active
+            )
             and (not isinstance(request.effect, SetSteeringAssistance) or self._servotronic_usable)
         )
 

@@ -25,12 +25,14 @@ from e87canbus.application.events import (
     HighBeamStrobeDeadlineReached,
     OilTemperatureObserved,
     SetButtonPadProgram,
+    SetButtonPadBreathe,
     SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
+    TriggerButtonPadBlink,
 )
 from e87canbus.application.state import (
     ApplicationState,
@@ -42,12 +44,7 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.button_pad import (
-    breathe_track,
-    resolved_button_pad_program,
-    solid_track,
-    static_button_pad_program,
-)
+from e87canbus.button_pad import solid_track, static_button_pad_program
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
@@ -158,15 +155,7 @@ def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
     )
 
     assert started.state.button_pad_demo_breathe_enabled
-    tracks = [solid_track(rgb) for rgb in AUTO_LEDS.rgb]
-    tracks[controller.DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
-        controller.DEMO_BREATHE_RGB,
-        controller.DEMO_BREATHE_MINIMUM_BRIGHTNESS,
-        controller.DEMO_BREATHE_MAXIMUM_BRIGHTNESS,
-        controller.DEMO_BREATHE_PERIOD_MS,
-        final_rgb=AUTO_LEDS.rgb[controller.DEMO_BREATHE_BUTTON_INDEX],
-    )
-    assert started.effects == (SetButtonPadProgram(resolved_button_pad_program(tuple(tracks))),)
+    assert started.effects == (SetButtonPadBreathe(15, True),)
 
     stopped = controller.transition(
         started.state,
@@ -176,7 +165,7 @@ def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
     )
 
     assert not stopped.state.button_pad_demo_breathe_enabled
-    assert stopped.effects == (static_effect(AUTO_LEDS),)
+    assert stopped.effects == (SetButtonPadBreathe(15, False),)
 
 
 def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:
@@ -379,17 +368,7 @@ def test_unknown_button_double_blinks_red_and_returns_to_its_displayed_colour() 
     result = transition(state, ButtonPressed(9, observed_at=2.0), CONFIG)
 
     assert result.state.button_feedback_deadlines[9] == pytest.approx(2.4)
-    tracks = [solid_track(rgb) for rgb in AUTO_LEDS.rgb]
-    tracks[9] = controller.blink_track(
-        controller.RGB_RED,
-        controller.BUTTON_FEEDBACK_BLINK_ON_MS,
-        controller.BUTTON_FEEDBACK_BLINK_OFF_MS,
-        controller.BUTTON_FEEDBACK_BLINK_REPEAT,
-        controller.RGB_OFF,
-    )
-    assert result.effects == (
-        SetButtonPadProgram(resolved_button_pad_program(tuple(tracks))),
-    )
+    assert result.effects == (TriggerButtonPadBlink(9),)
 
 
 def test_manual_assistance_is_clamped_to_configured_bounds() -> None:

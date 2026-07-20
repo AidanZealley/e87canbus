@@ -27,6 +27,8 @@ class ButtonPadEffects {
     bool animated(uint32_t now_ms) const;
     uint16_t animationMask(uint32_t now_ms) const;
     bool committed() const;
+    bool triggerRedDoubleBlink(uint8_t button_index, uint32_t now_ms);
+    bool setBreathe(uint8_t button_index, bool enabled);
 
    private:
     bool applyCommand(const uint8_t *command, uint32_t now_ms);
@@ -36,8 +38,12 @@ class ButtonPadEffects {
     bool last_command_committed_ = false;
     uint16_t assigned_mask_ = 0;
     uint16_t changed_mask_ = 0;
+    uint32_t blink_started_at_ms_[BUTTON_PAD_LED_COUNT] = {};
+    uint16_t blink_mask_ = 0;
+    uint16_t breathe_control_mask_ = 0;
+    uint16_t breathe_mask_ = 0;
 };
 
-static_assert(sizeof(ButtonPadEffects) <= 264, "button-pad renderer RAM budget changed");
+static_assert(sizeof(ButtonPadEffects) <= 336, "button-pad renderer RAM budget changed");
 
 }  // namespace e87canbus

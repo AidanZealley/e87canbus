@@ -22,6 +22,28 @@ state = 1
 released = 0x00
 pressed = 0x01
 
+[button_pad_effect]
+can_id = 0x701
+length = 8
+direction = "Coordinator to button pad"
+purpose = "Incremental LED effect"
+payload = "byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = enabled, bytes 5-7 = reserved zero"
+values_title = "Button Pad Effect Opcodes"
+
+[button_pad_effect.bytes]
+version = 0
+opcode = 1
+button_index = 2
+sequence = 3
+enabled = 4
+reserved_5 = 5
+reserved_6 = 6
+reserved_7 = 7
+
+[button_pad_effect.values]
+blink_red_double = 0x01
+breathe = 0x02
+
 [button_pad_hello]
 can_id = 0x702
 length = 8

@@ -29,11 +29,13 @@ const uint32_t CONTROLLER_TIMEOUT_MS = 3000;
 const int32_t CADENCE_JITTER_MS = 100;
 const uint8_t RESPONSE_ACCEPTED = 0;
 const uint8_t RESPONSE_UNSUPPORTED = 1;
+const uint8_t BUTTON_PAD_EFFECT_COMMAND_VERSION = 1;
 const uint8_t BUTTON_LED_COUNT = 16;
 const uint8_t TRELLIS_ADDR = 0x2E;
 const uint8_t TRELLIS_BRIGHTNESS = 20;
 const uint32_t TRELLIS_POLL_MS = 20;
 const uint32_t TRELLIS_ANIMATION_FRAME_MS = 80;
+const uint8_t TRELLIS_PIXEL_CHUNK_BYTES = 24;
 const uint16_t DISCOVERY_BREATHE_PERIOD_MS = 1600;
 const uint8_t DISCOVERY_BREATHE_MINIMUM = 16;
 using button_pad::DeviceState;
@@ -94,11 +96,6 @@ void applyPixelDisplay(uint32_t now) {
     }
     if (displayMode == DisplayMode::NORMAL) {
         effects.render(now, renderedPixels);
-        for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
-            trellis.pixels.setPixelColor(
-                i, trellis.pixels.Color(renderedPixels[i * 3], renderedPixels[i * 3 + 1],
-                                        renderedPixels[i * 3 + 2]));
-        }
     } else if (displayMode == DisplayMode::DISCOVERING) {
         const uint16_t halfPeriod = DISCOVERY_BREATHE_PERIOD_MS / 2;
         const uint16_t phase = static_cast<uint16_t>(now % DISCOVERY_BREATHE_PERIOD_MS);
@@ -107,13 +104,39 @@ void applyPixelDisplay(uint32_t now) {
             DISCOVERY_BREATHE_MINIMUM +
             (static_cast<uint32_t>(255 - DISCOVERY_BREATHE_MINIMUM) * ramp) / halfPeriod);
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
-            trellis.pixels.setPixelColor(
-                i, trellis.pixels.Color(brightness, brightness, brightness));
+            renderedPixels[i * 3] = brightness;
+            renderedPixels[i * 3 + 1] = brightness;
+            renderedPixels[i * 3 + 2] = brightness;
         }
     } else {
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
-            trellis.pixels.setPixelColor(i, 0x200000);  // dim red: fault
+            renderedPixels[i * 3] = 0x20;
+            renderedPixels[i * 3 + 1] = 0;
+            renderedPixels[i * 3 + 2] = 0;
         }
+    }
+
+    // seesaw_NeoPixel::setPixelColor performs one I2C transaction per LED.
+    // Write the remote GRB buffer in two bounded chunks instead, reducing a
+    // full-pad frame from 16 transactions to two. Four protocol bytes plus
+    // 24 data bytes remain below the AVR Wire buffer limit.
+    uint8_t grb[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
+    for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
+        grb[i * 3] = static_cast<uint8_t>(
+            (static_cast<uint16_t>(renderedPixels[i * 3 + 1]) * TRELLIS_BRIGHTNESS) >> 8);
+        grb[i * 3 + 1] = static_cast<uint8_t>(
+            (static_cast<uint16_t>(renderedPixels[i * 3]) * TRELLIS_BRIGHTNESS) >> 8);
+        grb[i * 3 + 2] = static_cast<uint8_t>(
+            (static_cast<uint16_t>(renderedPixels[i * 3 + 2]) * TRELLIS_BRIGHTNESS) >> 8);
+    }
+    for (uint8_t offset = 0; offset < sizeof(grb); offset += TRELLIS_PIXEL_CHUNK_BYTES) {
+        Wire.beginTransmission(TRELLIS_ADDR);
+        Wire.write(SEESAW_NEOPIXEL_BASE);
+        Wire.write(SEESAW_NEOPIXEL_BUF);
+        Wire.write(static_cast<uint8_t>(0));
+        Wire.write(offset);
+        Wire.write(grb + offset, TRELLIS_PIXEL_CHUNK_BYTES);
+        Wire.endTransmission();
     }
     trellis.pixels.show();
     nextTrellisAnimationFrameMs = now + TRELLIS_ANIMATION_FRAME_MS;
@@ -371,6 +394,31 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
     }
 }
 
+void handleButtonPadEffect(const uint8_t *payload, uint8_t length, uint32_t now) {
+    if (state != DeviceState::OPERATIONAL || !freshControllerLease(now) ||
+        length != BUTTON_PAD_EFFECT_LENGTH ||
+        payload[BUTTON_PAD_EFFECT_VERSION_BYTE] != BUTTON_PAD_EFFECT_COMMAND_VERSION ||
+        payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE] >= BUTTON_LED_COUNT ||
+        payload[BUTTON_PAD_EFFECT_RESERVED_5_BYTE] != 0 ||
+        payload[BUTTON_PAD_EFFECT_RESERVED_6_BYTE] != 0 ||
+        payload[BUTTON_PAD_EFFECT_RESERVED_7_BYTE] != 0) {
+        return;
+    }
+    const uint8_t opcode = payload[BUTTON_PAD_EFFECT_OPCODE_BYTE];
+    const uint8_t buttonIndex = payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE];
+    bool applied = false;
+    if (opcode == BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE &&
+        payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1) {
+        applied = effects.triggerRedDoubleBlink(buttonIndex, now);
+    } else if (opcode == BUTTON_PAD_EFFECT_BREATHE &&
+               payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] <= 1) {
+        applied = effects.setBreathe(buttonIndex, payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1);
+    }
+    if (applied && displayMode == DisplayMode::NORMAL) {
+        applyPixelDisplay(now);
+    }
+}
+
 void pollCan(uint32_t now) {
     while (canReady && canBus.checkReceive() == CAN_MSGAVAIL) {
         unsigned long arbitrationId = 0;
@@ -380,6 +428,8 @@ void pollCan(uint32_t now) {
 
         if (arbitrationId == CAN_ID_BUTTON_PAD_WELCOME_ACK) {
             handleWelcomeAck(payload, length, now);
+        } else if (arbitrationId == CAN_ID_BUTTON_PAD_EFFECT) {
+            handleButtonPadEffect(payload, length, now);
         } else if (arbitrationId == CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE) {
             transport.onFrame(payload, length);
         }

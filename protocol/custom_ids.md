@@ -12,6 +12,7 @@ a separate deployment defense.
 | ID | Direction | Purpose | Length | Payload |
 |---|---|---|---:|---|
 | `0x700` | Button pad to coordinator | Button event | 2 | byte 0 = button index, byte 1 = state |
+| `0x701` | Coordinator to button pad | Incremental LED effect | 8 | byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = enabled, bytes 5-7 = reserved zero |
 | `0x702` | Button pad to coordinator | Device HELLO | 8 | byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero |
 | `0x703` | Coordinator to button pad | WELCOME acknowledgement | 8 | byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence |
 | `0x704` | Button pad to coordinator | Device HEARTBEAT | 8 | bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code |
@@ -26,6 +27,13 @@ a separate deployment defense.
 |---|---|
 | `0x00` | released |
 | `0x01` | pressed |
+
+## Button Pad Effect Opcodes
+
+| Value | Meaning |
+|---|---|
+| `0x01` | blink_red_double |
+| `0x02` | breathe |
 <!-- END GENERATED CUSTOM PROTOCOL -->
 
 Run `uv run python scripts/generate_custom_protocol.py` after editing `protocol/custom.toml`.

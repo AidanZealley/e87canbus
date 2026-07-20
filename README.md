@@ -36,9 +36,10 @@ Live readers timestamp CAN frames before placing them in a bounded inbox. One ke
 application state and applies pure transitions in input order; committed effects leave through an
 explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
 The simulator operates external nodes and follows that same path rather than injecting application
-events or state. A button-pad LED decision is one canonical v2 program containing a resolved track
-for each button. Ordered 16-byte ISO-TP commands on `0x708`/`0x709` replace the whole scene and then
-commit it atomically on the device.
+events or state. A button-pad LED decision has a canonical v2 program containing a resolved track
+for each button. Ordered 16-byte ISO-TP commands on `0x708`/`0x709` replace the whole scene and
+commit it atomically for synchronization. Latency-sensitive red feedback and breathe toggles use
+one incremental CAN frame on `0x701`; the device composites those overlays over the base scene.
 
 Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
 `disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
