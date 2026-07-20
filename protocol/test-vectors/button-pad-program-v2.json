@@ -46,6 +46,18 @@
         { "elapsed_ms": 0, "animation_mask": 0, "rgb_hex": "0000000b111716222e2133452c445c37557342668a4d77a15888b86399cf6eaae679bbfd84cc148fdd2b9aee42a5ff59" },
         { "elapsed_ms": 777, "animation_mask": 0, "rgb_hex": "0000000b111716222e2133452c445c37557342668a4d77a15888b86399cf6eaae679bbfd84cc148fdd2b9aee42a5ff59" }
       ]
+    },
+    {
+      "name": "travelling_north_west_to_south_east_cyan_to_pink_gradient",
+      "commands_hex": [
+        "0281ffff0400dcff6009010000ff00a0"
+      ],
+      "frames": [
+        { "elapsed_ms": 0, "animation_mask": 65535, "rgb_hex": "00dcff5394e0a94ac0ff00a05394e0a94ac0ff00a0ab49c0a94ac0ff00a0ab49c05593e0ff00a0ab49c05593e000dcff" },
+        { "elapsed_ms": 600, "animation_mask": 65535, "rgb_hex": "7f6ed0d326b1d525b07f6ed0d326b1d525b07f6ed02bb7efd525b07f6ed02bb7ef29b8f07f6ed02bb7ef29b8f07f6ed0" },
+        { "elapsed_ms": 1200, "animation_mask": 65535, "rgb_hex": "ff00a0ab49c05593e000dcffab49c05593e000dcff5394e05593e000dcff5394e0a94ac000dcff5394e0a94ac0ff00a0" },
+        { "elapsed_ms": 2400, "animation_mask": 65535, "rgb_hex": "00dcff5394e0a94ac0ff00a05394e0a94ac0ff00a0ab49c0a94ac0ff00a0ab49c05593e0ff00a0ab49c05593e000dcff" }
+      ]
     }
   ],
   "invalid_commands": [
@@ -55,6 +67,7 @@
     { "name": "zero_mask", "payload_hex": "02020000010000000000000000000000" },
     { "name": "solid_with_repeat", "payload_hex": "0202ffff010000000000000001000000" },
     { "name": "blink_zero_off_time", "payload_hex": "0202ffff02ff00006400000002000000" },
-    { "name": "breathe_reversed_brightness", "payload_hex": "0202ffff0300dcff4006ff1400000000" }
+    { "name": "breathe_reversed_brightness", "payload_hex": "0202ffff0300dcff4006ff1400000000" },
+    { "name": "travelling_gradient_unknown_direction", "payload_hex": "0202ffff0400dcff6009020000ff00a0" }
   ]
 }

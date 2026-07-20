@@ -6,7 +6,8 @@ Current milestone: the hardware-independent coordinator kernel owns application 
 exercised through the visual simulator's bounded, single-owner command path. NeoTrellis button `0`
 toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
 manual level, and button `3` toggles a reversible maximum-assistance override. Button `4` starts a
-simulator-only, bounded high-beam flash-to-pass strobe. BMW CAN IDs, DSC replay, live high-beam
+simulator-only, bounded high-beam flash-to-pass strobe. Button `12` toggles a north-west-to-south-east
+static cyan-to-pink gradient, while button `13` toggles its device-local travelling version. BMW CAN IDs, DSC replay, live high-beam
 actuation, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain
 out of scope.
 

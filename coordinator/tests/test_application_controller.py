@@ -182,13 +182,50 @@ def test_button_twelve_toggles_a_static_cyan_to_pink_gradient() -> None:
         track.rgb for track in resolve_button_pad_tracks(started.effects[0].program)
     ) == (
         (0, 220, 255),
+        (42, 183, 239),
         (85, 146, 223),
+        (127, 110, 207),
+        (42, 183, 239),
+        (85, 146, 223),
+        (127, 110, 207),
         (170, 73, 191),
+        (85, 146, 223),
+        (127, 110, 207),
+        (170, 73, 191),
+        (212, 36, 175),
+        (127, 110, 207),
+        (170, 73, 191),
+        (212, 36, 175),
         (255, 0, 160),
-    ) * 4
+    )
 
     stopped = transition(started.state, ButtonPressed(12, 2.0), CONFIG)
     assert not stopped.state.button_pad_gradient_enabled
+    assert stopped.effects == (static_effect(AUTO_LEDS),)
+
+
+def test_button_thirteen_toggles_a_device_local_travelling_gradient() -> None:
+    started = transition(ApplicationState(), ButtonPressed(13, 1.0), CONFIG)
+
+    assert started.state.button_pad_travelling_gradient_enabled
+    assert not started.state.button_pad_gradient_enabled
+    assert started.effects == (controller.button_led_effect(started.state),)
+    tracks = resolve_button_pad_tracks(started.effects[0].program)
+    assert {track.kind for track in tracks} == {4}
+    assert {track.rgb for track in tracks} == {(0, 220, 255)}
+    assert {track.final_rgb for track in tracks} == {(255, 0, 160)}
+    assert {track.parameter_a for track in tracks} == {2400}
+    assert {track.parameter_b for track in tracks} == {1}
+
+    static = transition(started.state, ButtonPressed(12, 2.0), CONFIG)
+    assert static.state.button_pad_gradient_enabled
+    assert not static.state.button_pad_travelling_gradient_enabled
+
+    stopped = transition(static.state, ButtonPressed(13, 3.0), CONFIG)
+    assert stopped.state.button_pad_travelling_gradient_enabled
+    assert not stopped.state.button_pad_gradient_enabled
+    stopped = transition(stopped.state, ButtonPressed(13, 4.0), CONFIG)
+    assert not stopped.state.button_pad_travelling_gradient_enabled
     assert stopped.effects == (static_effect(AUTO_LEDS),)
 
 

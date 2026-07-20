@@ -42,7 +42,11 @@ not registry traffic.
 Button-pad program v2 is an ordered sequence of 16-byte ISO-TP commands on `0x708`/`0x709`. The
 first command opens a whole-pad replacement, every button is assigned exactly once across the
 command masks, and bit 7 of the final opcode atomically commits the scene. Each command contains a 16-bit target mask and one resolved
-track: solid, blink, or breathe; RGB, two kind-specific parameters, `repeat`, and final RGB. A repeat
+track: solid, blink, breathe, or travelling gradient; RGB, two kind-specific parameters, `repeat`,
+and final RGB. A travelling gradient uses its RGB and final RGB as cyan/pink-style endpoints, a
+bounded period, and a direction value (currently `1`, north-west-to-south-east) with device-local
+4×4 coordinates, so it does not consume
+per-frame CAN traffic. A repeat
 of zero runs forever and a positive repeat count finishes on final RGB. The controller resolves the
 base scene before encoding, so the AVR stores exactly one fixed-size base track per button. A
 single-frame command on `0x701` starts finite red feedback or enables/disables a per-button breathe

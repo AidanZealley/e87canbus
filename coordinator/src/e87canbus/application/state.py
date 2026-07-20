@@ -71,12 +71,17 @@ class ApplicationState:
     button_feedback_deadlines: tuple[float | None, ...] = (None,) * 16
     button_pad_demo_breathe_enabled: bool = False
     button_pad_gradient_enabled: bool = False
+    button_pad_travelling_gradient_enabled: bool = False
 
     def __post_init__(self) -> None:
         if type(self.button_pad_demo_breathe_enabled) is not bool:
             raise ValueError("button pad demo breathe flag must be a boolean")
         if type(self.button_pad_gradient_enabled) is not bool:
             raise ValueError("button pad gradient flag must be a boolean")
+        if type(self.button_pad_travelling_gradient_enabled) is not bool:
+            raise ValueError("button pad travelling gradient flag must be a boolean")
+        if self.button_pad_gradient_enabled and self.button_pad_travelling_gradient_enabled:
+            raise ValueError("button pad gradients must be mutually exclusive")
         if len(self.button_feedback_deadlines) != 16:
             raise ValueError("button feedback deadlines must contain exactly 16 entries")
         for deadline in self.button_feedback_deadlines:

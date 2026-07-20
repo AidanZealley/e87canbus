@@ -3,11 +3,13 @@
 from dataclasses import dataclass
 from typing import Final
 
+from e87canbus.button_pad.gradient import GradientDirection
 from e87canbus.protocol.can import (
     BUTTON_PAD_COMMAND_LENGTH,
     BUTTON_PAD_TRACK_BLINK,
     BUTTON_PAD_TRACK_BREATHE,
     BUTTON_PAD_TRACK_SOLID,
+    BUTTON_PAD_TRACK_TRAVELLING_GRADIENT,
     BUTTON_PAD_TRANSFER_MAX_LENGTH,
     ButtonPadTrackCommandPayload,
     ButtonPadTrackPayload,
@@ -60,6 +62,25 @@ def breathe_track(
 ) -> ButtonPadTrackPayload:
     return ButtonPadTrackPayload(
         BUTTON_PAD_TRACK_BREATHE, rgb, period_ms, minimum | (maximum << 8), repeat, final_rgb
+    )
+
+
+def travelling_gradient_track(
+    start_rgb: Rgb,
+    end_rgb: Rgb,
+    period_ms: int,
+    direction: GradientDirection = GradientDirection.NORTH_WEST_TO_SOUTH_EAST,
+    repeat: int = 0,
+) -> ButtonPadTrackPayload:
+    """Create a cyclic 4×4 gradient in the requested shared direction."""
+
+    return ButtonPadTrackPayload(
+        BUTTON_PAD_TRACK_TRAVELLING_GRADIENT,
+        start_rgb,
+        period_ms,
+        int(direction),
+        repeat,
+        end_rgb,
     )
 
 

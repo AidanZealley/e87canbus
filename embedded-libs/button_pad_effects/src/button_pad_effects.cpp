@@ -11,6 +11,8 @@ constexpr uint8_t COMMIT = 0x80;
 constexpr uint8_t SOLID = 1;
 constexpr uint8_t BLINK = 2;
 constexpr uint8_t BREATHE = 3;
+constexpr uint8_t TRAVELLING_GRADIENT = 4;
+constexpr uint16_t GRADIENT_NORTH_WEST_TO_SOUTH_EAST = 1;
 constexpr uint16_t COMMAND_LENGTH = 16;
 constexpr uint16_t OVERLAY_BLINK_ON_MS = 100;
 constexpr uint16_t OVERLAY_BLINK_OFF_MS = 100;
@@ -37,6 +39,10 @@ bool trackValid(uint8_t kind, uint16_t parameterA, uint16_t parameterB, uint8_t 
         const uint8_t minimum = parameterB & 0xFF;
         const uint8_t maximum = parameterB >> 8;
         return parameterA >= 250 && parameterA <= 10000 && minimum <= maximum;
+    }
+    if (kind == TRAVELLING_GRADIENT) {
+        return parameterA >= 250 && parameterA <= 10000 &&
+               parameterB == GRADIENT_NORTH_WEST_TO_SOUTH_EAST;
     }
     return false;
 }
@@ -153,7 +159,7 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
             memcpy(rgb, track.rgb, 3);
             continue;
         }
-        if (track.kind != BLINK && track.kind != BREATHE) {
+        if (track.kind != BLINK && track.kind != BREATHE && track.kind != TRAVELLING_GRADIENT) {
             memset(rgb, 0, 3);
             continue;
         }
@@ -164,6 +170,22 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
                 memcpy(rgb, track.rgb, 3);
             } else {
                 memcpy(rgb, track.final_rgb, 3);
+            }
+            continue;
+        }
+        if (track.kind == TRAVELLING_GRADIENT) {
+            const uint16_t timePhase = static_cast<uint16_t>(
+                ((elapsed % track.parameter_a) * 256UL) / track.parameter_a);
+            const uint8_t row = index / 4;
+            const uint8_t column = index % 4;
+            const uint16_t position = static_cast<uint16_t>(
+                (timePhase + (static_cast<uint16_t>(row + column) * 256U) / 6U) & 0xFFU);
+            const uint16_t blend = position <= 128 ? position * 2U : (256U - position) * 2U;
+            for (uint8_t channel = 0; channel < 3; ++channel) {
+                const int16_t difference = static_cast<int16_t>(track.final_rgb[channel]) -
+                                           track.rgb[channel];
+                rgb[channel] = static_cast<uint8_t>(
+                    static_cast<int16_t>(track.rgb[channel]) + (difference * blend) / 256);
             }
             continue;
         }
@@ -222,7 +244,8 @@ uint16_t ButtonPadEffects::animationMask(uint32_t now_ms) const {
     }
     uint16_t mask = 0;
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
-        if ((tracks_[index].kind == BLINK || tracks_[index].kind == BREATHE) &&
+        if ((tracks_[index].kind == BLINK || tracks_[index].kind == BREATHE ||
+             tracks_[index].kind == TRAVELLING_GRADIENT) &&
             !complete(tracks_[index], now_ms)) {
             mask |= 1U << index;
         }
