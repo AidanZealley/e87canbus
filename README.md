@@ -36,15 +36,16 @@ Live readers timestamp CAN frames before placing them in a bounded inbox. One ke
 application state and applies pure transitions in input order; committed effects leave through an
 explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
 The simulator operates external nodes and follows that same path rather than injecting application
-events or state. A button-pad LED decision is one complete 16×RGB state, one effect, and one
-48-byte ISO-TP payload on the provisional `0x708`/`0x709` link; completed payloads replace the
-simulated device state atomically.
+events or state. A button-pad LED decision is one canonical v2 program containing a resolved track
+for each button. Ordered 16-byte ISO-TP commands on `0x708`/`0x709` replace the whole scene and then
+commit it atomically on the device.
 
 Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
 `disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
 are unavailable outside the emulated role. Dashboard operational controls use semantic HTTP
-commands instead. `buttons.led_rgb` is the canonical controller-requested LED state; physical
-application observation is not implied by local send success.
+commands instead. `buttons.program` contains the canonical bounded program requested from the button
+pad, using the same versioned bytes sent to the device; physical application observation is not
+implied by local send success.
 
 ## Local Setup
 

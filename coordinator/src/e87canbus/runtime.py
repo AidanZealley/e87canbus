@@ -12,7 +12,7 @@ from e87canbus.application.controller import (
     SERVOTRONIC_BUTTON_INDEXES,
     ApplicationSnapshot,
     Transition,
-    button_led_state,
+    button_led_effect,
     clear_maximum_assistance,
     initial_effects,
     normalize_state,
@@ -26,12 +26,11 @@ from e87canbus.application.events import (
     ApplicationEvent,
     ButtonCommandFailed,
     ButtonFeedbackDeadlineReached,
-    ButtonLedState,
     ButtonPressed,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
-    SetButtonLeds,
+    SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringFallbackReason,
     SteeringFallbackRequested,
@@ -493,7 +492,7 @@ class CoordinatorKernel:
                 if role is not DeviceRole.SERVOTRONIC_CONTROLLER:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
-                previous_button_leds = button_led_state(self._state)
+                previous_button_leds = button_led_effect(self._state)
                 cleared = clear_maximum_assistance(self._state)
                 self._state = cleared.state
                 return self._commit_application_result(
@@ -532,7 +531,7 @@ class CoordinatorKernel:
                 if self._lifecycle is KernelLifecycle.STOPPED:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
-                previous_button_leds = button_led_state(self._state)
+                previous_button_leds = button_led_effect(self._state)
                 cleared = clear_maximum_assistance(self._state)
                 self._state = cleared.state
                 if origin_button_index is not None:
@@ -634,14 +633,14 @@ class CoordinatorKernel:
         *,
         previous_health: RuntimeHealth | None = None,
         previous_snapshot: ApplicationSnapshot | None = None,
-        previous_button_leds: ButtonLedState | None = None,
+        previous_button_leds: SetButtonPadProgram | None = None,
         extra_effects: tuple[OutputEffect, ...] = (),
         extra_topics: frozenset[StateTopic] = frozenset(),
         origin_button_index: int | None = None,
     ) -> Commit:
         prior_snapshot = self.snapshot() if previous_snapshot is None else previous_snapshot
         prior_button_leds = (
-            button_led_state(self._state) if previous_button_leds is None else previous_button_leds
+            button_led_effect(self._state) if previous_button_leds is None else previous_button_leds
         )
         result = transition(
             self._state,
@@ -664,7 +663,7 @@ class CoordinatorKernel:
         self,
         result: Transition,
         previous_snapshot: ApplicationSnapshot,
-        previous_button_leds: ButtonLedState,
+        previous_button_leds: SetButtonPadProgram,
         *,
         previous_health: RuntimeHealth | None = None,
         extra_effects: tuple[OutputEffect, ...] = (),
@@ -677,7 +676,7 @@ class CoordinatorKernel:
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             committed_snapshot,
-            buttons_changed=button_led_state(self._state) != previous_button_leds,
+            buttons_changed=button_led_effect(self._state) != previous_button_leds,
             health_changed=(previous_health is not None and self._health != previous_health),
         )
         changed_topics |= extra_topics
@@ -692,7 +691,7 @@ class CoordinatorKernel:
             changed_topics=frozenset(changed_topics),
             state_changed=(
                 committed_snapshot != previous_snapshot
-                or button_led_state(self._state) != previous_button_leds
+                or button_led_effect(self._state) != previous_button_leds
             ),
         )
 
@@ -777,7 +776,7 @@ class CoordinatorKernel:
 
     def _timer(self, now: float) -> Commit:
         previous_snapshot = self.snapshot()
-        previous_button_leds = button_led_state(self._state)
+        previous_button_leds = button_led_effect(self._state)
         previous_registry = self._registry
         extra_effects: list[OutputEffect] = []
         self._registry = tuple(expire_entry(entry, now) for entry in self._registry)
@@ -829,7 +828,7 @@ class CoordinatorKernel:
         if next_entry == previous_entry and result.acknowledgement is None:
             return None
         previous_snapshot = self.snapshot()
-        previous_button_leds = button_led_state(self._state)
+        previous_button_leds = button_led_effect(self._state)
         previous_registry = self._registry
         self._registry = tuple(
             next_entry if entry.role is role else entry for entry in self._registry
@@ -852,7 +851,7 @@ class CoordinatorKernel:
             and next_entry.status is DeviceLifecycleStatus.ACTIVE
         ):
             if role is DeviceRole.BUTTON_PAD:
-                effects.append(SetButtonLeds(button_led_state(self._state)))
+                effects.append(button_led_effect(self._state))
             elif self._servotronic_usable:
                 effects.append(
                     steering_command_for_current_state(
@@ -864,7 +863,7 @@ class CoordinatorKernel:
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             self.snapshot(),
-            buttons_changed=button_led_state(self._state) != previous_button_leds,
+            buttons_changed=button_led_effect(self._state) != previous_button_leds,
             health_changed=False,
         )
         if self._registry != previous_registry:
@@ -927,7 +926,7 @@ class CoordinatorKernel:
         return tuple(
             request
             for request in effects
-            if (not isinstance(request.effect, SetButtonLeds) or button_active)
+            if (not isinstance(request.effect, SetButtonPadProgram) or button_active)
             and (not isinstance(request.effect, SetSteeringAssistance) or self._servotronic_usable)
         )
 

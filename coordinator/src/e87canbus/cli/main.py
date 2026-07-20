@@ -83,10 +83,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         selected_profile,
         profile_database_path=args.profile_database,
     )
-    if (
-        service.deployment.transport is CanTransport.SOCKETCAN
-        and args.host not in {"127.0.0.1", "::1", "localhost"}
-    ):
+    if service.deployment.transport is CanTransport.SOCKETCAN and args.host not in {
+        "127.0.0.1",
+        "::1",
+        "localhost",
+    }:
         raise ValueError(
             "SocketCAN profiles are unauthenticated and may bind only to loopback; "
             "non-loopback exposure requires a separate security decision"
@@ -156,10 +157,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         monitor.join(timeout=1.0)
         if monitor.is_alive():
             raise RuntimeError("controller fatal monitor did not stop cleanly")
-    return 1 if (
-        not server.started
-        or api_main.app.state.controller_service.fatal_exit_required
-    ) else 0
+    return (
+        1
+        if (not server.started or api_main.app.state.controller_service.fatal_exit_required)
+        else 0
+    )
 
 
 if __name__ == "__main__":

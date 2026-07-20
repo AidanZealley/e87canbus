@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "programs": [
+    {
+      "name": "mixed_continuous",
+      "commands_hex": [
+        "02010100010000ff00000000000000ff",
+        "0202fe7f010000000000000000000000",
+        "028200800300dcff400614ff00000000"
+      ],
+      "frames": [
+        { "elapsed_ms": 0, "animation_mask": 32768, "rgb_hex": "0000ff000000000000000000000000000000000000000000000000000000000000000000000000000000000000001114" },
+        { "elapsed_ms": 400, "animation_mask": 32768, "rgb_hex": "0000ff000000000000000000000000000000000000000000000000000000000000000000000000000000000000007689" },
+        { "elapsed_ms": 800, "animation_mask": 32768, "rgb_hex": "0000ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000dcff" },
+        { "elapsed_ms": 1600, "animation_mask": 32768, "rgb_hex": "0000ff000000000000000000000000000000000000000000000000000000000000000000000000000000000000001114" }
+      ]
+    },
+    {
+      "name": "finite_double_flash",
+      "commands_hex": [
+        "0201fbff01ff78000000000000ff7800",
+        "0282040002ff00006400640002ff7800"
+      ],
+      "frames": [
+        { "elapsed_ms": 0, "animation_mask": 4, "rgb_hex": "ff7800ff7800ff0000ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" },
+        { "elapsed_ms": 99, "animation_mask": 4, "rgb_hex": "ff7800ff7800ff0000ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" },
+        { "elapsed_ms": 100, "animation_mask": 4, "rgb_hex": "ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" },
+        { "elapsed_ms": 200, "animation_mask": 4, "rgb_hex": "ff7800ff7800ff0000ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" },
+        { "elapsed_ms": 300, "animation_mask": 4, "rgb_hex": "ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" },
+        { "elapsed_ms": 400, "animation_mask": 0, "rgb_hex": "ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800ff7800" }
+      ]
+    },
+    {
+      "name": "sixteen_distinct_solid",
+      "commands_hex": [
+        "02010100010000000000000000000000", "02020200010b111700000000000b1117",
+        "020204000116222e000000000016222e", "02020800012133450000000000213345",
+        "02021000012c445c00000000002c445c", "02022000013755730000000000375573",
+        "020240000142668a000000000042668a", "02028000014d77a100000000004d77a1",
+        "02020001015888b800000000005888b8", "02020002016399cf00000000006399cf",
+        "02020004016eaae600000000006eaae6", "020200080179bbfd000000000079bbfd",
+        "020200100184cc14000000000084cc14", "02020020018fdd2b00000000008fdd2b",
+        "02020040019aee4200000000009aee42", "0282008001a5ff590000000000a5ff59"
+      ],
+      "frames": [
+        { "elapsed_ms": 0, "animation_mask": 0, "rgb_hex": "0000000b111716222e2133452c445c37557342668a4d77a15888b86399cf6eaae679bbfd84cc148fdd2b9aee42a5ff59" },
+        { "elapsed_ms": 777, "animation_mask": 0, "rgb_hex": "0000000b111716222e2133452c445c37557342668a4d77a15888b86399cf6eaae679bbfd84cc148fdd2b9aee42a5ff59" }
+      ]
+    }
+  ],
+  "invalid_commands": [
+    { "name": "unknown_version", "payload_hex": "0101ffff010000000000000000000000" },
+    { "name": "unknown_opcode", "payload_hex": "0263ffff010000000000000000000000" },
+    { "name": "truncated", "payload_hex": "0201ffff" },
+    { "name": "zero_mask", "payload_hex": "02020000010000000000000000000000" },
+    { "name": "solid_with_repeat", "payload_hex": "0202ffff010000000000000001000000" },
+    { "name": "blink_zero_off_time", "payload_hex": "0202ffff02ff00006400000002000000" },
+    { "name": "breathe_reversed_brightness", "payload_hex": "0202ffff0300dcff4006ff1400000000" }
+  ]
+}

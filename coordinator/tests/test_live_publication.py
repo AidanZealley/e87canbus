@@ -116,8 +116,7 @@ async def wait_until(predicate: Callable[[], bool], timeout_s: float = 1.0) -> N
 
 async def wait_for_initial_publication(socket_server: RecordingSocketServer) -> None:
     await wait_until(
-        lambda: {event for event, *_ in socket_server.emissions}
-        >= INITIAL_PUBLICATION_EVENTS
+        lambda: {event for event, *_ in socket_server.emissions} >= INITIAL_PUBLICATION_EVENTS
     )
 
 
@@ -190,8 +189,10 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
         assert all(entry.status.value == "active" for entry in service.snapshot().adapter.registry)
         result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
         await wait_until(
-            lambda: {event for event, *_ in socket_server.emissions}
-            >= {"steering.state", "buttons.state"}
+            lambda: (
+                {event for event, *_ in socket_server.emissions}
+                >= {"steering.state", "buttons.state"}
+            )
         )
         events = [event for event, *_ in socket_server.emissions]
         before_reset = service.snapshot()
@@ -222,18 +223,14 @@ async def test_lighting_topic_publishes_requested_and_observed_high_beam_state()
         socket_server.emissions.clear()
         await asyncio.wrap_future(service.submit(TapButton(4)))
         await wait_until(
-            lambda: any(
-                event == "lighting.state" for event, *_ in socket_server.emissions
-            )
+            lambda: any(event == "lighting.state" for event, *_ in socket_server.emissions)
         )
     finally:
         await asyncio.to_thread(service.stop)
         await publisher.stop()
 
     payload = next(
-        payload
-        for event, payload, _, _ in socket_server.emissions
-        if event == "lighting.state"
+        payload for event, payload, _, _ in socket_server.emissions if event == "lighting.state"
     )
     assert payload["data"] == {
         "high_beam_enabled": True,
@@ -301,9 +298,9 @@ async def test_publisher_failure_publishes_once_without_recursion() -> None:
         assert failure_payload["revision"] > before_failure_revision
         assert failure_payload["data"]["publisher"]["failures"] == 1
         await asyncio.sleep(0.04)
-        assert [
-            event for event, *_ in socket_server.emissions if event == "controller.health"
-        ] == ["controller.health"]
+        assert [event for event, *_ in socket_server.emissions if event == "controller.health"] == [
+            "controller.health"
+        ]
     finally:
         await asyncio.to_thread(service.stop)
         await publisher.stop()
@@ -325,9 +322,7 @@ async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
     )
     try:
         controller_result = await asyncio.wait_for(
-            asyncio.wrap_future(
-                service.submit(SetVehicleSignal(VehicleSignal.SPEED, 42.0))
-            ),
+            asyncio.wrap_future(service.submit(SetVehicleSignal(VehicleSignal.SPEED, 42.0))),
             timeout=1.0,
         )
         await asyncio.wait_for(socket_server.entered.wait(), timeout=1.0)
@@ -378,9 +373,7 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
             lambda: any(event == "trace.batch" for event, *_ in socket_server.emissions)
         )
         trace_payload = next(
-            payload
-            for event, payload, _, _ in socket_server.emissions
-            if event == "trace.batch"
+            payload for event, payload, _, _ in socket_server.emissions if event == "trace.batch"
         )
         await publisher.unsubscribe_trace("trace-client")
         prior_batches = sum(event == "trace.batch" for event, *_ in socket_server.emissions)
@@ -440,9 +433,7 @@ async def test_resource_change_is_exact_and_retention_is_bounded() -> None:
         await publisher.stop()
 
     payloads = [
-        payload
-        for event, payload, _, _ in socket_server.emissions
-        if event == "resources.changed"
+        payload for event, payload, _, _ in socket_server.emissions if event == "resources.changed"
     ]
     assert len(payloads) == 8
     assert payloads[-1] == {
@@ -500,7 +491,5 @@ async def test_stalled_shutdown_has_one_deadline_and_leaves_no_tasks() -> None:
     assert publisher.running is False
     assert publisher.diagnostics.failures >= 1
     assert not {
-        task.get_name()
-        for task in asyncio.all_tasks()
-        if task is not asyncio.current_task()
+        task.get_name() for task in asyncio.all_tasks() if task is not asyncio.current_task()
     } & {"live-state-publisher", "socketio-shutdown"}

@@ -4,7 +4,11 @@ from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.controller import EngineTelemetryStatus, EngineTelemetryValue
+from e87canbus.application.controller import (
+    ApplicationSnapshot,
+    EngineTelemetryStatus,
+    EngineTelemetryValue,
+)
 from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     RGB_AMBER,
@@ -16,6 +20,7 @@ from e87canbus.application.events import (
     SteeringCommandReason,
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
+from e87canbus.button_pad import resolve_button_pad_tracks
 from e87canbus.config import (
     CanNetwork,
     HighBeamStrobeConfig,
@@ -130,6 +135,10 @@ def inject_registry_frames(runtime: SimulatedControllerRuntime) -> None:
         if runtime.kernel.health.fatal:
             break
     runtime.topology.clear_trace()
+
+
+def button_led_rgb(application: ApplicationSnapshot) -> tuple[tuple[int, int, int], ...]:
+    return tuple(track.rgb for track in resolve_button_pad_tracks(application.button_pad_program))
 
 
 def application(runtime: SimulatedControllerRuntime):
@@ -351,9 +360,7 @@ def test_incompatible_retry_fault_recovery_and_reset_restore_healthy_peers() -> 
     peer = runtime.servotronic
     session_before_incompatible = peer.session_id
 
-    runtime.execute(
-        SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 2)
-    )
+    runtime.execute(SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 2))
     assert peer.session_id != session_before_incompatible
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "incompatible"
     retry_trace_before = len(runtime.topology.trace())
@@ -362,9 +369,7 @@ def test_incompatible_retry_fault_recovery_and_reset_restore_healthy_peers() -> 
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "incompatible"
     assert len(runtime.topology.trace()) > retry_trace_before
 
-    runtime.execute(
-        SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 1)
-    )
+    runtime.execute(SetSimulatedDeviceProtocolVersion(DeviceRole.SERVOTRONIC_CONTROLLER, 1))
     assert registry_status(runtime, DeviceRole.SERVOTRONIC_CONTROLLER) == "active"
 
     runtime.execute(SetSimulatedDeviceStatusCode(DeviceRole.SERVOTRONIC_CONTROLLER, 7))
@@ -403,7 +408,7 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert current_application.engine.rpm.status is EngineTelemetryStatus.NEVER_OBSERVED
     assert current_application.engine.rpm.value is None
     assert current_application.steering_mode is SteeringMode.AUTO
-    assert current_application.button_led_rgb == AUTO_LEDS
+    assert button_led_rgb(current_application) == AUTO_LEDS
     assert current_adapter.servotronic is not None
     assert current_adapter.servotronic.effective_assistance == 0.0
     assert (
@@ -439,7 +444,7 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
     def fail() -> list[object]:
         raise OSError("emulator decoder failed")
 
-    emulator.process_pending_led_snapshots = fail  # type: ignore[method-assign]
+    emulator.process_pending_led_programs = fail  # type: ignore[method-assign]
     execution = controller.execute(SetMaximumAssistance(True))
 
     fault = controller.kernel.health.devices[0].fault
@@ -453,9 +458,7 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
         StateTopic.STEERING,
     }
     button_pad = next(
-        entry
-        for entry in adapter(controller).registry
-        if entry.role is DeviceRole.BUTTON_PAD
+        entry for entry in adapter(controller).registry if entry.role is DeviceRole.BUTTON_PAD
     )
     assert button_pad.source_mode is DeviceSource.EMULATED
     assert button_pad.status.value == "active"
@@ -467,11 +470,9 @@ def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() 
     controller.execute(SetMaximumAssistance(True))
 
     assert application(controller).maximum_assistance_active is True
-    assert application(controller).button_led_rgb == MAXIMUM_LEDS
+    assert button_led_rgb(application(controller)) == MAXIMUM_LEDS
     button_pad = next(
-        entry
-        for entry in adapter(controller).registry
-        if entry.role is DeviceRole.BUTTON_PAD
+        entry for entry in adapter(controller).registry if entry.role is DeviceRole.BUTTON_PAD
     )
     assert button_pad.status.value == "disabled"
 
@@ -543,7 +544,7 @@ def test_pressing_mode_button_selects_manual_and_causes_amber_led_snapshot() -> 
 
     assert any(entry.source == "pi" and entry.frame.arbitration_id == 0x708 for entry in trace)
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert application(controller).button_led_rgb == (RGB_AMBER,) + (RGB_OFF,) * 15
+    assert button_led_rgb(application(controller)) == (RGB_AMBER,) + (RGB_OFF,) * 15
 
 
 def test_releasing_button_preserves_authoritative_mode_led() -> None:
@@ -554,7 +555,7 @@ def test_releasing_button_preserves_authoritative_mode_led() -> None:
 
     assert controller.topology.trace()[-1].frame.data == b"\x00\x00"
     assert application(controller).steering_mode is SteeringMode.MANUAL
-    assert application(controller).button_led_rgb == (RGB_AMBER,) + (RGB_OFF,) * 15
+    assert button_led_rgb(application(controller)) == (RGB_AMBER,) + (RGB_OFF,) * 15
 
 
 def test_reset_clears_trace_and_restores_initial_application_state() -> None:
@@ -579,7 +580,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
         )
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
-    assert current_application.button_led_rgb == AUTO_LEDS
+    assert button_led_rgb(current_application) == AUTO_LEDS
     assert controller.topology.trace() == ()
 
     inject_registry_frames(controller)
@@ -704,14 +705,14 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     controller.execute(PressButton(3))
     assert application(controller).maximum_assistance_active is True
     assert application(controller).manual_assistance_level == 7
-    assert application(controller).button_led_rgb[3] == RGB_WHITE
+    assert button_led_rgb(application(controller))[3] == RGB_WHITE
 
     controller.execute(ReleaseButton(3))
     controller.execute(PressButton(3))
     assert application(controller).maximum_assistance_active is False
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
-    assert application(controller).button_led_rgb[3] == RGB_OFF
+    assert button_led_rgb(application(controller))[3] == RGB_OFF
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
@@ -728,7 +729,7 @@ def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
     assert application(controller).maximum_assistance_active is False
-    assert application(controller).button_led_rgb[3] == RGB_OFF
+    assert button_led_rgb(application(controller))[3] == RGB_OFF
 
 
 def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> None:
@@ -740,8 +741,7 @@ def test_timer_updates_projection_when_it_recovers_a_timed_out_actuator() -> Non
 
     assert application(controller).speed_valid is False
     assert all(
-        event["arbitration_id"]
-        in {0x703, 0x704, 0x706, 0x707, 0x708, 0x709}
+        event["arbitration_id"] in {0x703, 0x704, 0x706, 0x707, 0x708, 0x709}
         for event in result.events
     )
     assert adapter(controller).servotronic is not None
@@ -827,18 +827,17 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     dropped_trace = controller.topology.trace()
 
     assert accepted_application.steering_mode is SteeringMode.MANUAL
-    assert accepted_application.button_led_rgb == MANUAL_LEDS
+    assert button_led_rgb(accepted_application) == MANUAL_LEDS
     assert dropped_application.steering_mode is SteeringMode.AUTO
-    assert dropped_application.button_led_rgb == AUTO_LEDS
+    assert button_led_rgb(dropped_application) == AUTO_LEDS
     assert any(
-        entry.source == "pi" and entry.frame.arbitration_id == 0x708
-        for entry in dropped_trace
+        entry.source == "pi" and entry.frame.arbitration_id == 0x708 for entry in dropped_trace
     )
 
     clock.now = 2.0
     before_next_decision_trace = controller.topology.trace()
 
-    assert application(controller).button_led_rgb == AUTO_LEDS
+    assert button_led_rgb(application(controller)) == AUTO_LEDS
     assert any(
         entry.source == "pi" and entry.frame.arbitration_id == 0x708
         for entry in before_next_decision_trace
@@ -849,13 +848,11 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
     converged_trace = controller.topology.trace()
 
     assert converged_application.maximum_assistance_active is True
-    assert converged_application.button_led_rgb == MAXIMUM_LEDS
+    assert button_led_rgb(converged_application) == MAXIMUM_LEDS
     assert controller.neotrellis is not None
     assert controller.neotrellis.led_rgb == MAXIMUM_LEDS
     assert any(
-        entry.frame.arbitration_id == 0x708
-        for entry in converged_trace
-        if entry.source == "pi"
+        entry.frame.arbitration_id == 0x708 for entry in converged_trace if entry.source == "pi"
     )
 
 
@@ -952,9 +949,7 @@ def test_selected_speed_is_refreshed_before_each_control_timer() -> None:
     second_application = application(controller)
     second_adapter = adapter(controller)
 
-    assert [entry.source for entry in controller.topology.trace()].count(
-        "simulated-vehicle"
-    ) == 3
+    assert [entry.source for entry in controller.topology.trace()].count("simulated-vehicle") == 3
     assert first.speed_valid is True
     assert StateTopic.STEERING in first_execution.changed_topics
     assert second_application.speed_valid is True

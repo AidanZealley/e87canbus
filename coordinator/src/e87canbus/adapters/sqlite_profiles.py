@@ -136,9 +136,7 @@ class SqliteSteeringProfileRepository:
             return stored
         except sqlite3.IntegrityError as error:
             connection.rollback()
-            self._raise_integrity_error(
-                name, "could not create steering profile", error
-            )
+            self._raise_integrity_error(name, "could not create steering profile", error)
         except SteeringProfileRepositoryError:
             connection.rollback()
             raise
@@ -187,9 +185,7 @@ class SqliteSteeringProfileRepository:
                 connection.rollback()
                 if actual_revision is None:
                     raise ProfileNotFoundError(profile_id)
-                raise ProfileRevisionConflictError(
-                    profile_id, expected_revision, actual_revision
-                )
+                raise ProfileRevisionConflictError(profile_id, expected_revision, actual_revision)
             row = self._required_row(connection, profile_id)
             stored = self._profile_from_row(row)
             connection.commit()
@@ -227,9 +223,7 @@ class SqliteSteeringProfileRepository:
                 connection.rollback()
                 if actual_revision is None:
                     raise ProfileNotFoundError(profile_id)
-                raise ProfileRevisionConflictError(
-                    profile_id, expected_revision, actual_revision
-                )
+                raise ProfileRevisionConflictError(profile_id, expected_revision, actual_revision)
             connection.commit()
         except SteeringProfileRepositoryError:
             connection.rollback()
@@ -251,9 +245,7 @@ class SqliteSteeringProfileRepository:
             ) from error
 
     @staticmethod
-    def _insert_profile(
-        connection: sqlite3.Connection, profile: StoredSteeringProfile
-    ) -> None:
+    def _insert_profile(connection: sqlite3.Connection, profile: StoredSteeringProfile) -> None:
         definition_json = canonical_steering_curve_bytes(profile.definition).decode("utf-8")
         connection.execute(
             """

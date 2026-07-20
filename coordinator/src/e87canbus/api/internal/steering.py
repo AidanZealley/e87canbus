@@ -47,6 +47,7 @@ def definition_from_request(
     except ValueError as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
 
+
 async def list_profiles(
     repository: SteeringProfileRepository,
 ) -> tuple[StoredSteeringProfile, ...]:

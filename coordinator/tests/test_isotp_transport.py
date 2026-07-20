@@ -65,9 +65,55 @@ def test_iso_tp_latest_value_overwrites_pending_before_dispatch() -> None:
     assert pad.receive_payload() is None
 
 
+def test_iso_tp_sends_one_latest_value_program_in_command_order() -> None:
+    coordinator, pad = _endpoints()
+    coordinator.send_many((b"replace", b"button-1", b"button-15"))
+    coordinator.pump()  # type: ignore[attr-defined]
+
+    assert [pad.receive_payload(), pad.receive_payload(), pad.receive_payload()] == [
+        b"replace",
+        b"button-1",
+        b"button-15",
+    ]
+    assert pad.receive_payload() is None
+
+
+def test_iso_tp_new_program_replaces_all_commands_not_yet_dispatched() -> None:
+    coordinator, pad = _endpoints()
+    coordinator.send_many((b"old-replace", b"old-override"))
+    coordinator.send_many((b"new-replace", b"new-override"))
+    coordinator.pump()  # type: ignore[attr-defined]
+
+    assert pad.receive_payload() == b"new-replace"
+    assert pad.receive_payload() == b"new-override"
+    assert pad.receive_payload() is None
+
+
+def test_iso_tp_can_space_commands_without_delaying_the_first() -> None:
+    now = 10.0
+    sent: list[CanFrame] = []
+    endpoint = IsoTpEndpoint(
+        tx_id=0x708,
+        rx_id=0x709,
+        send_frame=sent.append,
+        minimum_payload_interval_s=0.25,
+        clock=lambda: now,
+    )
+    endpoint.send_many((b"first", b"second"))
+
+    endpoint.poll()
+    assert len(sent) == 1
+    endpoint.poll()
+    assert len(sent) == 1
+
+    now += 0.25
+    endpoint.poll()
+    assert len(sent) == 2
+
+
 def test_iso_tp_rejects_oversize_payload_and_ignores_other_frames() -> None:
     coordinator, _ = _endpoints()
-    with pytest.raises(ValueError, match="256"):
+    with pytest.raises(ValueError, match="64"):
         coordinator.send(b"x" * (BUTTON_PAD_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH + 1))
     assert not coordinator.on_frame(CanFrame(0x123, b"\x00"))
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections import deque
 from collections.abc import Callable
 
@@ -9,7 +10,7 @@ import isotp
 
 from e87canbus.protocol.can import CanFrame
 
-MAXIMUM_PAYLOAD_LENGTH = 256
+MAXIMUM_PAYLOAD_LENGTH = 64
 
 
 class IsoTpEndpoint:
@@ -28,14 +29,21 @@ class IsoTpEndpoint:
         rx_id: int,
         send_frame: Callable[[CanFrame], None],
         maximum_payload_length: int = MAXIMUM_PAYLOAD_LENGTH,
+        minimum_payload_interval_s: float = 0.0,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if maximum_payload_length != MAXIMUM_PAYLOAD_LENGTH:
-            raise ValueError("ISO-TP maximum payload length must be 256")
+            raise ValueError("ISO-TP maximum payload length must be 64")
         self._rx_frames: deque[isotp.CanMessage] = deque()
         self._completed: deque[bytes] = deque()
         self._errors: deque[Exception] = deque()
         self._maximum_payload_length = maximum_payload_length
-        self._pending: bytes | None = None
+        if minimum_payload_interval_s < 0:
+            raise ValueError("ISO-TP minimum payload interval cannot be negative")
+        self._minimum_payload_interval_s = minimum_payload_interval_s
+        self._clock = clock
+        self._next_payload_at = 0.0
+        self._pending: deque[bytes] = deque()
         self._layer = isotp.TransportLayer(
             rxfn=self._receive,
             txfn=lambda message: send_frame(
@@ -49,8 +57,12 @@ class IsoTpEndpoint:
     def on_frame(self, frame: CanFrame) -> bool:
         """Accept a matching standard frame for later non-blocking processing."""
 
-        if frame.is_extended_id or len(frame.data) > 8 or not self._layer.address.is_for_me(
-            isotp.CanMessage(frame.arbitration_id, len(frame.data), frame.data, False)
+        if (
+            frame.is_extended_id
+            or len(frame.data) > 8
+            or not self._layer.address.is_for_me(
+                isotp.CanMessage(frame.arbitration_id, len(frame.data), frame.data, False)
+            )
         ):
             return False
         self._rx_frames.append(
@@ -62,16 +74,25 @@ class IsoTpEndpoint:
         """Buffer the latest payload for transmission; poll() dispatches when idle."""
 
         if len(payload) > self._maximum_payload_length:
-            raise ValueError("ISO-TP payload exceeds 256 bytes")
-        self._pending = payload
+            raise ValueError("ISO-TP payload exceeds 64 bytes")
+        self._pending.clear()
+        self._pending.append(payload)
+
+    def send_many(self, payloads: tuple[bytes, ...]) -> None:
+        """Replace pending work with one ordered latest-value program."""
+        if not payloads or any(len(payload) > self._maximum_payload_length for payload in payloads):
+            raise ValueError("ISO-TP program must contain bounded payloads")
+        self._pending.clear()
+        self._pending.extend(payloads)
 
     def poll(self) -> None:
         """Advance the ISO-TP state machine; dispatch pending payload when idle."""
 
         self._layer.process(rx_timeout=0)
-        if self._pending is not None and not self._layer.transmitting():
-            self._layer.send(self._pending)
-            self._pending = None
+        now = self._clock()
+        if self._pending and not self._layer.transmitting() and now >= self._next_payload_at:
+            self._layer.send(self._pending.popleft())
+            self._next_payload_at = now + self._minimum_payload_interval_s
             self._layer.process(rx_timeout=0)
         while self._layer.available():
             payload = self._layer.recv()
@@ -83,7 +104,7 @@ class IsoTpEndpoint:
 
     @property
     def transmitting(self) -> bool:
-        return self._layer.transmitting() or self._pending is not None
+        return self._layer.transmitting() or bool(self._pending)
 
     @property
     def errors(self) -> tuple[Exception, ...]:

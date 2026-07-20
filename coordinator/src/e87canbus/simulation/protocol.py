@@ -191,29 +191,41 @@ def _signal(
 
 VEHICLE_SIGNALS = {
     VehicleSignal.SPEED: _signal(
-        CanNetwork.FCAN, SIMULATION_ONLY_SPEED_ID,
-        encode_simulated_speed, decode_simulated_speed, SpeedSample, SpeedObserved,
+        CanNetwork.FCAN,
+        SIMULATION_ONLY_SPEED_ID,
+        encode_simulated_speed,
+        decode_simulated_speed,
+        SpeedSample,
+        SpeedObserved,
     ),
     VehicleSignal.RPM: _signal(
-        CanNetwork.PTCAN, SIMULATION_ONLY_ENGINE_RPM_ID,
-        encode_simulated_engine_rpm, decode_simulated_engine_rpm,
-        EngineRpmSample, EngineRpmObserved,
+        CanNetwork.PTCAN,
+        SIMULATION_ONLY_ENGINE_RPM_ID,
+        encode_simulated_engine_rpm,
+        decode_simulated_engine_rpm,
+        EngineRpmSample,
+        EngineRpmObserved,
     ),
     VehicleSignal.OIL_TEMPERATURE: _signal(
-        CanNetwork.PTCAN, SIMULATION_ONLY_OIL_TEMPERATURE_ID,
-        encode_simulated_oil_temperature, decode_simulated_temperature,
-        OilTemperatureSample, OilTemperatureObserved,
+        CanNetwork.PTCAN,
+        SIMULATION_ONLY_OIL_TEMPERATURE_ID,
+        encode_simulated_oil_temperature,
+        decode_simulated_temperature,
+        OilTemperatureSample,
+        OilTemperatureObserved,
     ),
     VehicleSignal.COOLANT_TEMPERATURE: _signal(
-        CanNetwork.PTCAN, SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
-        encode_simulated_coolant_temperature, decode_simulated_temperature,
-        CoolantTemperatureSample, CoolantTemperatureObserved,
+        CanNetwork.PTCAN,
+        SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
+        encode_simulated_coolant_temperature,
+        decode_simulated_temperature,
+        CoolantTemperatureSample,
+        CoolantTemperatureObserved,
     ),
 }
 
 SIGNAL_DECODERS = {
-    (spec.network, spec.arbitration_id): spec.decode
-    for spec in VEHICLE_SIGNALS.values()
+    (spec.network, spec.arbitration_id): spec.decode for spec in VEHICLE_SIGNALS.values()
 }
 
 

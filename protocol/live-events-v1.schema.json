@@ -60,35 +60,54 @@
       "title": "ActiveSteeringCurveState",
       "type": "object"
     },
-    "ButtonsState": {
+    "ButtonPadProgramState": {
       "additionalProperties": false,
       "properties": {
-        "led_rgb": {
+        "commands": {
           "items": {
-            "additionalItems": false,
-            "items": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "integer"
-              }
-            ],
-            "maxItems": 3,
-            "minItems": 3,
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 16,
+            "minItems": 16,
             "type": "array"
           },
           "maxItems": 16,
-          "minItems": 16,
-          "title": "Led Rgb",
+          "minItems": 1,
+          "title": "Commands",
           "type": "array"
+        },
+        "encoding": {
+          "const": "e87-button-pad-v2",
+          "default": "e87-button-pad-v2",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "generation": {
+          "minimum": 0,
+          "title": "Generation",
+          "type": "integer"
         }
       },
       "required": [
-        "led_rgb"
+        "commands",
+        "encoding",
+        "generation"
+      ],
+      "title": "ButtonPadProgramState",
+      "type": "object"
+    },
+    "ButtonsState": {
+      "additionalProperties": false,
+      "properties": {
+        "program": {
+          "$ref": "#/definitions/ButtonPadProgramState"
+        }
+      },
+      "required": [
+        "program"
       ],
       "title": "ButtonsState",
       "type": "object"

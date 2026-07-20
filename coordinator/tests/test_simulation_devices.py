@@ -152,7 +152,6 @@ def test_neotrellis_ignores_unknown_frame_id() -> None:
     pi_bus.send(CanFrame(0x123, b"\x00\x01"))
 
 
-
 def test_simulated_vehicle_stores_and_emits_speed_as_an_external_fcan_frame() -> None:
     topology = InMemoryCanTopology()
     pi_bus = topology.create_bus(CanNetwork.FCAN, "pi")

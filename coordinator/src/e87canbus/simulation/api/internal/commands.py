@@ -12,6 +12,4 @@ async def run_command(
     command: SimulationCommand,
 ) -> SimulationCommandAcknowledgement:
     await submit_runtime_work(app, command)
-    return SimulationCommandAcknowledgement(
-        boot_id=app.state.controller_service.boot_id
-    )
+    return SimulationCommandAcknowledgement(boot_id=app.state.controller_service.boot_id)

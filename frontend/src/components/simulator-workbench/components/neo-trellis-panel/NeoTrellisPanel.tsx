@@ -7,12 +7,14 @@ export type NeoTrellisButtonState = {
 
 type NeoTrellisPanelProps = {
   buttons: NeoTrellisButtonState[]
+  animationMask: number
   emulatorControlsAvailable: boolean
   onClick: (index: number) => void
 }
 
 export const NeoTrellisPanel = ({
   buttons,
+  animationMask,
   emulatorControlsAvailable,
   onClick,
 }: NeoTrellisPanelProps) => (
@@ -23,6 +25,7 @@ export const NeoTrellisPanel = ({
           <NeoTrellisButton
             index={index}
             rgb={rgb}
+            animating={(animationMask & (1 << index)) !== 0}
             disabled={!emulatorControlsAvailable}
             onClick={onClick}
           />

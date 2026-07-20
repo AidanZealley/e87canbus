@@ -22,13 +22,13 @@ from e87canbus.device import DeviceRole
 from e87canbus.output import SafeCanTransmitter
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
+    ButtonPadProgramPayload,
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    RgbSnapshotPayload,
     RoutedCanFrame,
-    decode_rgb_snapshot,
+    decode_button_pad_commands,
     decode_welcome_ack,
     encode_button_event,
     encode_heartbeat,
@@ -381,6 +381,8 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             clock=clock,
         )
         self.led_rgb = led_rgb
+        self._pending_led_rgb: list[tuple[int, int, int]] | None = None
+        self.button_pad_program: ButtonPadProgramPayload | None = None
         self.last_seen_monotonic_s: float | None = None
         self.transport = IsoTpEndpoint(
             tx_id=ids.button_pad_transport_device_to_coordinator,
@@ -404,10 +406,10 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self._require_bus().send(frame)
         return frame
 
-    def process_pending_led_snapshots(self, *, limit: int = 64) -> list[RgbSnapshotPayload]:
-        snapshots: list[RgbSnapshotPayload] = []
-        self._process_pending(self.clock(), limit=limit, snapshots=snapshots)
-        return snapshots
+    def process_pending_led_programs(self, *, limit: int = 64) -> list[ButtonPadProgramPayload]:
+        programs: list[ButtonPadProgramPayload] = []
+        self._process_pending(self.clock(), limit=limit, programs=programs)
+        return programs
 
     def process_pending(self, now: float, *, limit: int = 64) -> int:
         return self._process_pending(now, limit=limit)
@@ -417,7 +419,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         now: float,
         *,
         limit: int,
-        snapshots: list[RgbSnapshotPayload] | None = None,
+        programs: list[ButtonPadProgramPayload] | None = None,
     ) -> int:
         if limit < 1:
             raise ValueError("simulated device frame limit must be positive")
@@ -433,14 +435,25 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             if not self._operational_with_fresh_lease(now):
                 continue
             try:
-                snapshot = decode_rgb_snapshot(payload)
+                commands = decode_button_pad_commands(payload)
             except ValueError as exc:
-                LOGGER.warning("sim neotrellis ignored malformed RGB snapshot: %s", exc)
+                LOGGER.warning("sim neotrellis ignored malformed button-pad program: %s", exc)
                 continue
-            self.led_rgb = snapshot.rgb
+            for program in commands:
+                self.button_pad_program = program
+                if program.replace_all:
+                    self._pending_led_rgb = [program.track.rgb] * BUTTON_LED_COUNT
+                if self._pending_led_rgb is None:
+                    continue
+                for index in range(BUTTON_LED_COUNT):
+                    if program.target_mask & (1 << index):
+                        self._pending_led_rgb[index] = program.track.rgb
+                if program.commit:
+                    self.led_rgb = tuple(self._pending_led_rgb)
+                    self._pending_led_rgb = None
             self.last_seen_monotonic_s = now
-            if snapshots is not None:
-                snapshots.append(snapshot)
+            if programs is not None:
+                programs.extend(commands)
         return processed
 
     def _operational_with_fresh_lease(self, now: float) -> bool:
@@ -449,7 +462,6 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
             and self._controller_lease_deadline is not None
             and now < self._controller_lease_deadline
         )
-
 
 
 @dataclass

@@ -41,9 +41,7 @@ async def tap_button(
     operation_id="connectSimulationDevice",
     responses=api_problem_responses(409, 422, 503),
 )
-async def connect_device(
-    request: Request, role: DeviceRole
-) -> SimulationCommandAcknowledgement:
+async def connect_device(request: Request, role: DeviceRole) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, ConnectSimulatedDevice(role))
 
 
@@ -52,9 +50,7 @@ async def connect_device(
     operation_id="disconnectSimulationDevice",
     responses=api_problem_responses(409, 422, 503),
 )
-async def disconnect_device(
-    request: Request, role: DeviceRole
-) -> SimulationCommandAcknowledgement:
+async def disconnect_device(request: Request, role: DeviceRole) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, DisconnectSimulatedDevice(role))
 
 
@@ -63,9 +59,7 @@ async def disconnect_device(
     operation_id="rebootSimulationDevice",
     responses=api_problem_responses(409, 422, 503),
 )
-async def reboot_device(
-    request: Request, role: DeviceRole
-) -> SimulationCommandAcknowledgement:
+async def reboot_device(request: Request, role: DeviceRole) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, RebootSimulatedDevice(role))
 
 

@@ -55,9 +55,7 @@ def build_live_controller_service(
         raise ValueError("physical button pad requires live SocketCAN K-CAN")
 
     configured_tx = frozenset(
-        item.network
-        for item in selected_config.can_networks
-        if item.enabled and item.tx_enabled
+        item.network for item in selected_config.can_networks if item.enabled and item.tx_enabled
     )
     unused_grants = tx_grants - configured_tx
     if unused_grants:

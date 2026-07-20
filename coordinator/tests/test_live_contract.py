@@ -64,9 +64,9 @@ def test_vehicle_event_schema_has_its_exact_enveloped_payload() -> None:
 
 
 def test_live_steering_curve_schema_requires_the_domain_point_count() -> None:
-    points = GENERATOR.contract_schema()["definitions"]["SteeringCurveDefinition"][
-        "properties"
-    ]["points"]
+    points = GENERATOR.contract_schema()["definitions"]["SteeringCurveDefinition"]["properties"][
+        "points"
+    ]
 
     assert points["minItems"] == STEERING_CURVE_POINT_COUNT
     assert points["maxItems"] == STEERING_CURVE_POINT_COUNT

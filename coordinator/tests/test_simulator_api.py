@@ -16,6 +16,7 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
+from e87canbus.button_pad import resolve_button_pad_tracks
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.device import DeviceRole, DeviceSource
@@ -247,18 +248,14 @@ def test_disabled_composition_rejects_emulator_controls() -> None:
     app = make_app_for_config(config, button_pad_source=DeviceSource.DISABLED)
 
     with TestClient(app) as client:
-        response = client.post(
-            "/api/dev/simulation/devices/button-pad/buttons/0/tap"
-        )
+        response = client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap")
         snapshot = app.state.controller_service.snapshot()
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "controller_failed"
     assert snapshot.application.steering_mode.value == "auto"
     button_pad = next(
-        entry
-        for entry in snapshot.adapter.registry
-        if entry.role is DeviceRole.BUTTON_PAD
+        entry for entry in snapshot.adapter.registry if entry.role is DeviceRole.BUTTON_PAD
     )
     assert button_pad.status.value == "disabled"
 
@@ -274,12 +271,16 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert snapshot.adapter.simulation_session_id == 2
     assert snapshot.application.steering_mode.value == "auto"
     button_pad = next(
-        entry
-        for entry in snapshot.adapter.registry
-        if entry.role is DeviceRole.BUTTON_PAD
+        entry for entry in snapshot.adapter.registry if entry.role is DeviceRole.BUTTON_PAD
     )
     assert button_pad.source_mode is DeviceSource.EMULATED
-    assert snapshot.application.button_led_rgb == (RGB_BLUE,) + (RGB_OFF,) * 15
+    assert (
+        tuple(
+            track.rgb
+            for track in resolve_button_pad_tracks(snapshot.application.button_pad_program)
+        )
+        == (RGB_BLUE,) + (RGB_OFF,) * 15
+    )
 
 
 def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
@@ -306,9 +307,7 @@ def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
 
 
 def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
-    response = client.post(
-        "/api/dev/simulation/devices/button-pad/buttons/16/tap"
-    )
+    response = client.post("/api/dev/simulation/devices/button-pad/buttons/16/tap")
 
     assert response.status_code == 422
     assert response.json()["error"]["issues"][0]["location"] == [
@@ -320,9 +319,7 @@ def test_invalid_button_index_returns_validation_error(client: TestClient) -> No
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     client: TestClient,
 ) -> None:
-    response = client.put(
-        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
-    )
+    response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
 
     assert response.status_code == 200
     snapshot = client.app.state.controller_service.snapshot()
@@ -331,9 +328,7 @@ def test_vehicle_speed_command_emits_external_frame_and_updates_application(
 
 
 def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
-    response = client.put(
-        "/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0}
-    )
+    response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0})
 
     assert response.status_code == 422
     assert response.json()["error"]["issues"][0]["location"] == [
@@ -406,9 +401,7 @@ def test_simulated_device_byte_requests_are_strict_and_bounded(
 def test_vehicle_speed_silence_command_returns_current_acknowledgement(
     client: TestClient,
 ) -> None:
-    selected = client.put(
-        "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
-    )
+    selected = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
 
     response = client.post("/api/dev/simulation/vehicle/speed/silence")
 
@@ -519,10 +512,14 @@ def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -
         reset_response = reset.result()
         assert press_response.status_code == 200
         assert reset_response.status_code == 200
-        assert press_response.json() == reset_response.json() == {
-            "accepted": True,
-            "boot_id": app.state.controller_service.boot_id,
-        }
+        assert (
+            press_response.json()
+            == reset_response.json()
+            == {
+                "accepted": True,
+                "boot_id": app.state.controller_service.boot_id,
+            }
+        )
         assert app.state.controller_service.snapshot().adapter.simulation_session_id == 2
 
 
@@ -595,9 +592,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             assert projected_health.fatal is True
             assert projected_health.inbox.overflow_latched is True
             assert (
-                client.post(
-                    "/api/dev/simulation/devices/button-pad/buttons/0/tap"
-                ).status_code
+                client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code
                 == 503
             )
 

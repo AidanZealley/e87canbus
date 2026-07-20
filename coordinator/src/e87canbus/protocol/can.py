@@ -62,21 +62,69 @@ class ArduinoButtonEventPayload:
     pressed: bool
 
 
+BUTTON_PAD_PROGRAM_VERSION = 2
+BUTTON_PAD_REPLACE_ALL = 1
+BUTTON_PAD_SET_TRACK = 2
+BUTTON_PAD_COMMIT = 0x80
+BUTTON_PAD_TRACK_SOLID = 1
+BUTTON_PAD_TRACK_BLINK = 2
+BUTTON_PAD_TRACK_BREATHE = 3
+BUTTON_PAD_COMMAND_LENGTH = 16
+BUTTON_PAD_TRANSFER_MAX_LENGTH = 64
+
+
 @dataclass(frozen=True)
-class RgbSnapshotPayload:
-    rgb: tuple[tuple[int, int, int], ...]
+class ButtonPadTrackPayload:
+    kind: int
+    rgb: tuple[int, int, int]
+    parameter_a: int = 0
+    parameter_b: int = 0
+    repeat: int = 0
+    final_rgb: tuple[int, int, int] = (0, 0, 0)
 
     def __post_init__(self) -> None:
-        if len(self.rgb) != RGB_SNAPSHOT_LED_COUNT:
-            raise ValueError(
-                f"RGB snapshot must contain exactly {RGB_SNAPSHOT_LED_COUNT} values"
-            )
-        if any(
-            len(value) != 3
-            or any(type(channel) is not int or not 0 <= channel <= 0xFF for channel in value)
-            for value in self.rgb
+        if self.kind not in (
+            BUTTON_PAD_TRACK_SOLID,
+            BUTTON_PAD_TRACK_BLINK,
+            BUTTON_PAD_TRACK_BREATHE,
         ):
-            raise ValueError("RGB snapshot contains an invalid RGB byte")
+            raise ValueError("unsupported button-pad track kind")
+        for name, rgb in (("track", self.rgb), ("final", self.final_rgb)):
+            if len(rgb) != 3 or any(
+                type(value) is not int or not 0 <= value <= 255 for value in rgb
+            ):
+                raise ValueError(f"button-pad {name} colour must contain RGB bytes")
+        _require_uint(self.parameter_a, 16, "button-pad track parameter A")
+        _require_uint(self.parameter_b, 16, "button-pad track parameter B")
+        _require_uint(self.repeat, 8, "button-pad track repeat")
+        if self.kind == BUTTON_PAD_TRACK_SOLID and (
+            self.parameter_a or self.parameter_b or self.repeat
+        ):
+            raise ValueError("solid button-pad tracks cannot have timing or repetition")
+        if self.kind == BUTTON_PAD_TRACK_BLINK and not (
+            1 <= self.parameter_a <= 10_000 and 1 <= self.parameter_b <= 10_000
+        ):
+            raise ValueError("blink tracks require bounded positive on/off durations")
+        if self.kind == BUTTON_PAD_TRACK_BREATHE:
+            minimum = self.parameter_b & 0xFF
+            maximum = self.parameter_b >> 8
+            if not 250 <= self.parameter_a <= 10_000 or minimum > maximum:
+                raise ValueError("breathe tracks require a bounded period and brightness")
+
+
+@dataclass(frozen=True)
+class ButtonPadTrackCommandPayload:
+    replace_all: bool
+    target_mask: int
+    track: ButtonPadTrackPayload
+    commit: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.target_mask) is not int or not 0 < self.target_mask < (1 << 16):
+            raise ValueError("button-pad track target mask must select one or more LEDs")
+
+
+ButtonPadProgramPayload = ButtonPadTrackCommandPayload
 
 
 @dataclass(frozen=True)
@@ -328,9 +376,7 @@ def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEven
     if state not in (BUTTON_RELEASED, BUTTON_PRESSED):
         raise ValueError("button event state must be released or pressed")
     if frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE] >= RGB_SNAPSHOT_LED_COUNT:
-        raise ValueError(
-            f"button event index must be between 0 and {RGB_SNAPSHOT_LED_COUNT - 1}"
-        )
+        raise ValueError(f"button event index must be between 0 and {RGB_SNAPSHOT_LED_COUNT - 1}")
     return ArduinoButtonEventPayload(
         button_index=frame.data[BUTTON_EVENT_BUTTON_INDEX_BYTE],
         pressed=state == BUTTON_PRESSED,
@@ -338,19 +384,61 @@ def decode_button_event(frame: CanFrame, ids: CustomCanIds) -> ArduinoButtonEven
 
 
 RGB_SNAPSHOT_LED_COUNT = 16
-RGB_SNAPSHOT_LENGTH = RGB_SNAPSHOT_LED_COUNT * 3
 
 
-def encode_rgb_snapshot(payload: RgbSnapshotPayload) -> bytes:
-    return bytes(channel for value in payload.rgb for channel in value)
-
-
-def decode_rgb_snapshot(payload: bytes) -> RgbSnapshotPayload:
-    if len(payload) != RGB_SNAPSHOT_LENGTH:
-        raise ValueError(f"RGB snapshot payload must be exactly {RGB_SNAPSHOT_LENGTH} bytes")
-    return RgbSnapshotPayload(
-        tuple(
-            (payload[index], payload[index + 1], payload[index + 2])
-            for index in range(0, len(payload), 3)
+def encode_button_pad_program(payload: ButtonPadProgramPayload) -> bytes:
+    """Encode one resolved-track command, bounded to the 64-byte transport."""
+    track = payload.track
+    return (
+        bytes(
+            (
+                BUTTON_PAD_PROGRAM_VERSION,
+                (BUTTON_PAD_REPLACE_ALL if payload.replace_all else BUTTON_PAD_SET_TRACK)
+                | (BUTTON_PAD_COMMIT if payload.commit else 0),
+            )
         )
+        + payload.target_mask.to_bytes(2, "little")
+        + bytes((track.kind, *track.rgb))
+        + track.parameter_a.to_bytes(2, "little")
+        + track.parameter_b.to_bytes(2, "little")
+        + bytes((track.repeat, *track.final_rgb))
+    )
+
+
+def decode_button_pad_program(payload: bytes) -> ButtonPadProgramPayload:
+    if len(payload) < 2:
+        raise ValueError("button-pad program must contain a version and opcode")
+    if payload[0] != BUTTON_PAD_PROGRAM_VERSION:
+        raise ValueError("unsupported button-pad program version")
+    if len(payload) != BUTTON_PAD_COMMAND_LENGTH:
+        raise ValueError("button-pad track command must contain exactly 16 bytes")
+    opcode = payload[1] & ~BUTTON_PAD_COMMIT
+    if opcode not in (BUTTON_PAD_REPLACE_ALL, BUTTON_PAD_SET_TRACK):
+        raise ValueError("unsupported button-pad program opcode")
+    return ButtonPadTrackCommandPayload(
+        replace_all=opcode == BUTTON_PAD_REPLACE_ALL,
+        target_mask=int.from_bytes(payload[2:4], "little"),
+        track=ButtonPadTrackPayload(
+            kind=payload[4],
+            rgb=tuple(payload[5:8]),  # type: ignore[arg-type]
+            parameter_a=int.from_bytes(payload[8:10], "little"),
+            parameter_b=int.from_bytes(payload[10:12], "little"),
+            repeat=payload[12],
+            final_rgb=tuple(payload[13:16]),  # type: ignore[arg-type]
+        ),
+        commit=bool(payload[1] & BUTTON_PAD_COMMIT),
+    )
+
+
+def decode_button_pad_commands(payload: bytes) -> tuple[ButtonPadProgramPayload, ...]:
+    """Split one ISO-TP transfer into its packed 16-byte track commands."""
+    if (
+        len(payload) == 0
+        or len(payload) % BUTTON_PAD_COMMAND_LENGTH != 0
+        or len(payload) > BUTTON_PAD_TRANSFER_MAX_LENGTH
+    ):
+        raise ValueError("button-pad transfer must pack one to four 16-byte commands")
+    return tuple(
+        decode_button_pad_program(payload[offset : offset + BUTTON_PAD_COMMAND_LENGTH])
+        for offset in range(0, len(payload), BUTTON_PAD_COMMAND_LENGTH)
     )

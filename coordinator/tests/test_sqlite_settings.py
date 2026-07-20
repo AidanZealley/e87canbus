@@ -114,9 +114,7 @@ def test_version_1_upgrade_converts_legacy_profile_to_smooth(tmp_path: Path) -> 
         assert connection.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall() == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
-        columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")
-        }
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
         stored_json = connection.execute(
             "SELECT definition_json FROM steering_profiles WHERE profile_id = ?",
             (BUILT_IN_PROFILE_ID,),
@@ -204,9 +202,7 @@ def test_concurrent_same_revision_writers_allow_one_success(tmp_path: Path) -> N
         ("updated_at_utc", "not-a-timestamp"),
     ],
 )
-def test_corrupt_settings_row_fails_closed(
-    tmp_path: Path, column: str, value: object
-) -> None:
+def test_corrupt_settings_row_fails_closed(tmp_path: Path, column: str, value: object) -> None:
     path = tmp_path / "application.sqlite3"
     database, _, settings = repositories(path)
     database.initialize()

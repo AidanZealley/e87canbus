@@ -13,8 +13,9 @@ import { afterEach, expect, it, vi } from "vitest"
 
 import { tapSimulationButton } from "@/api/http/sdk.gen"
 import { useLiveStore } from "@/live/live-store"
-import { snapshot } from "@/live/test-fixtures"
+import { snapshot, staticButtonPadProgram } from "@/live/test-fixtures"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
+import type { ButtonPadRenderer } from "./components/neo-trellis-panel/button-pad-renderer"
 
 vi.mock("@/api/http/sdk.gen", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/http/sdk.gen")>()),
@@ -37,7 +38,10 @@ afterEach(() => {
 
 it("clears retained LED observations and disables controls when unsynchronized", () => {
   const value = snapshot("dev-boot", 4)
-  value.data.buttons.led_rgb[0] = [0, 0, 255]
+  value.data.buttons.program = staticButtonPadProgram(
+    [[0, 0, 255], ...Array.from({ length: 15 }, () => [0, 0, 0] as const)],
+    4
+  )
   value.data.devices.networks = [
     {
       id: "kcan",
@@ -52,6 +56,7 @@ it("clears retained LED observations and disables controls when unsynchronized",
   renderWithQueryClient(<SimulatorNeoTrellis />)
 
   const firstButton = screen.getByRole("button", { name: "Button 0" })
+  expect(firstButton.getAttribute("data-animating")).toBeNull()
   expect(firstButton.style.getPropertyValue("--button-led-rgb")).toBe("0 0 255")
   expect((firstButton as HTMLButtonElement).disabled).toBe(true)
 
@@ -62,10 +67,10 @@ it("clears retained LED observations and disables controls when unsynchronized",
 
 it("sends emulator taps when the emulated source is selected", async () => {
   const value = snapshot("dev-boot", 5)
-  value.data.buttons.led_rgb = [
-    [0, 255, 0],
-    ...Array.from({ length: 15 }, () => [0, 0, 0] as [number, number, number]),
-  ] as typeof value.data.buttons.led_rgb
+  value.data.buttons.program = staticButtonPadProgram(
+    [[0, 255, 0], ...Array.from({ length: 15 }, () => [0, 0, 0] as const)],
+    5
+  )
   value.data.devices.registry.button_pad = {
     ...value.data.devices.registry.button_pad,
     source_mode: "emulated",
@@ -103,4 +108,48 @@ it("disables wire controls for a physical button-pad source", async () => {
   expect((wireButton as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(wireButton)
   expect(tapSimulationButton).not.toHaveBeenCalled()
+})
+
+it("renders through an injected program renderer", () => {
+  const value = snapshot("renderer-boot", 7)
+  useLiveStore.getState().applySnapshot(value)
+  const renderer: ButtonPadRenderer = {
+    createState: () => ({}),
+    render: () => ({
+      animationMask: 0,
+      frame: [
+        [12, 0, 0],
+        ...Array.from({ length: 15 }, () => [0, 0, 0] as const),
+      ],
+    }),
+  }
+
+  renderWithQueryClient(<SimulatorNeoTrellis renderer={renderer} />)
+
+  expect(
+    screen
+      .getByRole("button", { name: "Button 0" })
+      .style.getPropertyValue("--button-led-rgb")
+  ).toBe("255 0 0")
+})
+
+it("disables CSS transitions only on LEDs the renderer is animating", () => {
+  useLiveStore.getState().applySnapshot(snapshot("animation-boot", 8))
+  const renderer: ButtonPadRenderer = {
+    createState: () => ({}),
+    render: () => ({
+      animationMask: 1 << 3,
+      frame: Array.from({ length: 16 }, () => [0, 220, 255] as const),
+    }),
+  }
+
+  renderWithQueryClient(<SimulatorNeoTrellis renderer={renderer} />)
+
+  const staticButton = screen.getByRole("button", { name: "Button 0" })
+  const animatedButton = screen.getByRole("button", { name: "Button 3" })
+  expect(staticButton.getAttribute("data-animating")).toBeNull()
+  expect(animatedButton.getAttribute("data-animating")).toBe("true")
+  expect(animatedButton.className).toContain(
+    "data-[animating=true]:transition-none"
+  )
 })

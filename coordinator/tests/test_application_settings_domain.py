@@ -12,19 +12,22 @@ from e87canbus.features.application_settings import (
 
 
 def test_default_settings_are_valid_stable_and_have_no_theme() -> None:
-    assert ApplicationSettings(
-        revision=1,
-        speed_unit=SpeedUnit.MPH,
-        temperature_unit=TemperatureUnit.CELSIUS,
-        oil_warning_c=125.0,
-        oil_critical_c=135.0,
-        coolant_warning_c=105.0,
-        coolant_critical_c=115.0,
-        shift_stage_1_rpm=6800,
-        shift_stage_2_rpm=7000,
-        redline_rpm=7200,
-        updated_at="1970-01-01T00:00:00.000000Z",
-    ) == DEFAULT_APPLICATION_SETTINGS
+    assert (
+        ApplicationSettings(
+            revision=1,
+            speed_unit=SpeedUnit.MPH,
+            temperature_unit=TemperatureUnit.CELSIUS,
+            oil_warning_c=125.0,
+            oil_critical_c=135.0,
+            coolant_warning_c=105.0,
+            coolant_critical_c=115.0,
+            shift_stage_1_rpm=6800,
+            shift_stage_2_rpm=7000,
+            redline_rpm=7200,
+            updated_at="1970-01-01T00:00:00.000000Z",
+        )
+        == DEFAULT_APPLICATION_SETTINGS
+    )
     assert "theme" not in {field.name for field in fields(ApplicationSettings)}
     assert "theme" not in {field.name for field in fields(ApplicationSettingsUpdate)}
 
@@ -56,9 +59,7 @@ def test_temperature_unit_must_be_an_enum(temperature_unit: object) -> None:
         ("coolant_critical_c", "115"),
     ],
 )
-def test_temperatures_must_be_finite_numbers_in_range(
-    field_name: str, value: object
-) -> None:
+def test_temperatures_must_be_finite_numbers_in_range(field_name: str, value: object) -> None:
     with pytest.raises(ValueError):
         replace(DEFAULT_APPLICATION_SETTINGS.editable_values(), **{field_name: value})
 
@@ -72,9 +73,7 @@ def test_temperatures_must_be_finite_numbers_in_range(
         ({"coolant_warning_c": 116.0}, "coolant_warning_c"),
     ],
 )
-def test_warning_thresholds_must_be_below_critical(
-    changes: dict[str, float], message: str
-) -> None:
+def test_warning_thresholds_must_be_below_critical(changes: dict[str, float], message: str) -> None:
     with pytest.raises(ValueError, match=message):
         replace(DEFAULT_APPLICATION_SETTINGS.editable_values(), **changes)
 
@@ -89,9 +88,7 @@ def test_warning_thresholds_must_be_below_critical(
         ("redline_rpm", "7200"),
     ],
 )
-def test_rpm_values_must_be_ordinary_integers_in_range(
-    field_name: str, value: object
-) -> None:
+def test_rpm_values_must_be_ordinary_integers_in_range(field_name: str, value: object) -> None:
     with pytest.raises(ValueError):
         replace(DEFAULT_APPLICATION_SETTINGS.editable_values(), **{field_name: value})
 

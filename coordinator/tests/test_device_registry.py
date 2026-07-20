@@ -1,20 +1,20 @@
 import os
 import subprocess
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from e87canbus.application.controller import button_led_effect
 from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
-    RGB_RED,
     ButtonFeedbackDeadlineReached,
-    SetButtonLeds,
+    SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
 from e87canbus.application.state import SteeringMode
+from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceLifecycleStatus, DeviceRole
 from e87canbus.device_registry import FeatureUnavailable
@@ -169,11 +169,8 @@ def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:
     assert isinstance(pending.effects[0].effect, SendRegistryFrame)
     assert active.changed_topics == {StateTopic.DEVICES}
     assert active.effects[0].effect.routed.frame.arbitration_id == IDS.button_pad_welcome_ack
-    assert active.effects[1].effect == SetButtonLeds(
-        replace(
-                active.effects[1].effect.rgb,
-            rgb=(RGB_BLUE,) + (RGB_OFF,) * 15,
-        )
+    assert active.effects[1].effect == SetButtonPadProgram(
+        static_button_pad_program((RGB_BLUE,) + (RGB_OFF,) * 15)
     )
 
 
@@ -295,22 +292,15 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
 
     unavailable = kernel.dispatch(ReceivedCanFrame(CanNetwork.KCAN, button, 3.0))
     assert unavailable is not None
-    assert kernel.state.button_feedback_deadlines[0] == pytest.approx(3.5)
-    assert unavailable.effects == (
-        EffectRequest(
-            SetButtonLeds(
-                replace(
-                    unavailable.effects[0].effect.rgb,
-            rgb=(RGB_RED,) + (RGB_OFF,) * 15,
-                )
-            )
-        ),
-    )
+    assert kernel.state.button_feedback_deadlines[0] == pytest.approx(3.4)
+    assert unavailable.effects == (EffectRequest(button_led_effect(kernel.state)),)
 
-    expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.5))
+    expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.4))
     assert expired is not None
     assert kernel.state.button_feedback_deadlines[0] is None
-    assert expired.effects[0].effect.rgb.rgb[0] == RGB_BLUE
+    assert expired.effects[0].effect == SetButtonPadProgram(
+        static_button_pad_program((RGB_BLUE,) + (RGB_OFF,) * 15)
+    )
 
 
 def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfatal() -> None:
@@ -320,9 +310,7 @@ def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfata
     with pytest.raises(FeatureUnavailable, match="servotronic controller is not_found"):
         kernel.dispatch(SetMaximumAssistance(True))
 
-    button_failure = kernel.dispatch(
-        DeviceAdapterFailed(DeviceRole.BUTTON_PAD, 1.0, "adapter")
-    )
+    button_failure = kernel.dispatch(DeviceAdapterFailed(DeviceRole.BUTTON_PAD, 1.0, "adapter"))
     assert button_failure is not None
     assert button_failure.changed_topics == {StateTopic.HEALTH}
     with pytest.raises(FeatureUnavailable):

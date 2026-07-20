@@ -65,9 +65,9 @@ def test_schema_models_actual_success_and_problem_responses(tmp_path: Path) -> N
 def test_profile_schemas_preserve_runtime_route_scopes(tmp_path: Path) -> None:
     car_paths = schema_for(DeploymentProfile.CAR, tmp_path / "car.sqlite3")["paths"]
     bench_paths = schema_for(DeploymentProfile.BENCH, tmp_path / "bench.sqlite3")["paths"]
-    simulator_paths = schema_for(
-        DeploymentProfile.SIMULATOR, tmp_path / "simulator.sqlite3"
-    )["paths"]
+    simulator_paths = schema_for(DeploymentProfile.SIMULATOR, tmp_path / "simulator.sqlite3")[
+        "paths"
+    ]
 
     vehicle_path = "/api/dev/simulation/vehicle/speed"
     device_path = "/api/dev/simulation/devices/{role}/connect"

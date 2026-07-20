@@ -24,7 +24,7 @@ from e87canbus.application.events import (
     EngineRpmObserved,
     HighBeamStrobeDeadlineReached,
     OilTemperatureObserved,
-    SetButtonLeds,
+    SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
@@ -41,6 +41,12 @@ from e87canbus.application.state import (
     OilTemperatureSample,
     SpeedSample,
     SteeringMode,
+)
+from e87canbus.button_pad import (
+    breathe_track,
+    resolved_button_pad_program,
+    solid_track,
+    static_button_pad_program,
 )
 from e87canbus.config import (
     CanNetwork,
@@ -61,9 +67,11 @@ ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
-MANUAL_MAXIMUM_LEDS = ButtonLedState(
-    (RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12
-)
+MANUAL_MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12)
+
+
+def static_effect(leds: ButtonLedState) -> SetButtonPadProgram:
+    return SetButtonPadProgram(static_button_pad_program(leds.rgb))
 
 
 def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:
@@ -129,16 +137,36 @@ def test_initial_snapshot_and_effects() -> None:
         ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
-        button_led_rgb=AUTO_LEDS.rgb,
+        button_pad_program=static_button_pad_program(AUTO_LEDS.rgb),
         high_beam_enabled=False,
         high_beam_strobe_active=False,
         high_beam_strobe_cycles_remaining=0,
         high_beam_next_transition_at=None,
     )
     assert initial_effects(state, CONFIG) == (
-        SetButtonLeds(AUTO_LEDS),
+        static_effect(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
+
+
+def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
+    started = controller.transition(
+        ApplicationState(),
+        ButtonPressed(button_index=15, observed_at=1.0),
+        CONFIG,
+        ACTIVE_CURVE.definition,
+    )
+
+    assert started.state.button_pad_demo_breathe_enabled
+    tracks = [solid_track(rgb) for rgb in AUTO_LEDS.rgb]
+    tracks[controller.DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
+        controller.DEMO_BREATHE_RGB,
+        controller.DEMO_BREATHE_MINIMUM_BRIGHTNESS,
+        controller.DEMO_BREATHE_MAXIMUM_BRIGHTNESS,
+        controller.DEMO_BREATHE_PERIOD_MS,
+        final_rgb=AUTO_LEDS.rgb[controller.DEMO_BREATHE_BUTTON_INDEX],
+    )
+    assert started.effects == (SetButtonPadProgram(resolved_button_pad_program(tuple(tracks))),)
 
 
 def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:
@@ -261,7 +289,7 @@ def test_mapped_buttons_from_normal_modes(
     assert projection(result.state) == expected
     expected_effects: tuple[ApplicationEffect, ...] = ()
     if expected_led_state is not None:
-        expected_effects += (SetButtonLeds(expected_led_state),)
+        expected_effects += (static_effect(expected_led_state),)
     if result.state.steering != state.steering:
         expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
     assert result.effects == expected_effects
@@ -288,7 +316,7 @@ def test_mapped_buttons_while_maximum_assistance_is_active(
     assert projection(result.state) == expected
     expected_effects: tuple[ApplicationEffect, ...] = ()
     if expected_led_state is not None:
-        expected_effects += (SetButtonLeds(expected_led_state),)
+        expected_effects += (static_effect(expected_led_state),)
     if result.state.steering != state.steering:
         expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
     assert result.effects == expected_effects
@@ -301,7 +329,7 @@ def test_mode_button_selects_auto_from_maximum_over_previous_manual_state() -> N
 
     assert projection(result.state) == (SteeringMode.AUTO, 5, False)
     assert result.effects == (
-        SetButtonLeds(AUTO_LEDS),
+        static_effect(AUTO_LEDS),
         SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
     )
 

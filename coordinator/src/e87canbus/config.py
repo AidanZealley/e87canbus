@@ -63,9 +63,7 @@ class CustomCanIds:
     button_pad_transport_device_to_coordinator: int = (
         CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR
     )
-    button_pad_transport_maximum_payload_length: int = (
-        BUTTON_PAD_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH
-    )
+    button_pad_transport_maximum_payload_length: int = BUTTON_PAD_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH
 
     def __post_init__(self) -> None:
         can_ids = tuple(
@@ -77,8 +75,8 @@ class CustomCanIds:
             raise ValueError("custom CAN IDs must be unsigned standard 11-bit IDs")
         if len(set(can_ids)) != len(can_ids):
             raise ValueError("custom CAN IDs must be unique")
-        if self.button_pad_transport_maximum_payload_length != 256:
-            raise ValueError("button-pad transport maximum payload length must be 256")
+        if self.button_pad_transport_maximum_payload_length != 64:
+            raise ValueError("button-pad transport maximum payload length must be 64")
 
 
 @dataclass(frozen=True)

@@ -62,9 +62,7 @@ def test_fresh_migration_and_repeat_initialization(tmp_path: Path) -> None:
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-        columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")
-        }
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
     assert versions == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
     assert journal_mode == "wal"
     assert "interpolation" not in columns
@@ -169,8 +167,7 @@ def test_update_round_trips_integer_definition_and_increments_once(tmp_path: Pat
     assert updated.created_at == created.created_at
     assert updated.definition == _changed_definition()
     assert tuple(
-        (point.speed_deci_kph, point.assistance_per_mille)
-        for point in updated.definition.points
+        (point.speed_deci_kph, point.assistance_per_mille) for point in updated.definition.points
     ) == (
         (0, 1000),
         (100, 800),

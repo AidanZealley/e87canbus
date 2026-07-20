@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from e87canbus.button_pad import BUTTON_PAD_PROGRAM_ENCODING
 from e87canbus.device import DeviceRole
 from e87canbus.features.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
+from e87canbus.runtime import StateTopic
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
@@ -93,8 +95,18 @@ class SteeringState(LiveModel):
     servotronic: ServotronicState | None
 
 
+ButtonPadProgramByte = Annotated[int, Field(ge=0, le=255)]
+ButtonPadCommand = Annotated[tuple[ButtonPadProgramByte, ...], Field(min_length=16, max_length=16)]
+
+
+class ButtonPadProgramState(LiveModel):
+    encoding: Literal["e87-button-pad-v2"] = BUTTON_PAD_PROGRAM_ENCODING
+    generation: int = Field(ge=0)
+    commands: tuple[ButtonPadCommand, ...] = Field(min_length=1, max_length=16)
+
+
 class ButtonsState(LiveModel):
-    led_rgb: tuple[tuple[int, int, int], ...] = Field(min_length=16, max_length=16)
+    program: ButtonPadProgramState
 
 
 class LightingState(LiveModel):
@@ -311,7 +323,12 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
 
 def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     return ButtonsState(
-        led_rgb=snapshot.application.button_led_rgb,
+        program=ButtonPadProgramState(
+            generation=dict(snapshot.topic_revisions)[StateTopic.BUTTONS],
+            commands=tuple(
+                tuple(payload) for payload in snapshot.application.button_pad_program.payloads
+            ),
+        ),
     )
 
 
@@ -322,9 +339,7 @@ def lighting_state(snapshot: ControllerServiceSnapshot) -> LightingState:
         high_beam_enabled=application.high_beam_enabled,
         high_beam_strobe_active=application.high_beam_strobe_active,
         high_beam_strobe_cycles_remaining=application.high_beam_strobe_cycles_remaining,
-        observed_high_beam_enabled=(
-            None if lighting is None else lighting.high_beam_enabled
-        ),
+        observed_high_beam_enabled=(None if lighting is None else lighting.high_beam_enabled),
     )
 
 
@@ -387,12 +402,8 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
             running=snapshot.service.publisher.running,
             failures=snapshot.service.publisher.failures,
             trace_rows_dropped=snapshot.service.publisher.trace_rows_dropped,
-            resource_changes_dropped=(
-                snapshot.service.publisher.resource_changes_dropped
-            ),
-            transport_queue_saturations=(
-                snapshot.service.publisher.transport_queue_saturations
-            ),
+            resource_changes_dropped=(snapshot.service.publisher.resource_changes_dropped),
+            transport_queue_saturations=(snapshot.service.publisher.transport_queue_saturations),
             fault=snapshot.service.publisher.fault,
         ),
     )

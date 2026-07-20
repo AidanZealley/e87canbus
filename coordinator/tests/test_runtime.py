@@ -9,12 +9,13 @@ from e87canbus.application.events import (
     ApplicationEvent,
     ButtonLedState,
     ButtonPressed,
-    SetButtonLeds,
+    SetButtonPadProgram,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
 )
 from e87canbus.application.state import SpeedSample, SteeringMode
+from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import FeatureUnavailable
@@ -49,11 +50,14 @@ from e87canbus.runtime import (
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
+
+def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
+    return SetButtonPadProgram(static_button_pad_program(leds.rgb))
+
+
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + (RGB_OFF,) * 15)
-MAXIMUM_LEDS = ButtonLedState(
-    (RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12
-)
+MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, RGB_OFF, RGB_OFF, RGB_WHITE) + (RGB_OFF,) * 12)
 
 
 def activate_devices(kernel: CoordinatorKernel) -> None:
@@ -161,7 +165,7 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert maximum is not None
     assert maximum.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert maximum.effects == (EffectRequest(SetButtonLeds(MAXIMUM_LEDS)),)
+    assert maximum.effects == (EffectRequest(led_program(MAXIMUM_LEDS)),)
     assert maximum.snapshot.maximum_assistance_active is True
 
     for repeated in (
@@ -178,14 +182,14 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert normal is not None
     assert normal.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert normal.effects == (EffectRequest(SetButtonLeds(MANUAL_LEDS)),)
+    assert normal.effects == (EffectRequest(led_program(MANUAL_LEDS)),)
     assert normal.snapshot.steering_mode is SteeringMode.MANUAL
     assert normal.snapshot.manual_assistance_level == 4
     assert normal.snapshot.maximum_assistance_active is False
 
     assert auto is not None
     assert auto.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert auto.effects == (EffectRequest(SetButtonLeds(AUTO_LEDS)),)
+    assert auto.effects == (EffectRequest(led_program(AUTO_LEDS)),)
     assert auto.snapshot.steering_mode is SteeringMode.AUTO
     assert auto.snapshot.manual_assistance_level == 4
 
@@ -231,11 +235,12 @@ def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> No
 
     assert commit is not None
     led_effects = tuple(
-        effect.effect for effect in commit.effects if isinstance(effect.effect, SetButtonLeds)
+        effect.effect for effect in commit.effects if isinstance(effect.effect, SetButtonPadProgram)
     )
     assert commit.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert led_effects == (SetButtonLeds(MANUAL_LEDS),)
-    assert len(led_effects[0].rgb.rgb) == 16
+    assert led_effects == (led_program(MANUAL_LEDS),)
+    assert all(isinstance(payload, bytes) for payload in led_effects[0].program.payloads)
+    assert all(len(payload) == 16 for payload in led_effects[0].program.payloads)
 
 
 @pytest.mark.parametrize(

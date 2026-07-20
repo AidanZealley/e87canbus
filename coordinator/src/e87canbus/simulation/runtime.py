@@ -433,17 +433,14 @@ class SimulatedControllerRuntime:
         if initial or (
             previous is not None
             and (
-                previous.registry != projection.registry
-                or previous.networks != projection.networks
+                previous.registry != projection.registry or previous.networks != projection.networks
             )
         ):
             changed_topics.add(StateTopic.DEVICES)
         # Effective assistance is nested in the steering live payload, rather than
         # the devices payload.  Its projection must therefore advance the steering
         # topic revision so a live client receives a new curve marker.
-        if initial or (
-            previous is not None and previous.servotronic != projection.servotronic
-        ):
+        if initial or (previous is not None and previous.servotronic != projection.servotronic):
             changed_topics.add(StateTopic.STEERING)
         self._previous_projection = projection
         self._previous_diagnostics = diagnostics
@@ -574,12 +571,10 @@ class SimulatedControllerRuntime:
         if emulator is None:
             return
         try:
-            emulator.process_pending_led_snapshots()
+            emulator.process_pending_led_programs()
         except (OSError, RuntimeError, ValueError) as exc:
             LOGGER.error("button-pad emulator failed: %s", exc)
-            self._dispatch(
-                DeviceAdapterFailed(DeviceRole.BUTTON_PAD, self._clock(), str(exc))
-            )
+            self._dispatch(DeviceAdapterFailed(DeviceRole.BUTTON_PAD, self._clock(), str(exc)))
             self.neotrellis = None
 
     def _require_emulated_button_pad(self) -> SimulatedNeoTrellisNode:
