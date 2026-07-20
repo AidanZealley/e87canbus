@@ -16,8 +16,8 @@ from e87canbus.application.state import (
 from e87canbus.button_pad import ButtonPadProgram
 
 BUTTON_LED_COUNT = 16
-# Press feedback is one red blink cycle rendered on the device; the device self-terminates
-# to final_rgb after this duration, and the deadline resyncs coordinator state back to solid.
+# Press feedback is rendered and self-terminated on the device. The deadline only
+# clears the coordinator's canonical state; no cleanup program needs to be transmitted.
 BUTTON_FEEDBACK_BLINK_ON_MS = 100
 BUTTON_FEEDBACK_BLINK_OFF_MS = 100
 BUTTON_FEEDBACK_BLINK_REPEAT = 2

@@ -33,6 +33,9 @@ const uint8_t BUTTON_LED_COUNT = 16;
 const uint8_t TRELLIS_ADDR = 0x2E;
 const uint8_t TRELLIS_BRIGHTNESS = 20;
 const uint32_t TRELLIS_POLL_MS = 20;
+const uint32_t TRELLIS_ANIMATION_FRAME_MS = 80;
+const uint16_t DISCOVERY_BREATHE_PERIOD_MS = 1600;
+const uint8_t DISCOVERY_BREATHE_MINIMUM = 16;
 using button_pad::DeviceState;
 using button_pad::STATUS_CAN_SEND_FAILED;
 using button_pad::STATUS_LOCAL_FAULT;
@@ -66,6 +69,7 @@ uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
 uint32_t nextTrellisPollMs = 0;
+uint32_t nextTrellisAnimationFrameMs = 0;
 e87canbus::ButtonPadEffects effects;
 uint8_t renderedPixels[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
 
@@ -96,8 +100,15 @@ void applyPixelDisplay(uint32_t now) {
                                         renderedPixels[i * 3 + 2]));
         }
     } else if (displayMode == DisplayMode::DISCOVERING) {
+        const uint16_t halfPeriod = DISCOVERY_BREATHE_PERIOD_MS / 2;
+        const uint16_t phase = static_cast<uint16_t>(now % DISCOVERY_BREATHE_PERIOD_MS);
+        const uint16_t ramp = phase <= halfPeriod ? phase : DISCOVERY_BREATHE_PERIOD_MS - phase;
+        const uint8_t brightness = static_cast<uint8_t>(
+            DISCOVERY_BREATHE_MINIMUM +
+            (static_cast<uint32_t>(255 - DISCOVERY_BREATHE_MINIMUM) * ramp) / halfPeriod);
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
-            trellis.pixels.setPixelColor(i, 0x201000);  // dim amber: no controller
+            trellis.pixels.setPixelColor(
+                i, trellis.pixels.Color(brightness, brightness, brightness));
         }
     } else {
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
@@ -105,6 +116,7 @@ void applyPixelDisplay(uint32_t now) {
         }
     }
     trellis.pixels.show();
+    nextTrellisAnimationFrameMs = now + TRELLIS_ANIMATION_FRAME_MS;
 }
 
 void selectDisplay(DisplayMode mode) {
@@ -282,9 +294,10 @@ void beginDiscovery(uint32_t now, DeviceState discoveryState) {
     controllerSession = 0;
     controllerLease = false;
     transitionTo(discoveryState);
-    selectDisplay(discoveryState == DeviceState::CONTROLLER_LOST
-                      ? DisplayMode::ERROR
-                      : DisplayMode::DISCOVERING);
+    // A missing controller is an expected recovery state while the Pi boots or
+    // reboots. Keep breathing white until a WELCOME arrives; ERROR is reserved
+    // for an explicit incompatibility or a local device/transport fault.
+    selectDisplay(DisplayMode::DISCOVERING);
     nextHelloMs = now;
     sendHello(now);
 }
@@ -464,7 +477,10 @@ void loop() {
     if (trellisReady && due(now, nextTrellisPollMs)) {
         trellis.read();
         nextTrellisPollMs = now + TRELLIS_POLL_MS;
-        if (displayMode == DisplayMode::NORMAL && effects.animated(now)) {
+        const bool animationNeedsFrame =
+            (displayMode == DisplayMode::NORMAL && effects.animated(now)) ||
+            displayMode == DisplayMode::DISCOVERING;
+        if (animationNeedsFrame && due(now, nextTrellisAnimationFrameMs)) {
             applyPixelDisplay(now);
         }
     }

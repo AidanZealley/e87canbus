@@ -97,6 +97,61 @@ int main() {
         }
     }
 
+    // Replacing a continuous breathe program with a shorter solid program must
+    // stop the animation. This mirrors toggling the button-15 demo back off.
+    {
+        e87canbus::ButtonPadEffects effects;
+        const auto &breathing = VALID_PROGRAMS.front();
+        for (const auto &command : breathing.commands) {
+            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS)) {
+                return fail("breathe_toggle_off", "breathe program was rejected");
+            }
+        }
+        if (!effects.animated(STARTED_AT_MS + 100)) {
+            return fail("breathe_toggle_off", "breathe program was not animated");
+        }
+
+        const auto &solid = VALID_PROGRAMS[2];
+        for (const auto &command : solid.commands) {
+            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS + 200)) {
+                return fail("breathe_toggle_off", "solid replacement was rejected");
+            }
+        }
+        if (effects.animationMask(STARTED_AT_MS + 200) != 0 ||
+            effects.animated(STARTED_AT_MS + 200)) {
+            return fail("breathe_toggle_off", "solid replacement kept breathing");
+        }
+    }
+
+    // Reassigning an identical finite animation is a new trigger and must
+    // restart it, even when the previous run has already completed.
+    {
+        e87canbus::ButtonPadEffects effects;
+        const auto &flash = VALID_PROGRAMS[1];
+        for (const auto &command : flash.commands) {
+            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS)) {
+                return fail("finite_retrigger", "initial flash was rejected");
+            }
+        }
+        if (effects.animated(STARTED_AT_MS + 400)) {
+            return fail("finite_retrigger", "initial flash did not complete", 400);
+        }
+
+        for (const auto &command : flash.commands) {
+            if (!effects.apply(command.data(), command.size(), STARTED_AT_MS + 500)) {
+                return fail("finite_retrigger", "retriggered flash was rejected");
+            }
+        }
+        if (!effects.animated(STARTED_AT_MS + 500)) {
+            return fail("finite_retrigger", "identical flash did not restart", 500);
+        }
+        uint8_t rendered[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
+        effects.render(STARTED_AT_MS + 500, rendered);
+        if (rendered[6] != 0xFF || rendered[7] != 0 || rendered[8] != 0) {
+            return fail("finite_retrigger", "retriggered flash did not restart on", 500);
+        }
+    }
+
     for (const auto &vector : INVALID_PROGRAMS) {
         e87canbus::ButtonPadEffects effects;
         if (effects.apply(vector.payload.data(), vector.payload.size(), STARTED_AT_MS)) {

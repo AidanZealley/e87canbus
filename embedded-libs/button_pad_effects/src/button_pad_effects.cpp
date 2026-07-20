@@ -106,7 +106,11 @@ bool ButtonPadEffects::applyCommand(const uint8_t *command, uint32_t now_ms) {
         if (targetMask & (1U << index)) {
             ButtonEffectTrack replacement = track;
             replacement.started_at_ms = tracks_[index].started_at_ms;
-            if (!sameEffect(tracks_[index], track)) {
+            // Finite tracks are triggers: assigning the same blink again must
+            // restart it for repeated button feedback. Static and continuous
+            // tracks retain their start time so unrelated scene replacements
+            // do not reset a breathing animation's phase.
+            if (!sameEffect(tracks_[index], track) || track.repeat != 0) {
                 changed_mask_ |= 1U << index;
                 replacement.started_at_ms = 0;
             }

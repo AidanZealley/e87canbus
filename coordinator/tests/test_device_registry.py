@@ -298,8 +298,9 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.4))
     assert expired is not None
     assert kernel.state.button_feedback_deadlines[0] is None
-    assert expired.effects[0].effect == SetButtonPadProgram(
-        static_button_pad_program((RGB_BLUE,) + (RGB_OFF,) * 15)
+    assert expired.effects == ()
+    assert expired.snapshot.button_pad_program == static_button_pad_program(
+        (RGB_BLUE,) + (RGB_OFF,) * 15
     )
 
 

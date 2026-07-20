@@ -168,6 +168,16 @@ def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
     )
     assert started.effects == (SetButtonPadProgram(resolved_button_pad_program(tuple(tracks))),)
 
+    stopped = controller.transition(
+        started.state,
+        ButtonPressed(button_index=15, observed_at=2.0),
+        CONFIG,
+        ACTIVE_CURVE.definition,
+    )
+
+    assert not stopped.state.button_pad_demo_breathe_enabled
+    assert stopped.effects == (static_effect(AUTO_LEDS),)
+
 
 def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:
     config = HighBeamStrobeConfig(
@@ -363,10 +373,23 @@ def test_each_assistance_button_press_immediately_emits_its_new_command() -> Non
     assert lowered.effects == (SetSteeringAssistance(5 / 7, SteeringCommandReason.MANUAL),)
 
 
-def test_unknown_button_is_a_no_op() -> None:
+def test_unknown_button_double_blinks_red_and_returns_to_its_displayed_colour() -> None:
     state = ApplicationState()
 
-    assert transition(state, ButtonPressed(9), CONFIG).state is state
+    result = transition(state, ButtonPressed(9, observed_at=2.0), CONFIG)
+
+    assert result.state.button_feedback_deadlines[9] == pytest.approx(2.4)
+    tracks = [solid_track(rgb) for rgb in AUTO_LEDS.rgb]
+    tracks[9] = controller.blink_track(
+        controller.RGB_RED,
+        controller.BUTTON_FEEDBACK_BLINK_ON_MS,
+        controller.BUTTON_FEEDBACK_BLINK_OFF_MS,
+        controller.BUTTON_FEEDBACK_BLINK_REPEAT,
+        controller.RGB_OFF,
+    )
+    assert result.effects == (
+        SetButtonPadProgram(resolved_button_pad_program(tuple(tracks))),
+    )
 
 
 def test_manual_assistance_is_clamped_to_configured_bounds() -> None:

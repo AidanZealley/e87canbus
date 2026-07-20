@@ -194,9 +194,24 @@ def transition(
             if next_deadlines == state.button_feedback_deadlines:
                 return Transition(state)
             next_state = replace(state, button_feedback_deadlines=next_deadlines)
-            return Transition(next_state, (button_led_effect(next_state),))
+            # Blink tracks carry final_rgb and stop themselves. Publishing the
+            # cleared state is sufficient; transmitting a cleanup scene can
+            # overwrite a blink that is still queued in the ISO-TP transport.
+            return Transition(next_state)
         case ButtonPressed(button_index, observed_at):
             strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
+            available_buttons = SERVOTRONIC_BUTTON_INDEXES | {
+                strobe_config.button_index,
+                DEMO_BREATHE_BUTTON_INDEX,
+            }
+            if button_index not in available_buttons:
+                return transition(
+                    state,
+                    ButtonCommandFailed(button_index, observed_at),
+                    config,
+                    active_definition,
+                    high_beam_strobe_config,
+                )
             new_state = _button_transition(
                 state,
                 button_index,
