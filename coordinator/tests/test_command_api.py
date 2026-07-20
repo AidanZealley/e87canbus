@@ -40,12 +40,8 @@ def definition_json() -> dict[str, Any]:
 def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         activate_simulation_devices(client.app.state.controller_service)
-        first = client.put(
-            "/api/commands/maximum-assistance", json={"enabled": True}
-        )
-        repeated = client.put(
-            "/api/commands/maximum-assistance", json={"enabled": True}
-        )
+        first = client.put("/api/commands/maximum-assistance", json={"enabled": True})
+        repeated = client.put("/api/commands/maximum-assistance", json={"enabled": True})
         mode = client.put(
             "/api/commands/steering-mode",
             json={"mode": "manual", "manual_level": 4},
@@ -54,9 +50,7 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
             "/api/commands/steering-mode",
             json={"mode": "manual", "manual_level": 4},
         )
-        disabled = client.put(
-            "/api/commands/maximum-assistance", json={"enabled": False}
-        )
+        disabled = client.put("/api/commands/maximum-assistance", json={"enabled": False})
         snapshot = client.app.state.controller_service.snapshot()
 
     assert first.json()["accepted"] is True
@@ -199,16 +193,12 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
             "/api/steering/profiles",
             json={"name": "Dry", "definition": definition_json()},
         ).json()
-        maximum = client.put(
-            "/api/commands/maximum-assistance", json={"enabled": True}
-        )
+        maximum = client.put("/api/commands/maximum-assistance", json={"enabled": True})
         mode = client.put(
             "/api/commands/steering-mode",
             json={"mode": "manual", "manual_level": 3},
         )
-        normal = client.put(
-            "/api/commands/maximum-assistance", json={"enabled": False}
-        )
+        normal = client.put("/api/commands/maximum-assistance", json={"enabled": False})
         activated = client.post(
             "/api/commands/activate-steering-profile",
             json={

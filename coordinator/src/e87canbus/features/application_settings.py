@@ -93,8 +93,7 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
             raise ValueError(f"{field_name} must be a finite number")
         if not MIN_TEMPERATURE_C <= value <= MAX_TEMPERATURE_C:
             raise ValueError(
-                f"{field_name} must be between {MIN_TEMPERATURE_C:g} and "
-                f"{MAX_TEMPERATURE_C:g} C"
+                f"{field_name} must be between {MIN_TEMPERATURE_C:g} and {MAX_TEMPERATURE_C:g} C"
             )
     if candidate.oil_warning_c >= candidate.oil_critical_c:
         raise ValueError("oil_warning_c must be below oil_critical_c")
@@ -111,14 +110,8 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
             raise ValueError(f"{field_name} must be an integer")
         if not MIN_RPM <= value <= MAX_RPM:
             raise ValueError(f"{field_name} must be between {MIN_RPM} and {MAX_RPM}")
-    if not (
-        candidate.shift_stage_1_rpm
-        < candidate.shift_stage_2_rpm
-        < candidate.redline_rpm
-    ):
-        raise ValueError(
-            "shift_stage_1_rpm must be below shift_stage_2_rpm and redline_rpm"
-        )
+    if not (candidate.shift_stage_1_rpm < candidate.shift_stage_2_rpm < candidate.redline_rpm):
+        raise ValueError("shift_stage_1_rpm must be below shift_stage_2_rpm and redline_rpm")
 
 
 def validate_application_settings(settings: ApplicationSettings) -> None:

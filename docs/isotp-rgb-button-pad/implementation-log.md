@@ -151,6 +151,10 @@ Seesaw, physical output, or browser transport were added.
 - Physical NeoTrellis rendering remains deferred.
 - The simulated runtime test proves a coordinator ISO-TP transfer reaches the pad's private applied `led_rgb` only after the transport completes.
 - A final documentation correction keeps the browser's requested `buttons.led_rgb` distinct from the simulated pad's private applied state.
+- The later scalable-rendering revision replaces effect-specific public LED fields with
+  `buttons.program`: the same bounded wire payload sent to the device plus a generation. An
+  injectable renderer and reusable animation hook keep program interpretation out of the
+  `SimulatorNeoTrellis` component.
 
 #### Follow-up work
 

@@ -13,13 +13,14 @@ from typing import Protocol, assert_never
 from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
-    SetButtonLeds,
+    SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
 )
+from e87canbus.button_pad import pack_button_pad_transfers
 from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.protocol.can import CanFrame, RgbSnapshotPayload, RoutedCanFrame, encode_rgb_snapshot
+from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.transport.isotp import IsoTpEndpoint
 
@@ -46,7 +47,7 @@ class EffectRequest:
     def __post_init__(self) -> None:
         if not isinstance(
             self.effect,
-            (SetButtonLeds, SetSteeringAssistance, SetHighBeam, SendRegistryFrame),
+            (SetButtonPadProgram, SetSteeringAssistance, SetHighBeam, SendRegistryFrame),
         ):
             raise ValueError("effect request must contain an executable effect")
         if self.origin_button_index is not None and (
@@ -137,6 +138,7 @@ class EffectExecutor:
         router: ProtocolRouter | None = None,
         steering_actuator: SteeringActuator | None = None,
         high_beam_actuator: HighBeamActuator | None = None,
+        button_pad_payload_interval_s: float = 0.0,
     ) -> None:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
@@ -156,6 +158,9 @@ class EffectExecutor:
                 rx_id=self._router.ids.button_pad_transport_device_to_coordinator,
                 send_frame=send_transport_frame,
                 maximum_payload_length=self._router.ids.button_pad_transport_maximum_payload_length,
+                # Live hardware spaces command starts because each 16-byte command
+                # occupies three classic CAN frames. Simulation may opt out.
+                minimum_payload_interval_s=button_pad_payload_interval_s,
             )
         )
 
@@ -174,7 +179,7 @@ class EffectExecutor:
                     steering_failure = self._execute_steering(effect, origin_button_index)
                     if steering_failure is not None:
                         failures.append(steering_failure)
-                case SetButtonLeds():
+                case SetButtonPadProgram():
                     can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
@@ -192,15 +197,14 @@ class EffectExecutor:
 
     def _execute_can(
         self,
-        effect: SetButtonLeds,
+        effect: SetButtonPadProgram,
         origin_button_index: int | None,
     ) -> CanEffectFailure | None:
         if self._button_pad_transport is None:
             LOGGER.warning("dropped button-pad RGB effect for unavailable TX capability")
             return None
         try:
-            payload = encode_rgb_snapshot(RgbSnapshotPayload(effect.rgb.rgb))
-            self._button_pad_transport.send(payload)
+            self._button_pad_transport.send_many(pack_button_pad_transfers(effect.program))
             self._button_pad_transport.poll()
         except (OSError, RuntimeError, ValueError) as exc:
             return CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)

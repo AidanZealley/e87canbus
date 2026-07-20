@@ -1,5 +1,4 @@
 import { useMutation } from "@tanstack/react-query"
-import { useShallow } from "zustand/react/shallow"
 
 import { tapSimulationButtonMutation } from "@/api/http/@tanstack/react-query.gen"
 import {
@@ -13,6 +12,11 @@ import {
   NeoTrellisPanel,
   type NeoTrellisButtonState,
 } from "./components/neo-trellis-panel/NeoTrellisPanel"
+import {
+  type ButtonPadRenderer,
+  typescriptButtonPadRenderer,
+} from "./components/neo-trellis-panel/button-pad-renderer"
+import { useButtonPadProgram } from "@/hooks/use-button-pad-program"
 import { LED_COUNT, notifySimulatorError } from "./utils"
 
 const unavailableLedRgb = Array.from(
@@ -20,7 +24,13 @@ const unavailableLedRgb = Array.from(
   () => [0, 0, 0] as const
 )
 
-export const SimulatorNeoTrellis = () => {
+type SimulatorNeoTrellisProps = {
+  renderer?: ButtonPadRenderer
+}
+
+export const SimulatorNeoTrellis = ({
+  renderer = typescriptButtonPadRenderer,
+}: SimulatorNeoTrellisProps) => {
   const { mutate: tapButtonMutation } = useMutation({
     ...tapSimulationButtonMutation(),
     onError: notifySimulatorError,
@@ -32,9 +42,7 @@ export const SimulatorNeoTrellis = () => {
       runSimulatedDeviceAction(deviceEntry.role, action),
     onError: notifySimulatorError,
   })
-  const desiredLedRgb = useLiveStore(
-    useShallow((state) => state.buttons.led_rgb)
-  )
+  const program = useLiveStore((state) => state.buttons.program)
   const sourceMode = useLiveStore(
     (state) => state.devices.registry.button_pad.source_mode
   )
@@ -44,7 +52,10 @@ export const SimulatorNeoTrellis = () => {
   const displayedSourceMode = synchronized ? sourceMode : "unavailable"
   const emulatorControlsAvailable =
     displayedSourceMode === "emulated" && buttonPadStatus === "active"
-  const displayedRgb = synchronized ? desiredLedRgb : unavailableLedRgb
+  const rendered = useButtonPadProgram(renderer, program, synchronized)
+  const renderedRgb = rendered?.frame ?? null
+  const animationMask = rendered?.animationMask ?? 0
+  const displayedRgb = renderedRgb ?? unavailableLedRgb
   const buttons: NeoTrellisButtonState[] = Array.from(
     { length: LED_COUNT },
     (_, index) => ({
@@ -73,6 +84,7 @@ export const SimulatorNeoTrellis = () => {
     >
       <NeoTrellisPanel
         buttons={buttons}
+        animationMask={animationMask}
         emulatorControlsAvailable={emulatorControlsAvailable}
         onClick={(index) =>
           tapButtonMutation({ path: { button_index: index } })

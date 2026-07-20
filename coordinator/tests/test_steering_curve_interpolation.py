@@ -15,10 +15,7 @@ from e87canbus.features.steering import (
 )
 
 VECTOR_PATH = (
-    Path(__file__).parents[2]
-    / "test-fixtures"
-    / "steering"
-    / "monotone-cubic-v1-vectors.json"
+    Path(__file__).parents[2] / "test-fixtures" / "steering" / "monotone-cubic-v1-vectors.json"
 )
 
 

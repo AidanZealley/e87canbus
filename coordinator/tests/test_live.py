@@ -209,9 +209,9 @@ def test_canonical_live_service_reports_queue_latency_without_rewriting_ingress_
 
     with caplog.at_level(logging.WARNING):
         service.start()
-        service.submit(
-            ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x01"), 0.5)
-        ).result(timeout=0.2)
+        service.submit(ReceivedCanFrame(CanNetwork.FCAN, CanFrame(0x123, b"\x01"), 0.5)).result(
+            timeout=0.2
+        )
         service.stop()
 
     assert "network=fcan latency_s=1.500" in caplog.text
@@ -271,9 +271,7 @@ def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
 
     assert snapshot.application.steering_mode.value == "auto"
     button_pad = next(
-        entry
-        for entry in snapshot.adapter.registry
-        if entry.role.value == "button_pad"
+        entry for entry in snapshot.adapter.registry if entry.role.value == "button_pad"
     )
     assert button_pad.status.value == "disabled"
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
@@ -380,9 +378,7 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
 
     deadline = time.monotonic() + 1.0
     while any(
-        thread.is_alive()
-        for thread in threading.enumerate()
-        if thread.name.endswith("-reader")
+        thread.is_alive() for thread in threading.enumerate() if thread.name.endswith("-reader")
     ):
         assert time.monotonic() < deadline
 
@@ -465,9 +461,7 @@ class TestConfigurableNetworkEnablement:
         )
         service.start()
         try:
-            service.submit(ReceivedCanFrame(CanNetwork.KCAN, hello_frame, 1.0)).result(
-                timeout=0.2
-            )
+            service.submit(ReceivedCanFrame(CanNetwork.KCAN, hello_frame, 1.0)).result(timeout=0.2)
         finally:
             service.stop()
 

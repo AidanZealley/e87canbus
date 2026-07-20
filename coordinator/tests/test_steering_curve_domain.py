@@ -280,9 +280,12 @@ def test_integer_projection_and_definition_evaluation_preserve_resolution() -> N
         0,
     )
     for point in BUILT_IN_STEERING_CURVE.points:
-        assert interpolate_steering_curve_definition(
-            point.speed_deci_kph / 10, BUILT_IN_STEERING_CURVE
-        ) == point.assistance_per_mille / 1000
+        assert (
+            interpolate_steering_curve_definition(
+                point.speed_deci_kph / 10, BUILT_IN_STEERING_CURVE
+            )
+            == point.assistance_per_mille / 1000
+        )
 
 
 def test_definition_evaluation_holds_endpoint_values_outside_grid() -> None:

@@ -206,9 +206,7 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
 
 
 def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
-    first = ControllerService(
-        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
-    )
+    first = ControllerService(RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR))
     second = ControllerService(
         RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
     )
@@ -255,10 +253,7 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
         assert client.get("/health/ready").status_code == 200
         assert client.get("/api/snapshot").status_code == 404
         assert (
-            client.post(
-                "/api/dev/simulation/devices/button-pad/buttons/0/tap"
-            ).status_code
-            == 404
+            client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404
         )
         assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
 
@@ -336,9 +331,7 @@ def test_explicit_constructors_reject_invalid_device_authority_and_output() -> N
     config = replace(
         config,
         can_networks=tuple(
-            replace(item, tx_enabled=False)
-            if item.network is CanNetwork.KCAN
-            else item
+            replace(item, tx_enabled=False) if item.network is CanNetwork.KCAN else item
             for item in config.can_networks
         ),
     )

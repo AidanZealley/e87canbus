@@ -65,13 +65,9 @@ def test_closed_profile_fields_cannot_be_recombined() -> None:
 
 def test_runtime_transport_must_match_the_deployment_profile() -> None:
     with pytest.raises(ValueError, match="SocketCAN deployment"):
-        build_live_controller_service(
-            deployment=deployment_spec(DeploymentProfile.SIMULATOR)
-        )
+        build_live_controller_service(deployment=deployment_spec(DeploymentProfile.SIMULATOR))
     with pytest.raises(ValueError, match="in-memory deployment"):
-        build_simulated_controller_service(
-            deployment=deployment_spec(DeploymentProfile.CAR)
-        )
+        build_simulated_controller_service(deployment=deployment_spec(DeploymentProfile.CAR))
 
 
 def test_bench_profile_is_physical_kcan_with_only_virtual_vehicle_controls() -> None:
@@ -110,17 +106,9 @@ def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls
         assert snapshot.application.vehicle_speed_kph == 42.5
         assert client.post("/api/dev/simulation/reset").status_code == 404
         assert (
-            client.post(
-                "/api/dev/simulation/devices/button-pad/buttons/0/tap"
-            ).status_code
-            == 404
+            client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404
         )
-        assert (
-            client.post(
-                "/api/dev/simulation/devices/button-pad/disconnect"
-            ).status_code
-            == 404
-        )
+        assert client.post("/api/dev/simulation/devices/button-pad/disconnect").status_code == 404
 
 
 def test_car_api_installs_no_simulation_routes(tmp_path: Path) -> None:

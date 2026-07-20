@@ -6,6 +6,7 @@
 #include <mcp_can.h>
 
 #include "can_ids.h"
+#include "button_pad_effects.h"
 #include "isotp_transport.h"
 #include "protocol_state.h"
 
@@ -31,7 +32,6 @@ const uint8_t RESPONSE_UNSUPPORTED = 1;
 const uint8_t BUTTON_LED_COUNT = 16;
 const uint8_t TRELLIS_ADDR = 0x2E;
 const uint8_t TRELLIS_BRIGHTNESS = 20;
-const uint8_t RGB_PAYLOAD_LENGTH = BUTTON_LED_COUNT * 3;  // 48 bytes: R,G,B per pixel
 const uint32_t TRELLIS_POLL_MS = 20;
 using button_pad::DeviceState;
 using button_pad::STATUS_CAN_SEND_FAILED;
@@ -66,7 +66,8 @@ uint32_t lastControllerAckMs = 0;
 uint32_t nextHelloMs = 0;
 uint32_t nextHeartbeatMs = 0;
 uint32_t nextTrellisPollMs = 0;
-uint8_t pixelBuffer[RGB_PAYLOAD_LENGTH] = {};
+e87canbus::ButtonPadEffects effects;
+uint8_t renderedPixels[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
 
 bool due(uint32_t now, uint32_t deadline) {
     return static_cast<int32_t>(now - deadline) >= 0;
@@ -83,15 +84,16 @@ uint16_t getUint16(const uint8_t *payload, uint8_t lowByte, uint8_t highByte) {
            (static_cast<uint16_t>(payload[highByte]) << 8);
 }
 
-void applyPixelDisplay() {
+void applyPixelDisplay(uint32_t now) {
     if (!trellisReady) {
         return;
     }
     if (displayMode == DisplayMode::NORMAL) {
+        effects.render(now, renderedPixels);
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
             trellis.pixels.setPixelColor(
-                i, trellis.pixels.Color(pixelBuffer[i * 3], pixelBuffer[i * 3 + 1],
-                                        pixelBuffer[i * 3 + 2]));
+                i, trellis.pixels.Color(renderedPixels[i * 3], renderedPixels[i * 3 + 1],
+                                        renderedPixels[i * 3 + 2]));
         }
     } else if (displayMode == DisplayMode::DISCOVERING) {
         for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
@@ -118,7 +120,7 @@ void selectDisplay(DisplayMode mode) {
     } else {
         Serial.println("error");
     }
-    applyPixelDisplay();
+    applyPixelDisplay(millis());
 }
 
 void transitionTo(DeviceState nextState) {
@@ -449,13 +451,12 @@ void loop() {
     uint8_t transportPayload[e87canbus::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
     uint16_t transportLength = 0;
     if (transport.receive(transportPayload, sizeof(transportPayload), &transportLength)) {
-        if (transportLength == RGB_PAYLOAD_LENGTH) {
-            memcpy(pixelBuffer, transportPayload, RGB_PAYLOAD_LENGTH);
-            if (displayMode == DisplayMode::NORMAL) {
-                applyPixelDisplay();
+        if (effects.apply(transportPayload, transportLength, now)) {
+            if (displayMode == DisplayMode::NORMAL && effects.committed()) {
+                applyPixelDisplay(now);
             }
         } else {
-            Serial.print("ignored ISO-TP payload unexpected length=");
+            Serial.print("ignored malformed button-pad program length=");
             Serial.println(transportLength);
         }
     }
@@ -463,6 +464,9 @@ void loop() {
     if (trellisReady && due(now, nextTrellisPollMs)) {
         trellis.read();
         nextTrellisPollMs = now + TRELLIS_POLL_MS;
+        if (displayMode == DisplayMode::NORMAL && effects.animated(now)) {
+            applyPixelDisplay(now);
+        }
     }
 
     if (state == DeviceState::DISCOVERING || state == DeviceState::CONTROLLER_LOST ||

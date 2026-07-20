@@ -25,8 +25,8 @@ it("rerenders a vehicle subscriber without rerendering settings or button panels
   }
   const ButtonPanel = () => {
     renders.buttons += 1
-    const maximumLed = useLiveStore((state) => state.buttons.led_rgb[3])
-    return <span>{maximumLed}</span>
+    const generation = useLiveStore((state) => state.buttons.program.generation)
+    return <span>{generation}</span>
   }
   const SettingsPanel = () => {
     renders.settings += 1

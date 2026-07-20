@@ -45,8 +45,7 @@ async def set_steering_mode(
         raise ApiProblem(
             422,
             "validation_error",
-            "manual_level must be between 0 and "
-            f"{manual_level_count - 1}",
+            f"manual_level must be between 0 and {manual_level_count - 1}",
         )
     return await submit_command(
         app,
@@ -60,9 +59,7 @@ async def activate_steering_profile(
     request: ActivateSteeringProfileRequest,
 ) -> CommandAcknowledgement:
     validate_profile_id(request.profile_id)
-    profile = await repository_operation(
-        lambda: repository.get_profile(request.profile_id)
-    )
+    profile = await repository_operation(lambda: repository.get_profile(request.profile_id))
     if profile is None:
         raise ApiProblem(
             404,

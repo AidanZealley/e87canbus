@@ -79,7 +79,8 @@ applies button 0 amber and all other positions off. Releasing sends `0x700 0000`
 application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
 blue.
 
-`buttons.led_rgb` is controller-requested state and is what the browser renders. The simulated pad
+`buttons.program` is controller-requested state and contains the same bounded, versioned bytes sent
+to the device. The browser decodes and renders that program through an injectable renderer. The simulated pad
 independently receives and atomically reassembles the complete 48-byte RGB payload; this private
 device state is exercised by tests but is not published as an observed-output API. A rate-limited
 or malformed payload therefore never partially changes the device state.
@@ -141,8 +142,8 @@ wire bits per standard-ID DLC-8 frame, the ceiling is at most 2.7% of 100 kbit/s
 500 kbit/s network before errors or retransmissions. It is a flood bound, not a target cadence. The
 simulator explicitly grants K-CAN transmission and uses the same executor and policy path as the
 live runtime: excess coordinator frames are logged and dropped without replay, while simulated
-external devices remain unrestricted. A later accepted ISO-TP RGB snapshot replaces all 16 simulated
-LED values and repairs a missed intermediate state. The default live composition grants no
+external devices remain unrestricted. Button-pad v2 commands are paced below the default ceiling;
+their final commit atomically replaces all 16 simulated LED tracks. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
 The high-beam strobe additionally requires its own simulator-only actuator capability. Live mode

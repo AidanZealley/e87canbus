@@ -98,9 +98,11 @@ const emptySlices = (): LiveSlices => ({
   },
   steering: null,
   buttons: {
-    led_rgb: Array.from({ length: 16 }, () => [
-      0, 0, 0,
-    ]) as ButtonsState["led_rgb"],
+    program: {
+      encoding: "e87-button-pad-v2",
+      generation: 0,
+      commands: [[2, 129, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    },
   },
   lighting: {
     high_beam_enabled: false,

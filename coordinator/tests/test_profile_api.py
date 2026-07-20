@@ -58,9 +58,7 @@ def make_app(
     config=None,
     servotronic_factory=SimulatedServotronicPeer,
 ):
-    config = config or replace(
-        simulator_config(), tick_interval_s=60.0
-    )
+    config = config or replace(simulator_config(), tick_interval_s=60.0)
     service = build_simulated_controller_service(
         config=config,
         servotronic_factory=servotronic_factory,
@@ -301,9 +299,7 @@ def test_stale_delete_preserves_the_newer_profile(client: TestClient) -> None:
 
 def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
     activate_simulation_devices(client.app.state.controller_service)
-    initial_curve = (
-        client.app.state.controller_service.snapshot().application.active_steering_curve
-    )
+    initial_curve = client.app.state.controller_service.snapshot().application.active_steering_curve
     applied_definition = definition_json(second_assistance=850)
 
     applied = client.put(
@@ -506,9 +502,7 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
     with TestClient(app) as client:
         activate_simulation_devices(app.state.controller_service)
         saved = create_profile(client)
-        speed = client.put(
-            "/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0}
-        )
+        speed = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0})
         assert speed.status_code == 200
         before = app.state.controller_service.snapshot()
         activation = client.post(
@@ -532,8 +526,7 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
         == saved["definition"]
     )
     assert (
-        runtime_snapshot.application.active_steering_curve.saved_profile_id
-        == saved["profile_id"]
+        runtime_snapshot.application.active_steering_curve.saved_profile_id == saved["profile_id"]
     )
 
 

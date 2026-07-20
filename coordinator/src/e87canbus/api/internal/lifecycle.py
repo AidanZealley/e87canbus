@@ -52,6 +52,7 @@ def create_lifespan(
         except BaseException as exc:
             service.mark_persistence_fault(str(exc))
             raise
+
         def publish(execution: RuntimeExecution) -> None:
             publisher.offer(execution)
 

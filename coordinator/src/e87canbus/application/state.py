@@ -69,8 +69,11 @@ class ApplicationState:
     high_beam_strobe_cycles_remaining: int = 0
     high_beam_next_transition_at: float | None = None
     button_feedback_deadlines: tuple[float | None, ...] = (None,) * 16
+    button_pad_demo_breathe_enabled: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.button_pad_demo_breathe_enabled) is not bool:
+            raise ValueError("button pad demo breathe flag must be a boolean")
         if len(self.button_feedback_deadlines) != 16:
             raise ValueError("button feedback deadlines must contain exactly 16 entries")
         for deadline in self.button_feedback_deadlines:

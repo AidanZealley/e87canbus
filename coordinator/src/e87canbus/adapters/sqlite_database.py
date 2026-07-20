@@ -116,9 +116,7 @@ class SqliteApplicationDatabase:
         if any(type(version) is not int or version < 1 for version in versions):
             raise ApplicationDatabaseError("invalid application database migration history")
         if versions and versions[-1] > CURRENT_MIGRATION_VERSION:
-            raise UnsupportedDatabaseVersionError(
-                versions[-1], CURRENT_MIGRATION_VERSION
-            )
+            raise UnsupportedDatabaseVersionError(versions[-1], CURRENT_MIGRATION_VERSION)
         expected = tuple(range(1, len(versions) + 1))
         if versions != expected:
             raise ApplicationDatabaseError("incomplete application database migration history")

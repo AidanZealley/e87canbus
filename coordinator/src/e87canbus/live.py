@@ -216,10 +216,7 @@ class LiveControllerRuntime:
         self._button_pad_source = button_pad_source
         selected_servotronic_source = servotronic_source or (
             DeviceSource.PHYSICAL
-            if any(
-                item.network is CanNetwork.KCAN and item.enabled
-                for item in config.can_networks
-            )
+            if any(item.network is CanNetwork.KCAN and item.enabled for item in config.can_networks)
             else DeviceSource.DISABLED
         )
         if selected_servotronic_source is DeviceSource.EMULATED:
@@ -281,7 +278,11 @@ class LiveControllerRuntime:
                 or self._button_pad_source is DeviceSource.PHYSICAL
             )
         }
-        self._executor = EffectExecutor(transmitters, self._router)
+        self._executor = EffectExecutor(
+            transmitters,
+            self._router,
+            button_pad_payload_interval_s=0.25,
+        )
         execution = self._dispatch(KernelStarted(self._clock()))
         if execution is None:
             raise RuntimeError("live controller kernel did not start")

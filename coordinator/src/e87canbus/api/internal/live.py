@@ -52,6 +52,7 @@ TOPIC_EVENTS = {
     StateTopic.HEALTH: ServerEvent.CONTROLLER_HEALTH,
 }
 
+
 class LiveStatePublisher:
     """Retain bounded latest values while keeping the controller owner nonblocking."""
 
@@ -126,9 +127,7 @@ class LiveStatePublisher:
             )
         finally:
             unfinished = tuple(
-                item
-                for item in (task, socket_shutdown)
-                if item is not None and not item.done()
+                item for item in (task, socket_shutdown) if item is not None and not item.done()
             )
             for item in unfinished:
                 item.cancel()
@@ -310,9 +309,7 @@ class LiveStatePublisher:
         room: str | None = None,
     ) -> None:
         serialized = (
-            payload.model_dump(mode="json")
-            if isinstance(payload, LiveEnvelope)
-            else payload
+            payload.model_dump(mode="json") if isinstance(payload, LiveEnvelope) else payload
         )
         try:
             async with asyncio.timeout(self._send_timeout_s):
@@ -324,6 +321,7 @@ class LiveStatePublisher:
                 self._last_fault = f"Socket.IO publication failed: {event}"
             self._sync_service_health(enqueue=event is not ServerEvent.CONTROLLER_HEALTH)
             return
+
     def _sync_service_health(self, *, enqueue: bool = True) -> None:
         execution = self._service.update_publisher_health(self.diagnostics)
         if enqueue and execution is not None:

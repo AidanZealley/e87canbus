@@ -596,8 +596,7 @@ class ControllerService:
             and self._lifecycle is ControllerServiceLifecycle.RUNNING
             and self._persistence.available
             and (
-                self._latest_snapshot is None
-                or not self._latest_snapshot.diagnostics.health.fatal
+                self._latest_snapshot is None or not self._latest_snapshot.diagnostics.health.fatal
             )
         )
 

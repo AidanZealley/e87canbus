@@ -13,9 +13,17 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
+from e87canbus.button_pad import ButtonPadProgram
 
 BUTTON_LED_COUNT = 16
-BUTTON_FEEDBACK_DURATION_S = 0.5
+# Press feedback is one red blink cycle rendered on the device; the device self-terminates
+# to final_rgb after this duration, and the deadline resyncs coordinator state back to solid.
+BUTTON_FEEDBACK_BLINK_ON_MS = 100
+BUTTON_FEEDBACK_BLINK_OFF_MS = 100
+BUTTON_FEEDBACK_BLINK_REPEAT = 2
+BUTTON_FEEDBACK_DURATION_S = (
+    (BUTTON_FEEDBACK_BLINK_ON_MS + BUTTON_FEEDBACK_BLINK_OFF_MS) * BUTTON_FEEDBACK_BLINK_REPEAT
+) / 1000
 Rgb = tuple[int, int, int]
 RGB_OFF: Rgb = (0, 0, 0)
 RGB_RED: Rgb = (255, 0, 0)
@@ -159,8 +167,8 @@ ApplicationEvent = (
 
 
 @dataclass(frozen=True)
-class SetButtonLeds:
-    rgb: ButtonLedState
+class SetButtonPadProgram:
+    program: ButtonPadProgram
 
 
 @dataclass(frozen=True)
@@ -186,4 +194,4 @@ class SetHighBeam:
             raise ValueError("high-beam enabled must be a boolean")
 
 
-ApplicationEffect = SetButtonLeds | SetSteeringAssistance | SetHighBeam
+ApplicationEffect = SetButtonPadProgram | SetSteeringAssistance | SetHighBeam

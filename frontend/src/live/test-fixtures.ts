@@ -4,6 +4,37 @@ import type {
   SteeringCurveDefinition,
 } from "@/api/live-contract.gen"
 
+export const staticButtonPadProgram = (
+  rgb: readonly (readonly [number, number, number])[],
+  generation: number
+): ButtonsState["program"] => ({
+  encoding: "e87-button-pad-v2",
+  generation,
+  commands: ([
+    [2, 1, 1, 0, 1, ...rgb[0], 0, 0, 0, 0, 0, ...rgb[0]],
+    ...rgb
+      .slice(1)
+      .map((colour, offset) => [
+        2,
+        2,
+        (1 << (offset + 1)) & 0xff,
+        (1 << (offset + 1)) >> 8,
+        1,
+        ...colour,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ...colour,
+      ]),
+  ] as number[][]).map((command, index, commands) =>
+    index === commands.length - 1
+      ? [command[0], command[1] | 0x80, ...command.slice(2)]
+      : command
+  ) as ButtonsState["program"]["commands"],
+})
+
 const steering = {
   mode: "auto" as const,
   manual_assistance_level: 0,
@@ -54,11 +85,13 @@ export const snapshot = (
     },
     steering,
     buttons: {
-      led_rgb: Array.from({ length: 16 }, () => [
-        revision,
-        revision,
-        revision,
-      ]) as ButtonsState["led_rgb"],
+      program: staticButtonPadProgram(
+        Array.from(
+          { length: 16 },
+          () => [revision, revision, revision] as const
+        ),
+        revision
+      ),
     },
     lighting: {
       high_beam_enabled: false,

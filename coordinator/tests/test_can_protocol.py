@@ -1,23 +1,25 @@
 import pytest
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
-    RGB_SNAPSHOT_LENGTH,
+    BUTTON_PAD_TRACK_BLINK,
+    BUTTON_PAD_TRACK_SOLID,
     ArduinoButtonEventPayload,
+    ButtonPadTrackCommandPayload,
+    ButtonPadTrackPayload,
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    RgbSnapshotPayload,
     RoutedCanFrame,
     decode_button_event,
+    decode_button_pad_program,
     decode_heartbeat,
     decode_hello,
-    decode_rgb_snapshot,
     decode_welcome_ack,
     encode_button_event,
+    encode_button_pad_program,
     encode_heartbeat,
     encode_hello,
-    encode_rgb_snapshot,
     encode_welcome_ack,
 )
 
@@ -44,34 +46,23 @@ def test_encode_and_decode_arduino_button_event() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("rgb", "expected_data"),
-    [
-        (((0, 0, 0),) * 16, b"\x00" * 48),
-        (((3, 0, 0), (5, 0, 0)) + ((0, 0, 0),) * 14, b"\x03\x00\x00\x05\x00\x00" + b"\x00" * 42),
-    ],
-)
-def test_encode_and_decode_rgb_snapshot_golden_vectors(
-    rgb: tuple[tuple[int, int, int], ...], expected_data: bytes
-) -> None:
-    payload = RgbSnapshotPayload(rgb)
-    data = encode_rgb_snapshot(payload)
-
-    assert data == expected_data
-    assert decode_rgb_snapshot(data) == payload
-
-
 def test_reject_invalid_payload_lengths() -> None:
     with pytest.raises(ValueError, match="button event payload"):
         decode_button_event(CanFrame(CustomCanIds().button_event, b"\x01"), CustomCanIds())
 
-    with pytest.raises(ValueError, match="RGB snapshot payload"):
-        decode_rgb_snapshot(b"\x00" * (RGB_SNAPSHOT_LENGTH - 1))
 
-
-def test_rgb_snapshot_payload_rejects_partial_state() -> None:
-    with pytest.raises(ValueError, match="exactly 16"):
-        RgbSnapshotPayload(((0, 0, 0),) * 15)
+def test_button_pad_track_commands_round_trip() -> None:
+    replace = ButtonPadTrackCommandPayload(
+        True, 0xFFFF, ButtonPadTrackPayload(BUTTON_PAD_TRACK_SOLID, (0, 0, 1), final_rgb=(0, 0, 1))
+    )
+    blink = ButtonPadTrackCommandPayload(
+        False, 1 << 15, ButtonPadTrackPayload(BUTTON_PAD_TRACK_BLINK, (255, 0, 0), 100, 100, 2)
+    )
+    for command in (replace, blink):
+        encoded = encode_button_pad_program(command)
+        assert encoded[0] == 2
+        assert len(encoded) == 16
+        assert decode_button_pad_program(encoded) == command
 
 
 @pytest.mark.parametrize(

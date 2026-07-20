@@ -39,9 +39,15 @@ devices, malformed DLC, nonzero reserved bytes, invalid fields, and extended-ID 
 registry payloads. Registry routing is K-CAN-only; the same arbitration IDs on PT-CAN or F-CAN are
 not registry traffic.
 
-The button-pad RGB snapshot is a 48-byte ISO-TP payload on `0x708`/`0x709`, ordered as 16 `R G B`
-triples. Consumers replace all values only after complete reassembly and exact-length validation.
-Physical NeoTrellis rendering, mapping, brightness, and electrical limits remain deferred.
+Button-pad program v2 is an ordered sequence of 16-byte ISO-TP commands on `0x708`/`0x709`. The
+first command opens a whole-pad replacement, every button is assigned exactly once across the
+command masks, and bit 7 of the final opcode atomically commits the scene. Each command contains a 16-bit target mask and one resolved
+track: solid, blink, or breathe; RGB, two kind-specific parameters, `repeat`, and final RGB. A repeat
+of zero runs forever and a positive repeat count finishes on final RGB. The controller resolves any
+composition before encoding, so the AVR stores exactly one fixed-size track per button and contains
+no layering policy. Commands are paced below the shared CAN safety ceiling, while commit gives all
+changed tracks one device-local start time while unchanged tracks retain their phase. Malformed or unsupported commands are ignored; there is
+deliberately no acknowledgement layer.
 
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
@@ -66,8 +72,21 @@ runtime.
 
 The device-registry phase owns the static role vocabulary and wire codecs. The current adapter
 projection remains a temporary pre-registry transport surface until the registry kernel and live
-contract phases replace it. `buttons.led_rgb` remains the canonical controller-requested LED
-state; a successful send is not an acknowledgement or evidence of physical output application.
+contract phases replace it. `buttons.program` remains the canonical controller-requested device
+program; a successful send is not an acknowledgement or evidence of physical output application.
+
+`buttons.program.commands` are the exact ordered command bytes sent to the device, and `generation` is the
+buttons-topic revision at which it changed. The browser observer renders those opaque wire bytes
+through a replaceable renderer. Animation opcodes therefore do not expand the live-state contract;
+the TypeScript renderer currently mirrors the firmware's fixed integer triangle wave and may later
+be replaced by a WASM implementation. This remains requested state, not confirmation of physical
+output application.
+
+The controller constructs a canonical encoded `ButtonPadProgram` once through an opcode-specific
+factory. Runtime effects and snapshots carry that immutable value; CAN output and live publication
+forward its bytes without reconstructing or re-encoding the selected effect. Normative vectors in
+`protocol/test-vectors/button-pad-program-v2.json` are consumed by the Python codec, TypeScript
+renderer, and native C++ firmware-renderer tests.
 
 `controller.health` is a bounded, process-local operational projection rather than durable event
 history or arbitrary logs. It contains readiness and fatal truth, explicit capability faults,

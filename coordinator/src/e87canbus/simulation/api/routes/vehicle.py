@@ -28,9 +28,7 @@ router = APIRouter(
 async def set_vehicle_speed(
     request: Request, body: SpeedRequest
 ) -> SimulationCommandAcknowledgement:
-    return await run_command(
-        request.app, SetVehicleSignal(VehicleSignal.SPEED, body.speed_kph)
-    )
+    return await run_command(request.app, SetVehicleSignal(VehicleSignal.SPEED, body.speed_kph))
 
 
 @router.post(
@@ -39,9 +37,7 @@ async def set_vehicle_speed(
     responses=api_problem_responses(409, 422, 503),
 )
 async def silence_vehicle_speed(request: Request) -> SimulationCommandAcknowledgement:
-    return await run_command(
-        request.app, SilenceVehicleSignal(VehicleSignal.SPEED)
-    )
+    return await run_command(request.app, SilenceVehicleSignal(VehicleSignal.SPEED))
 
 
 @router.put(
@@ -52,9 +48,7 @@ async def silence_vehicle_speed(request: Request) -> SimulationCommandAcknowledg
 async def set_engine_rpm(
     request: Request, body: EngineRpmRequest
 ) -> SimulationCommandAcknowledgement:
-    return await run_command(
-        request.app, SetVehicleSignal(VehicleSignal.RPM, body.rpm)
-    )
+    return await run_command(request.app, SetVehicleSignal(VehicleSignal.RPM, body.rpm))
 
 
 @router.post(
@@ -63,9 +57,7 @@ async def set_engine_rpm(
     responses=api_problem_responses(409, 422, 503),
 )
 async def silence_engine_rpm(request: Request) -> SimulationCommandAcknowledgement:
-    return await run_command(
-        request.app, SilenceVehicleSignal(VehicleSignal.RPM)
-    )
+    return await run_command(request.app, SilenceVehicleSignal(VehicleSignal.RPM))
 
 
 @router.put(
@@ -88,9 +80,7 @@ async def set_oil_temperature(
     responses=api_problem_responses(409, 422, 503),
 )
 async def silence_oil_temperature(request: Request) -> SimulationCommandAcknowledgement:
-    return await run_command(
-        request.app, SilenceVehicleSignal(VehicleSignal.OIL_TEMPERATURE)
-    )
+    return await run_command(request.app, SilenceVehicleSignal(VehicleSignal.OIL_TEMPERATURE))
 
 
 @router.put(

@@ -225,10 +225,10 @@ remain unknown. No heartbeat or manually selected presentation-health state exis
 The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
 wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
 single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
-The coordinator derives exactly 16 desired RGB LED values, emits one `SetButtonLeds` effect, and
-sends one 48-byte ISO-TP snapshot. The simulated button pad validates complete reassembly before
-atomically replacing all 16 private RGB values; invalid or incomplete payloads preserve the prior
-state. Physical NeoTrellis rendering remains deferred.
+The coordinator resolves exactly one effect track per button and emits one canonical
+`SetButtonPadProgram`. Its ordered 16-byte ISO-TP commands begin with replace-all and commit on the
+final command, atomically starting all 16 tracks. The simulator and physical NeoTrellis decode the
+same v2 wire representation; invalid or incomplete programs do not expose a partial scene.
 
 ## Running the unified controller
 

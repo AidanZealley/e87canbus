@@ -3,7 +3,7 @@ protocol_version = 1
 [button_pad_transport]
 coordinator_to_device_id = 0x708
 device_to_coordinator_id = 0x709
-maximum_payload_length = 256
+maximum_payload_length = 64
 purpose = "ISO-TP opaque transport link (simulation/bench only; collision validation required before in-car TX)"
 
 [button_event]

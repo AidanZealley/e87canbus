@@ -48,11 +48,7 @@ class BoundedEngineIoServer(engineio.AsyncServer):  # type: ignore[misc]
 
     async def _disconnect_saturated_peer(self, queue: asyncio.Queue[Any]) -> None:
         saturated = next(
-            (
-                (sid, peer)
-                for sid, peer in self.sockets.items()
-                if peer.queue is queue
-            ),
+            ((sid, peer) for sid, peer in self.sockets.items() if peer.queue is queue),
             None,
         )
         if saturated is None:
