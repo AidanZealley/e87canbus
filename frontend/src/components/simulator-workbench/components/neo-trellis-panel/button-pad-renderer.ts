@@ -126,12 +126,13 @@ const renderTrack = (
     const column = index % 4
     const position = (timePhase + ((row + column) * 256) / 6) & 0xff
     const blend = position <= 128 ? position * 2 : (256 - position) * 2
+    const channel = (channelIndex: 0 | 1 | 2) =>
+      track.rgb[channelIndex] +
+      Math.trunc(
+        ((track.finalRgb[channelIndex] - track.rgb[channelIndex]) * blend) / 256
+      )
     return {
-      rgb: [0, 1, 2].map(
-        (channel) =>
-          track.rgb[channel] +
-          Math.trunc(((track.finalRgb[channel] - track.rgb[channel]) * blend) / 256)
-      ) as Rgb,
+      rgb: [channel(0), channel(1), channel(2)],
       animated: true,
     }
   }
