@@ -50,8 +50,12 @@ curl -X PUT http://127.0.0.1:8000/api/dev/simulation/vehicle/rpm \
 ```
 
 The selected readings are refreshed on every controller timer until their corresponding
-`/silence` endpoint is called. Bench telemetry is decoded from synthetic CAN frames; the `car`
-profile does not construct that source, decoder, or API surface.
+`/silence` endpoint is called. In the bench profile, synthetic speed is encoded onto physical
+K-CAN (`can0`) as well as being decoded through the coordinator's normal CAN event path, so an
+external bench controller can observe the same frame. Other synthetic engine readings remain
+coordinator-local because their realistic PT-CAN network is not present in the single-interface
+bench. The `car` profile does not construct the synthetic source, decoder, or API surface and has
+no CAN transmit grant.
 
 ## Button-pad device
 

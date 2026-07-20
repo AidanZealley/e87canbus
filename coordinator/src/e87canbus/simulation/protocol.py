@@ -19,7 +19,7 @@ from e87canbus.application.state import (
     OilTemperatureSample,
     SpeedSample,
 )
-from e87canbus.config import CanNetwork
+from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
@@ -224,13 +224,24 @@ VEHICLE_SIGNALS = {
     ),
 }
 
-SIGNAL_DECODERS = {
-    (spec.network, spec.arbitration_id): spec.decode for spec in VEHICLE_SIGNALS.values()
-}
-
-
 class SimulationProtocolRouter(ProtocolRouter):
     """Add unmistakably synthetic messages to the normal project router."""
+
+    def __init__(
+        self,
+        ids: CustomCanIds | None = None,
+        *,
+        button_input_enabled: bool = True,
+        synthetic_speed_network: CanNetwork = CanNetwork.FCAN,
+    ) -> None:
+        super().__init__(ids, button_input_enabled=button_input_enabled)
+        self._signal_decoders = {
+            (
+                synthetic_speed_network if signal is VehicleSignal.SPEED else spec.network,
+                spec.arbitration_id,
+            ): spec.decode
+            for signal, spec in VEHICLE_SIGNALS.items()
+        }
 
     def decode(
         self,
@@ -243,5 +254,5 @@ class SimulationProtocolRouter(ProtocolRouter):
         frame = routed.frame
         if not frame.is_extended_id:
             return None
-        decoder = SIGNAL_DECODERS.get((routed.network, frame.arbitration_id))
+        decoder = self._signal_decoders.get((routed.network, frame.arbitration_id))
         return None if decoder is None else decoder(frame, observed_at, routed.network)

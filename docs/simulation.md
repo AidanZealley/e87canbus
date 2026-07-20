@@ -99,13 +99,20 @@ frame/ID nor a live vehicle command.
 
 Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
-simulation-only CAN frame on the in-memory F-CAN. The runtime timestamps and decodes that frame
+simulation-only CAN frame on the configured speed network (F-CAN by default). The runtime timestamps and decodes that frame
 through the kernel; the API does not inject `SpeedObserved` or application state. The live router
 does not recognize the synthetic ID. The selected speed persists on the external vehicle. Immediately
 before each ordered control timer, the vehicle emits a fresh encoded frame and the runtime drains it
 through the kernel before dispatching the timer.
 `POST /api/dev/simulation/vehicle/speed/silence` clears the selection; subsequent timers emit no
 speed frame until another speed is set.
+
+The closed `bench` profile overrides only synthetic speed to K-CAN and transmits each initial and
+refreshed frame onto physical `can0`. This lets a one-interface Servotronic prototype consume the
+same synthetic frame while preserving the more representative F-CAN default for the in-memory
+simulator. Emission and decoding share one configuration value, so changing the network cannot
+leave the simulator listening on the old bus. The production `car` profile never installs this
+simulation-only protocol or grants transmission.
 
 On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
 assistance curve. Never-seen and stale speed select zero simulated assistance with distinct reasons.

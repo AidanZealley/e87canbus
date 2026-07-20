@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from e87canbus.adapters.socketcan import SocketCanBus
@@ -70,7 +71,7 @@ def build_live_controller_service(
             tx_grants=tx_grants,
             bus_factory=socketcan_factory,
             synthetic_vehicle=(
-                SyntheticVehicleSource()
+                SyntheticVehicleSource(selected_config.simulation.synthetic_speed_network)
                 if selected_deployment.vehicle_source is VehicleSource.EMULATED
                 else None
             ),
@@ -136,6 +137,14 @@ def build_controller_service(
 
     spec = deployment_spec(profile)
     selected_config = config or default_config()
+    if profile is DeploymentProfile.BENCH:
+        selected_config = replace(
+            selected_config,
+            simulation=replace(
+                selected_config.simulation,
+                synthetic_speed_network=CanNetwork.KCAN,
+            ),
+        )
     if spec.transport is CanTransport.IN_MEMORY:
         selected_config = configure_can_networks(
             selected_config,

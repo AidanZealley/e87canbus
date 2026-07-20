@@ -229,6 +229,11 @@ class LiveControllerRuntime:
         self._router = router_type(
             config.custom_can_ids,
             button_input_enabled=button_pad_source is DeviceSource.PHYSICAL,
+            **(
+                {"synthetic_speed_network": config.simulation.synthetic_speed_network}
+                if synthetic_vehicle is not None
+                else {}
+            ),
         )
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
@@ -243,6 +248,7 @@ class LiveControllerRuntime:
         )
         self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
+        self._transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
         self._started = False
@@ -278,8 +284,9 @@ class LiveControllerRuntime:
                 or self._button_pad_source is DeviceSource.PHYSICAL
             )
         }
+        self._transmitters = transmitters
         self._executor = EffectExecutor(
-            transmitters,
+            self._transmitters,
             self._router,
             button_pad_payload_interval_s=0.25,
         )
@@ -445,6 +452,20 @@ class LiveControllerRuntime:
     ) -> RuntimeExecution:
         executions: list[RuntimeExecution] = []
         for routed in frames:
+            transmitter = self._transmitters.get(routed.network)
+            if transmitter is not None:
+                try:
+                    transmitter.send(routed.frame)
+                except OSError as exc:
+                    failure = self._dispatch(
+                        CanEffectExecutionFailed(
+                            routed.network,
+                            self._clock(),
+                            str(exc),
+                        )
+                    )
+                    if failure is not None:
+                        executions.append(failure)
             execution = self._dispatch(
                 ReceivedCanFrame(
                     network=routed.network,

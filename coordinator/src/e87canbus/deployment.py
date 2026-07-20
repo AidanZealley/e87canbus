@@ -93,7 +93,7 @@ _PROFILE_FIELDS = {
         CanTransport.SOCKETCAN,
         (
             (DeviceRole.BUTTON_PAD, DeviceSource.PHYSICAL),
-            (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.DISABLED),
+            (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),
         ),
         VehicleSource.EMULATED,
         frozenset({CanNetwork.KCAN}),

@@ -134,8 +134,11 @@ rate-limited. This application-level RX-only default is separate from configurin
 hardware in listen-only mode, which remains a recommended deployment defense. The high-beam strobe
 has a separate simulator-only actuator capability: a live K-CAN TX grant alone cannot create or
 enable it. Its extended synthetic frame is not a BMW ID, has no live router/actuator mapping, and
-cannot be sent to a real car by this application. DSC replay, capture-backed BMW high-beam commands,
-and physical Servotronic output are intentionally not implemented yet.
+cannot be sent to a real car by this application. DSC replay and capture-backed BMW high-beam
+commands are intentionally not implemented yet. A physical fan-bench Servotronic controller now
+implements synthetic-speed reception, a compiled-in assistance curve, bounded PWM, registration,
+and local failsafes. Closed-loop current regulation, rack-solenoid output hardware, a real BMW
+speed decoder, and vehicle-safe Servotronic output remain intentionally unimplemented.
 Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
 as confirmed. In particular, a future high-beam implementation needs named captures of stalk
 pull and release, counter/checksum behavior and normal cadence, followed by controlled validation

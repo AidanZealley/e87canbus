@@ -11,7 +11,7 @@ from e87canbus.composition import (
     build_live_controller_service,
     build_simulated_controller_service,
 )
-from e87canbus.config import CanNetwork, default_config
+from e87canbus.config import CanNetwork, TxPolicyConfig, default_config
 from e87canbus.deployment import (
     CanTransport,
     DeploymentProfile,
@@ -20,18 +20,23 @@ from e87canbus.deployment import (
     deployment_spec,
 )
 from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.protocol.can import CanFrame
+from e87canbus.protocol.can import CanFrame, DeviceHelloPayload, encode_hello
 from e87canbus.runtime import ReceivedCanFrame
+from e87canbus.service import ControllerServiceLifecycle
 from e87canbus.simulation.protocol import encode_simulated_speed
 from fastapi.testclient import TestClient
 
 
 class FakeSocketCanBus:
+    instances: list[FakeSocketCanBus] = []
+
     def __init__(self, interface: str) -> None:
         self.interface = interface
+        self.sent: list[CanFrame] = []
+        self.instances.append(self)
 
     def send(self, frame: CanFrame) -> None:
-        del frame
+        self.sent.append(frame)
 
     def receive(self, timeout_s: float | None = None) -> CanFrame | None:
         time.sleep(min(timeout_s or 0.0, 0.001))
@@ -39,6 +44,12 @@ class FakeSocketCanBus:
 
     def shutdown(self) -> None:
         pass
+
+
+class FailingSendSocketCanBus(FakeSocketCanBus):
+    def send(self, frame: CanFrame) -> None:
+        del frame
+        raise OSError("bench CAN send failed")
 
 
 def slow_config():
@@ -77,13 +88,14 @@ def test_bench_profile_is_physical_kcan_with_only_virtual_vehicle_controls() -> 
     assert spec.physical_networks == {CanNetwork.KCAN}
     assert spec.vehicle_source is VehicleSource.EMULATED
     assert spec.device_source(DeviceRole.BUTTON_PAD) is DeviceSource.PHYSICAL
-    assert spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER) is DeviceSource.DISABLED
+    assert spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER) is DeviceSource.PHYSICAL
     assert spec.simulation_api is SimulationApiScope.VEHICLE
 
 
 def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls(
     tmp_path: Path,
 ) -> None:
+    FakeSocketCanBus.instances = []
     service = build_controller_service(
         DeploymentProfile.BENCH,
         config=slow_config(),
@@ -104,11 +116,79 @@ def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls
         assert response.status_code == 200
         assert snapshot.application.speed_valid is True
         assert snapshot.application.vehicle_speed_kph == 42.5
+        assert FakeSocketCanBus.instances[0].interface == "can0"
+        assert FakeSocketCanBus.instances[0].sent == [encode_simulated_speed(42.5)]
         assert client.post("/api/dev/simulation/reset").status_code == 404
         assert (
             client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404
         )
         assert client.post("/api/dev/simulation/devices/button-pad/disconnect").status_code == 404
+
+
+def test_bench_speed_and_device_effect_share_one_kcan_rate_budget(tmp_path: Path) -> None:
+    FakeSocketCanBus.instances = []
+    config = replace(
+        slow_config(),
+        tx_policy=TxPolicyConfig(max_frames_per_network_window=1),
+    )
+    service = build_controller_service(
+        DeploymentProfile.BENCH,
+        config=config,
+        socketcan_factory=FakeSocketCanBus,
+    )
+    app = create_app(
+        controller_service=service,
+        profile_database_path=tmp_path / "bench-shared-budget.sqlite3",
+    )
+
+    with TestClient(app) as client:
+        assert client.put(
+            "/api/dev/simulation/vehicle/speed",
+            json={"speed_kph": 42.5},
+        ).status_code == 200
+        service.submit(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                encode_hello(
+                    DeviceHelloPayload(1, 1, 1, 0),
+                    config.custom_can_ids.button_pad_hello,
+                ),
+                1.0,
+            )
+        ).result(timeout=0.2)
+
+        assert FakeSocketCanBus.instances[0].sent == [encode_simulated_speed(42.5)]
+
+
+def test_bench_speed_send_failure_uses_canonical_fatal_can_effect_path(
+    tmp_path: Path,
+) -> None:
+    FakeSocketCanBus.instances = []
+    service = build_controller_service(
+        DeploymentProfile.BENCH,
+        config=replace(default_config(), tick_interval_s=0.01),
+        socketcan_factory=FailingSendSocketCanBus,
+    )
+    app = create_app(
+        controller_service=service,
+        profile_database_path=tmp_path / "bench-send-failure.sqlite3",
+    )
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/api/dev/simulation/vehicle/speed",
+            json={"speed_kph": 42.5},
+        )
+        deadline = time.monotonic() + 0.5
+        while service.lifecycle is not ControllerServiceLifecycle.STOPPED:
+            assert time.monotonic() < deadline
+        snapshot = service.snapshot()
+
+        assert response.status_code == 503
+        assert snapshot.application.vehicle_speed_kph == 42.5
+        assert snapshot.application.speed_valid is True
+        assert snapshot.diagnostics.health.fatal is True
+        assert service.lifecycle is ControllerServiceLifecycle.STOPPED
 
 
 def test_car_api_installs_no_simulation_routes(tmp_path: Path) -> None:
@@ -133,6 +213,7 @@ def test_car_api_installs_no_simulation_routes(tmp_path: Path) -> None:
 
 
 def test_car_profile_does_not_decode_synthetic_vehicle_frames() -> None:
+    FakeSocketCanBus.instances = []
     service = build_controller_service(
         DeploymentProfile.CAR,
         config=slow_config(),
@@ -153,3 +234,4 @@ def test_car_profile_does_not_decode_synthetic_vehicle_frames() -> None:
         service.stop()
 
     assert snapshot.application.speed_valid is False
+    assert all(not bus.sent for bus in FakeSocketCanBus.instances)

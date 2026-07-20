@@ -5,6 +5,7 @@ from e87canbus.application.events import (
     CoolantTemperatureObserved,
     EngineRpmObserved,
     OilTemperatureObserved,
+    SpeedObserved,
 )
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
@@ -20,6 +21,7 @@ from e87canbus.simulation.protocol import (
     encode_simulated_engine_rpm,
     encode_simulated_high_beam_command,
     encode_simulated_oil_temperature,
+    encode_simulated_speed,
 )
 
 
@@ -137,3 +139,14 @@ def test_simulation_router_ignores_wrong_network_and_standard_frames(
 )
 def test_live_router_ignores_all_synthetic_engine_frames(frame: CanFrame) -> None:
     assert ProtocolRouter().decode(RoutedCanFrame(CanNetwork.PTCAN, frame), 1.0) is None
+
+
+def test_simulated_speed_network_is_configurable_without_accepting_it_on_both_buses() -> None:
+    router = SimulationProtocolRouter(synthetic_speed_network=CanNetwork.KCAN)
+    frame = encode_simulated_speed(42.5)
+
+    event = router.decode(RoutedCanFrame(CanNetwork.KCAN, frame), 12.5)
+
+    assert isinstance(event, SpeedObserved)
+    assert event.sample.source_network is CanNetwork.KCAN
+    assert router.decode(RoutedCanFrame(CanNetwork.FCAN, frame), 12.5) is None

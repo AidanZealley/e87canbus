@@ -136,6 +136,7 @@ class PlaceholderBmwIds:
 class SimulationConfig:
     trace_capacity: int = 2_000
     steering_watchdog_timeout_s: float = 0.25
+    synthetic_speed_network: CanNetwork = CanNetwork.FCAN
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
@@ -145,6 +146,8 @@ class SimulationConfig:
             or self.steering_watchdog_timeout_s <= 0
         ):
             raise ValueError("simulation steering watchdog timeout must be finite and positive")
+        if not isinstance(self.synthetic_speed_network, CanNetwork):
+            raise ValueError("simulation synthetic speed network must be a CAN network")
 
 
 @dataclass(frozen=True)

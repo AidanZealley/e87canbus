@@ -76,6 +76,7 @@ from e87canbus.simulation.devices import (
     SimulatedVehicleNode,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter
+from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 
 LOGGER = logging.getLogger(__name__)
 
@@ -291,7 +292,10 @@ class SimulatedControllerRuntime:
             item.network: self.topology.create_bus(item.network, "simulated-vehicle")
             for item in self.config.can_networks
         }
-        self.vehicle = SimulatedVehicleNode(vehicle_buses)
+        self.vehicle = SimulatedVehicleNode(
+            vehicle_buses,
+            SyntheticVehicleSource(self.config.simulation.synthetic_speed_network),
+        )
 
         kcan_enabled = CanNetwork.KCAN in self.pi_buses
 
@@ -317,6 +321,7 @@ class SimulatedControllerRuntime:
         router = SimulationProtocolRouter(
             self.config.custom_can_ids,
             button_input_enabled=self.button_pad_source is DeviceSource.EMULATED,
+            synthetic_speed_network=self.config.simulation.synthetic_speed_network,
         )
         self.kernel = CoordinatorKernel(
             steering_config=self.config.steering,
