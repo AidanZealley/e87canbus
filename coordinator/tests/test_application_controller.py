@@ -279,7 +279,7 @@ def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted
         (
             SteeringMode.AUTO,
             3,
-            (SteeringMode.MANUAL, 7, True),
+            (SteeringMode.MANUAL, 10, True),
             MANUAL_MAXIMUM_LEDS,
         ),
         (SteeringMode.MANUAL, 0, (SteeringMode.AUTO, 0, False), AUTO_LEDS),
@@ -288,7 +288,7 @@ def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted
         (
             SteeringMode.MANUAL,
             3,
-            (SteeringMode.MANUAL, 7, True),
+            (SteeringMode.MANUAL, 10, True),
             MANUAL_MAXIMUM_LEDS,
         ),
     ],
@@ -381,11 +381,11 @@ def test_each_assistance_button_press_emits_its_command_and_default_feedback() -
     lowered = transition(raised.state, ButtonPressed(1), CONFIG)
 
     assert raised.effects == (
-        SetSteeringAssistance(6 / 7, SteeringCommandReason.MANUAL),
+        SetSteeringAssistance(0.6, SteeringCommandReason.MANUAL),
         TriggerButtonPadBlink(2, ButtonFeedbackColour.WHITE),
     )
     assert lowered.effects == (
-        SetSteeringAssistance(5 / 7, SteeringCommandReason.MANUAL),
+        SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL),
         TriggerButtonPadBlink(1, ButtonFeedbackColour.WHITE),
     )
 
@@ -534,7 +534,7 @@ def test_engine_telemetry_ages_independently_with_monotonic_evaluation_time() ->
         ),
         (
             application_state(SteeringMode.MANUAL, 4),
-            SetSteeringAssistance(4 / 7, SteeringCommandReason.MANUAL),
+            SetSteeringAssistance(0.4, SteeringCommandReason.MANUAL),
         ),
         (
             ApplicationState(MaximumAssistance(NormalSteering())),

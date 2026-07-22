@@ -99,7 +99,7 @@ def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
 
 
 def test_steering_level_count() -> None:
-    assert default_config().steering.manual_level_count == 8
+    assert default_config().steering.manual_level_count == 11
 
 
 @pytest.mark.parametrize(

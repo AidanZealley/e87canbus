@@ -95,7 +95,7 @@ class CustomCanIds:
 
 @dataclass(frozen=True)
 class SteeringConfig:
-    manual_level_count: int = 8
+    manual_level_count: int = 11
     speed_timeout_s: float = 1.0
 
     def __post_init__(self) -> None:

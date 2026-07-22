@@ -715,7 +715,7 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     controller.execute(ReleaseButton(2))
     controller.execute(PressButton(3))
     assert application(controller).maximum_assistance_active is True
-    assert application(controller).manual_assistance_level == 7
+    assert application(controller).manual_assistance_level == 10
     assert button_led_rgb(application(controller))[3] == RGB_WHITE
 
     controller.execute(ReleaseButton(3))
