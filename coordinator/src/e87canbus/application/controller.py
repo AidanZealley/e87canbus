@@ -578,14 +578,9 @@ def _set_steering_mode(
         mode=mode,
         manual_level=normal.manual_level if manual_level is None else manual_level,
     )
-    next_state = replace(
-        state,
-        steering=(
-            MaximumAssistance(previous=next_normal)
-            if isinstance(steering, MaximumAssistance)
-            else next_normal
-        ),
-    )
+    # An explicit mode selection is a normal steering command, so it also
+    # cancels the temporary maximum-assistance override.
+    next_state = replace(state, steering=next_normal)
     return Transition(next_state, _steering_state_effects(state, next_state))
 
 

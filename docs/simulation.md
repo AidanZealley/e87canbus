@@ -88,7 +88,7 @@ Disabled mode has no emulator controls or device-originated traffic and omits th
 Source-mode changes require restart. Reset reconstructs the virtual topology and emulator, clears
 trace identity and restores vehicle signals to never-observed without retaining old endpoints.
 
-Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. This remembered state is not persisted across coordinator restarts.
+Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. There are eleven manual levels, from 0% through 100% in 10% increments. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. The on-screen `−` and `+` controls follow the same maximum-assistance cancellation behavior. This remembered state is not persisted across coordinator restarts.
 
 Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
 for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
@@ -116,7 +116,7 @@ simulation-only protocol or grants transmission.
 
 On each control timer, Auto maps fresh speed through the configured dimensionless `0.0..1.0`
 assistance curve. Never-seen and stale speed select zero simulated assistance with distinct reasons.
-Manual levels map evenly into the same range and maximum assistance selects `1.0`, including when
+Manual levels map from `0.0` through `1.0` in eleven stages at `0.1` increments and maximum assistance selects `1.0`, including when
 speed is absent. Fresh speed recovers Auto on the next control timer. CAN reader failure, inbox
 overflow, and shutdown also select zero assistance with distinct reasons before the live loop exits.
 

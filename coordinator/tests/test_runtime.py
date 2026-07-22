@@ -166,8 +166,8 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     maximum = kernel.dispatch(SetMaximumAssistance(True))
     repeated_maximum = kernel.dispatch(SetMaximumAssistance(True))
-    hidden_mode = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
-    repeated_hidden_mode = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+    manual = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+    repeated_manual = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
     normal = kernel.dispatch(SetMaximumAssistance(False))
     repeated_normal = kernel.dispatch(SetMaximumAssistance(False))
     auto = kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
@@ -180,8 +180,7 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     for repeated in (
         repeated_maximum,
-        hidden_mode,
-        repeated_hidden_mode,
+        repeated_manual,
         repeated_normal,
         repeated_auto,
     ):
@@ -190,12 +189,17 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
         assert repeated.effects == ()
         assert repeated.state_changed is False
 
+    assert manual is not None
+    assert manual.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
+    assert manual.effects == (EffectRequest(led_program(MANUAL_LEDS)),)
+    assert manual.snapshot.steering_mode is SteeringMode.MANUAL
+    assert manual.snapshot.manual_assistance_level == 4
+    assert manual.snapshot.maximum_assistance_active is False
+
     assert normal is not None
-    assert normal.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert normal.effects == (EffectRequest(led_program(MANUAL_LEDS)),)
-    assert normal.snapshot.steering_mode is SteeringMode.MANUAL
-    assert normal.snapshot.manual_assistance_level == 4
-    assert normal.snapshot.maximum_assistance_active is False
+    assert normal.changed_topics == frozenset()
+    assert normal.effects == ()
+    assert normal.state_changed is False
 
     assert auto is not None
     assert auto.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}

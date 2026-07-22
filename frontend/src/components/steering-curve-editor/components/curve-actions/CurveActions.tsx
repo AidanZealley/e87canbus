@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { PendingCurveAction } from "../../types"
 
+const MANUAL_ASSISTANCE_LEVEL_COUNT = 11
+
 export const CurveActions = ({
   mode,
   manualAssistanceLevel,
@@ -86,7 +88,13 @@ export const CurveActions = ({
             variant="outline"
             size="icon-sm"
             aria-label="Increase assistance"
-            disabled={pendingAction !== null || !modeControlAvailable}
+            disabled={
+              pendingAction !== null ||
+              !modeControlAvailable ||
+              (mode === "manual" &&
+                !maximumAssistanceActive &&
+                manualAssistanceLevel === MANUAL_ASSISTANCE_LEVEL_COUNT - 1)
+            }
             onClick={() =>
               onLevelChange(
                 mode === "manual" && !maximumAssistanceActive
