@@ -104,6 +104,7 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
+    curve_configuration_available: bool
     button_pad_program: ButtonPadProgram
     high_beam_enabled: bool
     high_beam_strobe_active: bool
@@ -309,6 +310,7 @@ def snapshot(
     activation_status: SteeringCurveActivationStatus,
     servotronic_usable: bool = True,
     high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+    curve_configuration_available: bool = False,
 ) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -348,6 +350,7 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
+        curve_configuration_available=curve_configuration_available,
         button_pad_program=button_pad_program(
             state, servotronic_usable, high_beam_button_index
         ),

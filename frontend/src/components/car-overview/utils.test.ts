@@ -30,6 +30,7 @@ const steering: SteeringState = {
     saved_profile_revision: 3,
   },
   servotronic: null,
+  curve_configuration_available: true,
 }
 const profile: SteeringProfileResponse = {
   profile_id: steering.active_curve.saved_profile_id!,

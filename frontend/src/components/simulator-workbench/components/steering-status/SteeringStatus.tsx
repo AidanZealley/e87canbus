@@ -17,6 +17,7 @@ export const SteeringStatus = () => {
   )
     return null
   const isAuto = steering.mode === "auto"
+  const physical = controller.active_curve_source !== null
 
   return (
     <section className="grid gap-4" aria-label="Servotronic steering assist">
@@ -24,7 +25,7 @@ export const SteeringStatus = () => {
         <div>
           <h2 className="font-heading text-sm font-medium">Steering assist</h2>
           <p className="text-xs/relaxed text-muted-foreground">
-            In-process actuator projection and watchdog
+            {physical ? "Physical controller telemetry" : "In-process actuator projection and watchdog"}
           </p>
         </div>
         <div>
@@ -63,10 +64,12 @@ export const SteeringStatus = () => {
           </div>
           <div className="rounded-md border p-3">
             <dt className="text-xs text-muted-foreground">
-              Effective simulated assistance
+              Effective assistance
             </dt>
             <dd className="font-heading text-base font-semibold">
-              {(controller.effective_assistance * 100).toFixed(0)}%
+              {controller.effective_assistance === null
+                ? "Unavailable"
+                : `${(controller.effective_assistance * 100).toFixed(0)}%`}
             </dd>
           </div>
           <div className="rounded-md border p-3">
@@ -93,6 +96,12 @@ export const SteeringStatus = () => {
           </div>
         </dl>
       </div>
+
+      {physical ? (
+        <p className="text-xs text-muted-foreground">
+          Curve {controller.active_curve_source} · revision {controller.active_curve_revision ?? "unknown"} · PWM {controller.pwm_duty ?? "unknown"} · {controller.inhibit_reason ?? "unknown"}
+        </p>
+      ) : null}
 
       <p className="text-xs text-muted-foreground">
         Button 0 changes mode; 1/2 adjust; 3 toggles maximum assist.

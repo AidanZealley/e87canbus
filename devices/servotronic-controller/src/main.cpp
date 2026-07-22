@@ -5,6 +5,8 @@
 #include <mcp_can.h>
 
 #include "registry_protocol.h"
+#include "can_ids.h"
+#include "isotp_transport.h"
 #include "servotronic_logic.h"
 
 #ifndef DEVICE_ID
@@ -30,12 +32,24 @@ namespace {
 constexpr uint32_t HELLO_MS = 1000, HEARTBEAT_MS = 1000, LEASE_MS = 3000;
 MCP_CAN bus(CAN_CS_PIN);
 servotronic::SpeedState speed;
+servotronic::ActiveCurve activeCurve;
 bool canHealthy = false, leased = false;
 uint16_t deviceSession = 0, controllerSession = 0;
 uint8_t sequence = 0;
 servotronic::AckTracker acknowledgements;
 uint32_t lastAckMs = 0, nextHelloMs = 0, nextHeartbeatMs = 0, nextCanRetryMs = 0, nextDiagnosticMs = 0;
 servotronic::Inhibit lastInhibit = servotronic::Inhibit::NO_SPEED;
+servotronic::CurveResult lastCurveResult = servotronic::CurveResult::ACCEPTED;
+uint8_t lastDuty = 0;
+uint16_t lastAssistancePerMille = 0;
+servotronic::Inhibit currentInhibit = servotronic::Inhibit::NO_SPEED;
+uint32_t nextStatusMs = 0;
+
+bool sendIsoTpFrame(uint32_t id, const uint8_t *payload, uint8_t length) {
+    return canHealthy && bus.sendMsgBuf(id, 0, length, const_cast<uint8_t *>(payload)) == CAN_OK;
+}
+e87canbus::IsoTpTransport curveTransport(CAN_ID_SERVOTRONIC_TRANSPORT_DEVICE_TO_COORDINATOR,
+                                         sendIsoTpFrame);
 
 bool due(uint32_t now, uint32_t deadline) { return static_cast<int32_t>(now - deadline) >= 0; }
 bool leaseFresh(uint32_t now) { return leased && now - lastAckMs <= LEASE_MS; }
@@ -82,6 +96,8 @@ void pollCan(uint32_t now) {
         bus.readMsgBuf(&id, &extendedFlag, &length, p);
         const bool extended = extendedFlag != 0;
         if (!extended && id == servotronic::WELCOME_ID) handleWelcome(p, length, now);
+        if (!extended && id == CAN_ID_SERVOTRONIC_TRANSPORT_COORDINATOR_TO_DEVICE)
+            curveTransport.onFrame(p, length);
         if ((id & 0x1fffffffUL) == servotronic::SPEED_CAN_ID) {
             uint16_t value = 0;
             if (servotronic::decodeSpeed(extended, id & 0x1fffffffUL, p, length, value)) {
@@ -94,13 +110,27 @@ void pollCan(uint32_t now) {
     if (canHealthy && bus.checkError() != CAN_OK) canHealthy = false;
 }
 
+void sendStatus(uint32_t now) {
+    uint8_t p[servotronic::CURVE_STATUS_LENGTH] = {};
+    p[0] = servotronic::CURVE_PROTOCOL_VERSION; p[1] = servotronic::CURVE_STATUS_OPCODE;
+    p[2] = static_cast<uint8_t>(lastCurveResult); p[3] = static_cast<uint8_t>(activeCurve.source);
+    servotronic::writeU32(p + 4, activeCurve.revision);
+    servotronic::writeU32(p + 8, activeCurve.crc32);
+    servotronic::writeU16(p + 12, speed.deciKph);
+    servotronic::writeU16(p + 14, lastAssistancePerMille);
+    p[16] = lastDuty;
+    p[17] = (speed.seen && now - speed.receivedMs <= servotronic::SPEED_TIMEOUT_MS) ? 1 : 0;
+    p[18] = static_cast<uint8_t>(currentInhibit);
+    curveTransport.send(p, sizeof(p));
+    nextStatusMs = now + 1000;
+}
+
 const char *inhibitName(servotronic::Inhibit r) {
     switch (r) {
         case servotronic::Inhibit::NONE: return "none";
         case servotronic::Inhibit::NO_SPEED: return "no_speed";
         case servotronic::Inhibit::STALE_SPEED: return "stale_speed";
         case servotronic::Inhibit::INVALID_SPEED: return "invalid_speed";
-        case servotronic::Inhibit::NO_CONTROLLER: return "no_controller";
         default: return "can_fault";
     }
 }
@@ -121,17 +151,28 @@ void loop() {
     wdt_reset();
     const uint32_t now = millis();
     pollCan(now);
+    curveTransport.poll();
+    uint8_t curvePayload[e87canbus::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
+    uint16_t curveLength = 0;
+    if (curveTransport.receive(curvePayload, sizeof(curvePayload), &curveLength) && leaseFresh(now)) {
+        lastCurveResult = servotronic::applyCurvePayload(curvePayload, curveLength, activeCurve);
+        sendStatus(now);
+    }
     if (!canHealthy && due(now, nextCanRetryMs)) {
         initializeCan(); nextCanRetryMs = now + 1000; leased = false;
     }
     if (!leaseFresh(now)) leased = false;
     if (!leased && due(now, nextHelloMs)) sendHello(now);
-    const servotronic::Inhibit inhibit = servotronic::inhibitReason(speed, now, leaseFresh(now), canHealthy);
-    const float assistance = servotronic::assistanceForSpeed(speed.deciKph);
+    // A valid local curve and direct speed remain usable without a coordinator lease.
+    const servotronic::Inhibit inhibit = servotronic::inhibitReason(speed, now, canHealthy);
+    currentInhibit = inhibit;
+    const float assistance = servotronic::assistanceForSpeed(speed.deciKph, activeCurve);
     const uint8_t duty = inhibit == servotronic::Inhibit::NONE
                              ? servotronic::boundedDuty(assistance, PWM_DUTY_CEILING) : 0;
     analogWrite(PWM_OUTPUT_PIN, duty);
+    lastDuty = duty; lastAssistancePerMille = static_cast<uint16_t>(assistance * 1000.0f + 0.5f);
     if (leased && due(now, nextHeartbeatMs)) sendHeartbeat(now, static_cast<uint8_t>(inhibit));
+    if (leased && due(now, nextStatusMs)) sendStatus(now);
     if (inhibit != lastInhibit || due(now, nextDiagnosticMs)) {
         Serial.print("speed_dkph="); Serial.print(speed.deciKph);
         Serial.print(" assistance="); Serial.print(assistance, 4);

@@ -8,6 +8,8 @@ type SteeringCurveCardProps = {
   mode: Mode
   speedKph: number | null
   activeAssistance?: number | null
+  activationAvailable?: boolean
+  modeControlAvailable?: boolean
 }
 
 export const SteeringCurveCard = ({
@@ -15,16 +17,23 @@ export const SteeringCurveCard = ({
   mode,
   speedKph,
   activeAssistance = null,
+  activationAvailable = true,
+  modeControlAvailable = true,
 }: SteeringCurveCardProps) => {
   return (
     <Card className="min-w-0">
-      <EditorHeader />
+      <EditorHeader
+        activationStatus={activeCurve.status}
+        activationAvailable={activationAvailable}
+      />
       <CardContent className="grid gap-4">
         <SteeringCurveEditor
           activeCurve={activeCurve}
           mode={mode}
           speedKph={speedKph}
           activeAssistance={activeAssistance}
+          activationAvailable={activationAvailable}
+          modeControlAvailable={modeControlAvailable}
         />
       </CardContent>
     </Card>

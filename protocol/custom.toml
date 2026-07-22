@@ -6,6 +6,12 @@ device_to_coordinator_id = 0x709
 maximum_payload_length = 64
 purpose = "ISO-TP opaque transport link (simulation/bench only; collision validation required before in-car TX)"
 
+[servotronic_transport]
+coordinator_to_device_id = 0x70A
+device_to_coordinator_id = 0x70B
+maximum_payload_length = 64
+purpose = "Servotronic curve configuration and status (provisional bench only; collision validation required before in-car TX)"
+
 [button_event]
 can_id = 0x700
 length = 2

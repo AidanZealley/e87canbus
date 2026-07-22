@@ -9,13 +9,21 @@ Servotronic HELLO/WELCOME/HEARTBEAT IDs (`0x705`–`0x707`), and accepts only th
 extended synthetic ID `0x1fffff00`. Its payload must be exactly two bytes,
 little-endian deci-km/h, in the range 0–3000. The compiled-in monotone curve
 uses the coordinator's versioned Steffen/D3 `monotone-cubic-v1` algorithm,
-schema-v1 speed grid and per-mille control points. The AVR evaluates the curve
-in binary32 and explicitly truncates the result to the bounded 8-bit PWM duty;
-host conformance tests cover the repository's built-in vector points. There is
-no coordinator assistance/profile command.
+schema-v1 speed grid and per-mille control points. After registration, the
+coordinator may replace it with one complete validated curve in RAM over the
+provisional `0x70A`/`0x70B` ISO-TP link. The fixed v1 message includes the exact
+eight-point grid, per-mille values, activation revision, and CRC-32. Unsupported
+versions, a wrong grid, increasing/out-of-range assistance, a bad CRC, or an
+incomplete transfer leave the active curve unchanged. The AVR evaluates the
+curve in binary32 and explicitly truncates the result to bounded 8-bit PWM duty.
+
+The received curve is intentionally not written to EEPROM. A reset immediately
+uses the compiled-in fallback; once the coordinator is available it reconciles
+the SQLite-selected curve into RAM again. A successfully received RAM curve
+continues to be used if the coordinator lease expires.
 
 Output is zero at boot and while speed has never been seen, is invalid, or is
-older than 500 ms. It is also zero without a fresh coordinator lease, on an
+older than 500 ms. It is also zero on an
 MCP2515 error/send failure, during CAN reinitialisation, and during/reset by the
 hardware watchdog. A subsequent valid speed frame clears the invalid-frame
 inhibit. Diagnostics are rate-limited to one line per second (or a state change).

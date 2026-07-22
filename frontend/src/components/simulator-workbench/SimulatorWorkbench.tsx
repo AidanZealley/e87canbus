@@ -83,26 +83,28 @@ const LiveSteeringCurveCard = () => {
   const steering = useLiveStore((state) => state.steering)
   const vehicle = useLiveStore((state) => state.vehicle)
   const servotronic = useLiveStore((state) => state.steering?.servotronic)
-
-  if (
-    !synchronized ||
-    steering === null ||
-    servotronic === undefined ||
-    servotronic === null
+  const registry = useLiveStore(
+    (state) => state.devices.registry.servotronic_controller
   )
-    return null
+
+  if (!synchronized || steering === null) return null
 
   return (
     <section className="min-w-0" aria-label="Steering curve settings">
       <SteeringCurveCard
         activeCurve={steering.active_curve}
+        activationAvailable={
+          registry.status === "active" &&
+          steering.curve_configuration_available
+        }
+        modeControlAvailable={registry.source_mode === "emulated"}
         mode={steering.mode}
         speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
         activeAssistance={
           steering.maximum_assistance_active
             ? 1
             : steering.mode === "manual" || vehicle.speed_valid
-              ? servotronic.effective_assistance
+              ? (servotronic?.effective_assistance ?? null)
               : null
         }
       />
