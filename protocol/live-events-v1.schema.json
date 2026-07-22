@@ -1555,8 +1555,8 @@
         "active_curve": {
           "$ref": "#/definitions/ActiveSteeringCurveState"
         },
-        "curve_configuration_available": {
-          "title": "Curve Configuration Available",
+        "curve_activation_available": {
+          "title": "Curve Activation Available",
           "type": "boolean"
         },
         "manual_assistance_level": {
@@ -1589,7 +1589,7 @@
       },
       "required": [
         "active_curve",
-        "curve_configuration_available",
+        "curve_activation_available",
         "manual_assistance_level",
         "maximum_assistance_active",
         "mode",

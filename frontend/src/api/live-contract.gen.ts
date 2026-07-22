@@ -147,7 +147,7 @@ export type Fingerprint = string
 export type SavedProfileId = string | null
 export type SavedProfileRevision = number | null
 export type Status2 = "active" | "activating" | "activation_failed"
-export type CurveConfigurationAvailable = boolean
+export type CurveActivationAvailable = boolean
 export type ManualAssistanceLevel = number
 export type MaximumAssistanceActive = boolean
 export type Mode = "auto" | "manual"
@@ -426,7 +426,7 @@ export interface LightingState {
 }
 export interface SteeringState {
   active_curve: ActiveSteeringCurveState
-  curve_configuration_available: CurveConfigurationAvailable
+  curve_activation_available: CurveActivationAvailable
   manual_assistance_level: ManualAssistanceLevel
   maximum_assistance_active: MaximumAssistanceActive
   mode: Mode

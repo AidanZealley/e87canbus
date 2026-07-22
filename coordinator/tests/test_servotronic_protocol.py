@@ -22,11 +22,14 @@ from e87canbus.protocol.can import (
 from e87canbus.runtime import (
     ActivateSteeringCurve,
     CoordinatorKernel,
+    DeviceAdapterFailed,
     KernelStarted,
     ReceivedCanFrame,
     ServotronicStatusObserved,
+    SetMaximumAssistance,
     TimerElapsed,
 )
+from e87canbus.service import observed_servotronic_snapshot
 from e87canbus.servotronic_protocol import (
     ControlMode,
     CurveResult,
@@ -141,7 +144,7 @@ def _matching_status(kernel: CoordinatorKernel) -> ServotronicStatus:
 
 def test_physical_registration_reconciles_once_and_matching_status_activates() -> None:
     kernel = _physical_kernel()
-    assert kernel.snapshot().curve_configuration_available is True
+    assert kernel.snapshot().curve_activation_available is True
     registered = _register(kernel, 1, 0.1)
     assert len(_curve_effects(registered)) == 1
     assert (
@@ -205,7 +208,7 @@ def test_no_config_capability_never_emits_curve_and_refuses_activation() -> None
     kernel = _physical_kernel(config_available=False)
     registered = _register(kernel, 1, 0.1)
     assert _curve_effects(registered) == ()
-    assert kernel.snapshot().curve_configuration_available is False
+    assert kernel.snapshot().curve_activation_available is False
     with pytest.raises(FeatureUnavailable, match="output adapter is unavailable"):
         kernel.dispatch(
             ActivateSteeringCurve(
@@ -213,3 +216,104 @@ def test_no_config_capability_never_emits_curve_and_refuses_activation() -> None
                 requested_at=1.0,
             )
         )
+
+
+def test_curve_activation_config_path_reports_controller_state_not_output() -> None:
+    # config path is available but the controller has not registered; the requirement predicate
+    # skips the output-adapter checks and reports the controller lifecycle instead.
+    kernel = _physical_kernel(config_available=True)
+    with pytest.raises(FeatureUnavailable, match="servotronic controller is"):
+        kernel.dispatch(
+            ActivateSteeringCurve(
+                kernel.snapshot().active_steering_curve.definition,
+                requested_at=1.0,
+            )
+        )
+
+
+def test_maximum_assistance_requires_output_even_with_curve_config() -> None:
+    kernel = _physical_kernel(config_available=True)
+    _register(kernel, 1, 0.1)
+    with pytest.raises(FeatureUnavailable, match="output adapter is unavailable"):
+        kernel.dispatch(SetMaximumAssistance(True))
+
+
+def test_observed_servotronic_snapshot_uses_canonical_wire_strings() -> None:
+    status = ServotronicStatus(
+        CurveResult.ACCEPTED,
+        CurveSource.BUILTIN_FALLBACK,
+        7,
+        0xABCD,
+        425,
+        700,
+        90,
+        True,
+        2,
+        ControlMode.MANUAL,
+    )
+    observed = observed_servotronic_snapshot(status)
+    assert observed.last_command_reason == "manual"
+    assert observed.active_curve_source == "builtin_fallback"
+    assert observed.inhibit_reason == "stale_speed"
+    assert observed.effective_assistance == 0.7
+    assert observed.observed_speed_kph == 42.5
+    assert observed.active_curve_revision == 7
+    assert observed.active_curve_crc32 == 0xABCD
+    assert observed.pwm_duty == 90
+    assert observed.speed_fresh is True
+    assert observed.watchdog_timed_out is False
+
+
+def test_observed_servotronic_snapshot_maps_modes_and_clamps_unknown_inhibit() -> None:
+    base = ServotronicStatus(
+        CurveResult.ACCEPTED,
+        CurveSource.COORDINATOR_RAM,
+        1,
+        0,
+        0,
+        0,
+        0,
+        False,
+        99,
+        ControlMode.MAXIMUM,
+    )
+    observed = observed_servotronic_snapshot(base)
+    assert observed.active_curve_source == "coordinator_ram"
+    assert observed.last_command_reason == "maximum"
+    assert observed.inhibit_reason == "can_fault"
+    assert (
+        observed_servotronic_snapshot(
+            replace(base, control_mode=ControlMode.AUTO)
+        ).last_command_reason
+        == "auto"
+    )
+
+
+def test_kernel_drops_retained_status_when_controller_expires() -> None:
+    kernel = _physical_kernel()
+    _register(kernel, 1, 0.1)
+    status = _matching_status(kernel)
+    kernel.dispatch(ServotronicStatusObserved(status))
+    assert kernel.servotronic_status == status
+    kernel.dispatch(TimerElapsed(3.3))
+    assert kernel.servotronic_status is None
+
+
+def test_kernel_drops_retained_status_on_adapter_failure() -> None:
+    kernel = _physical_kernel()
+    _register(kernel, 1, 0.1)
+    kernel.dispatch(ServotronicStatusObserved(_matching_status(kernel)))
+    assert kernel.servotronic_status is not None
+    kernel.dispatch(
+        DeviceAdapterFailed(DeviceRole.SERVOTRONIC_CONTROLLER, 1.0, "adapter fault")
+    )
+    assert kernel.servotronic_status is None
+
+
+def test_kernel_drops_retained_status_on_new_controller_session() -> None:
+    kernel = _physical_kernel()
+    _register(kernel, 1, 0.1)
+    kernel.dispatch(ServotronicStatusObserved(_matching_status(kernel)))
+    assert kernel.servotronic_status is not None
+    _register(kernel, 2, 4.0)
+    assert kernel.servotronic_status is None

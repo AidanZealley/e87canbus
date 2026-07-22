@@ -243,7 +243,9 @@ it("masks all overview and drive live observations after disconnect", () => {
     </>
   )
   expect(screen.getByText("Manual")).toBeTruthy()
-  expect(screen.getByText("50%")).toBeTruthy()
+  // Mode "Assistance" and the manual "Manual setting" both read the resulting
+  // effective assistance percentage.
+  expect(screen.getAllByText("50%")).toHaveLength(2)
   expect(screen.getAllByText("126").length).toBeGreaterThan(0)
 
   act(() => useLiveStore.getState().transportDisconnected())
@@ -264,7 +266,8 @@ it.each(["steering", "device"] as const)(
         <CarSteeringEditor />
       </>
     )
-    expect(screen.getByText("50%")).toBeTruthy()
+    // Overview assistance + overview manual setting + editor readout.
+    expect(screen.getAllByText("50%")).toHaveLength(3)
 
     act(() => {
       const current = useLiveStore.getState()

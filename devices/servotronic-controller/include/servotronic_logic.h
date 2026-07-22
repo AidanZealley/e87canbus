@@ -38,6 +38,18 @@ struct ControlCommand {
     uint16_t assistancePerMille = 0;
 };
 
+// Fixed curve speed schema (deci-kph). Shared by the built-in fallback default
+// and payload grid validation so the grid is defined exactly once.
+constexpr uint16_t CURVE_SPEED_GRID[CURVE_POINT_COUNT] =
+    {0, 100, 200, 300, 600, 1000, 1600, 2500};
+
+// A retained control command must not silently re-engage manual/maximum assist
+// when a dropped coordinator lease returns. Reset to AUTO on lease loss so a
+// reconnect starts from curve-following until the coordinator re-commands.
+inline void resetControlIfLeaseLost(bool leaseFresh, ControlCommand &control) {
+    if (!leaseFresh) control = ControlCommand{};
+}
+
 inline uint16_t readU16(const uint8_t *p) {
     return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
 }
@@ -55,11 +67,14 @@ inline bool applyControlPayload(const uint8_t *payload, uint16_t length,
 }
 
 struct ActiveCurve {
-    uint16_t speeds[CURVE_POINT_COUNT] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
+    uint16_t speeds[CURVE_POINT_COUNT];
     uint16_t assistance[CURVE_POINT_COUNT] = {1000, 889, 778, 667, 381, 0, 0, 0};
     uint32_t revision = 0;
     uint32_t crc32 = 0;
     CurveSource source = CurveSource::BUILTIN_FALLBACK;
+    ActiveCurve() {
+        for (uint8_t i = 0; i < CURVE_POINT_COUNT; ++i) speeds[i] = CURVE_SPEED_GRID[i];
+    }
 };
 
 inline uint32_t readU32(const uint8_t *p) {
@@ -90,12 +105,11 @@ inline CurveResult applyCurvePayload(const uint8_t *payload, uint16_t length,
         payload[2] != CURVE_SCHEMA_VERSION || payload[3] != CURVE_INTERPOLATION_VERSION)
         return CurveResult::UNSUPPORTED;
     if (crc32(payload, 40) != readU32(payload + 40)) return CurveResult::BAD_CRC;
-    static const uint16_t grid[CURVE_POINT_COUNT] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
     ActiveCurve staged;
     for (uint8_t i = 0; i < CURVE_POINT_COUNT; ++i) {
         staged.speeds[i] = readU16(payload + 8 + i * 2);
         staged.assistance[i] = readU16(payload + 24 + i * 2);
-        if (staged.speeds[i] != grid[i]) return CurveResult::BAD_GRID;
+        if (staged.speeds[i] != CURVE_SPEED_GRID[i]) return CurveResult::BAD_GRID;
         if (staged.assistance[i] > 1000 ||
             (i != 0 && staged.assistance[i - 1] < staged.assistance[i]))
             return CurveResult::BAD_VALUES;
@@ -128,12 +142,16 @@ inline bool decodeSpeed(bool extended, uint32_t id, const uint8_t *payload,
     return true;
 }
 
+// Evaluates the fixed CURVE_POINT_COUNT-point schema grid; the buffer sizes below
+// are owned by that compile-time schema rather than a runtime length, so there is
+// no count/buffer mismatch to overflow.
 inline float interpolateMonotoneCubicV1(uint16_t deciKph, const uint16_t *speeds,
-                                        const uint16_t *values, uint8_t count) {
+                                        const uint16_t *values) {
+    constexpr uint8_t count = CURVE_POINT_COUNT;
     if (deciKph <= speeds[0]) return values[0] / 1000.0f;
     if (deciKph >= speeds[count - 1]) return values[count - 1] / 1000.0f;
-    float tangents[8] = {};
-    float secants[7] = {};
+    float tangents[count] = {};
+    float secants[count - 1] = {};
     for (uint8_t i = 0; i + 1 < count; ++i) {
         secants[i] = ((values[i + 1] - static_cast<float>(values[i])) / 1000.0f) /
                       (speeds[i + 1] - speeds[i]);
@@ -174,8 +192,7 @@ inline float interpolateMonotoneCubicV1(uint16_t deciKph, const uint16_t *speeds
 inline float assistanceForSpeed(uint16_t deciKph, const ActiveCurve &curve) {
     // Same Steffen/D3 monotone-cubic-v1 algorithm, schema grid, and values as
     // the coordinator; AVR evaluates in binary32 before PWM quantization.
-    return interpolateMonotoneCubicV1(deciKph, curve.speeds, curve.assistance,
-                                      CURVE_POINT_COUNT);
+    return interpolateMonotoneCubicV1(deciKph, curve.speeds, curve.assistance);
 }
 
 inline float assistanceForSpeed(uint16_t deciKph) {

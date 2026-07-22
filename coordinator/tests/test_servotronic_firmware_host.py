@@ -32,7 +32,7 @@ def test_servotronic_curve_matches_shared_conformance_vectors(tmp_path: Path) ->
                 expected_literal += ".0"
             assertions.append(
                 "assert(std::fabs(servotronic::interpolateMonotoneCubicV1("
-                f"{speed}, speeds, {values_name}, 8) - {expected_literal}f) <= 0.000002f);"
+                f"{speed}, speeds, {values_name}) - {expected_literal}f) <= 0.000002f);"
             )
     source = tmp_path / "servotronic_curve_test.cpp"
     source.write_text(

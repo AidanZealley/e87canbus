@@ -170,6 +170,9 @@ void loop() {
         initializeCan(); nextCanRetryMs = now + 1000; leased = false;
     }
     if (!leaseFresh(now)) leased = false;
+    // Clear any retained manual/maximum command on lease loss so a reconnect
+    // resumes curve-following until the coordinator explicitly re-commands.
+    servotronic::resetControlIfLeaseLost(leaseFresh(now), control);
     if (!leased && due(now, nextHelloMs)) sendHello(now);
     // A valid local curve and direct speed remain usable without a coordinator lease.
     const bool manualControl = leaseFresh(now) && control.mode != servotronic::ControlMode::AUTO;
@@ -182,7 +185,10 @@ void loop() {
     const uint8_t duty = inhibit == servotronic::Inhibit::NONE
                              ? servotronic::boundedDuty(assistance, PWM_DUTY_CEILING) : 0;
     analogWrite(PWM_OUTPUT_PIN, duty);
-    lastDuty = duty; lastAssistancePerMille = static_cast<uint16_t>(assistance * 1000.0f + 0.5f);
+    lastDuty = duty;
+    // Report per-mille rounded to nearest (round-half-up) to match the coordinator's
+    // round(x*1000) packing intent for reconciliation of reported vs commanded assist.
+    lastAssistancePerMille = static_cast<uint16_t>(assistance * 1000.0f + 0.5f);
     if (leased && due(now, nextHeartbeatMs)) sendHeartbeat(now);
     if (leased && due(now, nextStatusMs)) sendStatus(now);
     if (inhibit != lastInhibit || due(now, nextDiagnosticMs)) {

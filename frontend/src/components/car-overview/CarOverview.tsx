@@ -10,6 +10,7 @@ import { TemperatureGauge } from "@/components/temperature-gauge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import { useLiveStore } from "@/live/live-store"
+import { useServotronicAvailability } from "@/components/car-layout/use-servotronic-availability"
 import { useTemperatureSeverity } from "@/components/car-layout/use-temperature-severity"
 import { activeProfileLabel, steeringModeLabel } from "./utils"
 
@@ -26,13 +27,7 @@ export const CarOverview = () => {
     (state) => state.engine.coolant_temperature_c
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
-  const steeringFault = useLiveStore((state) => state.health.steering.fault)
-  const servotronicAdapterFault = useLiveStore(
-    (state) =>
-      state.health.devices.find(
-        (device) => device.role === "servotronic_controller"
-      )?.fault ?? null
-  )
+  const servotronic = useServotronicAvailability()
   const settings = useEffectiveApplicationSettings().settings
   const profiles = useQuery(listSteeringProfilesOptions())
   const oilSeverity = useTemperatureSeverity({
@@ -84,10 +79,7 @@ export const CarOverview = () => {
             <StatusValue
               label="Assistance"
               value={
-                connected &&
-                steering?.servotronic &&
-                steeringFault === null &&
-                servotronicAdapterFault === null
+                servotronic.telemetry && steering?.servotronic
                   ? `${Math.round(steering.servotronic.effective_assistance * 100)}%`
                   : "Unavailable"
               }
@@ -95,7 +87,11 @@ export const CarOverview = () => {
             {steering?.mode === "manual" ? (
               <StatusValue
                 label="Manual setting"
-                value={`Level ${steering.manual_assistance_level + 1} of 8`}
+                value={
+                  servotronic.telemetry && steering.servotronic
+                    ? `${Math.round(steering.servotronic.effective_assistance * 100)}%`
+                    : "—"
+                }
               />
             ) : null}
             <StatusValue

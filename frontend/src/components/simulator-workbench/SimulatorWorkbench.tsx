@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 
 import { resetSimulationMutation } from "@/api/http/@tanstack/react-query.gen"
+import { useServotronicAvailability } from "@/components/car-layout/use-servotronic-availability"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
@@ -83,9 +84,7 @@ const LiveSteeringCurveCard = () => {
   const steering = useLiveStore((state) => state.steering)
   const vehicle = useLiveStore((state) => state.vehicle)
   const servotronic = useLiveStore((state) => state.steering?.servotronic)
-  const registry = useLiveStore(
-    (state) => state.devices.registry.servotronic_controller
-  )
+  const availability = useServotronicAvailability()
 
   if (!synchronized || steering === null) return null
 
@@ -93,20 +92,20 @@ const LiveSteeringCurveCard = () => {
     <section className="min-w-0" aria-label="Steering curve settings">
       <SteeringCurveCard
         activeCurve={steering.active_curve}
-        activationAvailable={
-          registry.status === "active" && steering.curve_configuration_available
-        }
-        modeControlAvailable={registry.status === "active"}
+        activationAvailable={availability.activation}
+        modeControlAvailable={availability.modeControl}
         mode={steering.mode}
         manualAssistanceLevel={steering.manual_assistance_level}
         maximumAssistanceActive={steering.maximum_assistance_active}
         speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
         activeAssistance={
-          steering.maximum_assistance_active
-            ? 1
-            : steering.mode === "manual" || vehicle.speed_valid
-              ? (servotronic?.effective_assistance ?? null)
-              : null
+          !availability.telemetry
+            ? null
+            : steering.maximum_assistance_active
+              ? 1
+              : steering.mode === "manual" || vehicle.speed_valid
+                ? (servotronic?.effective_assistance ?? null)
+                : null
         }
       />
     </section>

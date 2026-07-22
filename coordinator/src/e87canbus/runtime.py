@@ -416,6 +416,17 @@ class CoordinatorKernel:
         return self._controller_session_id
 
     @property
+    def servotronic_status(self) -> ServotronicStatus | None:
+        """The last observed controller status, retained only while it stays active.
+
+        Adapters read this for the live projection instead of caching their own copy; it is
+        reset in one place when the controller deactivates or its session changes, so the
+        projection stops serving stale telemetry.
+        """
+
+        return self._servotronic_reported_status
+
+    @property
     def registry(self) -> tuple[DeviceRegistryEntry, ...]:
         return self._registry
 
@@ -442,6 +453,10 @@ class CoordinatorKernel:
             self._steering_curve_activation_status,
             self._servotronic_usable,
             self._high_beam_strobe_config.button_index,
+            # ``curve_activation_available`` gates curve ACTIVATION in the UI: a curve can be
+            # pushed whenever the coordinator can configure it (config path) or drive assistance
+            # directly (output path).  In the live composition both flags are wired identically
+            # from the same KCAN TX grant, so this OR degrades to that single grant there.
             self._servotronic_config_available or self._servotronic_output_available,
         )
 
@@ -517,10 +532,9 @@ class CoordinatorKernel:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
                 previous_button_leds = self._button_led_effect()
-                cleared = clear_maximum_assistance(self._state)
-                self._state = cleared.state
+                cleared_effects = self._deactivate_servotronic()
                 return self._commit_application_result(
-                    Transition(self._state, cleared.effects),
+                    Transition(self._state, cleared_effects),
                     previous_snapshot,
                     previous_button_leds,
                     previous_health=previous_health,
@@ -556,18 +570,17 @@ class CoordinatorKernel:
                     return self._commit_health(previous_health)
                 previous_snapshot = self.snapshot()
                 previous_button_leds = self._button_led_effect()
-                cleared = clear_maximum_assistance(self._state)
-                self._state = cleared.state
+                cleared_effects = self._deactivate_servotronic()
                 if origin_button_index is not None:
                     return self._transition(
                         ButtonCommandFailed(origin_button_index, failed_at),
                         previous_health=previous_health,
                         previous_snapshot=previous_snapshot,
                         previous_button_leds=previous_button_leds,
-                        extra_effects=cleared.effects,
+                        extra_effects=cleared_effects,
                     )
                 return self._commit_application_result(
-                    Transition(self._state, cleared.effects),
+                    Transition(self._state, cleared_effects),
                     previous_snapshot,
                     previous_button_leds,
                     previous_health=previous_health,
@@ -591,7 +604,7 @@ class CoordinatorKernel:
             case ActivateSteeringCurve():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                self._require_servotronic_curve_config_available()
+                self._require_servotronic(for_curve_config=True)
                 return self._activate_steering_curve(kernel_input)
             case ServotronicStatusObserved():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
@@ -600,12 +613,12 @@ class CoordinatorKernel:
             case SetMaximumAssistance(enabled):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                self._require_servotronic_available()
+                self._require_servotronic()
                 return self._transition(MaximumAssistanceSet(enabled))
             case SetSteeringMode(mode, manual_level):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                self._require_servotronic_available()
+                self._require_servotronic()
                 return self._transition(SteeringModeSet(mode, manual_level))
             case _:
                 assert_never(kernel_input)
@@ -854,6 +867,19 @@ class CoordinatorKernel:
             and status.curve_crc32 == int.from_bytes(expected[-4:], "little")
         )
 
+    def _deactivate_servotronic(self) -> tuple[ApplicationEffect, ...]:
+        """Drop retained telemetry and the maximum-assist override on controller loss.
+
+        Shared by every path where the Servotronic controller goes active->inactive (adapter
+        fault, actuator fault, heartbeat expiry, registry transition), keeping the kernel-owned
+        status reset in exactly one place.
+        """
+
+        self._servotronic_reported_status = None
+        cleared = clear_maximum_assistance(self._state)
+        self._state = cleared.state
+        return cleared.effects
+
     def _timer(self, now: float) -> Commit:
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
@@ -866,9 +892,7 @@ class CoordinatorKernel:
             previous_servotronic.status is DeviceLifecycleStatus.ACTIVE
             and current_servotronic.status is not DeviceLifecycleStatus.ACTIVE
         ):
-            cleared = clear_maximum_assistance(self._state)
-            self._state = cleared.state
-            extra_effects.extend(cleared.effects)
+            extra_effects.extend(self._deactivate_servotronic())
         registry_changed = self._registry != previous_registry
         return self._transition(
             ControlTimerElapsed(now),
@@ -914,30 +938,25 @@ class CoordinatorKernel:
         self._registry = tuple(
             next_entry if entry.role is role else entry for entry in self._registry
         )
-        if (
+        servotronic_deactivated = (
             role is DeviceRole.SERVOTRONIC_CONTROLLER
-            and (
-                next_entry.device_session_id != previous_entry.device_session_id
-                or (
-                    previous_entry.status is DeviceLifecycleStatus.ACTIVE
-                    and next_entry.status is not DeviceLifecycleStatus.ACTIVE
-                )
-            )
-        ):
-            self._servotronic_reported_status = None
+            and previous_entry.status is DeviceLifecycleStatus.ACTIVE
+            and next_entry.status is not DeviceLifecycleStatus.ACTIVE
+        )
         effects: list[OutputEffect] = []
         if result.acknowledgement is not None:
             effects.append(
                 SendRegistryFrame(self._router.encode_registry_ack(role, result.acknowledgement))
             )
-        if (
-            previous_entry.status is DeviceLifecycleStatus.ACTIVE
-            and next_entry.status is not DeviceLifecycleStatus.ACTIVE
-            and role is DeviceRole.SERVOTRONIC_CONTROLLER
+        if servotronic_deactivated:
+            effects.extend(self._deactivate_servotronic())
+        elif (
+            role is DeviceRole.SERVOTRONIC_CONTROLLER
+            and next_entry.device_session_id != previous_entry.device_session_id
         ):
-            cleared = clear_maximum_assistance(self._state)
-            self._state = cleared.state
-            effects.extend(cleared.effects)
+            # A new controller identity invalidates retained telemetry even without a lifecycle
+            # transition; the active->inactive path already drops it via _deactivate_servotronic.
+            self._servotronic_reported_status = None
         if (
             previous_entry.status is not DeviceLifecycleStatus.ACTIVE
             and next_entry.status is DeviceLifecycleStatus.ACTIVE
@@ -1001,38 +1020,34 @@ class CoordinatorKernel:
     def health_for_device(self, role: DeviceRole) -> DeviceRuntimeHealth:
         return next(item for item in self._health.devices if item.role is role)
 
-    def _require_servotronic_available(self) -> None:
-        entry = self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER)
-        if not self._servotronic_output_available:
-            raise FeatureUnavailable(
-                DeviceRole.SERVOTRONIC_CONTROLLER,
-                entry.status,
-                "servotronic output adapter is unavailable",
-            )
-        if self._health.steering_actuator_fault is not None:
-            raise FeatureUnavailable(
-                DeviceRole.SERVOTRONIC_CONTROLLER,
-                entry.status,
-                "servotronic output adapter is faulted",
-            )
-        if self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is not None:
-            raise FeatureUnavailable(
-                DeviceRole.SERVOTRONIC_CONTROLLER,
-                entry.status,
-                "servotronic output adapter is faulted",
-            )
-        if entry.status is not DeviceLifecycleStatus.ACTIVE:
-            raise FeatureUnavailable(
-                DeviceRole.SERVOTRONIC_CONTROLLER,
-                entry.status,
-                f"servotronic controller is {entry.status.value}",
-            )
+    def _require_servotronic(self, *, for_curve_config: bool = False) -> None:
+        """Assert the controller can serve the requested capability.
 
-    def _require_servotronic_curve_config_available(self) -> None:
-        if not self._servotronic_config_available:
-            self._require_servotronic_available()
-            return
+        Curve activation only needs the coordinator's config path when it is available; every
+        other request (and curve activation when config is unavailable) also needs the output
+        adapter to be present and unfaulted.
+        """
+
         entry = self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER)
+        if not (for_curve_config and self._servotronic_config_available):
+            if not self._servotronic_output_available:
+                raise FeatureUnavailable(
+                    DeviceRole.SERVOTRONIC_CONTROLLER,
+                    entry.status,
+                    "servotronic output adapter is unavailable",
+                )
+            if self._health.steering_actuator_fault is not None:
+                raise FeatureUnavailable(
+                    DeviceRole.SERVOTRONIC_CONTROLLER,
+                    entry.status,
+                    "servotronic output adapter is faulted",
+                )
+            if self.health_for_device(DeviceRole.SERVOTRONIC_CONTROLLER).fault is not None:
+                raise FeatureUnavailable(
+                    DeviceRole.SERVOTRONIC_CONTROLLER,
+                    entry.status,
+                    "servotronic output adapter is faulted",
+                )
         if entry.status is not DeviceLifecycleStatus.ACTIVE:
             raise FeatureUnavailable(
                 DeviceRole.SERVOTRONIC_CONTROLLER,

@@ -11,6 +11,7 @@ export const CurveActions = ({
   mode,
   manualAssistanceLevel,
   maximumAssistanceActive,
+  activeAssistance = null,
   pendingAction,
   activeMatchesSaved,
   hasSavedProfile,
@@ -25,6 +26,7 @@ export const CurveActions = ({
   mode: Mode
   manualAssistanceLevel: number
   maximumAssistanceActive: boolean
+  activeAssistance?: number | null
   pendingAction: PendingCurveAction
   activeMatchesSaved: boolean
   hasSavedProfile: boolean
@@ -37,6 +39,10 @@ export const CurveActions = ({
   modeControlAvailable?: boolean
 }) => {
   const canAct = activationAvailable && !activeMatchesSaved && hasSavedProfile
+  const assistanceReadout =
+    activeAssistance !== null && (mode === "manual" || maximumAssistanceActive)
+      ? `${Math.round(activeAssistance * 100)}%`
+      : "Manual"
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -74,23 +80,17 @@ export const CurveActions = ({
             <Minus />
           </Button>
           <span className="min-w-20 text-center text-xs text-muted-foreground">
-            {mode === "manual" && !maximumAssistanceActive
-              ? `Level ${manualAssistanceLevel + 1} of 8`
-              : "Manual"}
+            {assistanceReadout}
           </span>
           <Button
             variant="outline"
             size="icon-sm"
             aria-label="Increase assistance"
-            disabled={
-              pendingAction !== null ||
-              !modeControlAvailable ||
-              (mode === "manual" && manualAssistanceLevel === 7)
-            }
+            disabled={pendingAction !== null || !modeControlAvailable}
             onClick={() =>
               onLevelChange(
                 mode === "manual" && !maximumAssistanceActive
-                  ? Math.min(7, manualAssistanceLevel + 1)
+                  ? manualAssistanceLevel + 1
                   : manualAssistanceLevel
               )
             }

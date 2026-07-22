@@ -25,6 +25,12 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     StateTopic,
 )
+from e87canbus.servotronic_protocol import (
+    CONTROL_MODE_WIRE,
+    CURVE_SOURCE_WIRE,
+    ServotronicStatus,
+    inhibit_reason_wire,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +94,29 @@ class ObservedServotronicSnapshot:
     speed_fresh: bool | None = None
     pwm_duty: int | None = None
     inhibit_reason: str | None = None
+
+
+def observed_servotronic_snapshot(status: ServotronicStatus) -> ObservedServotronicSnapshot:
+    """Project a physical controller status frame into the observed adapter snapshot.
+
+    This is the single live-side conversion; the string spellings come from the canonical
+    wire mappings so live, firmware, and the frontend stay identical.  The simulated runtime
+    intentionally omits the physical-only fields (``active_curve_source`` and friends), so it
+    builds its snapshot directly rather than routing through here.
+    """
+
+    return ObservedServotronicSnapshot(
+        effective_assistance=status.assistance_per_mille / 1000,
+        last_command_reason=CONTROL_MODE_WIRE[status.control_mode],
+        watchdog_timed_out=False,
+        active_curve_source=CURVE_SOURCE_WIRE[status.source],
+        active_curve_revision=status.activation_revision,
+        active_curve_crc32=status.curve_crc32,
+        observed_speed_kph=status.speed_deci_kph / 10,
+        speed_fresh=status.speed_fresh,
+        pwm_duty=status.pwm_duty,
+        inhibit_reason=inhibit_reason_wire(status.inhibit_reason),
+    )
 
 
 @dataclass(frozen=True)

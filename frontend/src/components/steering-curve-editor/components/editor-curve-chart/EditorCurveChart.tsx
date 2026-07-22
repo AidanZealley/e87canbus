@@ -7,6 +7,7 @@ type EditorCurveChartProps = {
   speedKph: number | null
   activeAssistance: number | null
   className?: string
+  disabled?: boolean
   onPointCommit?: (definition: SteeringCurveDefinition) => void
 }
 
@@ -15,6 +16,7 @@ export const EditorCurveChart = ({
   speedKph,
   activeAssistance,
   className,
+  disabled = false,
   onPointCommit,
 }: EditorCurveChartProps) => (
   <CurveChart
@@ -22,8 +24,8 @@ export const EditorCurveChart = ({
     draft={activeDefinition}
     activeSpeedKph={speedKph}
     activeAssistance={activeAssistance}
-    className={cn(onPointCommit === undefined && "opacity-60", className)}
-    onPointChange={onPointCommit === undefined ? undefined : () => undefined}
-    onPointCommit={onPointCommit}
+    className={cn(disabled && "opacity-60", className)}
+    onPointChange={disabled ? undefined : () => undefined}
+    onPointCommit={disabled ? undefined : onPointCommit}
   />
 )
