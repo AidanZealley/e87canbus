@@ -38,6 +38,37 @@ class ControlMode(IntEnum):
     MAXIMUM = 2
 
 
+# Canonical wire spellings shared with firmware and the frontend contract.  Keep these
+# strings identical to the device/UI vocabulary; they are the single source for the live
+# ``ObservedServotronicSnapshot`` string fields.
+CONTROL_MODE_WIRE: dict[ControlMode, str] = {
+    ControlMode.AUTO: "auto",
+    ControlMode.MANUAL: "manual",
+    ControlMode.MAXIMUM: "maximum",
+}
+
+CURVE_SOURCE_WIRE: dict[CurveSource, str] = {
+    CurveSource.BUILTIN_FALLBACK: "builtin_fallback",
+    CurveSource.COORDINATOR_RAM: "coordinator_ram",
+}
+
+# ``ServotronicStatus.inhibit_reason`` is a raw controller code; values beyond the known
+# range clamp to the last (``can_fault``) label, matching the firmware reporting.
+INHIBIT_REASON_WIRE: tuple[str, ...] = (
+    "none",
+    "no_speed",
+    "stale_speed",
+    "invalid_speed",
+    "can_fault",
+)
+
+
+def inhibit_reason_wire(inhibit_reason: int) -> str:
+    """Map a raw controller inhibit code to its canonical wire spelling."""
+
+    return INHIBIT_REASON_WIRE[min(inhibit_reason, len(INHIBIT_REASON_WIRE) - 1)]
+
+
 @dataclass(frozen=True)
 class ServotronicStatus:
     result: CurveResult

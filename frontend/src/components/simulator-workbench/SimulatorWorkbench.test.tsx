@@ -110,7 +110,7 @@ it.each([
       source_mode: "physical",
       status,
     }
-    value.data.steering.curve_configuration_available = capability
+    value.data.steering.curve_activation_available = capability
     useLiveStore.getState().applySnapshot(value)
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -125,3 +125,34 @@ it.each([
     )
   }
 )
+
+it("disables workbench steering controls while the adapter is faulted", () => {
+  const value = snapshot("fault-boot", 7)
+  value.data.devices.registry.servotronic_controller = {
+    ...value.data.devices.registry.servotronic_controller,
+    source_mode: "physical",
+    status: "active",
+  }
+  value.data.steering.curve_activation_available = true
+  value.data.health.devices = value.data.health.devices.map((device) =>
+    device.role === "servotronic_controller"
+      ? {
+          ...device,
+          fault: {
+            kind: "device_adapter",
+            message: "adapter failed",
+            monotonic_s: 1,
+          },
+        }
+      : device
+  )
+  useLiveStore.getState().applySnapshot(value)
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <SimulatorWorkbench />
+    </QueryClientProvider>
+  )
+  expect(screen.getByTestId("curve-configuration").textContent).toContain(
+    "disabled;controls=disabled"
+  )
+})

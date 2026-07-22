@@ -1,10 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import type {
+  RuntimeFaultState,
+  SteeringState,
+} from "../../api/live-contract.gen.ts"
 import { DEFAULT_APPLICATION_SETTINGS } from "../../lib/application-settings.ts"
 import {
   celsiusToFahrenheit,
   deriveRpmPresentation,
+  deriveServotronicAvailability,
   fahrenheitThresholdToCelsius,
   fahrenheitToCelsius,
   kilometresPerHourToMilesPerHour,
@@ -12,6 +17,104 @@ import {
   transitionTemperatureSeverity,
   type TemperatureSeverity,
 } from "./car-ui.ts"
+
+const steeringState = (
+  overrides: Partial<SteeringState> = {}
+): SteeringState =>
+  ({
+    mode: "auto",
+    manual_assistance_level: 0,
+    maximum_assistance_active: false,
+    curve_activation_available: true,
+    servotronic: {} as SteeringState["servotronic"],
+    active_curve: {} as SteeringState["active_curve"],
+    ...overrides,
+  }) satisfies SteeringState
+
+const availability = (
+  overrides: Partial<Parameters<typeof deriveServotronicAvailability>[0]> = {}
+) =>
+  deriveServotronicAvailability({
+    synchronized: true,
+    status: "active",
+    steering: steeringState(),
+    steeringFault: null,
+    adapterFault: null,
+    ...overrides,
+  })
+
+test("servotronic availability is fully enabled when active without faults", () => {
+  assert.deepEqual(availability(), {
+    telemetry: true,
+    modeControl: true,
+    activation: true,
+    reason: "",
+  })
+})
+
+test("servotronic availability drops all capabilities while unsynchronised or absent", () => {
+  assert.deepEqual(availability({ synchronized: false }), {
+    telemetry: false,
+    modeControl: false,
+    activation: false,
+    reason: "live steering state unavailable",
+  })
+  assert.deepEqual(availability({ steering: null }), {
+    telemetry: false,
+    modeControl: false,
+    activation: false,
+    reason: "live steering state unavailable",
+  })
+})
+
+test("servotronic availability reports faults ahead of controller status", () => {
+  const fault: RuntimeFaultState = {
+    kind: "device_adapter",
+    message: "boom",
+    monotonic_s: 1,
+  }
+  assert.equal(
+    availability({ steeringFault: fault }).reason,
+    "servotronic output adapter is faulted"
+  )
+  assert.equal(
+    availability({ adapterFault: fault }).modeControl,
+    false
+  )
+})
+
+test("servotronic availability gates on the controller status", () => {
+  const result = availability({ status: "stale" })
+  assert.deepEqual(result, {
+    telemetry: false,
+    modeControl: false,
+    activation: false,
+    reason: "servotronic controller is stale",
+  })
+})
+
+test("servotronic activation and telemetry track their extra conditions", () => {
+  assert.deepEqual(
+    availability({
+      steering: steeringState({ curve_activation_available: false }),
+    }),
+    {
+      telemetry: true,
+      modeControl: true,
+      activation: false,
+      reason: "",
+    }
+  )
+  assert.deepEqual(
+    availability({ steering: steeringState({ servotronic: null }) }),
+    {
+      telemetry: false,
+      modeControl: true,
+      activation: true,
+      reason: "",
+    }
+  )
+})
 
 test("canonical conversions include negative values and whole-number display rounding", () => {
   assert.equal(kilometresPerHourToMilesPerHour(100), 62.137100000000004)

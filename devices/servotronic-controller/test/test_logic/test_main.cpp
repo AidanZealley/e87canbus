@@ -106,10 +106,27 @@ void test_manual_control_payload_is_validated_atomically() {
     TEST_ASSERT_FALSE(applyControlPayload(payload, sizeof(payload), control));
     TEST_ASSERT_EQUAL_UINT16(750, control.assistancePerMille);
 }
+void test_speed_grid_is_shared_by_default_curve() {
+    ActiveCurve curve;  // built-in fallback
+    for (uint8_t i = 0; i < CURVE_POINT_COUNT; ++i)
+        TEST_ASSERT_EQUAL_UINT16(CURVE_SPEED_GRID[i], curve.speeds[i]);
+}
+void test_lease_loss_resets_control_to_auto() {
+    ControlCommand control;
+    control.mode = ControlMode::MANUAL; control.assistancePerMille = 750;
+    resetControlIfLeaseLost(true, control);  // fresh lease leaves the command intact
+    TEST_ASSERT_EQUAL(ControlMode::MANUAL, control.mode);
+    TEST_ASSERT_EQUAL_UINT16(750, control.assistancePerMille);
+    resetControlIfLeaseLost(false, control);  // lease loss falls back to curve-following
+    TEST_ASSERT_EQUAL(ControlMode::AUTO, control.mode);
+    TEST_ASSERT_EQUAL_UINT16(0, control.assistancePerMille);
+}
 int main(int, char **) {
     UNITY_BEGIN(); RUN_TEST(test_decoder_is_strict); RUN_TEST(test_curve_is_monotone_and_bounded);
     RUN_TEST(test_failsafe_precedence_and_timeout);
     RUN_TEST(test_ack_tracker_refreshes_hello_and_heartbeat);
     RUN_TEST(test_curve_activation_is_validated_and_atomic);
-    RUN_TEST(test_manual_control_payload_is_validated_atomically); return UNITY_END();
+    RUN_TEST(test_manual_control_payload_is_validated_atomically);
+    RUN_TEST(test_speed_grid_is_shared_by_default_curve);
+    RUN_TEST(test_lease_loss_resets_control_to_auto); return UNITY_END();
 }

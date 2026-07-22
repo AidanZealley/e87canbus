@@ -145,7 +145,7 @@ def test_initial_snapshot_and_effects() -> None:
         ),
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
-        curve_configuration_available=False,
+        curve_activation_available=False,
         button_pad_program=static_button_pad_program(AUTO_LEDS.rgb),
         high_beam_enabled=False,
         high_beam_strobe_active=False,
@@ -340,10 +340,6 @@ def test_mapped_buttons_while_maximum_assistance_is_active(
         expected_effects += (static_effect(expected_led_state),)
     if result.state.steering != state.steering:
         expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
-    if button_index not in {0, 3}:
-        expected_effects += (
-            TriggerButtonPadBlink(button_index, ButtonFeedbackColour.WHITE),
-        )
     assert result.effects == expected_effects
 
 

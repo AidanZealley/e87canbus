@@ -51,11 +51,10 @@ from e87canbus.runtime import (
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ObservedNetworkSnapshot,
-    ObservedServotronicSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
+    observed_servotronic_snapshot,
 )
-from e87canbus.servotronic_protocol import ServotronicStatus
 from e87canbus.simulation.commands import (
     SetVehicleSignal,
     SilenceVehicleSignal,
@@ -265,7 +264,6 @@ class LiveControllerRuntime:
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
         self._started = False
-        self._servotronic_status: ServotronicStatus | None = None
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         if self._started:
@@ -406,6 +404,7 @@ class LiveControllerRuntime:
         diagnostics = self._kernel.diagnostics()
         application = self._kernel.snapshot()
         enabled = tuple(item for item in self.config.can_networks if item.enabled)
+        servotronic_status = self._kernel.servotronic_status
         return (
             application,
             diagnostics,
@@ -425,30 +424,8 @@ class LiveControllerRuntime:
                 ),
                 servotronic=(
                     None
-                    if self._servotronic_status is None
-                    else ObservedServotronicSnapshot(
-                        effective_assistance=(
-                            self._servotronic_status.assistance_per_mille / 1000
-                        ),
-                        last_command_reason=(
-                            "manual"
-                            if self._servotronic_status.control_mode.name == "MANUAL"
-                            else "maximum"
-                            if self._servotronic_status.control_mode.name == "MAXIMUM"
-                            else "auto"
-                        ),
-                        watchdog_timed_out=False,
-                        active_curve_source=self._servotronic_status.source.name.lower(),
-                        active_curve_revision=self._servotronic_status.activation_revision,
-                        active_curve_crc32=self._servotronic_status.curve_crc32,
-                        observed_speed_kph=self._servotronic_status.speed_deci_kph / 10,
-                        speed_fresh=self._servotronic_status.speed_fresh,
-                        pwm_duty=self._servotronic_status.pwm_duty,
-                        inhibit_reason=(
-                            "none", "no_speed", "stale_speed", "invalid_speed",
-                            "can_fault",
-                        )[min(self._servotronic_status.inhibit_reason, 4)],
-                    )
+                    if servotronic_status is None
+                    else observed_servotronic_snapshot(servotronic_status)
                 ),
                 lighting=None,
             ),
@@ -464,7 +441,6 @@ class LiveControllerRuntime:
         commit = self._kernel.dispatch(work)
         commits = [] if commit is None else [commit]
         for status in self._executor.take_servotronic_statuses():
-            self._servotronic_status = status
             status_commit = self._kernel.dispatch(ServotronicStatusObserved(status))
             if status_commit is not None:
                 commits.append(status_commit)

@@ -104,7 +104,7 @@ class ApplicationSnapshot:
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
-    curve_configuration_available: bool
+    curve_activation_available: bool
     button_pad_program: ButtonPadProgram
     high_beam_enabled: bool
     high_beam_strobe_active: bool
@@ -285,7 +285,19 @@ def transition(
                     != state.button_pad_demo_breathe_enabled
                 )
             )
-            if not button_visual_changed:
+            # A manual-assistance press can cancel the maximum-assistance
+            # override.  In that case the persistent program must be allowed
+            # to replace button 3's white indicator without a simultaneous
+            # press-feedback command racing it on the pad transport.
+            maximum_indicator_changed = (
+                button_led_state(
+                    new_state, high_beam_button_index=strobe_config.button_index
+                ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
+                != button_led_state(
+                    state, high_beam_button_index=strobe_config.button_index
+                ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
+            )
+            if not button_visual_changed and not maximum_indicator_changed:
                 feedback = transition(
                     new_state,
                     ButtonCommandFailed(
@@ -310,7 +322,7 @@ def snapshot(
     activation_status: SteeringCurveActivationStatus,
     servotronic_usable: bool = True,
     high_beam_button_index: int = HighBeamStrobeConfig().button_index,
-    curve_configuration_available: bool = False,
+    curve_activation_available: bool = False,
 ) -> ApplicationSnapshot:
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -350,7 +362,7 @@ def snapshot(
         ),
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
-        curve_configuration_available=curve_configuration_available,
+        curve_activation_available=curve_activation_available,
         button_pad_program=button_pad_program(
             state, servotronic_usable, high_beam_button_index
         ),

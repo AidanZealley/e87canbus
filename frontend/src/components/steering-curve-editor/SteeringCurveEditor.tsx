@@ -141,19 +141,18 @@ export const SteeringCurveEditor = ({
         speedKph={speedKph}
         activeAssistance={activeAssistance}
         className={chartClassName}
-        onPointCommit={
-          activationAvailable
-            ? (definition) =>
-                void runAction("apply", () =>
-                  activateCurve({ body: { definition } })
-                )
-            : undefined
+        disabled={!activationAvailable}
+        onPointCommit={(definition) =>
+          void runAction("apply", () =>
+            activateCurve({ body: { definition } })
+          )
         }
       />
       <CurveActions
         mode={mode}
         manualAssistanceLevel={manualAssistanceLevel}
         maximumAssistanceActive={maximumAssistanceActive}
+        activeAssistance={activeAssistance}
         pendingAction={pendingAction}
         activeMatchesSaved={activeMatchesSaved}
         hasSavedProfile={savedProfile !== null}

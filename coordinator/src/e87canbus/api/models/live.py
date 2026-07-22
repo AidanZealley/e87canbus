@@ -100,7 +100,7 @@ class SteeringState(LiveModel):
     maximum_assistance_active: bool
     active_curve: ActiveSteeringCurveState
     servotronic: ServotronicState | None
-    curve_configuration_available: bool
+    curve_activation_available: bool
 
 
 ButtonPadProgramByte = Annotated[int, Field(ge=0, le=255)]
@@ -326,7 +326,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
                 from_attributes=True,
             )
         ),
-        curve_configuration_available=application.curve_configuration_available,
+        curve_activation_available=application.curve_activation_available,
     )
 
 

@@ -1,3 +1,4 @@
+import { useServotronicAvailability } from "@/components/car-layout/use-servotronic-availability"
 import { SteeringCurveEditor } from "@/components/steering-curve-editor"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +11,7 @@ export const CarSteeringEditor = () => {
     (state) => state.devices.registry.servotronic_controller
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
+  const availability = useServotronicAvailability()
   const steeringFault = useLiveStore((state) => state.health.steering.fault)
   const servotronicAdapterFault = useLiveStore(
     (state) =>
@@ -33,16 +35,13 @@ export const CarSteeringEditor = () => {
   const speedKph = vehicle.speed_valid ? vehicle.speed_kph : null
   const faultsPresent =
     steeringFault !== null || servotronicAdapterFault !== null
-  const controllerActive =
-    servotronicRegistry.status === "active" && !faultsPresent
-  const activationAvailable =
-    controllerActive && steering.curve_configuration_available
-  const controlAvailable = controllerActive
-  const activeAssistance = steering.maximum_assistance_active
-    ? 1
-    : steering.mode === "manual" || speedKph !== null
-      ? (steering.servotronic?.effective_assistance ?? null)
-      : null
+  const activeAssistance = !availability.telemetry
+    ? null
+    : steering.maximum_assistance_active
+      ? 1
+      : steering.mode === "manual" || speedKph !== null
+        ? (steering.servotronic?.effective_assistance ?? null)
+        : null
   const operation = controllerOperation(
     servotronicRegistry.status,
     steering.servotronic?.inhibit_reason ?? null,
@@ -82,8 +81,8 @@ export const CarSteeringEditor = () => {
         maximumAssistanceActive={steering.maximum_assistance_active}
         speedKph={speedKph}
         activeAssistance={activeAssistance}
-        activationAvailable={activationAvailable}
-        modeControlAvailable={controlAvailable}
+        activationAvailable={availability.activation}
+        modeControlAvailable={availability.modeControl}
         className="min-h-0 grid-rows-[minmax(0,1fr)_auto]"
         chartClassName="h-full min-h-0 sm:h-full"
       />
