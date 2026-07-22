@@ -1,4 +1,5 @@
 import type { SteeringCurveDefinition } from "@/api/live-contract.gen"
+import { cn } from "@/lib/utils"
 import { CurveChart } from "../curve-chart"
 
 type EditorCurveChartProps = {
@@ -21,8 +22,8 @@ export const EditorCurveChart = ({
     draft={activeDefinition}
     activeSpeedKph={speedKph}
     activeAssistance={activeAssistance}
-    className={className}
-    onPointChange={() => undefined}
+    className={cn(onPointCommit === undefined && "opacity-60", className)}
+    onPointChange={onPointCommit === undefined ? undefined : () => undefined}
     onPointCommit={onPointCommit}
   />
 )

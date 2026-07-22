@@ -4,7 +4,6 @@ import { listSteeringProfilesOptions } from "@/api/http/@tanstack/react-query.ge
 import {
   celsiusToFahrenheit,
   roundDisplayValue,
-  steeringDependency,
 } from "@/components/car-layout/car-ui"
 import { DeviceStatusFooter } from "@/components/device-status-footer"
 import { TemperatureGauge } from "@/components/temperature-gauge"
@@ -34,13 +33,6 @@ export const CarOverview = () => {
         (device) => device.role === "servotronic_controller"
       )?.fault ?? null
   )
-  const steeringAvailability = steeringDependency({
-    synchronized: connected,
-    status: servotronicRegistry.status,
-    steering,
-    steeringFault,
-    deviceAdapterFault: servotronicAdapterFault,
-  })
   const settings = useEffectiveApplicationSettings().settings
   const profiles = useQuery(listSteeringProfilesOptions())
   const oilSeverity = useTemperatureSeverity({
@@ -92,9 +84,12 @@ export const CarOverview = () => {
             <StatusValue
               label="Assistance"
               value={
-                steeringAvailability.available
-                  ? `${Math.round(steeringAvailability.servotronic.effective_assistance * 100)}%`
-                  : `— · ${steeringAvailability.reason}`
+                connected &&
+                steering?.servotronic &&
+                steeringFault === null &&
+                servotronicAdapterFault === null
+                  ? `${Math.round(steering.servotronic.effective_assistance * 100)}%`
+                  : "Unavailable"
               }
             />
             {steering?.mode === "manual" ? (

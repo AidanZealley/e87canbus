@@ -6,6 +6,7 @@ import {
   activateSteeringProfileMutation,
   getSavedSteeringProfileOptions,
   getSavedSteeringProfileQueryKey,
+  setMaximumAssistanceMutation,
   setSteeringModeMutation,
   updateSteeringProfileMutation,
 } from "@/api/http/@tanstack/react-query.gen"
@@ -21,6 +22,8 @@ import { definitionsEqual } from "./utils"
 type SteeringCurveEditorProps = {
   activeCurve: ActiveSteeringCurveState
   mode: Mode
+  manualAssistanceLevel: number
+  maximumAssistanceActive: boolean
   speedKph: number | null
   activeAssistance?: number | null
   className?: string
@@ -32,6 +35,8 @@ type SteeringCurveEditorProps = {
 export const SteeringCurveEditor = ({
   activeCurve,
   mode,
+  manualAssistanceLevel,
+  maximumAssistanceActive,
   speedKph,
   activeAssistance = null,
   className,
@@ -51,6 +56,9 @@ export const SteeringCurveEditor = ({
     activateSteeringProfileMutation()
   )
   const { mutateAsync: setMode } = useMutation(setSteeringModeMutation())
+  const { mutateAsync: setMaximumAssistance } = useMutation(
+    setMaximumAssistanceMutation()
+  )
   const { mutateAsync: updateProfile } = useMutation({
     ...updateSteeringProfileMutation(),
     onSuccess: (saved) =>
@@ -144,6 +152,8 @@ export const SteeringCurveEditor = ({
       />
       <CurveActions
         mode={mode}
+        manualAssistanceLevel={manualAssistanceLevel}
+        maximumAssistanceActive={maximumAssistanceActive}
         pendingAction={pendingAction}
         activeMatchesSaved={activeMatchesSaved}
         hasSavedProfile={savedProfile !== null}
@@ -151,6 +161,16 @@ export const SteeringCurveEditor = ({
         modeControlAvailable={modeControlAvailable}
         onModeChange={(nextMode) =>
           void runAction("mode", () => setMode({ body: { mode: nextMode } }))
+        }
+        onLevelChange={(manualLevel) =>
+          void runAction("level", () =>
+            setMode({ body: { mode: "manual", manual_level: manualLevel } })
+          )
+        }
+        onMaximumChange={(enabled) =>
+          void runAction("maximum", () =>
+            setMaximumAssistance({ body: { enabled } })
+          )
         }
         onSave={save}
         onReset={reset}

@@ -6,6 +6,8 @@ import { EditorHeader } from "@/components/steering-curve-editor/components/edit
 type SteeringCurveCardProps = {
   activeCurve: ActiveSteeringCurveState
   mode: Mode
+  manualAssistanceLevel: number
+  maximumAssistanceActive: boolean
   speedKph: number | null
   activeAssistance?: number | null
   activationAvailable?: boolean
@@ -15,6 +17,8 @@ type SteeringCurveCardProps = {
 export const SteeringCurveCard = ({
   activeCurve,
   mode,
+  manualAssistanceLevel,
+  maximumAssistanceActive,
   speedKph,
   activeAssistance = null,
   activationAvailable = true,
@@ -30,6 +34,8 @@ export const SteeringCurveCard = ({
         <SteeringCurveEditor
           activeCurve={activeCurve}
           mode={mode}
+          manualAssistanceLevel={manualAssistanceLevel}
+          maximumAssistanceActive={maximumAssistanceActive}
           speedKph={speedKph}
           activeAssistance={activeAssistance}
           activationAvailable={activationAvailable}

@@ -137,7 +137,8 @@ def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None
 
     active = initial_active_steering_curve()
     effect = ConfigureServotronicCurve(active.definition, active.activation_revision)
-    assert executor.execute((EffectRequest(effect),)) == ()
+    control = SetSteeringAssistance(0.75, SteeringCommandReason.MANUAL)
+    assert executor.execute((EffectRequest(effect), EffectRequest(control))) == ()
     pump()
     request = device.receive_payload()
     assert request is not None and len(request) == 44
@@ -147,6 +148,7 @@ def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None
     assert unpacked[13:21] == tuple(
         point.assistance_per_mille for point in active.definition.points
     )
+    assert device.receive_payload() == bytes((1, 3, 0xEE, 0x02, 1))
 
     status = ServotronicStatus(
         CurveResult.ACCEPTED,

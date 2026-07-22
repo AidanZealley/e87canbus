@@ -1,1 +1,2 @@
-export type PendingCurveAction = "apply" | "save" | "reset" | "mode" | null
+export type PendingCurveAction =
+  "apply" | "save" | "reset" | "mode" | "level" | "maximum" | null
