@@ -44,10 +44,11 @@ from e87canbus.application.intents import (
     OperatorIntent,
     OperatorIntentContext,
     SelectSteeringMode,
+    SetManualAssistanceLevel,
     StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
     ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
-    ToggleSteeringMode,
 )
 from e87canbus.application.intents import (
     SetMaximumAssistance as SetMaximumAssistanceIntent,
@@ -429,14 +430,19 @@ def execute_operator_intent(
     """
 
     match intent:
-        case SelectSteeringMode(mode, manual_level):
-            return _select_steering_mode(state, mode, manual_level, config)
-        case ToggleSteeringMode():
-            return _finish_steering_intent(state, _toggled_steering_mode(state))
+        case SelectSteeringMode(mode):
+            return _select_steering_mode(state, mode, config)
+        case ToggleAutomaticAssistance():
+            return _finish_steering_intent(state, _toggled_automatic_assistance(state))
         case AdjustManualAssistance(delta):
             return _finish_steering_intent(
                 state,
-                _adjusted_manual_assistance(state, delta, config),
+                _establish_manual_assistance(state, _AdjustLevel(delta), config),
+            )
+        case SetManualAssistanceLevel(level):
+            return _finish_steering_intent(
+                state,
+                _establish_manual_assistance(state, _SelectLevel(level), config),
             )
         case SetMaximumAssistanceIntent(enabled):
             return _set_maximum_assistance(state, enabled)
@@ -520,7 +526,7 @@ def _advance_high_beam_strobe(
     return Transition(next_state, (SetHighBeam(True),))
 
 
-def _toggled_steering_mode(state: ApplicationState) -> ApplicationState:
+def _toggled_automatic_assistance(state: ApplicationState) -> ApplicationState:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
         return replace(
@@ -532,27 +538,53 @@ def _toggled_steering_mode(state: ApplicationState) -> ApplicationState:
     return new_state
 
 
-def _adjusted_manual_assistance(
+@dataclass(frozen=True)
+class _RestoreLevel:
+    pass
+
+
+@dataclass(frozen=True)
+class _AdjustLevel:
+    delta: int
+
+
+@dataclass(frozen=True)
+class _SelectLevel:
+    level: int
+
+
+_ManualAssistanceChange = _RestoreLevel | _AdjustLevel | _SelectLevel
+
+
+def _establish_manual_assistance(
     state: ApplicationState,
-    delta: int,
+    change: _ManualAssistanceChange,
     config: SteeringConfig,
 ) -> ApplicationState:
-    steering = state.steering
-    if isinstance(steering, MaximumAssistance):
-        new_state = replace(
-            state,
-            steering=replace(steering.previous, mode=SteeringMode.MANUAL),
-        )
-        return new_state
-    if steering.mode is SteeringMode.AUTO:
-        new_state = replace(state, steering=replace(steering, mode=SteeringMode.MANUAL))
-        return new_state
+    """Cancel Max, select Manual, and apply one unambiguous level operation."""
 
-    manual_level = clamp_manual_level(
-        steering.manual_level + delta,
-        config.manual_level_count,
-    )
-    return replace(state, steering=replace(steering, manual_level=manual_level))
+    steering = state.steering
+    normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
+    remembered_level = clamp_manual_level(normal.manual_level, config.manual_level_count)
+    match change:
+        case _RestoreLevel():
+            level = remembered_level
+        case _AdjustLevel(delta):
+            # The first relative request from Max or Auto only restores Manual.
+            level = (
+                remembered_level
+                if isinstance(steering, MaximumAssistance) or normal.mode is SteeringMode.AUTO
+                else clamp_manual_level(remembered_level + delta, config.manual_level_count)
+            )
+        case _SelectLevel(level):
+            if not 0 <= level < config.manual_level_count:
+                raise ValueError(
+                    f"manual assistance level must be between 0 and "
+                    f"{config.manual_level_count - 1}"
+                )
+        case _:
+            assert_never(change)
+    return replace(state, steering=replace(normal, mode=SteeringMode.MANUAL, manual_level=level))
 
 
 def _toggled_maximum_assistance(
@@ -600,23 +632,16 @@ def _set_maximum_assistance(
 def _select_steering_mode(
     state: ApplicationState,
     mode: SteeringMode,
-    manual_level: int | None,
     config: SteeringConfig,
 ) -> Transition:
     if not isinstance(mode, SteeringMode):
         raise ValueError("mode must be a supported SteeringMode value")
-    if manual_level is not None:
-        if type(manual_level) is not int:
-            raise ValueError("manual_level must be an integer")
-        if not 0 <= manual_level < config.manual_level_count:
-            raise ValueError(f"manual_level must be between 0 and {config.manual_level_count - 1}")
+    if mode is SteeringMode.MANUAL:
+        next_state = _establish_manual_assistance(state, _RestoreLevel(), config)
+        return Transition(next_state, _steering_state_effects(state, next_state))
     steering = state.steering
     normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
-    next_normal = replace(
-        normal,
-        mode=mode,
-        manual_level=normal.manual_level if manual_level is None else manual_level,
-    )
+    next_normal = replace(normal, mode=mode)
     # An explicit mode selection is a normal steering command, so it also
     # cancels the temporary maximum-assistance override.
     next_state = replace(state, steering=next_normal)
@@ -645,7 +670,7 @@ def _steering_projection(
 ) -> tuple[SteeringMode, int, bool]:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
-        return SteeringMode.MANUAL, config.manual_level_count - 1, True
+        return SteeringMode.MANUAL, steering.previous.manual_level, True
     return steering.mode, steering.manual_level, False
 
 

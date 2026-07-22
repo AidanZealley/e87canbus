@@ -24,7 +24,7 @@ def test_simulator_schema_has_stable_unique_operation_ids(tmp_path: Path) -> Non
     schema = schema_for(DeploymentProfile.SIMULATOR, tmp_path / "simulator.sqlite3")
     operation_ids = [operation["operationId"] for operation in operations(schema)]
 
-    assert len(operation_ids) == 29
+    assert len(operation_ids) == 31
     assert len(operation_ids) == len(set(operation_ids))
     assert "getApplicationSettings" in operation_ids
     assert "resetSimulation" in operation_ids

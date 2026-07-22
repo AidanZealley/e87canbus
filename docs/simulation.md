@@ -98,6 +98,11 @@ implementation; only button acknowledgements remain origin-specific. The profile
 composition for tests and future work, but there is currently no profile persistence or configuration
 UI.
 
+The HTTP command surface keeps these meanings distinct: steering-mode selects only Auto or Manual,
+manual-assistance-adjustment applies a relative delta, and manual-assistance-level selects an exact
+stage for future direct selectors. The on-screen `−` and `+` controls use relative adjustment, so
+they never derive a new level from the maximum-assistance projection.
+
 Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
 for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
 turns each phase into a private extended K-CAN command from the Pi to the virtual vehicle, so the

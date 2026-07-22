@@ -7,7 +7,9 @@ from e87canbus.api.internal import operational_commands
 from e87canbus.api.models.commands import (
     ActivateSteeringCurveRequest,
     ActivateSteeringProfileRequest,
+    AdjustManualAssistanceRequest,
     CommandAcknowledgement,
+    SetManualAssistanceLevelRequest,
     SetMaximumAssistanceRequest,
     SetSteeringModeRequest,
 )
@@ -37,6 +39,30 @@ async def set_steering_mode(
     body: SetSteeringModeRequest,
 ) -> CommandAcknowledgement:
     return await operational_commands.set_steering_mode(request.app, body)
+
+
+@router.post(
+    "/manual-assistance-adjustment",
+    operation_id="adjustManualAssistance",
+    responses=api_problem_responses(409, 422, 503),
+)
+async def adjust_manual_assistance(
+    request: Request,
+    body: AdjustManualAssistanceRequest,
+) -> CommandAcknowledgement:
+    return await operational_commands.adjust_manual_assistance(request.app, body)
+
+
+@router.put(
+    "/manual-assistance-level",
+    operation_id="setManualAssistanceLevel",
+    responses=api_problem_responses(409, 422, 503),
+)
+async def set_manual_assistance_level(
+    request: Request,
+    body: SetManualAssistanceLevelRequest,
+) -> CommandAcknowledgement:
+    return await operational_commands.set_manual_assistance_level(request.app, body)
 
 
 @router.post(

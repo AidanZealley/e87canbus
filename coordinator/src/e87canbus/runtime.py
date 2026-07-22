@@ -45,11 +45,17 @@ from e87canbus.application.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.application.intents import (
+    AdjustManualAssistance as AdjustManualAssistanceIntent,
+)
+from e87canbus.application.intents import (
     IntentDispatcher,
     OperatorIntent,
     OperatorIntentContext,
     SelectSteeringMode,
     intent_requires_servotronic,
+)
+from e87canbus.application.intents import (
+    SetManualAssistanceLevel as SetManualAssistanceLevelIntent,
 )
 from e87canbus.application.intents import (
     SetMaximumAssistance as SetMaximumAssistanceIntent,
@@ -188,15 +194,28 @@ class SetMaximumAssistance:
 @dataclass(frozen=True)
 class SetSteeringMode:
     mode: SteeringMode
-    manual_level: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.mode, SteeringMode):
             raise ValueError("mode must be a supported SteeringMode value")
-        if self.manual_level is not None and (
-            type(self.manual_level) is not int or self.manual_level < 0
-        ):
-            raise ValueError("manual_level must be a non-negative integer")
+
+
+@dataclass(frozen=True)
+class AdjustManualAssistance:
+    delta: int
+
+    def __post_init__(self) -> None:
+        if type(self.delta) is not int or self.delta not in (-1, 1):
+            raise ValueError("manual assistance delta must be -1 or 1")
+
+
+@dataclass(frozen=True)
+class SetManualAssistanceLevel:
+    level: int
+
+    def __post_init__(self) -> None:
+        if type(self.level) is not int or self.level < 0:
+            raise ValueError("manual assistance level must be a non-negative integer")
 
 
 ControllerInput = (
@@ -215,6 +234,8 @@ ControllerInput = (
     | ServotronicStatusObserved
     | SetMaximumAssistance
     | SetSteeringMode
+    | AdjustManualAssistance
+    | SetManualAssistanceLevel
 )
 
 
@@ -634,11 +655,21 @@ class CoordinatorKernel:
                     return None
                 self._require_servotronic()
                 return self._dispatch_operator_intent(SetMaximumAssistanceIntent(enabled))
-            case SetSteeringMode(mode, manual_level):
+            case SetSteeringMode(mode):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 self._require_servotronic()
-                return self._dispatch_operator_intent(SelectSteeringMode(mode, manual_level))
+                return self._dispatch_operator_intent(SelectSteeringMode(mode))
+            case AdjustManualAssistance(delta):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                self._require_servotronic()
+                return self._dispatch_operator_intent(AdjustManualAssistanceIntent(delta))
+            case SetManualAssistanceLevel(level):
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                self._require_servotronic()
+                return self._dispatch_operator_intent(SetManualAssistanceLevelIntent(level))
             case _:
                 assert_never(kernel_input)
 

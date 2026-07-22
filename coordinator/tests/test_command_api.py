@@ -3,14 +3,15 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import pytest
 from e87canbus.api.main import create_app
 from e87canbus.application.state import SteeringMode
 from e87canbus.composition import build_live_controller_service
 from e87canbus.config import default_config, simulator_config
 from e87canbus.runtime import (
     ActivateSteeringCurve,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
-    SetSteeringMode,
 )
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
@@ -43,12 +44,12 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
         first = client.put("/api/commands/maximum-assistance", json={"enabled": True})
         repeated = client.put("/api/commands/maximum-assistance", json={"enabled": True})
         mode = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 4},
+            "/api/commands/manual-assistance-level",
+            json={"level": 4},
         )
         repeated_mode = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 4},
+            "/api/commands/manual-assistance-level",
+            json={"level": 4},
         )
         disabled = client.put("/api/commands/maximum-assistance", json={"enabled": False})
         snapshot = client.app.state.controller_service.snapshot()
@@ -77,20 +78,60 @@ def test_manual_level_validation_uses_the_server_steering_configuration(
     with TestClient(app) as client:
         activate_simulation_devices(client.app.state.controller_service)
         accepted = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 2},
+            "/api/commands/manual-assistance-level",
+            json={"level": 2},
         )
         rejected = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 3},
+            "/api/commands/manual-assistance-level",
+            json={"level": 3},
         )
 
     assert accepted.status_code == 200
     assert rejected.status_code == 422
     assert rejected.json()["error"] == {
         "code": "validation_error",
-        "message": "manual_level must be between 0 and 2",
+        "message": "manual assistance level must be between 0 and 2",
     }
+
+
+def test_relative_adjustment_from_max_restores_remembered_level_before_adjusting(
+    tmp_path: Path,
+) -> None:
+    with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
+        activate_simulation_devices(client.app.state.controller_service)
+        client.put("/api/commands/manual-assistance-level", json={"level": 4})
+        client.put("/api/commands/maximum-assistance", json={"enabled": True})
+
+        restored = client.post(
+            "/api/commands/manual-assistance-adjustment",
+            json={"delta": -1},
+        )
+        first_snapshot = client.app.state.controller_service.snapshot().application
+        adjusted = client.post(
+            "/api/commands/manual-assistance-adjustment",
+            json={"delta": -1},
+        )
+        second_snapshot = client.app.state.controller_service.snapshot().application
+
+    assert restored.status_code == adjusted.status_code == 200
+    assert first_snapshot.maximum_assistance_active is False
+    assert first_snapshot.steering_mode is SteeringMode.MANUAL
+    assert first_snapshot.manual_assistance_level == 4
+    assert second_snapshot.manual_assistance_level == 3
+
+
+@pytest.mark.parametrize("delta", [-2, 0, 2])
+def test_relative_adjustment_rejects_more_than_one_stage(
+    tmp_path: Path,
+    delta: int,
+) -> None:
+    with TestClient(command_app(tmp_path / f"app-{delta}.sqlite3")) as client:
+        response = client.post(
+            "/api/commands/manual-assistance-adjustment",
+            json={"delta": delta},
+        )
+
+    assert response.status_code == 422
 
 
 def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -> None:
@@ -174,8 +215,8 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
             json={"enabled": True},
         )
         mode = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 3},
+            "/api/commands/manual-assistance-level",
+            json={"level": 3},
         )
         draft = client.put(
             "/api/commands/steering-curve",
@@ -191,7 +232,7 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
 
     assert all(response.status_code == 200 for response in (maximum, mode, draft, saved))
     assert submissions[0] == SetMaximumAssistance(True)
-    assert submissions[1] == SetSteeringMode(SteeringMode.MANUAL, 3)
+    assert submissions[1] == SetManualAssistanceLevel(3)
     assert isinstance(submissions[2], ActivateSteeringCurve)
     assert submissions[2].saved_profile_id is None
     assert submissions[2].saved_profile_revision is None
@@ -224,8 +265,8 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
         ).json()
         maximum = client.put("/api/commands/maximum-assistance", json={"enabled": True})
         mode = client.put(
-            "/api/commands/steering-mode",
-            json={"mode": "manual", "manual_level": 3},
+            "/api/commands/manual-assistance-level",
+            json={"level": 3},
         )
         normal = client.put("/api/commands/maximum-assistance", json={"enabled": False})
         activated = client.post(

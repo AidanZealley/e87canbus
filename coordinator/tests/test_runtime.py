@@ -17,7 +17,7 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.intents import ToggleSteeringMode
+from e87canbus.application.intents import ToggleAutomaticAssistance
 from e87canbus.application.state import SpeedSample, SteeringMode
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
@@ -35,6 +35,7 @@ from e87canbus.protocol.can import (
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     INITIAL_KERNEL_TOPICS,
+    AdjustManualAssistance,
     CanEffectExecutionFailed,
     CanReaderFailed,
     CoordinatorKernel,
@@ -45,6 +46,7 @@ from e87canbus.runtime import (
     RuntimeFault,
     RuntimeFaultKind,
     RuntimeHealth,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -203,7 +205,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
 def test_decoded_physical_button_press_uses_the_injected_profile() -> None:
     profile = ButtonBindingProfile(
         "test-remap",
-        (ButtonBinding(8, ToggleSteeringMode()),),
+        (ButtonBinding(8, ToggleAutomaticAssistance()),),
     )
     kernel = CoordinatorKernel(button_binding_profile=profile)
     kernel.dispatch(KernelStarted(0.0))
@@ -239,8 +241,8 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     maximum = kernel.dispatch(SetMaximumAssistance(True))
     repeated_maximum = kernel.dispatch(SetMaximumAssistance(True))
-    manual = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
-    repeated_manual = kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+    manual = kernel.dispatch(SetManualAssistanceLevel(4))
+    repeated_manual = kernel.dispatch(SetManualAssistanceLevel(4))
     normal = kernel.dispatch(SetMaximumAssistance(False))
     repeated_normal = kernel.dispatch(SetMaximumAssistance(False))
     auto = kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
@@ -291,7 +293,7 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
 
 @pytest.mark.parametrize("button_index", [1, 2])
-def test_button_and_exact_manual_command_clear_maximum_with_equivalent_outputs(
+def test_button_and_relative_manual_command_clear_maximum_with_equivalent_outputs(
     button_index: int,
 ) -> None:
     button_kernel = CoordinatorKernel()
@@ -299,11 +301,12 @@ def test_button_and_exact_manual_command_clear_maximum_with_equivalent_outputs(
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
-        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+        kernel.dispatch(SetManualAssistanceLevel(4))
         kernel.dispatch(SetMaximumAssistance(True))
 
     button = press_button(button_kernel, button_index)
-    command = command_kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL))
+    delta = -1 if button_index == 1 else 1
+    command = command_kernel.dispatch(AdjustManualAssistance(delta))
 
     assert button is not None and command is not None
     assert steering_projection(button) == steering_projection(command)
@@ -318,17 +321,18 @@ def test_button_and_exact_manual_command_clear_maximum_with_equivalent_outputs(
 
 
 @pytest.mark.parametrize("button_index", [1, 2])
-def test_button_and_exact_command_enter_manual_at_remembered_level(button_index: int) -> None:
+def test_button_and_relative_command_enter_manual_at_remembered_level(button_index: int) -> None:
     button_kernel = CoordinatorKernel()
     command_kernel = CoordinatorKernel()
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
-        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 7))
+        kernel.dispatch(SetManualAssistanceLevel(7))
         kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
 
     button = press_button(button_kernel, button_index)
-    command = command_kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL))
+    delta = -1 if button_index == 1 else 1
+    command = command_kernel.dispatch(AdjustManualAssistance(delta))
 
     assert button is not None and command is not None
     # Button acknowledgement is intentionally part of the button program only;
@@ -348,7 +352,7 @@ def test_maximum_toggle_button_matches_explicit_enable_and_disable_commands() ->
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
-        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 3))
+        kernel.dispatch(SetManualAssistanceLevel(3))
 
     button_enabled = press_button(button_kernel, 3, 2.0)
     command_enabled = command_kernel.dispatch(SetMaximumAssistance(True))
@@ -363,16 +367,32 @@ def test_maximum_toggle_button_matches_explicit_enable_and_disable_commands() ->
     assert steering_effects(button_disabled) == steering_effects(command_disabled)
 
 
+def test_maximum_snapshot_preserves_remembered_manual_level_and_effective_override() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
+    kernel.dispatch(SetManualAssistanceLevel(4))
+
+    maximum = kernel.dispatch(SetMaximumAssistance(True))
+
+    assert maximum is not None
+    assert maximum.snapshot.manual_assistance_level == 4
+    assert maximum.snapshot.maximum_assistance_active is True
+    assert steering_effects(maximum) == (
+        SetSteeringAssistance(1.0, SteeringCommandReason.MAXIMUM),
+    )
+
+
 def test_projected_eleven_levels_and_button_bounds_match_exact_commands() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
     assert kernel.snapshot().manual_assistance_level_count == 11
-    kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 0))
+    kernel.dispatch(SetManualAssistanceLevel(0))
     low = press_button(kernel, 1, 2.0)
     assert low is not None and low.snapshot.manual_assistance_level == 0
-    kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 10))
+    kernel.dispatch(SetManualAssistanceLevel(10))
     high = press_button(kernel, 2, 3.0)
     assert high is not None and high.snapshot.manual_assistance_level == 10
 

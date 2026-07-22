@@ -35,6 +35,24 @@
         "title": "ActivateSteeringProfileRequest",
         "type": "object"
       },
+      "AdjustManualAssistanceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "delta": {
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Delta",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "title": "AdjustManualAssistanceRequest",
+        "type": "object"
+      },
       "ApiProblemDetail": {
         "additionalProperties": false,
         "properties": {
@@ -278,6 +296,21 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "SetManualAssistanceLevelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "minimum": 0.0,
+            "title": "Level",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "title": "SetManualAssistanceLevelRequest",
+        "type": "object"
+      },
       "SetMaximumAssistanceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -295,18 +328,6 @@
       "SetSteeringModeRequest": {
         "additionalProperties": false,
         "properties": {
-          "manual_level": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Manual Level"
-          },
           "mode": {
             "enum": [
               "auto",
@@ -774,6 +795,128 @@
           }
         },
         "summary": "Activate Steering Profile",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/commands/manual-assistance-adjustment": {
+      "post": {
+        "operationId": "adjustManualAssistance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustManualAssistanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAcknowledgement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Adjust Manual Assistance",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/api/commands/manual-assistance-level": {
+      "put": {
+        "operationId": "setManualAssistanceLevel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetManualAssistanceLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAcknowledgement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Set Manual Assistance Level",
         "tags": [
           "commands"
         ]

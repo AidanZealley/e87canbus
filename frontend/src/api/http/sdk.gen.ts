@@ -15,6 +15,9 @@ import type {
   ActivateSteeringProfileData,
   ActivateSteeringProfileErrors,
   ActivateSteeringProfileResponses,
+  AdjustManualAssistanceData,
+  AdjustManualAssistanceErrors,
+  AdjustManualAssistanceResponses,
   CheckLivenessData,
   CheckLivenessResponses,
   CheckReadinessData,
@@ -56,6 +59,9 @@ import type {
   SetEngineRpmData,
   SetEngineRpmErrors,
   SetEngineRpmResponses,
+  SetManualAssistanceLevelData,
+  SetManualAssistanceLevelErrors,
+  SetManualAssistanceLevelResponses,
   SetMaximumAssistanceData,
   SetMaximumAssistanceErrors,
   SetMaximumAssistanceResponses,
@@ -99,6 +105,7 @@ import type {
 import {
   zActivateSteeringCurveResponse,
   zActivateSteeringProfileResponse,
+  zAdjustManualAssistanceResponse,
   zCheckLivenessResponse,
   zCheckReadinessResponse,
   zConnectSimulationDeviceResponse,
@@ -113,6 +120,7 @@ import {
   zResetSimulationResponse,
   zSetCoolantTemperatureResponse,
   zSetEngineRpmResponse,
+  zSetManualAssistanceLevelResponse,
   zSetMaximumAssistanceResponse,
   zSetOilTemperatureResponse,
   zSetSimulationDeviceProtocolVersionResponse,
@@ -167,6 +175,62 @@ export const activateSteeringProfile = <ThrowOnError extends boolean = true>(
       await zActivateSteeringProfileResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/commands/activate-steering-profile",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Adjust Manual Assistance
+ */
+export const adjustManualAssistance = <ThrowOnError extends boolean = true>(
+  options: Options<AdjustManualAssistanceData, ThrowOnError>
+): RequestResult<
+  AdjustManualAssistanceResponses,
+  AdjustManualAssistanceErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    AdjustManualAssistanceResponses,
+    AdjustManualAssistanceErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zAdjustManualAssistanceResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/commands/manual-assistance-adjustment",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Manual Assistance Level
+ */
+export const setManualAssistanceLevel = <ThrowOnError extends boolean = true>(
+  options: Options<SetManualAssistanceLevelData, ThrowOnError>
+): RequestResult<
+  SetManualAssistanceLevelResponses,
+  SetManualAssistanceLevelErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetManualAssistanceLevelResponses,
+    SetManualAssistanceLevelErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetManualAssistanceLevelResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/commands/manual-assistance-level",
     ...options,
     headers: {
       "Content-Type": "application/json",

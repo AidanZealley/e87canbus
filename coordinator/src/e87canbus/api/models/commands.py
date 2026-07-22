@@ -20,7 +20,14 @@ class SetMaximumAssistanceRequest(StrictCommandRequest):
 
 class SetSteeringModeRequest(StrictCommandRequest):
     mode: Literal["auto", "manual"]
-    manual_level: int | None = Field(default=None, ge=0)
+
+
+class AdjustManualAssistanceRequest(StrictCommandRequest):
+    delta: Literal[-1, 1]
+
+
+class SetManualAssistanceLevelRequest(StrictCommandRequest):
+    level: int = Field(ge=0)
 
 
 class ActivateSteeringProfileRequest(StrictCommandRequest):

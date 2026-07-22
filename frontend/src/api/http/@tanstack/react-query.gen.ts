@@ -10,6 +10,7 @@ import { client } from "../client.gen"
 import {
   activateSteeringCurve,
   activateSteeringProfile,
+  adjustManualAssistance,
   checkLiveness,
   checkReadiness,
   connectSimulationDevice,
@@ -25,6 +26,7 @@ import {
   resetSimulation,
   setCoolantTemperature,
   setEngineRpm,
+  setManualAssistanceLevel,
   setMaximumAssistance,
   setOilTemperature,
   setSimulationDeviceProtocolVersion,
@@ -46,6 +48,9 @@ import type {
   ActivateSteeringProfileData,
   ActivateSteeringProfileError,
   ActivateSteeringProfileResponse,
+  AdjustManualAssistanceData,
+  AdjustManualAssistanceError,
+  AdjustManualAssistanceResponse,
   CheckLivenessData,
   CheckLivenessResponse,
   CheckReadinessData,
@@ -87,6 +92,9 @@ import type {
   SetEngineRpmData,
   SetEngineRpmError,
   SetEngineRpmResponse,
+  SetManualAssistanceLevelData,
+  SetManualAssistanceLevelError,
+  SetManualAssistanceLevelResponse,
   SetMaximumAssistanceData,
   SetMaximumAssistanceError,
   SetMaximumAssistanceResponse,
@@ -145,6 +153,56 @@ export const activateSteeringProfileMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await activateSteeringProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Adjust Manual Assistance
+ */
+export const adjustManualAssistanceMutation = (
+  options?: Partial<Options<AdjustManualAssistanceData>>
+): UseMutationOptions<
+  AdjustManualAssistanceResponse,
+  AdjustManualAssistanceError,
+  Options<AdjustManualAssistanceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    AdjustManualAssistanceResponse,
+    AdjustManualAssistanceError,
+    Options<AdjustManualAssistanceData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await adjustManualAssistance({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Set Manual Assistance Level
+ */
+export const setManualAssistanceLevelMutation = (
+  options?: Partial<Options<SetManualAssistanceLevelData>>
+): UseMutationOptions<
+  SetManualAssistanceLevelResponse,
+  SetManualAssistanceLevelError,
+  Options<SetManualAssistanceLevelData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetManualAssistanceLevelResponse,
+    SetManualAssistanceLevelError,
+    Options<SetManualAssistanceLevelData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await setManualAssistanceLevel({
         ...options,
         ...fnOptions,
         throwOnError: true,

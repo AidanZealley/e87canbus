@@ -26,6 +26,16 @@ export type ActivateSteeringProfileRequest = {
 }
 
 /**
+ * AdjustManualAssistanceRequest
+ */
+export type AdjustManualAssistanceRequest = {
+  /**
+   * Delta
+   */
+  delta: -1 | 1
+}
+
+/**
  * ApiProblemDetail
  */
 export type ApiProblemDetail = {
@@ -181,6 +191,16 @@ export type ReadinessResponse = {
 }
 
 /**
+ * SetManualAssistanceLevelRequest
+ */
+export type SetManualAssistanceLevelRequest = {
+  /**
+   * Level
+   */
+  level: number
+}
+
+/**
  * SetMaximumAssistanceRequest
  */
 export type SetMaximumAssistanceRequest = {
@@ -194,10 +214,6 @@ export type SetMaximumAssistanceRequest = {
  * SetSteeringModeRequest
  */
 export type SetSteeringModeRequest = {
-  /**
-   * Manual Level
-   */
-  manual_level?: number | null
   /**
    * Mode
    */
@@ -486,6 +502,76 @@ export type ActivateSteeringProfileResponses = {
 
 export type ActivateSteeringProfileResponse =
   ActivateSteeringProfileResponses[keyof ActivateSteeringProfileResponses]
+
+export type AdjustManualAssistanceData = {
+  body: AdjustManualAssistanceRequest
+  path?: never
+  query?: never
+  url: "/api/commands/manual-assistance-adjustment"
+}
+
+export type AdjustManualAssistanceErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type AdjustManualAssistanceError =
+  AdjustManualAssistanceErrors[keyof AdjustManualAssistanceErrors]
+
+export type AdjustManualAssistanceResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type AdjustManualAssistanceResponse =
+  AdjustManualAssistanceResponses[keyof AdjustManualAssistanceResponses]
+
+export type SetManualAssistanceLevelData = {
+  body: SetManualAssistanceLevelRequest
+  path?: never
+  query?: never
+  url: "/api/commands/manual-assistance-level"
+}
+
+export type SetManualAssistanceLevelErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SetManualAssistanceLevelError =
+  SetManualAssistanceLevelErrors[keyof SetManualAssistanceLevelErrors]
+
+export type SetManualAssistanceLevelResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type SetManualAssistanceLevelResponse =
+  SetManualAssistanceLevelResponses[keyof SetManualAssistanceLevelResponses]
 
 export type SetMaximumAssistanceData = {
   body: SetMaximumAssistanceRequest
