@@ -20,6 +20,7 @@ from e87canbus.application.events import (
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
+    SteeringCommandReason,
     TriggerButtonPadBlink,
 )
 from e87canbus.button_pad import pack_button_pad_transfers
@@ -34,7 +35,13 @@ from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.servotronic_protocol import ServotronicStatus, pack_curve, unpack_status
+from e87canbus.servotronic_protocol import (
+    ControlMode,
+    ServotronicStatus,
+    pack_control,
+    pack_curve,
+    unpack_status,
+)
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
@@ -202,6 +209,7 @@ class EffectExecutor:
         effects: tuple[EffectRequest, ...],
     ) -> tuple[EffectFailure, ...]:
         failures: list[EffectFailure] = []
+        servotronic_payloads: list[bytes] = []
         for request in effects:
             if not isinstance(request, EffectRequest):
                 raise TypeError("EffectExecutor accepts only EffectRequest values")
@@ -209,20 +217,18 @@ class EffectExecutor:
             origin_button_index = request.origin_button_index
             match effect:
                 case SetSteeringAssistance():
-                    steering_failure = self._execute_steering(effect, origin_button_index)
-                    if steering_failure is not None:
-                        failures.append(steering_failure)
+                    if self._steering_actuator is None:
+                        if self._servotronic_transport is not None:
+                            servotronic_payloads.append(_pack_steering_control(effect))
+                    else:
+                        steering_failure = self._execute_steering(effect, origin_button_index)
+                        if steering_failure is not None:
+                            failures.append(steering_failure)
                 case ConfigureServotronicCurve():
                     if self._servotronic_transport is not None:
-                        try:
-                            self._servotronic_transport.send(
-                                pack_curve(effect.definition, effect.activation_revision)
-                            )
-                            self._servotronic_transport.poll()
-                        except (OSError, RuntimeError, ValueError) as exc:
-                            failures.append(
-                                CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)
-                            )
+                        servotronic_payloads.append(
+                            pack_curve(effect.definition, effect.activation_revision)
+                        )
                 case SetButtonPadProgram():
                     can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
@@ -241,6 +247,12 @@ class EffectExecutor:
                         failures.append(can_failure)
                 case _:
                     assert_never(effect)
+        if servotronic_payloads and self._servotronic_transport is not None:
+            try:
+                self._servotronic_transport.send_many(tuple(servotronic_payloads))
+                self._servotronic_transport.poll()
+            except (OSError, RuntimeError, ValueError) as exc:
+                failures.append(CanEffectFailure(CanNetwork.KCAN, str(exc)))
         return tuple(failures)
 
     def _execute_button_pad_effect(
@@ -380,6 +392,17 @@ class EffectExecutor:
             LOGGER.warning("failed to execute high-beam effect: error=%s", exc)
             return HighBeamActuatorFailure(str(exc), origin_button_index)
         return None
+
+
+def _pack_steering_control(command: SetSteeringAssistance) -> bytes:
+    mode = (
+        ControlMode.MANUAL
+        if command.reason is SteeringCommandReason.MANUAL
+        else ControlMode.MAXIMUM
+        if command.reason is SteeringCommandReason.MAXIMUM
+        else ControlMode.AUTO
+    )
+    return pack_control(command.assistance, mode)
 
 
 def _discard_expired(send_times: deque[float], cutoff: float) -> None:

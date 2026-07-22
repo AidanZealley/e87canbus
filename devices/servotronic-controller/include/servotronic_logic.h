@@ -20,6 +20,7 @@ constexpr uint8_t CURVE_POINT_COUNT = 8;
 constexpr uint8_t CURVE_PROTOCOL_VERSION = 1;
 constexpr uint8_t CURVE_SET_OPCODE = 1;
 constexpr uint8_t CURVE_STATUS_OPCODE = 2;
+constexpr uint8_t CONTROL_SET_OPCODE = 3;
 constexpr uint8_t CURVE_SCHEMA_VERSION = 1;
 constexpr uint8_t CURVE_INTERPOLATION_VERSION = 1;
 constexpr uint8_t CURVE_PAYLOAD_LENGTH = 44;
@@ -30,6 +31,28 @@ enum class CurveResult : uint8_t {
     BAD_VALUES = 4, BAD_CRC = 5,
 };
 enum class CurveSource : uint8_t { BUILTIN_FALLBACK = 0, COORDINATOR_RAM = 1 };
+enum class ControlMode : uint8_t { AUTO = 0, MANUAL = 1, MAXIMUM = 2 };
+
+struct ControlCommand {
+    ControlMode mode = ControlMode::AUTO;
+    uint16_t assistancePerMille = 0;
+};
+
+inline uint16_t readU16(const uint8_t *p) {
+    return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
+}
+
+inline bool applyControlPayload(const uint8_t *payload, uint16_t length,
+                                ControlCommand &control) {
+    if (payload == nullptr || length != 5 || payload[0] != CURVE_PROTOCOL_VERSION ||
+        payload[1] != CONTROL_SET_OPCODE) return false;
+    const uint16_t assistance = readU16(payload + 2);
+    const uint8_t mode = payload[4];
+    if (assistance > 1000 || mode > static_cast<uint8_t>(ControlMode::MAXIMUM)) return false;
+    control.assistancePerMille = assistance;
+    control.mode = static_cast<ControlMode>(mode);
+    return true;
+}
 
 struct ActiveCurve {
     uint16_t speeds[CURVE_POINT_COUNT] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
@@ -39,9 +62,6 @@ struct ActiveCurve {
     CurveSource source = CurveSource::BUILTIN_FALLBACK;
 };
 
-inline uint16_t readU16(const uint8_t *p) {
-    return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
-}
 inline uint32_t readU32(const uint8_t *p) {
     return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);

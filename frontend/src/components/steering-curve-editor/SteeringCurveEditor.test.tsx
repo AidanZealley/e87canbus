@@ -114,6 +114,8 @@ const renderEditor = (
     <SteeringCurveCard
       activeCurve={activeCurve}
       mode="auto"
+      manualAssistanceLevel={0}
+      maximumAssistanceActive={false}
       speedKph={speedKph}
       activeAssistance={activeAssistance}
     />,
@@ -145,6 +147,34 @@ describe("SteeringCurveEditor", () => {
         .getByText("Simulate point drag")
         .getAttribute("data-active-assistance")
     ).toBe(String(3 / 7))
+  })
+
+  it("maps the up and max controls to the button-pad command semantics", async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = requestUrl(input)
+        if (url.endsWith("/api/steering/profile")) return jsonResponse([])
+        requests.push({ url, body: await requestBody(input, init) })
+        return commandResponse()
+      })
+    )
+    renderEditor(active())
+
+    fireEvent.click(screen.getByRole("button", { name: "Increase assistance" }))
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).toMatchObject({
+      url: expect.stringMatching(/api\/commands\/steering-mode$/),
+      body: { mode: "manual", manual_level: 0 },
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Max" }))
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[1]).toMatchObject({
+      url: expect.stringMatching(/api\/commands\/maximum-assistance$/),
+      body: { enabled: true },
+    })
   })
 
   it("always presents a smooth curve without an interpolation control", async () => {

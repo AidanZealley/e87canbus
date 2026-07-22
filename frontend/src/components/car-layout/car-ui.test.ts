@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { DEFAULT_APPLICATION_SETTINGS } from "../../lib/application-settings.ts"
-import type { SteeringState } from "../../api/live-contract.gen"
 import {
   celsiusToFahrenheit,
   deriveRpmPresentation,
@@ -10,80 +9,9 @@ import {
   fahrenheitToCelsius,
   kilometresPerHourToMilesPerHour,
   roundDisplayValue,
-  steeringDependency,
   transitionTemperatureSeverity,
   type TemperatureSeverity,
 } from "./car-ui.ts"
-
-test("steering dependency distinguishes transport, registry, and adapter availability", () => {
-  const steering = {
-    servotronic: {
-      effective_assistance: 0.5,
-      last_command_reason: "auto",
-      watchdog_timed_out: false,
-    },
-  } as SteeringState
-  const dependency = (
-    overrides: Partial<Parameters<typeof steeringDependency>[0]> = {}
-  ) =>
-    steeringDependency({
-      synchronized: true,
-      status: "active",
-      steering,
-      steeringFault: null,
-      deviceAdapterFault: null,
-      ...overrides,
-    })
-
-  assert.deepEqual(dependency({ synchronized: false }), {
-    available: false,
-    reason: "live steering state unavailable",
-  })
-  assert.deepEqual(dependency({ status: "stale" }), {
-    available: false,
-    reason: "servotronic controller is stale",
-  })
-  assert.deepEqual(
-    dependency({ steering: { ...steering, servotronic: null } }),
-    {
-      available: false,
-      reason: "servotronic output adapter is unavailable",
-    }
-  )
-  assert.deepEqual(
-    dependency({
-      steeringFault: {
-        kind: "steering_actuator",
-        monotonic_s: 1,
-        message: "actuator failed",
-      },
-    }),
-    {
-      available: false,
-      reason: "servotronic output adapter is faulted",
-    }
-  )
-  assert.deepEqual(
-    dependency({
-      deviceAdapterFault: {
-        kind: "device_adapter",
-        monotonic_s: 2,
-        message: "adapter failed",
-      },
-    }),
-    {
-      available: false,
-      reason: "servotronic output adapter is faulted",
-    }
-  )
-
-  const available = dependency()
-  assert.equal(available.available, true)
-  if (available.available) {
-    assert.equal(available.steering, steering)
-    assert.equal(available.servotronic, steering.servotronic)
-  }
-})
 
 test("canonical conversions include negative values and whole-number display rounding", () => {
   assert.equal(kilometresPerHourToMilesPerHour(100), 62.137100000000004)

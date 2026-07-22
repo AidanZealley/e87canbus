@@ -299,9 +299,8 @@ it.each(["steering", "device"] as const)(
     })
 
     expect(screen.queryByText("50%")).toBeNull()
-    expect(
-      screen.getAllByText(/servotronic output adapter is faulted/)
-    ).toHaveLength(2)
+    expect(screen.getAllByText("Controller fault")).toHaveLength(2)
+    expect(screen.getByText("Unavailable")).toBeTruthy()
   }
 )
 
@@ -329,6 +328,41 @@ it("uses the shared thin steering editor and applies point changes immediately",
   expect(requests[0]?.body).toEqual({
     definition: definition([1000, 800, 780, 670, 380, 0, 0, 0]),
   })
+})
+
+it("keeps the curve visible but disables controls while the controller is stale", () => {
+  prepareLiveState()
+  const current = useLiveStore.getState()
+  current.applyDevices({
+    protocol_version: 1,
+    boot_id: "screens-boot",
+    revision: 4,
+    emitted_at: "2026-07-15T00:00:04Z",
+    data: {
+      ...current.devices,
+      registry: {
+        ...current.devices.registry,
+        servotronic_controller: {
+          ...current.devices.registry.servotronic_controller,
+          status: "stale",
+        },
+      },
+    },
+  })
+  renderScreen(<CarSteeringEditor />)
+
+  expect(screen.getByText(/active 890 draft 890/)).toBeTruthy()
+  expect(screen.getAllByText("Controller stale").length).toBeGreaterThan(0)
+  expect(
+    screen.getByRole("switch", { name: "Auto" }).hasAttribute("data-disabled")
+  ).toBe(true)
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Increase assistance",
+      }) as HTMLButtonElement
+    ).disabled
+  ).toBe(true)
 })
 
 it("loads settings only from authority and saves one canonical document", async () => {

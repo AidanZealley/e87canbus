@@ -13,6 +13,7 @@ PROTOCOL_VERSION = 1
 INTERPOLATION_MONOTONE_CUBIC_V1 = 1
 SET_CURVE_OPCODE = 1
 STATUS_OPCODE = 2
+SET_CONTROL_OPCODE = 3
 SET_CURVE_LENGTH = 44
 STATUS_LENGTH = 19
 
@@ -31,6 +32,12 @@ class CurveSource(IntEnum):
     COORDINATOR_RAM = 1
 
 
+class ControlMode(IntEnum):
+    AUTO = 0
+    MANUAL = 1
+    MAXIMUM = 2
+
+
 @dataclass(frozen=True)
 class ServotronicStatus:
     result: CurveResult
@@ -42,6 +49,7 @@ class ServotronicStatus:
     pwm_duty: int
     speed_fresh: bool
     inhibit_reason: int
+    control_mode: ControlMode = ControlMode.AUTO
 
 
 def pack_curve(definition: SteeringCurveDefinition, activation_revision: int) -> bytes:
@@ -60,6 +68,18 @@ def pack_curve(definition: SteeringCurveDefinition, activation_revision: int) ->
     return header + struct.pack("<I", zlib.crc32(header))
 
 
+def pack_control(assistance: float, mode: ControlMode) -> bytes:
+    if not 0.0 <= assistance <= 1.0:
+        raise ValueError("assistance must be between zero and one")
+    return struct.pack(
+        "<BBHB",
+        PROTOCOL_VERSION,
+        SET_CONTROL_OPCODE,
+        round(assistance * 1000),
+        mode,
+    )
+
+
 def unpack_status(payload: bytes) -> ServotronicStatus:
     if len(payload) != STATUS_LENGTH:
         raise ValueError("invalid Servotronic status payload length")
@@ -70,5 +90,5 @@ def unpack_status(payload: bytes) -> ServotronicStatus:
         raise ValueError("unsupported Servotronic status protocol")
     return ServotronicStatus(
         CurveResult(result), CurveSource(source), revision, crc, speed, assistance, duty,
-        bool(flags & 1), inhibit,
+        bool(flags & 1), inhibit, ControlMode((flags >> 1) & 0x03),
     )

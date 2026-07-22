@@ -239,6 +239,14 @@ class LiveControllerRuntime:
                 else {}
             ),
         )
+        servotronic_can_control_available = (
+            selected_servotronic_source is DeviceSource.PHYSICAL
+            and CanNetwork.KCAN in tx_grants
+            and any(
+                item.network is CanNetwork.KCAN and item.enabled and item.tx_enabled
+                for item in config.can_networks
+            )
+        )
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
@@ -248,15 +256,8 @@ class LiveControllerRuntime:
                 DeviceRole.BUTTON_PAD: button_pad_source,
                 DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
             },
-            servotronic_output_available=False,
-            servotronic_config_available=(
-                selected_servotronic_source is DeviceSource.PHYSICAL
-                and CanNetwork.KCAN in tx_grants
-                and any(
-                    item.network is CanNetwork.KCAN and item.enabled and item.tx_enabled
-                    for item in config.can_networks
-                )
-            ),
+            servotronic_output_available=servotronic_can_control_available,
+            servotronic_config_available=servotronic_can_control_available,
         )
         self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
@@ -429,7 +430,13 @@ class LiveControllerRuntime:
                         effective_assistance=(
                             self._servotronic_status.assistance_per_mille / 1000
                         ),
-                        last_command_reason=None,
+                        last_command_reason=(
+                            "manual"
+                            if self._servotronic_status.control_mode.name == "MANUAL"
+                            else "maximum"
+                            if self._servotronic_status.control_mode.name == "MAXIMUM"
+                            else "auto"
+                        ),
                         watchdog_timed_out=False,
                         active_curve_source=self._servotronic_status.source.name.lower(),
                         active_curve_revision=self._servotronic_status.activation_revision,

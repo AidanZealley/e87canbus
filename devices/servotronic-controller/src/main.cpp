@@ -33,6 +33,7 @@ constexpr uint32_t HELLO_MS = 1000, HEARTBEAT_MS = 1000, LEASE_MS = 3000;
 MCP_CAN bus(CAN_CS_PIN);
 servotronic::SpeedState speed;
 servotronic::ActiveCurve activeCurve;
+servotronic::ControlCommand control;
 bool canHealthy = false, leased = false;
 uint16_t deviceSession = 0, controllerSession = 0;
 uint8_t sequence = 0;
@@ -121,7 +122,8 @@ void sendStatus(uint32_t now) {
     servotronic::writeU16(p + 12, speed.deciKph);
     servotronic::writeU16(p + 14, lastAssistancePerMille);
     p[16] = lastDuty;
-    p[17] = (speed.seen && now - speed.receivedMs <= servotronic::SPEED_TIMEOUT_MS) ? 1 : 0;
+    p[17] = ((speed.seen && now - speed.receivedMs <= servotronic::SPEED_TIMEOUT_MS) ? 1 : 0) |
+            (static_cast<uint8_t>(control.mode) << 1);
     p[18] = static_cast<uint8_t>(currentInhibit);
     curveTransport.send(p, sizeof(p));
     nextStatusMs = now + 1000;
@@ -157,7 +159,11 @@ void loop() {
     uint8_t curvePayload[e87canbus::ISOTP_MAXIMUM_PAYLOAD_LENGTH] = {};
     uint16_t curveLength = 0;
     if (curveTransport.receive(curvePayload, sizeof(curvePayload), &curveLength) && leaseFresh(now)) {
-        lastCurveResult = servotronic::applyCurvePayload(curvePayload, curveLength, activeCurve);
+        if (curveLength >= 2 && curvePayload[1] == servotronic::CONTROL_SET_OPCODE) {
+            servotronic::applyControlPayload(curvePayload, curveLength, control);
+        } else {
+            lastCurveResult = servotronic::applyCurvePayload(curvePayload, curveLength, activeCurve);
+        }
         sendStatus(now);
     }
     if (!canHealthy && due(now, nextCanRetryMs)) {
@@ -166,9 +172,13 @@ void loop() {
     if (!leaseFresh(now)) leased = false;
     if (!leased && due(now, nextHelloMs)) sendHello(now);
     // A valid local curve and direct speed remain usable without a coordinator lease.
-    const servotronic::Inhibit inhibit = servotronic::inhibitReason(speed, now, canHealthy);
+    const bool manualControl = leaseFresh(now) && control.mode != servotronic::ControlMode::AUTO;
+    const servotronic::Inhibit inhibit = manualControl
+        ? servotronic::Inhibit::NONE : servotronic::inhibitReason(speed, now, canHealthy);
     currentInhibit = inhibit;
-    const float assistance = servotronic::assistanceForSpeed(speed.deciKph, activeCurve);
+    const float assistance = manualControl
+        ? control.assistancePerMille / 1000.0f
+        : servotronic::assistanceForSpeed(speed.deciKph, activeCurve);
     const uint8_t duty = inhibit == servotronic::Inhibit::NONE
                              ? servotronic::boundedDuty(assistance, PWM_DUTY_CEILING) : 0;
     analogWrite(PWM_OUTPUT_PIN, duty);

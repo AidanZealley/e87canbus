@@ -28,12 +28,18 @@ from e87canbus.runtime import (
     TimerElapsed,
 )
 from e87canbus.servotronic_protocol import (
+    ControlMode,
     CurveResult,
     CurveSource,
     ServotronicStatus,
+    pack_control,
     pack_curve,
     unpack_status,
 )
+
+
+def test_control_payload_encodes_manual_override() -> None:
+    assert pack_control(0.75, ControlMode.MANUAL) == bytes((1, 3, 0xEE, 0x02, 1))
 
 
 def test_fixed_curve_and_status_payloads_round_trip() -> None:

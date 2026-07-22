@@ -95,9 +95,21 @@ void test_curve_activation_is_validated_and_atomic() {
                       applyCurvePayload(payload, sizeof(payload) - 1, active));
     TEST_ASSERT_EQUAL_UINT32(acceptedCrc, active.crc32);
 }
+void test_manual_control_payload_is_validated_atomically() {
+    ControlCommand control;
+    uint8_t payload[] = {CURVE_PROTOCOL_VERSION, CONTROL_SET_OPCODE, 0xEE, 0x02,
+                         static_cast<uint8_t>(ControlMode::MANUAL)};
+    TEST_ASSERT_TRUE(applyControlPayload(payload, sizeof(payload), control));
+    TEST_ASSERT_EQUAL(ControlMode::MANUAL, control.mode);
+    TEST_ASSERT_EQUAL_UINT16(750, control.assistancePerMille);
+    payload[2] = 0xE9; payload[3] = 0x03;
+    TEST_ASSERT_FALSE(applyControlPayload(payload, sizeof(payload), control));
+    TEST_ASSERT_EQUAL_UINT16(750, control.assistancePerMille);
+}
 int main(int, char **) {
     UNITY_BEGIN(); RUN_TEST(test_decoder_is_strict); RUN_TEST(test_curve_is_monotone_and_bounded);
     RUN_TEST(test_failsafe_precedence_and_timeout);
     RUN_TEST(test_ack_tracker_refreshes_hello_and_heartbeat);
-    RUN_TEST(test_curve_activation_is_validated_and_atomic); return UNITY_END();
+    RUN_TEST(test_curve_activation_is_validated_and_atomic);
+    RUN_TEST(test_manual_control_payload_is_validated_atomically); return UNITY_END();
 }
