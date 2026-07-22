@@ -1,4 +1,5 @@
 import logging
+import struct
 
 import pytest
 from e87canbus.application.events import (
@@ -30,8 +31,6 @@ from e87canbus.servotronic_protocol import (
     CurveResult,
     CurveSource,
     ServotronicStatus,
-    pack_status,
-    unpack_curve,
 )
 from e87canbus.simulation.bus import InMemoryCanTopology
 from e87canbus.transport.isotp import IsoTpEndpoint
@@ -142,7 +141,12 @@ def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None
     pump()
     request = device.receive_payload()
     assert request is not None and len(request) == 44
-    assert unpack_curve(request)[:2] == (active.definition, active.activation_revision)
+    unpacked = struct.unpack("<BBBBI8H8HI", request)
+    assert unpacked[4] == active.activation_revision
+    assert unpacked[5:13] == tuple(point.speed_deci_kph for point in active.definition.points)
+    assert unpacked[13:21] == tuple(
+        point.assistance_per_mille for point in active.definition.points
+    )
 
     status = ServotronicStatus(
         CurveResult.ACCEPTED,
@@ -155,7 +159,22 @@ def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None
         True,
         0,
     )
-    device.send(pack_status(status))
+    device.send(
+        struct.pack(
+            "<BBBBIIHHBBB",
+            1,
+            2,
+            status.result,
+            status.source,
+            status.activation_revision,
+            status.curve_crc32,
+            status.speed_deci_kph,
+            status.assistance_per_mille,
+            status.pwm_duty,
+            int(status.speed_fresh),
+            status.inhibit_reason,
+        )
+    )
     pump()
     assert executor.take_servotronic_statuses() == (status,)
 

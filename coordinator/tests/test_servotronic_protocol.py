@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import struct
+import zlib
 from dataclasses import replace
 
 import pytest
@@ -30,8 +32,6 @@ from e87canbus.servotronic_protocol import (
     CurveSource,
     ServotronicStatus,
     pack_curve,
-    pack_status,
-    unpack_curve,
     unpack_status,
 )
 
@@ -40,16 +40,36 @@ def test_fixed_curve_and_status_payloads_round_trip() -> None:
     active = initial_active_steering_curve()
     payload = pack_curve(active.definition, active.activation_revision)
     assert len(payload) == 44
-    definition, revision, crc = unpack_curve(payload)
-    assert definition == active.definition
-    assert revision == active.activation_revision
+    unpacked = struct.unpack("<BBBBI8H8HI", payload)
+    assert unpacked[:5] == (1, 1, 1, 1, active.activation_revision)
+    assert unpacked[5:13] == tuple(point.speed_deci_kph for point in active.definition.points)
+    assert unpacked[13:21] == tuple(
+        point.assistance_per_mille for point in active.definition.points
+    )
+    crc = unpacked[21]
+    assert crc == zlib.crc32(payload[:-4])
     status = ServotronicStatus(
-        CurveResult.ACCEPTED, CurveSource.COORDINATOR_RAM, revision, crc,
+        CurveResult.ACCEPTED,
+        CurveSource.COORDINATOR_RAM,
+        active.activation_revision,
+        crc,
         425, 700, 90, True, 0,
     )
-    assert unpack_status(pack_status(status)) == status
-    with pytest.raises(ValueError, match="CRC"):
-        unpack_curve(payload[:-1] + bytes((payload[-1] ^ 1,)))
+    status_payload = struct.pack(
+        "<BBBBIIHHBBB",
+        1,
+        2,
+        status.result,
+        status.source,
+        status.activation_revision,
+        status.curve_crc32,
+        status.speed_deci_kph,
+        status.assistance_per_mille,
+        status.pwm_duty,
+        int(status.speed_fresh),
+        status.inhibit_reason,
+    )
+    assert unpack_status(status_payload) == status
 
 
 def _physical_kernel(*, config_available: bool = True) -> CoordinatorKernel:

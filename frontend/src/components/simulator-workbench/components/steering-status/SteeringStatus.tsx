@@ -67,9 +67,7 @@ export const SteeringStatus = () => {
               Effective assistance
             </dt>
             <dd className="font-heading text-base font-semibold">
-              {controller.effective_assistance === null
-                ? "Unavailable"
-                : `${(controller.effective_assistance * 100).toFixed(0)}%`}
+              {(controller.effective_assistance * 100).toFixed(0)}%
             </dd>
           </div>
           <div className="rounded-md border p-3">

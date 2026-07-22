@@ -70,7 +70,7 @@ class ActiveSteeringCurveState(LiveModel):
 
 
 class ServotronicState(LiveModel):
-    effective_assistance: float | None
+    effective_assistance: float
     last_command_reason: (
         Literal[
             "auto",

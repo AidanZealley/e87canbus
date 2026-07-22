@@ -377,7 +377,11 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
             definition
         ),
         root / "devices" / "button-pad" / "include" / "can_ids.h": render_header(definition),
-        root / "devices" / "servotronic-controller" / "include" / "can_ids.h": render_header(definition),
+        root
+        / "devices"
+        / "servotronic-controller"
+        / "include"
+        / "can_ids.h": render_header(definition),
         markdown_path: markdown,
     }
 
