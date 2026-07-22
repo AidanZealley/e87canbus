@@ -85,6 +85,17 @@ uint32_t cadence(uint32_t now, uint32_t interval) {
     return now + static_cast<uint32_t>(delayMs < 0 ? 0 : delayMs);
 }
 
+uint8_t scalePixelChannel(uint8_t value) {
+    if (value == 0 || TRELLIS_BRIGHTNESS == 0) {
+        return 0;
+    }
+    // The coordinator intentionally uses low RGB values for assigned-button
+    // illumination. Round non-zero values up so the hardware brightness
+    // ceiling does not truncate those soft colours to black.
+    return static_cast<uint8_t>(
+        (static_cast<uint16_t>(value) * TRELLIS_BRIGHTNESS + 255) >> 8);
+}
+
 uint16_t getUint16(const uint8_t *payload, uint8_t lowByte, uint8_t highByte) {
     return static_cast<uint16_t>(payload[lowByte]) |
            (static_cast<uint16_t>(payload[highByte]) << 8);
@@ -122,12 +133,9 @@ void applyPixelDisplay(uint32_t now) {
     // 24 data bytes remain below the AVR Wire buffer limit.
     uint8_t grb[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
     for (uint8_t i = 0; i < BUTTON_LED_COUNT; i++) {
-        grb[i * 3] = static_cast<uint8_t>(
-            (static_cast<uint16_t>(renderedPixels[i * 3 + 1]) * TRELLIS_BRIGHTNESS) >> 8);
-        grb[i * 3 + 1] = static_cast<uint8_t>(
-            (static_cast<uint16_t>(renderedPixels[i * 3]) * TRELLIS_BRIGHTNESS) >> 8);
-        grb[i * 3 + 2] = static_cast<uint8_t>(
-            (static_cast<uint16_t>(renderedPixels[i * 3 + 2]) * TRELLIS_BRIGHTNESS) >> 8);
+        grb[i * 3] = scalePixelChannel(renderedPixels[i * 3 + 1]);
+        grb[i * 3 + 1] = scalePixelChannel(renderedPixels[i * 3]);
+        grb[i * 3 + 2] = scalePixelChannel(renderedPixels[i * 3 + 2]);
     }
     for (uint8_t offset = 0; offset < sizeof(grb); offset += TRELLIS_PIXEL_CHUNK_BYTES) {
         Wire.beginTransmission(TRELLIS_ADDR);
