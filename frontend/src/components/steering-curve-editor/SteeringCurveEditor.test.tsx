@@ -115,6 +115,7 @@ const renderEditor = (
       activeCurve={activeCurve}
       mode="auto"
       manualAssistanceLevel={0}
+      manualAssistanceLevelCount={11}
       maximumAssistanceActive={false}
       speedKph={speedKph}
       activeAssistance={activeAssistance}

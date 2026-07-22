@@ -149,6 +149,7 @@ export type SavedProfileRevision = number | null
 export type Status2 = "active" | "activating" | "activation_failed"
 export type CurveActivationAvailable = boolean
 export type ManualAssistanceLevel = number
+export type ManualAssistanceLevelCount = number
 export type MaximumAssistanceActive = boolean
 export type Mode = "auto" | "manual"
 export type ActiveCurveCrc32 = number | null
@@ -428,6 +429,7 @@ export interface SteeringState {
   active_curve: ActiveSteeringCurveState
   curve_activation_available: CurveActivationAvailable
   manual_assistance_level: ManualAssistanceLevel
+  manual_assistance_level_count: ManualAssistanceLevelCount
   maximum_assistance_active: MaximumAssistanceActive
   mode: Mode
   servotronic: ServotronicState | null

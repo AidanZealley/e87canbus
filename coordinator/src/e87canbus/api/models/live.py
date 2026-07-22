@@ -97,6 +97,7 @@ class ServotronicState(LiveModel):
 class SteeringState(LiveModel):
     mode: Literal["auto", "manual"]
     manual_assistance_level: int = Field(ge=0)
+    manual_assistance_level_count: int = Field(gt=0)
     maximum_assistance_active: bool
     active_curve: ActiveSteeringCurveState
     servotronic: ServotronicState | None
@@ -306,6 +307,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
     return SteeringState(
         mode=application.steering_mode.value,
         manual_assistance_level=application.manual_assistance_level,
+        manual_assistance_level_count=application.manual_assistance_level_count,
         maximum_assistance_active=application.maximum_assistance_active,
         active_curve=ActiveSteeringCurveState(
             definition=SteeringCurveDefinition.model_validate(

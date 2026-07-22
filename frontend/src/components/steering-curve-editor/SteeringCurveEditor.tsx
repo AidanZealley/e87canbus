@@ -23,6 +23,7 @@ type SteeringCurveEditorProps = {
   activeCurve: ActiveSteeringCurveState
   mode: Mode
   manualAssistanceLevel: number
+  manualAssistanceLevelCount: number
   maximumAssistanceActive: boolean
   speedKph: number | null
   activeAssistance?: number | null
@@ -36,6 +37,7 @@ export const SteeringCurveEditor = ({
   activeCurve,
   mode,
   manualAssistanceLevel,
+  manualAssistanceLevelCount,
   maximumAssistanceActive,
   speedKph,
   activeAssistance = null,
@@ -151,6 +153,7 @@ export const SteeringCurveEditor = ({
       <CurveActions
         mode={mode}
         manualAssistanceLevel={manualAssistanceLevel}
+        manualAssistanceLevelCount={manualAssistanceLevelCount}
         maximumAssistanceActive={maximumAssistanceActive}
         activeAssistance={activeAssistance}
         pendingAction={pendingAction}

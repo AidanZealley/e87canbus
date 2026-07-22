@@ -96,6 +96,7 @@ const LiveSteeringCurveCard = () => {
         modeControlAvailable={availability.modeControl}
         mode={steering.mode}
         manualAssistanceLevel={steering.manual_assistance_level}
+        manualAssistanceLevelCount={steering.manual_assistance_level_count}
         maximumAssistanceActive={steering.maximum_assistance_active}
         speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
         activeAssistance={

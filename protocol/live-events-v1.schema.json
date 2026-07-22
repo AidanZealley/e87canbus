@@ -1564,6 +1564,11 @@
           "title": "Manual Assistance Level",
           "type": "integer"
         },
+        "manual_assistance_level_count": {
+          "exclusiveMinimum": 0,
+          "title": "Manual Assistance Level Count",
+          "type": "integer"
+        },
         "maximum_assistance_active": {
           "title": "Maximum Assistance Active",
           "type": "boolean"
@@ -1591,6 +1596,7 @@
         "active_curve",
         "curve_activation_available",
         "manual_assistance_level",
+        "manual_assistance_level_count",
         "maximum_assistance_active",
         "mode",
         "servotronic"

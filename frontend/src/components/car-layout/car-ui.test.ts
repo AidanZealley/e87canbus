@@ -24,6 +24,7 @@ const steeringState = (
   ({
     mode: "auto",
     manual_assistance_level: 0,
+    manual_assistance_level_count: 11,
     maximum_assistance_active: false,
     curve_activation_available: true,
     servotronic: {} as SteeringState["servotronic"],

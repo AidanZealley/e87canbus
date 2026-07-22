@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
+from e87canbus.application.button_bindings import ButtonBinding, ButtonBindingProfile
 from e87canbus.application.controller import (
     SOFT_AMBER,
     SOFT_WHITE,
@@ -21,6 +22,7 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
+from e87canbus.application.intents import ToggleMaximumAssistance
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.button_pad import resolve_button_pad_tracks
 from e87canbus.config import (
@@ -75,12 +77,16 @@ TEST_SIMULATOR_CONFIG = replace(
     ),
 )
 RESTING_LEDS = (
-    RGB_OFF,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+    (
+        RGB_OFF,
+        SOFT_WHITE,
+        SOFT_WHITE,
+        SOFT_WHITE,
+        SOFT_WHITE,
+    )
+    + (RGB_OFF,) * 10
+    + (SOFT_WHITE,)
+)
 AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
 MANUAL_LEDS = (RGB_AMBER,) + RESTING_LEDS[1:]
 MAXIMUM_LEDS = (
@@ -724,6 +730,20 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
     assert application(controller).steering_mode is SteeringMode.MANUAL
     assert application(controller).manual_assistance_level == 1
     assert button_led_rgb(application(controller))[3] == SOFT_WHITE
+
+
+def test_simulated_can_uses_the_kernel_injected_button_profile() -> None:
+    profile = ButtonBindingProfile(
+        "test-remap",
+        (ButtonBinding(8, ToggleMaximumAssistance()),),
+    )
+    controller = build_test_engine(button_binding_profile=profile)
+
+    controller.execute(TapButton(3))
+    assert application(controller).maximum_assistance_active is False
+
+    controller.execute(TapButton(8))
+    assert application(controller).maximum_assistance_active is True
 
 
 def test_assistance_button_cancels_maximum_override_through_can_slice() -> None:

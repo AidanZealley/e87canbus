@@ -18,6 +18,10 @@ from e87canbus.protocol.can import (
     encode_welcome_ack,
 )
 
+DecodedProtocolEvent = (
+    ApplicationEvent | ButtonPressed | RegistryHelloObserved | RegistryHeartbeatObserved
+)
+
 
 class ProtocolRouter:
     """Decode verified inputs and encode effects without application bus choices."""
@@ -35,7 +39,7 @@ class ProtocolRouter:
         self,
         routed: RoutedCanFrame,
         observed_at: float,
-    ) -> ApplicationEvent | RegistryHelloObserved | RegistryHeartbeatObserved | None:
+    ) -> DecodedProtocolEvent | None:
         registry_observation = self._decode_registry(routed, observed_at)
         if registry_observation is not None:
             return registry_observation

@@ -8,12 +8,18 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import assert_never
 
+from e87canbus.application.button_bindings import (
+    ButtonBindingProfile,
+    built_in_button_binding_profile,
+)
 from e87canbus.application.controller import (
-    SERVOTRONIC_BUTTON_INDEXES,
     ApplicationSnapshot,
     Transition,
     button_led_effect,
     clear_maximum_assistance,
+    execute_operator_intent,
+    finish_button_intent,
+    finish_operator_intent,
     initial_effects,
     normalize_state,
     snapshot,
@@ -31,14 +37,22 @@ from e87canbus.application.events import (
     ConfigureServotronicCurve,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
-    MaximumAssistanceSet,
     SetButtonPadBreathe,
     SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringFallbackReason,
     SteeringFallbackRequested,
-    SteeringModeSet,
     TriggerButtonPadBlink,
+)
+from e87canbus.application.intents import (
+    IntentDispatcher,
+    OperatorIntent,
+    OperatorIntentContext,
+    SelectSteeringMode,
+    intent_requires_servotronic,
+)
+from e87canbus.application.intents import (
+    SetMaximumAssistance as SetMaximumAssistanceIntent,
 )
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.config import (
@@ -382,10 +396,14 @@ class CoordinatorKernel:
         device_sources: dict[DeviceRole, DeviceSource] | None = None,
         servotronic_output_available: bool = True,
         servotronic_config_available: bool = False,
+        button_binding_profile: ButtonBindingProfile | None = None,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
         self._high_beam_strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
+        self._button_binding_profile = button_binding_profile or built_in_button_binding_profile(
+            self._high_beam_strobe_config
+        )
         self._state = normalize_state(
             state or ApplicationState(),
             self._steering_config,
@@ -402,6 +420,7 @@ class CoordinatorKernel:
         self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
         self._health = RuntimeHealth()
+        self._intent_dispatcher = IntentDispatcher(self._execute_operator_intent)
 
     @property
     def state(self) -> ApplicationState:
@@ -614,12 +633,12 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 self._require_servotronic()
-                return self._transition(MaximumAssistanceSet(enabled))
+                return self._dispatch_operator_intent(SetMaximumAssistanceIntent(enabled))
             case SetSteeringMode(mode, manual_level):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 self._require_servotronic()
-                return self._transition(SteeringModeSet(mode, manual_level))
+                return self._dispatch_operator_intent(SelectSteeringMode(mode, manual_level))
             case _:
                 assert_never(kernel_input)
 
@@ -664,13 +683,77 @@ class CoordinatorKernel:
         button_entry = self.registry_for(DeviceRole.BUTTON_PAD)
         if button_entry.status is not DeviceLifecycleStatus.ACTIVE:
             return None
-        if event.button_index in SERVOTRONIC_BUTTON_INDEXES and not self._servotronic_usable:
+        intent = self._button_binding_profile.intent_for_press(event.button_index)
+        if intent is None:
+            return self._transition(
+                ButtonCommandFailed(
+                    event.button_index, event.observed_at, ButtonFeedbackColour.WHITE
+                )
+            )
+        if intent_requires_servotronic(intent) and not self._servotronic_usable:
             return self._transition(
                 ButtonCommandFailed(
                     event.button_index, event.observed_at, ButtonFeedbackColour.AMBER
                 )
             )
-        return self._transition(event, origin_button_index=event.button_index)
+        return self._dispatch_button_intent(event, intent)
+
+    def _execute_operator_intent(
+        self,
+        intent: OperatorIntent,
+        context: OperatorIntentContext,
+    ) -> Transition:
+        return execute_operator_intent(
+            self._state,
+            intent,
+            self._steering_config,
+            context,
+            high_beam_strobe_config=self._high_beam_strobe_config,
+        )
+
+    def _dispatch_button_intent(
+        self,
+        event: ButtonPressed,
+        intent: OperatorIntent,
+    ) -> Commit:
+        previous_snapshot = self.snapshot()
+        previous_button_leds = self._button_led_effect()
+        result = self._intent_dispatcher.dispatch(
+            intent,
+            OperatorIntentContext(observed_at=event.observed_at),
+        )
+        result = finish_button_intent(
+            self._state,
+            result,
+            event.button_index,
+            event.observed_at,
+            self._steering_config,
+            self._active_steering_curve.definition,
+            self._high_beam_strobe_config,
+        )
+        return self._commit_application_result(
+            result,
+            previous_snapshot,
+            previous_button_leds,
+            origin_button_index=event.button_index,
+        )
+
+    def _dispatch_operator_intent(self, intent: OperatorIntent) -> Commit:
+        """Execute a non-button adapter request through the canonical intent path."""
+
+        previous_snapshot = self.snapshot()
+        previous_button_leds = self._button_led_effect()
+        result = finish_operator_intent(
+            self._state,
+            self._intent_dispatcher.dispatch(intent),
+            self._steering_config,
+            self._active_steering_curve.definition,
+        )
+        return self._commit_application_result(
+            result,
+            previous_snapshot,
+            previous_button_leds,
+        )
 
     def _transition(
         self,
@@ -806,9 +889,7 @@ class CoordinatorKernel:
         effects: tuple[ApplicationEffect, ...] = ()
         if self._servotronic_config_available:
             effects = (
-                ConfigureServotronicCurve(
-                    request.definition, next_active.activation_revision
-                ),
+                ConfigureServotronicCurve(request.definition, next_active.activation_revision),
             )
         if definition_changed:
             command = steering_command_for_active_curve(
@@ -851,7 +932,8 @@ class CoordinatorKernel:
             (),
             _changed_controller_topics(
                 previous_snapshot, committed, buttons_changed=False, health_changed=False
-            ) | {StateTopic.STEERING},
+            )
+            | {StateTopic.STEERING},
             committed != previous_snapshot,
         )
 

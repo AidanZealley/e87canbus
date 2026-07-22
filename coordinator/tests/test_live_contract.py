@@ -1,9 +1,16 @@
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 from e87canbus.api.internal.live import TOPIC_EVENTS
-from e87canbus.api.models.live import STEERING_CURVE_POINT_COUNT, VehicleState
+from e87canbus.api.models.live import (
+    STEERING_CURVE_POINT_COUNT,
+    SteeringState,
+    VehicleState,
+    steering_state,
+)
 from e87canbus.api.models.live_contract import (
     CLIENT_EVENT_CONTRACTS,
     EVENT_CONTRACTS,
@@ -11,6 +18,14 @@ from e87canbus.api.models.live_contract import (
     ClientEvent,
     ServerEvent,
 )
+from e87canbus.application import controller
+from e87canbus.application.state import ApplicationState
+from e87canbus.config import EngineTelemetryConfig, SteeringConfig
+from e87canbus.features.steering import (
+    SteeringCurveActivationStatus,
+    initial_active_steering_curve,
+)
+from e87canbus.service import ControllerServiceSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -70,3 +85,31 @@ def test_live_steering_curve_schema_requires_the_domain_point_count() -> None:
 
     assert points["minItems"] == STEERING_CURVE_POINT_COUNT
     assert points["maxItems"] == STEERING_CURVE_POINT_COUNT
+
+
+def test_live_steering_schema_publishes_manual_assistance_level_count() -> None:
+    level_count = GENERATOR.contract_schema()["definitions"][SteeringState.__name__][
+        "properties"
+    ]["manual_assistance_level_count"]
+
+    assert level_count["exclusiveMinimum"] == 0
+
+
+def test_live_steering_projects_configured_manual_assistance_level_count() -> None:
+    application = controller.snapshot(
+        ApplicationState(),
+        SteeringConfig(manual_level_count=3),
+        EngineTelemetryConfig(),
+        initial_active_steering_curve(),
+        SteeringCurveActivationStatus.ACTIVE,
+    )
+    service_snapshot = SimpleNamespace(
+        application=application,
+        adapter=SimpleNamespace(servotronic=None),
+    )
+
+    assert (
+        steering_state(cast(ControllerServiceSnapshot, service_snapshot))
+        .manual_assistance_level_count
+        == 3
+    )
