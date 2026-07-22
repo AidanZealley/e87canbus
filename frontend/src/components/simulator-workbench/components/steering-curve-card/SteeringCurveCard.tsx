@@ -7,6 +7,7 @@ type SteeringCurveCardProps = {
   activeCurve: ActiveSteeringCurveState
   mode: Mode
   manualAssistanceLevel: number
+  manualAssistanceLevelCount: number
   maximumAssistanceActive: boolean
   speedKph: number | null
   activeAssistance?: number | null
@@ -18,6 +19,7 @@ export const SteeringCurveCard = ({
   activeCurve,
   mode,
   manualAssistanceLevel,
+  manualAssistanceLevelCount,
   maximumAssistanceActive,
   speedKph,
   activeAssistance = null,
@@ -35,6 +37,7 @@ export const SteeringCurveCard = ({
           activeCurve={activeCurve}
           mode={mode}
           manualAssistanceLevel={manualAssistanceLevel}
+          manualAssistanceLevelCount={manualAssistanceLevelCount}
           maximumAssistanceActive={maximumAssistanceActive}
           speedKph={speedKph}
           activeAssistance={activeAssistance}

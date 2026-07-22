@@ -8,7 +8,6 @@ from e87canbus.application.controller import (
     EngineTelemetryStatus,
     EngineTelemetryValue,
     Transition,
-    normalize_state,
 )
 from e87canbus.application.events import (
     RGB_AMBER,
@@ -17,15 +16,12 @@ from e87canbus.application.events import (
     RGB_WHITE,
     ApplicationEffect,
     ApplicationEvent,
-    ButtonFeedbackColour,
     ButtonLedState,
-    ButtonPressed,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
     HighBeamStrobeDeadlineReached,
     OilTemperatureObserved,
-    SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
@@ -33,8 +29,8 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
-    TriggerButtonPadBlink,
 )
+from e87canbus.application.intents import OperatorIntentContext, StartHighBeamStrobe
 from e87canbus.application.state import (
     ApplicationState,
     CoolantTemperatureSample,
@@ -45,7 +41,7 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.button_pad import resolve_button_pad_tracks, static_button_pad_program
+from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
@@ -64,17 +60,20 @@ ENGINE_CONFIG = EngineTelemetryConfig()
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
 RESTING_LEDS = (
-    RGB_OFF,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
-) + (RGB_OFF,) * 10 + (controller.SOFT_WHITE,)
+    (
+        RGB_OFF,
+        controller.SOFT_WHITE,
+        controller.SOFT_WHITE,
+        controller.SOFT_WHITE,
+        controller.SOFT_WHITE,
+    )
+    + (RGB_OFF,) * 10
+    + (controller.SOFT_WHITE,)
+)
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
 MANUAL_MAXIMUM_LEDS = ButtonLedState(
-    (RGB_AMBER, controller.SOFT_WHITE, controller.SOFT_WHITE, RGB_WHITE)
-    + RESTING_LEDS[4:]
+    (RGB_AMBER, controller.SOFT_WHITE, controller.SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:]
 )
 
 
@@ -130,6 +129,7 @@ def test_initial_snapshot_and_effects() -> None:
         vehicle_speed_kph=0.0,
         steering_mode=SteeringMode.AUTO,
         manual_assistance_level=0,
+        manual_assistance_level_count=11,
         maximum_assistance_active=False,
         speed_valid=False,
         engine=EngineTelemetrySnapshot(
@@ -158,71 +158,16 @@ def test_initial_snapshot_and_effects() -> None:
     )
 
 
-def test_button_fifteen_toggles_the_bounded_breathe_demo() -> None:
-    started = controller.transition(
-        ApplicationState(),
-        ButtonPressed(button_index=15, observed_at=1.0),
-        CONFIG,
-        ACTIVE_CURVE.definition,
-    )
-
-    assert started.state.button_pad_demo_breathe_enabled
-    assert started.effects == (SetButtonPadBreathe(15, True),)
-
-    stopped = controller.transition(
-        started.state,
-        ButtonPressed(button_index=15, observed_at=2.0),
-        CONFIG,
-        ACTIVE_CURVE.definition,
-    )
-
-    assert not stopped.state.button_pad_demo_breathe_enabled
-    assert stopped.effects == (SetButtonPadBreathe(15, False),)
-
-
-def test_high_beam_button_starts_one_shot_strobe_and_ignores_repeated_presses() -> None:
-    config = HighBeamStrobeConfig(
-        cycle_count=2, asserted_duration_s=0.08, deasserted_duration_s=0.1
-    )
-    state = ApplicationState()
-
-    started = controller.transition(
-        state,
-        ButtonPressed(4, 12.0),
-        CONFIG,
-        CURVE_DEFINITION,
-        config,
-    )
-
-    assert started.state.high_beam_enabled is True
-    assert started.state.high_beam_strobe_cycles_remaining == 2
-    assert started.state.high_beam_next_transition_at == pytest.approx(12.08)
-    assert started.effects == (
-        SetHighBeam(True),
-        TriggerButtonPadBlink(4, ButtonFeedbackColour.WHITE),
-    )
-    assert snapshot(started.state, CONFIG).high_beam_strobe_active is True
-
-    repeated = controller.transition(
-        started.state,
-        ButtonPressed(4, 12.01),
-        CONFIG,
-        CURVE_DEFINITION,
-        config,
-    )
-    assert repeated.state.high_beam_next_transition_at == started.state.high_beam_next_transition_at
-    assert repeated.state.button_feedback_deadlines[4] == pytest.approx(12.21)
-    assert repeated.effects == (
-        TriggerButtonPadBlink(4, ButtonFeedbackColour.WHITE),
-    )
-
-
 def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted() -> None:
     config = HighBeamStrobeConfig(
         cycle_count=2, asserted_duration_s=0.08, deasserted_duration_s=0.1
     )
-    state = controller.transition(
-        ApplicationState(), ButtonPressed(4, 12.0), CONFIG, CURVE_DEFINITION, config
+    state = controller.execute_operator_intent(
+        ApplicationState(),
+        StartHighBeamStrobe(),
+        CONFIG,
+        OperatorIntentContext(observed_at=12.0),
+        high_beam_strobe_config=config,
     ).state
 
     early = controller.transition(
@@ -268,150 +213,6 @@ def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted
     assert completed.state.high_beam_strobe_cycles_remaining == 0
     assert completed.state.high_beam_next_transition_at is None
     assert completed.effects == ()
-
-
-@pytest.mark.parametrize(
-    ("initial_mode", "button_index", "expected", "expected_led_state"),
-    [
-        (SteeringMode.AUTO, 0, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
-        (SteeringMode.AUTO, 1, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
-        (SteeringMode.AUTO, 2, (SteeringMode.MANUAL, 0, False), MANUAL_LEDS),
-        (
-            SteeringMode.AUTO,
-            3,
-            (SteeringMode.MANUAL, 10, True),
-            MANUAL_MAXIMUM_LEDS,
-        ),
-        (SteeringMode.MANUAL, 0, (SteeringMode.AUTO, 0, False), AUTO_LEDS),
-        (SteeringMode.MANUAL, 1, (SteeringMode.MANUAL, 0, False), None),
-        (SteeringMode.MANUAL, 2, (SteeringMode.MANUAL, 1, False), None),
-        (
-            SteeringMode.MANUAL,
-            3,
-            (SteeringMode.MANUAL, 10, True),
-            MANUAL_MAXIMUM_LEDS,
-        ),
-    ],
-)
-def test_mapped_buttons_from_normal_modes(
-    initial_mode: SteeringMode,
-    button_index: int,
-    expected: tuple[SteeringMode, int, bool],
-    expected_led_state: ButtonLedState | None,
-) -> None:
-    state = application_state(mode=initial_mode)
-
-    result = transition(state, ButtonPressed(button_index), CONFIG)
-
-    assert projection(result.state) == expected
-    expected_effects: tuple[ApplicationEffect, ...] = ()
-    if expected_led_state is not None:
-        expected_effects += (static_effect(expected_led_state),)
-    if result.state.steering != state.steering:
-        expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
-    if button_index not in {0, 3}:
-        expected_effects += (
-            TriggerButtonPadBlink(button_index, ButtonFeedbackColour.WHITE),
-        )
-    assert result.effects == expected_effects
-
-
-@pytest.mark.parametrize(
-    ("button_index", "expected", "expected_led_state"),
-    [
-        (0, (SteeringMode.AUTO, 3, False), AUTO_LEDS),
-        (1, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
-        (2, (SteeringMode.MANUAL, 3, False), MANUAL_LEDS),
-        (3, (SteeringMode.AUTO, 3, False), AUTO_LEDS),
-    ],
-)
-def test_mapped_buttons_while_maximum_assistance_is_active(
-    button_index: int,
-    expected: tuple[SteeringMode, int, bool],
-    expected_led_state: ButtonLedState | None,
-) -> None:
-    state = ApplicationState(MaximumAssistance(NormalSteering(manual_level=3)))
-
-    result = transition(state, ButtonPressed(button_index), CONFIG)
-
-    assert projection(result.state) == expected
-    expected_effects: tuple[ApplicationEffect, ...] = ()
-    if expected_led_state is not None:
-        expected_effects += (static_effect(expected_led_state),)
-    if result.state.steering != state.steering:
-        expected_effects += (controller._steering_command(result.state, CONFIG, CURVE_DEFINITION),)
-    assert result.effects == expected_effects
-
-
-def test_mode_button_selects_auto_from_maximum_over_previous_manual_state() -> None:
-    state = ApplicationState(MaximumAssistance(NormalSteering(SteeringMode.MANUAL, manual_level=5)))
-
-    result = transition(state, ButtonPressed(0), CONFIG)
-
-    assert projection(result.state) == (SteeringMode.AUTO, 5, False)
-    assert result.effects == (
-        static_effect(AUTO_LEDS),
-        SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED),
-    )
-
-
-def test_maximum_assistance_restores_previous_manual_state() -> None:
-    state = application_state(SteeringMode.MANUAL, 5)
-
-    enabled = transition(state, ButtonPressed(3), CONFIG).state
-    restored = transition(enabled, ButtonPressed(3), CONFIG).state
-
-    assert projection(restored) == (SteeringMode.MANUAL, 5, False)
-
-
-def test_first_assistance_press_after_maximum_only_restores_level() -> None:
-    state = ApplicationState(MaximumAssistance(NormalSteering(manual_level=3)))
-
-    restored = transition(state, ButtonPressed(2), CONFIG).state
-    adjusted = transition(restored, ButtonPressed(2), CONFIG).state
-
-    assert snapshot(restored, CONFIG).manual_assistance_level == 3
-    assert snapshot(adjusted, CONFIG).manual_assistance_level == 4
-
-
-def test_each_assistance_button_press_emits_its_command_and_default_feedback() -> None:
-    state = application_state(SteeringMode.MANUAL, 5)
-
-    raised = transition(state, ButtonPressed(2), CONFIG)
-    lowered = transition(raised.state, ButtonPressed(1), CONFIG)
-
-    assert raised.effects == (
-        SetSteeringAssistance(0.6, SteeringCommandReason.MANUAL),
-        TriggerButtonPadBlink(2, ButtonFeedbackColour.WHITE),
-    )
-    assert lowered.effects == (
-        SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL),
-        TriggerButtonPadBlink(1, ButtonFeedbackColour.WHITE),
-    )
-
-
-def test_unknown_button_uses_default_white_feedback() -> None:
-    state = ApplicationState()
-
-    result = transition(state, ButtonPressed(9, observed_at=2.0), CONFIG)
-
-    assert result.state.button_feedback_deadlines[9] == pytest.approx(2.2)
-    assert result.effects == (TriggerButtonPadBlink(9, ButtonFeedbackColour.WHITE),)
-    feedback_track = resolve_button_pad_tracks(controller.button_pad_program(result.state))[9]
-    assert feedback_track.kind == 2
-    assert feedback_track.rgb == RGB_WHITE
-    assert feedback_track.repeat == 1
-
-
-def test_manual_assistance_is_clamped_to_configured_bounds() -> None:
-    config = SteeringConfig(manual_level_count=3)
-    state = normalize_state(application_state(SteeringMode.MANUAL, -4), config)
-
-    state = transition(state, ButtonPressed(1), config).state
-    for _ in range(4):
-        state = transition(state, ButtonPressed(2), config).state
-
-    assert snapshot(state, config).manual_assistance_level == 2
 
 
 @pytest.mark.parametrize(
@@ -599,7 +400,7 @@ def test_fallback_inputs_select_zero_assistance(
 
 def test_transition_is_deterministic_and_does_not_mutate_input() -> None:
     state = ApplicationState()
-    event = ButtonPressed(0)
+    event = SpeedObserved(SpeedSample(10.0, 1.0, CanNetwork.FCAN))
 
     first = transition(state, event, CONFIG)
     second = transition(state, event, CONFIG)

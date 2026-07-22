@@ -23,12 +23,10 @@ from e87canbus.application.events import (
     ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ButtonLedState,
-    ButtonPressed,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
     HighBeamStrobeDeadlineReached,
-    MaximumAssistanceSet,
     OilTemperatureObserved,
     SetButtonPadBreathe,
     SetButtonPadProgram,
@@ -38,8 +36,21 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
-    SteeringModeSet,
     TriggerButtonPadBlink,
+)
+from e87canbus.application.intents import (
+    DEFAULT_OPERATOR_INTENT_CONTEXT,
+    AdjustManualAssistance,
+    OperatorIntent,
+    OperatorIntentContext,
+    SelectSteeringMode,
+    StartHighBeamStrobe,
+    ToggleButtonPadDemoBreathe,
+    ToggleMaximumAssistance,
+    ToggleSteeringMode,
+)
+from e87canbus.application.intents import (
+    SetMaximumAssistance as SetMaximumAssistanceIntent,
 )
 from e87canbus.application.state import (
     ApplicationState,
@@ -99,6 +110,7 @@ class ApplicationSnapshot:
     vehicle_speed_kph: float
     steering_mode: SteeringMode
     manual_assistance_level: int
+    manual_assistance_level_count: int
     maximum_assistance_active: bool
     speed_valid: bool
     engine: EngineTelemetrySnapshot
@@ -172,10 +184,6 @@ def transition(
                 next_state,
                 (_steering_command(next_state, config, active_definition),),
             )
-        case MaximumAssistanceSet(enabled):
-            return _set_maximum_assistance(state, enabled)
-        case SteeringModeSet(mode, manual_level):
-            return _set_steering_mode(state, mode, manual_level, config)
         case SteeringFallbackRequested(reason):
             return Transition(
                 state,
@@ -226,92 +234,95 @@ def transition(
             # cleared state is sufficient; transmitting a cleanup scene can
             # overwrite a blink that is still queued in the ISO-TP transport.
             return Transition(next_state)
-        case ButtonPressed(button_index, observed_at):
-            strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
-            available_buttons = SERVOTRONIC_BUTTON_INDEXES | {
-                strobe_config.button_index,
-                DEMO_BREATHE_BUTTON_INDEX,
-            }
-            if button_index not in available_buttons:
-                return transition(
-                    state,
-                    ButtonCommandFailed(button_index, observed_at, ButtonFeedbackColour.WHITE),
-                    config,
-                    active_definition,
-                    high_beam_strobe_config,
-                )
-            new_state = _button_transition(
-                state,
-                button_index,
-                observed_at,
-                config,
-                strobe_config,
-            )
-            previous_leds = button_led_effect(
-                state, high_beam_button_index=strobe_config.button_index
-            )
-            new_leds = button_led_effect(
-                new_state, high_beam_button_index=strobe_config.button_index
-            )
-            effects: tuple[ApplicationEffect, ...] = ()
-            if new_leds != previous_leds:
-                effects += (
-                    (
-                        SetButtonPadBreathe(
-                            DEMO_BREATHE_BUTTON_INDEX,
-                            new_state.button_pad_demo_breathe_enabled,
-                        ),
-                    )
-                    if (
-                        new_state.button_pad_demo_breathe_enabled
-                        != state.button_pad_demo_breathe_enabled
-                    )
-                    else (new_leds,)
-                )
-            if new_state.steering != state.steering:
-                effects += (_steering_command(new_state, config, active_definition),)
-            if new_state.high_beam_enabled != state.high_beam_enabled:
-                effects += (SetHighBeam(new_state.high_beam_enabled),)
-            button_visual_changed = (
-                button_led_state(
-                    new_state, high_beam_button_index=strobe_config.button_index
-                ).rgb[button_index]
-                != button_led_state(
-                    state, high_beam_button_index=strobe_config.button_index
-                ).rgb[button_index]
-                or (
-                    button_index == DEMO_BREATHE_BUTTON_INDEX
-                    and new_state.button_pad_demo_breathe_enabled
-                    != state.button_pad_demo_breathe_enabled
-                )
-            )
-            # A manual-assistance press can cancel the maximum-assistance
-            # override.  In that case the persistent program must be allowed
-            # to replace button 3's white indicator without a simultaneous
-            # press-feedback command racing it on the pad transport.
-            maximum_indicator_changed = (
-                button_led_state(
-                    new_state, high_beam_button_index=strobe_config.button_index
-                ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
-                != button_led_state(
-                    state, high_beam_button_index=strobe_config.button_index
-                ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
-            )
-            if not button_visual_changed and not maximum_indicator_changed:
-                feedback = transition(
-                    new_state,
-                    ButtonCommandFailed(
-                        button_index, observed_at, ButtonFeedbackColour.WHITE
-                    ),
-                    config,
-                    active_definition,
-                    high_beam_strobe_config,
-                )
-                new_state = feedback.state
-                effects += feedback.effects
-            return Transition(new_state, effects)
         case _:
             assert_never(event)
+
+
+def finish_button_intent(
+    state: ApplicationState,
+    intent_result: Transition,
+    button_index: int,
+    observed_at: float,
+    config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
+    high_beam_strobe_config: HighBeamStrobeConfig,
+) -> Transition:
+    """Add button-origin presentation and actuator effects to an intent result."""
+    intent_result = finish_operator_intent(state, intent_result, config, active_definition)
+    new_state = intent_result.state
+    previous_leds = button_led_effect(
+        state, high_beam_button_index=high_beam_strobe_config.button_index
+    )
+    new_leds = button_led_effect(
+        new_state, high_beam_button_index=high_beam_strobe_config.button_index
+    )
+    effects = tuple(
+        new_leds if isinstance(effect, SetButtonPadProgram) else effect
+        for effect in intent_result.effects
+    )
+    if new_leds != previous_leds and not any(
+        isinstance(effect, (SetButtonPadProgram, SetButtonPadBreathe)) for effect in effects
+    ):
+        effects += (
+            (
+                SetButtonPadBreathe(
+                    DEMO_BREATHE_BUTTON_INDEX,
+                    new_state.button_pad_demo_breathe_enabled,
+                ),
+            )
+            if new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
+            else (new_leds,)
+        )
+    button_visual_changed = button_led_state(
+        new_state, high_beam_button_index=high_beam_strobe_config.button_index
+    ).rgb[button_index] != button_led_state(
+        state, high_beam_button_index=high_beam_strobe_config.button_index
+    ).rgb[button_index] or (
+        button_index == DEMO_BREATHE_BUTTON_INDEX
+        and new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
+    )
+    # A manual-assistance press can cancel the maximum-assistance override. In
+    # that case the persistent program replaces button 3 without a racing blink.
+    maximum_indicator_changed = (
+        button_led_state(
+            new_state, high_beam_button_index=high_beam_strobe_config.button_index
+        ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
+        != button_led_state(state, high_beam_button_index=high_beam_strobe_config.button_index).rgb[
+            MAXIMUM_ASSISTANCE_BUTTON_INDEX
+        ]
+    )
+    if not button_visual_changed and not maximum_indicator_changed:
+        feedback = transition(
+            new_state,
+            ButtonCommandFailed(button_index, observed_at, ButtonFeedbackColour.WHITE),
+            config,
+            active_definition,
+            high_beam_strobe_config,
+        )
+        new_state = feedback.state
+        effects += feedback.effects
+    return Transition(new_state, effects)
+
+
+def finish_operator_intent(
+    state: ApplicationState,
+    intent_result: Transition,
+    config: SteeringConfig,
+    active_definition: SteeringCurveDefinition,
+) -> Transition:
+    """Add origin-neutral output effects after canonical intent execution."""
+
+    effects = intent_result.effects
+    new_state = intent_result.state
+    if new_state.steering != state.steering and not any(
+        isinstance(effect, SetSteeringAssistance) for effect in effects
+    ):
+        effects += (_steering_command(new_state, config, active_definition),)
+    if new_state.high_beam_enabled != state.high_beam_enabled and not any(
+        isinstance(effect, SetHighBeam) for effect in effects
+    ):
+        effects += (SetHighBeam(new_state.high_beam_enabled),)
+    return Transition(new_state, effects)
 
 
 def snapshot(
@@ -330,6 +341,7 @@ def snapshot(
         vehicle_speed_kph=sample.speed_kph if sample is not None else 0.0,
         steering_mode=mode,
         manual_assistance_level=manual_level,
+        manual_assistance_level_count=config.manual_level_count,
         maximum_assistance_active=maximum_active,
         speed_valid=_speed_is_valid(state, config),
         engine=EngineTelemetrySnapshot(
@@ -363,9 +375,7 @@ def snapshot(
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
         curve_activation_available=curve_activation_available,
-        button_pad_program=button_pad_program(
-            state, servotronic_usable, high_beam_button_index
-        ),
+        button_pad_program=button_pad_program(state, servotronic_usable, high_beam_button_index),
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
@@ -403,31 +413,60 @@ def normalize_state(state: ApplicationState, config: SteeringConfig) -> Applicat
     )
 
 
-def _button_transition(
+def execute_operator_intent(
     state: ApplicationState,
-    button_index: int,
-    observed_at: float,
+    intent: OperatorIntent,
     config: SteeringConfig,
-    high_beam_strobe_config: HighBeamStrobeConfig,
-) -> ApplicationState:
-    match button_index:
-        case 0:
-            return _toggle_steering_mode(state)
-        case 1:
-            return _adjust_assistance(state, -1, config)
-        case 2:
-            return _adjust_assistance(state, 1, config)
-        case 3:
-            return _toggle_maximum_assistance(state)
-        case index if index == high_beam_strobe_config.button_index:
-            return _start_high_beam_strobe(state, observed_at, high_beam_strobe_config)
-        case index if index == DEMO_BREATHE_BUTTON_INDEX:
-            return replace(
+    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
+    *,
+    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
+) -> Transition:
+    """Apply one transport-independent operator request to authoritative state.
+
+    Adapters are responsible for availability checks and origin-specific feedback.
+    This function owns the behavior of the request itself, including the steering
+    invariants shared by exact API selections and relative button-pad actions.
+    """
+
+    match intent:
+        case SelectSteeringMode(mode, manual_level):
+            return _select_steering_mode(state, mode, manual_level, config)
+        case ToggleSteeringMode():
+            return _finish_steering_intent(state, _toggled_steering_mode(state))
+        case AdjustManualAssistance(delta):
+            return _finish_steering_intent(
+                state,
+                _adjusted_manual_assistance(state, delta, config),
+            )
+        case SetMaximumAssistanceIntent(enabled):
+            return _set_maximum_assistance(state, enabled)
+        case ToggleMaximumAssistance():
+            return _finish_steering_intent(state, _toggled_maximum_assistance(state))
+        case StartHighBeamStrobe():
+            if context.observed_at is None:
+                raise ValueError("observed_at is required to start the high-beam strobe")
+            strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
+            next_state = _start_high_beam_strobe(state, context.observed_at, strobe_config)
+            effects: tuple[ApplicationEffect, ...] = ()
+            if next_state.high_beam_enabled != state.high_beam_enabled:
+                effects = (SetHighBeam(next_state.high_beam_enabled),)
+            return Transition(next_state, effects)
+        case ToggleButtonPadDemoBreathe():
+            next_state = replace(
                 state,
                 button_pad_demo_breathe_enabled=not state.button_pad_demo_breathe_enabled,
             )
+            return Transition(
+                next_state,
+                (
+                    SetButtonPadBreathe(
+                        DEMO_BREATHE_BUTTON_INDEX,
+                        next_state.button_pad_demo_breathe_enabled,
+                    ),
+                ),
+            )
         case _:
-            return state
+            assert_never(intent)
 
 
 def _start_high_beam_strobe(
@@ -481,7 +520,7 @@ def _advance_high_beam_strobe(
     return Transition(next_state, (SetHighBeam(True),))
 
 
-def _toggle_steering_mode(state: ApplicationState) -> ApplicationState:
+def _toggled_steering_mode(state: ApplicationState) -> ApplicationState:
     steering = state.steering
     if isinstance(steering, MaximumAssistance):
         return replace(
@@ -493,7 +532,7 @@ def _toggle_steering_mode(state: ApplicationState) -> ApplicationState:
     return new_state
 
 
-def _adjust_assistance(
+def _adjusted_manual_assistance(
     state: ApplicationState,
     delta: int,
     config: SteeringConfig,
@@ -516,7 +555,7 @@ def _adjust_assistance(
     return replace(state, steering=replace(steering, manual_level=manual_level))
 
 
-def _toggle_maximum_assistance(
+def _toggled_maximum_assistance(
     state: ApplicationState,
 ) -> ApplicationState:
     steering = state.steering
@@ -558,7 +597,7 @@ def _set_maximum_assistance(
     return Transition(next_state, _steering_state_effects(state, next_state))
 
 
-def _set_steering_mode(
+def _select_steering_mode(
     state: ApplicationState,
     mode: SteeringMode,
     manual_level: int | None,
@@ -582,6 +621,13 @@ def _set_steering_mode(
     # cancels the temporary maximum-assistance override.
     next_state = replace(state, steering=next_normal)
     return Transition(next_state, _steering_state_effects(state, next_state))
+
+
+def _finish_steering_intent(
+    previous: ApplicationState,
+    current: ApplicationState,
+) -> Transition:
+    return Transition(current, _steering_state_effects(previous, current))
 
 
 def _steering_state_effects(
@@ -655,9 +701,7 @@ def button_led_effect(
     several times; the frozen ``SetButtonPadProgram`` result is safe to share.
     """
 
-    displayed = button_led_state(
-        state, servotronic_usable, high_beam_button_index
-    ).rgb
+    displayed = button_led_state(state, servotronic_usable, high_beam_button_index).rgb
     tracks = [solid_track(rgb) for rgb in displayed]
     if state.button_pad_demo_breathe_enabled:
         tracks[DEMO_BREATHE_BUTTON_INDEX] = breathe_track(

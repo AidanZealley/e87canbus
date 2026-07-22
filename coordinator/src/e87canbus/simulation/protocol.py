@@ -20,9 +20,8 @@ from e87canbus.application.state import (
     SpeedSample,
 )
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.protocol.router import DecodedProtocolEvent, ProtocolRouter
 from e87canbus.simulation.signals import VehicleSignal
 
 SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
@@ -224,6 +223,7 @@ VEHICLE_SIGNALS = {
     ),
 }
 
+
 class SimulationProtocolRouter(ProtocolRouter):
     """Add unmistakably synthetic messages to the normal project router."""
 
@@ -247,7 +247,7 @@ class SimulationProtocolRouter(ProtocolRouter):
         self,
         routed: RoutedCanFrame,
         observed_at: float,
-    ) -> ApplicationEvent | RegistryHelloObserved | RegistryHeartbeatObserved | None:
+    ) -> DecodedProtocolEvent | None:
         event = super().decode(routed, observed_at)
         if event is not None:
             return event

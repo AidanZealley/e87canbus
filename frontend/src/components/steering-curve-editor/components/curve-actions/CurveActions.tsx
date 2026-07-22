@@ -7,11 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { PendingCurveAction } from "../../types"
 
-const MANUAL_ASSISTANCE_LEVEL_COUNT = 11
-
 export const CurveActions = ({
   mode,
   manualAssistanceLevel,
+  manualAssistanceLevelCount,
   maximumAssistanceActive,
   activeAssistance = null,
   pendingAction,
@@ -27,6 +26,7 @@ export const CurveActions = ({
 }: {
   mode: Mode
   manualAssistanceLevel: number
+  manualAssistanceLevelCount: number
   maximumAssistanceActive: boolean
   activeAssistance?: number | null
   pendingAction: PendingCurveAction
@@ -93,7 +93,7 @@ export const CurveActions = ({
               !modeControlAvailable ||
               (mode === "manual" &&
                 !maximumAssistanceActive &&
-                manualAssistanceLevel === MANUAL_ASSISTANCE_LEVEL_COUNT - 1)
+                manualAssistanceLevel === manualAssistanceLevelCount - 1)
             }
             onClick={() =>
               onLevelChange(

@@ -90,6 +90,14 @@ trace identity and restores vehicle signals to never-observed without retaining 
 
 Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. There are eleven manual levels, from 0% through 100% in 10% increments. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. The on-screen `−` and `+` controls follow the same maximum-assistance cancellation behavior. This remembered state is not persisted across coordinator restarts.
 
+The emulator still emits the same CAN button frame as the physical pad. After decoding, the server
+resolves the pressed index through its compiled-in button binding profile and dispatches the resulting
+canonical operator intent. HTTP controls translate directly to that same intent vocabulary. Shared
+state, bounds, maximum-assistance cancellation, and actuator commands therefore have one transition
+implementation; only button acknowledgements remain origin-specific. The profile is replaceable in
+composition for tests and future work, but there is currently no profile persistence or configuration
+UI.
+
 Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
 for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
 turns each phase into a private extended K-CAN command from the Pi to the virtual vehicle, so the

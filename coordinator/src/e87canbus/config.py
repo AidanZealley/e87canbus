@@ -114,6 +114,10 @@ class EngineTelemetryConfig:
             raise ValueError("engine telemetry timeout must be finite and positive")
 
 
+_BUTTON_PAD_BUTTON_COUNT = 16
+_BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3, 15})
+
+
 @dataclass(frozen=True)
 class HighBeamStrobeConfig:
     """Bounded flash-to-pass plan, expressed independently of any CAN protocol."""
@@ -124,8 +128,18 @@ class HighBeamStrobeConfig:
     deasserted_duration_s: float = 0.08
 
     def __post_init__(self) -> None:
-        if type(self.button_index) is not int or self.button_index < 0:
-            raise ValueError("high-beam strobe button_index must be a non-negative integer")
+        if (
+            type(self.button_index) is not int
+            or not 0 <= self.button_index < _BUTTON_PAD_BUTTON_COUNT
+        ):
+            raise ValueError(
+                "high-beam strobe button_index must be between 0 and "
+                f"{_BUTTON_PAD_BUTTON_COUNT - 1}"
+            )
+        if self.button_index in _BUILT_IN_RESERVED_BUTTON_INDEXES:
+            raise ValueError(
+                "high-beam strobe button_index is reserved by the built-in button profile"
+            )
         if type(self.cycle_count) is not int or self.cycle_count < 1:
             raise ValueError("high-beam strobe cycle_count must be a positive integer")
         for name, value in (

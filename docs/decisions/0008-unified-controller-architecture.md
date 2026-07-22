@@ -87,6 +87,18 @@ ADRs 0001-0006 continue to govern ordering, output grants, simulation, generated
 LED state and hardware evidence. Default live composition remains unable to transmit. This ADR
 does not accept ADR 0007, select a BMW identifier or authorize physical steering output.
 
+Operator controls converge below their transport adapters. HTTP/runtime commands translate to
+typed canonical intents, while decoded physical and simulated button presses resolve through one
+compiled-in, replaceable binding profile. A server-owned dispatcher executes both paths against the
+same authoritative transition rules and origin-neutral actuator effects. Button-origin handling adds
+only presentation details such as acknowledgement blinks and effect-origin metadata.
+
+The built-in profile is an injection boundary, not a user-configurable feature: this decision does
+not add profile persistence, profile switching, RGB configuration, or configuration UI.
+`ButtonPressed` remains the protocol-layer event because physical and simulated devices must still
+exercise the real CAN decoder before resolving a binding. HTTP is not an internal transport for
+hardware.
+
 ## Consequences
 
 - Process composition, HTTP commands/resources, Socket.IO publication and frontend ownership can

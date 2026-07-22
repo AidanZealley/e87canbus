@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from e87canbus.application.button_bindings import ButtonBinding, ButtonBindingProfile
 from e87canbus.application.controller import SOFT_WHITE
 from e87canbus.application.events import (
     RGB_AMBER,
@@ -14,7 +15,9 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
+    TriggerButtonPadBlink,
 )
+from e87canbus.application.intents import ToggleSteeringMode
 from e87canbus.application.state import SpeedSample, SteeringMode
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
@@ -57,17 +60,19 @@ def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
 
 
 RESTING_LEDS = (
-    RGB_OFF,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+    (
+        RGB_OFF,
+        SOFT_WHITE,
+        SOFT_WHITE,
+        SOFT_WHITE,
+        SOFT_WHITE,
+    )
+    + (RGB_OFF,) * 10
+    + (SOFT_WHITE,)
+)
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
-MAXIMUM_LEDS = ButtonLedState(
-    (RGB_AMBER, SOFT_WHITE, SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:]
-)
+MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, SOFT_WHITE, SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:])
 
 
 def activate_devices(kernel: CoordinatorKernel) -> None:
@@ -98,6 +103,36 @@ def activate_devices(kernel: CoordinatorKernel) -> None:
                 1.1,
             )
         )
+
+
+def press_button(kernel: CoordinatorKernel, button_index: int, observed_at: float = 2.0):
+    return kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            CanFrame(CustomCanIds().button_event, bytes((button_index, 1))),
+            observed_at,
+        )
+    )
+
+
+def steering_effects(commit) -> tuple[SetSteeringAssistance, ...]:
+    """Exclude button acknowledgement/presentation when comparing input origins."""
+
+    return tuple(
+        request.effect
+        for request in commit.effects
+        if isinstance(request.effect, SetSteeringAssistance)
+    )
+
+
+def steering_projection(commit) -> tuple[SteeringMode, int, int, bool]:
+    snapshot = commit.snapshot
+    return (
+        snapshot.steering_mode,
+        snapshot.manual_assistance_level,
+        snapshot.manual_assistance_level_count,
+        snapshot.maximum_assistance_active,
+    )
 
 
 def test_non_network_inbox_overflow_is_fatal() -> None:
@@ -131,6 +166,12 @@ def test_protocol_router_discards_releases_and_scopes_button_decode_to_kcan() ->
     assert router.decode(RoutedCanFrame(CanNetwork.KCAN, pressed), 1.0) == ButtonPressed(0, 1.0)
 
 
+@pytest.mark.parametrize("button_index", [-1, 16, True])
+def test_button_pressed_rejects_invalid_led_indexes(button_index: object) -> None:
+    with pytest.raises(ValueError, match="button press index"):
+        ButtonPressed(button_index)  # type: ignore[arg-type]
+
+
 def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() -> None:
     inputs = (
         KernelStarted(0.0),
@@ -159,6 +200,38 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
     assert first_commits[2].state_changed is False
 
 
+def test_decoded_physical_button_press_uses_the_injected_profile() -> None:
+    profile = ButtonBindingProfile(
+        "test-remap",
+        (ButtonBinding(8, ToggleSteeringMode()),),
+    )
+    kernel = CoordinatorKernel(button_binding_profile=profile)
+    kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
+
+    unbound = kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            CanFrame(CustomCanIds().button_event, b"\x00\x01"),
+            1.0,
+        )
+    )
+    remapped = kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            CanFrame(CustomCanIds().button_event, b"\x08\x01"),
+            2.0,
+        )
+    )
+
+    assert unbound is not None
+    assert unbound.snapshot.steering_mode is SteeringMode.AUTO
+    assert all(request.origin_button_index is None for request in unbound.effects)
+    assert remapped is not None
+    assert remapped.snapshot.steering_mode is SteeringMode.MANUAL
+    assert all(request.origin_button_index == 8 for request in remapped.effects)
+
+
 def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> None:
     kernel = CoordinatorKernel()
     assert kernel.dispatch(KernelStarted(0.0)) is not None
@@ -175,7 +248,10 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert maximum is not None
     assert maximum.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert maximum.effects == (EffectRequest(led_program(MAXIMUM_LEDS)),)
+    assert maximum.effects == (
+        EffectRequest(led_program(MAXIMUM_LEDS)),
+        EffectRequest(SetSteeringAssistance(1.0, SteeringCommandReason.MAXIMUM)),
+    )
     assert maximum.snapshot.maximum_assistance_active is True
 
     for repeated in (
@@ -191,7 +267,10 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert manual is not None
     assert manual.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert manual.effects == (EffectRequest(led_program(MANUAL_LEDS)),)
+    assert manual.effects == (
+        EffectRequest(led_program(MANUAL_LEDS)),
+        EffectRequest(SetSteeringAssistance(0.4, SteeringCommandReason.MANUAL)),
+    )
     assert manual.snapshot.steering_mode is SteeringMode.MANUAL
     assert manual.snapshot.manual_assistance_level == 4
     assert manual.snapshot.maximum_assistance_active is False
@@ -203,9 +282,136 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 
     assert auto is not None
     assert auto.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
-    assert auto.effects == (EffectRequest(led_program(AUTO_LEDS)),)
+    assert auto.effects == (
+        EffectRequest(led_program(AUTO_LEDS)),
+        EffectRequest(SetSteeringAssistance(0.0, SteeringCommandReason.SPEED_NEVER_OBSERVED)),
+    )
     assert auto.snapshot.steering_mode is SteeringMode.AUTO
     assert auto.snapshot.manual_assistance_level == 4
+
+
+@pytest.mark.parametrize("button_index", [1, 2])
+def test_button_and_exact_manual_command_clear_maximum_with_equivalent_outputs(
+    button_index: int,
+) -> None:
+    button_kernel = CoordinatorKernel()
+    command_kernel = CoordinatorKernel()
+    for kernel in (button_kernel, command_kernel):
+        kernel.dispatch(KernelStarted(0.0))
+        activate_devices(kernel)
+        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 4))
+        kernel.dispatch(SetMaximumAssistance(True))
+
+    button = press_button(button_kernel, button_index)
+    command = command_kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL))
+
+    assert button is not None and command is not None
+    assert steering_projection(button) == steering_projection(command)
+    assert button.changed_topics == command.changed_topics
+    assert (
+        steering_effects(button)
+        == steering_effects(command)
+        == (SetSteeringAssistance(0.4, SteeringCommandReason.MANUAL),)
+    )
+    assert all(request.origin_button_index == button_index for request in button.effects)
+    assert all(request.origin_button_index is None for request in command.effects)
+
+
+@pytest.mark.parametrize("button_index", [1, 2])
+def test_button_and_exact_command_enter_manual_at_remembered_level(button_index: int) -> None:
+    button_kernel = CoordinatorKernel()
+    command_kernel = CoordinatorKernel()
+    for kernel in (button_kernel, command_kernel):
+        kernel.dispatch(KernelStarted(0.0))
+        activate_devices(kernel)
+        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 7))
+        kernel.dispatch(SetSteeringMode(SteeringMode.AUTO))
+
+    button = press_button(button_kernel, button_index)
+    command = command_kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL))
+
+    assert button is not None and command is not None
+    # Button acknowledgement is intentionally part of the button program only;
+    # authoritative steering and actuator output must still converge.
+    assert steering_projection(button) == steering_projection(command)
+    assert button.snapshot.manual_assistance_level == 7
+    assert (
+        steering_effects(button)
+        == steering_effects(command)
+        == (SetSteeringAssistance(0.7, SteeringCommandReason.MANUAL),)
+    )
+
+
+def test_maximum_toggle_button_matches_explicit_enable_and_disable_commands() -> None:
+    button_kernel = CoordinatorKernel()
+    command_kernel = CoordinatorKernel()
+    for kernel in (button_kernel, command_kernel):
+        kernel.dispatch(KernelStarted(0.0))
+        activate_devices(kernel)
+        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 3))
+
+    button_enabled = press_button(button_kernel, 3, 2.0)
+    command_enabled = command_kernel.dispatch(SetMaximumAssistance(True))
+    assert button_enabled is not None and command_enabled is not None
+    assert steering_projection(button_enabled) == steering_projection(command_enabled)
+    assert steering_effects(button_enabled) == steering_effects(command_enabled)
+
+    button_disabled = press_button(button_kernel, 3, 3.0)
+    command_disabled = command_kernel.dispatch(SetMaximumAssistance(False))
+    assert button_disabled is not None and command_disabled is not None
+    assert steering_projection(button_disabled) == steering_projection(command_disabled)
+    assert steering_effects(button_disabled) == steering_effects(command_disabled)
+
+
+def test_projected_eleven_levels_and_button_bounds_match_exact_commands() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
+
+    assert kernel.snapshot().manual_assistance_level_count == 11
+    kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 0))
+    low = press_button(kernel, 1, 2.0)
+    assert low is not None and low.snapshot.manual_assistance_level == 0
+    kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 10))
+    high = press_button(kernel, 2, 3.0)
+    assert high is not None and high.snapshot.manual_assistance_level == 10
+
+
+def test_unavailable_servotronic_rejects_both_origins_with_button_only_feedback() -> None:
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+    ids = CustomCanIds()
+    kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            encode_hello(DeviceHelloPayload(1, 1, 1, 0), ids.button_pad_hello),
+            1.0,
+        )
+    )
+    kernel.dispatch(
+        ReceivedCanFrame(
+            CanNetwork.KCAN,
+            encode_heartbeat(
+                DeviceHeartbeatPayload(1, 1, kernel.controller_session_id, 0, 0),
+                ids.button_pad_heartbeat,
+            ),
+            1.1,
+        )
+    )
+    before = kernel.snapshot()
+
+    with pytest.raises(FeatureUnavailable):
+        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL))
+    rejected_button = press_button(kernel, 2)
+
+    assert rejected_button is not None
+    assert rejected_button.snapshot.steering_mode is before.steering_mode
+    assert rejected_button.snapshot.manual_assistance_level == before.manual_assistance_level
+    assert steering_effects(rejected_button) == ()
+    assert any(
+        isinstance(request.effect, TriggerButtonPadBlink) and request.effect.colour.value == "amber"
+        for request in rejected_button.effects
+    )
 
 
 def test_unknown_and_malformed_frames_create_no_commits(
@@ -232,6 +438,30 @@ def test_unknown_and_malformed_frames_create_no_commits(
     assert network.received_frames == 2
     assert (network.ignored_frames, network.malformed_frames) == (1, 1)
     assert "ignored malformed recognized frame" in caplog.text
+
+
+def test_out_of_range_button_can_payload_is_counted_as_malformed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    ids = CustomCanIds()
+    kernel = CoordinatorKernel()
+    kernel.dispatch(KernelStarted(0.0))
+
+    with caplog.at_level(logging.WARNING):
+        commit = kernel.dispatch(
+            ReceivedCanFrame(
+                CanNetwork.KCAN,
+                CanFrame(ids.button_event, b"\x10\x01"),
+                1.0,
+            )
+        )
+
+    assert commit is None
+    assert kernel.diagnostics().revision == 1
+    network = kernel.diagnostics().health.for_network(CanNetwork.KCAN)
+    assert network.received_frames == 1
+    assert (network.ignored_frames, network.malformed_frames) == (0, 1)
+    assert "button event index must be between 0 and 15" in caplog.text
 
 
 def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> None:

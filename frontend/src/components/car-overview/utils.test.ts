@@ -20,6 +20,7 @@ const definition: SteeringCurveDefinition = {
 const steering: SteeringState = {
   mode: "auto",
   manual_assistance_level: 0,
+  manual_assistance_level_count: 11,
   maximum_assistance_active: false,
   active_curve: {
     definition,

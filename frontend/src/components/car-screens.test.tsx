@@ -135,6 +135,7 @@ const prepareLiveState = () => {
     ...value.data.steering,
     mode: "manual",
     manual_assistance_level: 2,
+    manual_assistance_level_count: 11,
     active_curve: active(),
     servotronic: {
       effective_assistance: 0.5,

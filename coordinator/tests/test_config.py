@@ -5,6 +5,7 @@ from e87canbus.config import (
     CanNetwork,
     CustomCanIds,
     EngineTelemetryConfig,
+    HighBeamStrobeConfig,
     LivePublicationConfig,
     NetworkConfigError,
     SimulationConfig,
@@ -100,6 +101,18 @@ def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
 
 def test_steering_level_count() -> None:
     assert default_config().steering.manual_level_count == 11
+
+
+@pytest.mark.parametrize("button_index", [-1, 16])
+def test_high_beam_button_must_address_the_physical_pad(button_index: int) -> None:
+    with pytest.raises(ValueError, match="between 0 and 15"):
+        HighBeamStrobeConfig(button_index=button_index)
+
+
+@pytest.mark.parametrize("button_index", [0, 1, 2, 3, 15])
+def test_high_beam_button_cannot_collide_with_built_in_bindings(button_index: int) -> None:
+    with pytest.raises(ValueError, match="reserved by the built-in button profile"):
+        HighBeamStrobeConfig(button_index=button_index)
 
 
 @pytest.mark.parametrize(

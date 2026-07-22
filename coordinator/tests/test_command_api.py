@@ -64,6 +64,35 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     assert snapshot.application.manual_assistance_level == 4
 
 
+def test_manual_level_validation_uses_the_server_steering_configuration(
+    tmp_path: Path,
+) -> None:
+    config = replace(
+        simulator_config(),
+        tick_interval_s=60.0,
+        steering=replace(simulator_config().steering, manual_level_count=3),
+    )
+    app = create_app(config=config, profile_database_path=tmp_path / "app.sqlite3")
+
+    with TestClient(app) as client:
+        activate_simulation_devices(client.app.state.controller_service)
+        accepted = client.put(
+            "/api/commands/steering-mode",
+            json={"mode": "manual", "manual_level": 2},
+        )
+        rejected = client.put(
+            "/api/commands/steering-mode",
+            json={"mode": "manual", "manual_level": 3},
+        )
+
+    assert accepted.status_code == 200
+    assert rejected.status_code == 422
+    assert rejected.json()["error"] == {
+        "code": "validation_error",
+        "message": "manual_level must be between 0 and 2",
+    }
+
+
 def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         activate_simulation_devices(client.app.state.controller_service)

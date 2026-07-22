@@ -12,7 +12,6 @@ from e87canbus.application.state import (
     EngineRpmSample,
     OilTemperatureSample,
     SpeedSample,
-    SteeringMode,
 )
 from e87canbus.button_pad import ButtonPadProgram
 from e87canbus.features.steering import SteeringCurveDefinition
@@ -60,6 +59,8 @@ class ButtonPressed:
     observed_at: float = 0.0
 
     def __post_init__(self) -> None:
+        if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
+            raise ValueError("button press index must identify a button LED")
         if not math.isfinite(self.observed_at):
             raise ValueError("button observation time must be finite")
 
@@ -124,17 +125,6 @@ class HighBeamStrobeDeadlineReached:
             raise ValueError("high-beam strobe deadline must be finite")
 
 
-@dataclass(frozen=True)
-class MaximumAssistanceSet:
-    enabled: bool
-
-
-@dataclass(frozen=True)
-class SteeringModeSet:
-    mode: SteeringMode
-    manual_level: int | None = None
-
-
 class SteeringCommandReason(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
@@ -158,8 +148,7 @@ class SteeringFallbackRequested:
 
 
 ApplicationEvent = (
-    ButtonPressed
-    | ButtonCommandFailed
+    ButtonCommandFailed
     | ButtonFeedbackDeadlineReached
     | SpeedObserved
     | EngineRpmObserved
@@ -167,8 +156,6 @@ ApplicationEvent = (
     | CoolantTemperatureObserved
     | ControlTimerElapsed
     | HighBeamStrobeDeadlineReached
-    | MaximumAssistanceSet
-    | SteeringModeSet
     | SteeringFallbackRequested
 )
 

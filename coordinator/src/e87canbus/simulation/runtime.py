@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, assert_never
 
+from e87canbus.application.button_bindings import ButtonBindingProfile
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import (
     ButtonFeedbackDeadlineReached,
@@ -116,6 +117,7 @@ class SimulatedControllerRuntime:
         servotronic_factory: Callable[
             [float, Callable[[], float]], SimulatedServotronicPeer
         ] = SimulatedServotronicPeer,
+        button_binding_profile: ButtonBindingProfile | None = None,
     ) -> None:
         self.config = config or simulator_config()
         if ids is not None:
@@ -125,6 +127,7 @@ class SimulatedControllerRuntime:
         self.button_pad_source = button_pad_source
         self._clock = clock
         self._servotronic_factory = servotronic_factory
+        self._button_binding_profile = button_binding_profile
         self._session_id = 0
         self._started = False
         self._initial_steering_curve: ActiveSteeringCurve | None = None
@@ -336,6 +339,7 @@ class SimulatedControllerRuntime:
             },
             servotronic_output_available=kcan_enabled,
             active_steering_curve=self._initial_steering_curve,
+            button_binding_profile=self._button_binding_profile,
         )
         self.executor = EffectExecutor(
             transmitters,
