@@ -9,9 +9,9 @@ from e87canbus.application.intents import (
     AdjustManualAssistance,
     OperatorIntent,
     StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
     ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
-    ToggleSteeringMode,
     is_operator_intent,
 )
 from e87canbus.config import HighBeamStrobeConfig
@@ -75,7 +75,7 @@ def built_in_button_binding_profile(
     return ButtonBindingProfile(
         profile_id=BUILT_IN_PROFILE_ID,
         bindings=(
-            ButtonBinding(0, ToggleSteeringMode()),
+            ButtonBinding(0, ToggleAutomaticAssistance()),
             ButtonBinding(1, AdjustManualAssistance(-1)),
             ButtonBinding(2, AdjustManualAssistance(1)),
             ButtonBinding(3, ToggleMaximumAssistance()),

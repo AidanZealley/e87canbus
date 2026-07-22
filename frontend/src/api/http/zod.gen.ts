@@ -13,6 +13,13 @@ export const zActivateSteeringProfileRequest = z.object({
 })
 
 /**
+ * AdjustManualAssistanceRequest
+ */
+export const zAdjustManualAssistanceRequest = z.object({
+  delta: z.union([z.literal(-1), z.literal(1)]),
+})
+
+/**
  * CommandAcknowledgement
  */
 export const zCommandAcknowledgement = z.object({
@@ -49,6 +56,13 @@ export const zReadinessResponse = z.object({
 })
 
 /**
+ * SetManualAssistanceLevelRequest
+ */
+export const zSetManualAssistanceLevelRequest = z.object({
+  level: z.int().gte(0),
+})
+
+/**
  * SetMaximumAssistanceRequest
  */
 export const zSetMaximumAssistanceRequest = z.object({
@@ -59,7 +73,6 @@ export const zSetMaximumAssistanceRequest = z.object({
  * SetSteeringModeRequest
  */
 export const zSetSteeringModeRequest = z.object({
-  manual_level: z.int().gte(0).nullish(),
   mode: z.enum(["auto", "manual"]),
 })
 
@@ -277,6 +290,20 @@ export const zActivateSteeringProfileBody = zActivateSteeringProfileRequest
  * Successful Response
  */
 export const zActivateSteeringProfileResponse = zCommandAcknowledgement
+
+export const zAdjustManualAssistanceBody = zAdjustManualAssistanceRequest
+
+/**
+ * Successful Response
+ */
+export const zAdjustManualAssistanceResponse = zCommandAcknowledgement
+
+export const zSetManualAssistanceLevelBody = zSetManualAssistanceLevelRequest
+
+/**
+ * Successful Response
+ */
+export const zSetManualAssistanceLevelResponse = zCommandAcknowledgement
 
 export const zSetMaximumAssistanceBody = zSetMaximumAssistanceRequest
 

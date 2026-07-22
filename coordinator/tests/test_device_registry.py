@@ -15,7 +15,6 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.state import SteeringMode
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceLifecycleStatus, DeviceRole
@@ -33,8 +32,8 @@ from e87canbus.runtime import (
     DeviceAdapterFailed,
     KernelStarted,
     ReceivedCanFrame,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
-    SetSteeringMode,
     StateTopic,
     TimerElapsed,
 )
@@ -331,7 +330,7 @@ def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfata
     assert button_failure is not None
     assert button_failure.changed_topics == {StateTopic.HEALTH}
     with pytest.raises(FeatureUnavailable):
-        kernel.dispatch(SetSteeringMode(SteeringMode.MANUAL, 2))
+        kernel.dispatch(SetManualAssistanceLevel(2))
 
     register(kernel, DeviceRole.SERVOTRONIC_CONTROLLER)
     kernel.dispatch(SetMaximumAssistance(True))

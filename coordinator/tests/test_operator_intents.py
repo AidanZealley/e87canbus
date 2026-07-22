@@ -11,11 +11,12 @@ from e87canbus.application.intents import (
     IntentDispatcher,
     OperatorIntentContext,
     SelectSteeringMode,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
     StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
     ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
-    ToggleSteeringMode,
     intent_requires_servotronic,
 )
 from e87canbus.application.state import SteeringMode
@@ -23,20 +24,20 @@ from e87canbus.config import HighBeamStrobeConfig
 
 
 def test_exact_steering_intents_validate_their_values() -> None:
-    assert SelectSteeringMode(SteeringMode.MANUAL, 0).manual_level == 0
+    assert SetManualAssistanceLevel(0).level == 0
     assert SetMaximumAssistance(False).enabled is False
 
     with pytest.raises(ValueError, match="supported SteeringMode"):
         SelectSteeringMode("manual")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="non-negative integer"):
-        SelectSteeringMode(SteeringMode.MANUAL, -1)
+        SetManualAssistanceLevel(-1)
     with pytest.raises(ValueError, match="boolean"):
         SetMaximumAssistance(1)  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("delta", [0, 1.0, True])
-def test_adjust_manual_assistance_requires_a_nonzero_integer(delta: object) -> None:
-    with pytest.raises(ValueError, match="non-zero integer"):
+@pytest.mark.parametrize("delta", [-2, 0, 2, 1.0, True])
+def test_adjust_manual_assistance_requires_one_stage_delta(delta: object) -> None:
+    with pytest.raises(ValueError, match="-1 or 1"):
         AdjustManualAssistance(delta)  # type: ignore[arg-type]
 
 
@@ -62,7 +63,7 @@ def test_dispatcher_supplies_empty_context_for_non_timed_intents() -> None:
     received: list[OperatorIntentContext] = []
     dispatcher = IntentDispatcher(lambda intent, context: received.append(context))
 
-    dispatcher.dispatch(ToggleSteeringMode())
+    dispatcher.dispatch(ToggleAutomaticAssistance())
 
     assert received == [OperatorIntentContext()]
 
@@ -82,14 +83,14 @@ def test_dispatcher_rejects_values_outside_the_closed_intent_set() -> None:
         dispatcher.dispatch(object())  # type: ignore[arg-type]
 
     with pytest.raises(TypeError, match="OperatorIntentContext"):
-        dispatcher.dispatch(ToggleSteeringMode(), object())  # type: ignore[arg-type]
+        dispatcher.dispatch(ToggleAutomaticAssistance(), object())  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
     "intent",
     [
         SelectSteeringMode(SteeringMode.AUTO),
-        ToggleSteeringMode(),
+        ToggleAutomaticAssistance(),
         AdjustManualAssistance(1),
         SetMaximumAssistance(True),
         ToggleMaximumAssistance(),
@@ -110,7 +111,7 @@ def test_non_steering_intents_do_not_require_servotronic(intent: object) -> None
 def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
     profile = built_in_button_binding_profile()
 
-    assert profile.intent_for_press(0) == ToggleSteeringMode()
+    assert profile.intent_for_press(0) == ToggleAutomaticAssistance()
     assert profile.intent_for_press(1) == AdjustManualAssistance(-1)
     assert profile.intent_for_press(2) == AdjustManualAssistance(1)
     assert profile.intent_for_press(3) == ToggleMaximumAssistance()
@@ -127,18 +128,18 @@ def test_built_in_profile_uses_the_configured_high_beam_button() -> None:
 
 
 def test_profile_rejects_duplicate_or_out_of_range_buttons() -> None:
-    binding = ButtonBinding(0, ToggleSteeringMode())
+    binding = ButtonBinding(0, ToggleAutomaticAssistance())
 
     with pytest.raises(ValueError, match="same button"):
         ButtonBindingProfile("duplicate", (binding, binding))
     with pytest.raises(ValueError, match="between 0 and 15"):
-        ButtonBinding(16, ToggleSteeringMode())
+        ButtonBinding(16, ToggleAutomaticAssistance())
     with pytest.raises(TypeError, match="supported operator intent"):
         ButtonBinding(1, object())  # type: ignore[arg-type]
 
 
 def test_profile_rejects_mutable_or_malformed_bindings() -> None:
-    binding = ButtonBinding(0, ToggleSteeringMode())
+    binding = ButtonBinding(0, ToggleAutomaticAssistance())
 
     with pytest.raises(TypeError, match="immutable tuple"):
         ButtonBindingProfile("mutable", [binding])  # type: ignore[arg-type]

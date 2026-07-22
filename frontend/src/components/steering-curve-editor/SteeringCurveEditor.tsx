@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   activateSteeringCurveMutation,
   activateSteeringProfileMutation,
+  adjustManualAssistanceMutation,
   getSavedSteeringProfileOptions,
   getSavedSteeringProfileQueryKey,
   setMaximumAssistanceMutation,
@@ -58,6 +59,9 @@ export const SteeringCurveEditor = ({
     activateSteeringProfileMutation()
   )
   const { mutateAsync: setMode } = useMutation(setSteeringModeMutation())
+  const { mutateAsync: adjustManualAssistance } = useMutation(
+    adjustManualAssistanceMutation()
+  )
   const { mutateAsync: setMaximumAssistance } = useMutation(
     setMaximumAssistanceMutation()
   )
@@ -164,9 +168,9 @@ export const SteeringCurveEditor = ({
         onModeChange={(nextMode) =>
           void runAction("mode", () => setMode({ body: { mode: nextMode } }))
         }
-        onLevelChange={(manualLevel) =>
+        onLevelAdjust={(delta) =>
           void runAction("level", () =>
-            setMode({ body: { mode: "manual", manual_level: manualLevel } })
+            adjustManualAssistance({ body: { delta } })
           )
         }
         onMaximumChange={(enabled) =>

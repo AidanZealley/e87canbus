@@ -17,7 +17,7 @@ it("uses the server-projected level count for the upper manual bound", () => {
       activeMatchesSaved
       hasSavedProfile
       onModeChange={vi.fn()}
-      onLevelChange={vi.fn()}
+      onLevelAdjust={vi.fn()}
       onMaximumChange={vi.fn()}
       onSave={vi.fn()}
       onReset={vi.fn()}

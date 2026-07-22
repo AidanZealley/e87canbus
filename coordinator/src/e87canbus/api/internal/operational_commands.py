@@ -14,7 +14,9 @@ from e87canbus.api.internal.steering import (
 from e87canbus.api.models.commands import (
     ActivateSteeringCurveRequest,
     ActivateSteeringProfileRequest,
+    AdjustManualAssistanceRequest,
     CommandAcknowledgement,
+    SetManualAssistanceLevelRequest,
     SetMaximumAssistanceRequest,
     SetSteeringModeRequest,
 )
@@ -23,6 +25,8 @@ from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.steering import SteeringCurveDefinition
 from e87canbus.runtime import (
     ActivateSteeringCurve,
+    AdjustManualAssistance,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
     SetSteeringMode,
 )
@@ -39,17 +43,31 @@ async def set_steering_mode(
     app: FastAPI,
     request: SetSteeringModeRequest,
 ) -> CommandAcknowledgement:
-    manual_level = request.manual_level
+    return await submit_command(app, SetSteeringMode(SteeringMode(request.mode)))
+
+
+async def adjust_manual_assistance(
+    app: FastAPI,
+    request: AdjustManualAssistanceRequest,
+) -> CommandAcknowledgement:
+    return await submit_command(app, AdjustManualAssistance(request.delta))
+
+
+async def set_manual_assistance_level(
+    app: FastAPI,
+    request: SetManualAssistanceLevelRequest,
+) -> CommandAcknowledgement:
+    manual_level = request.level
     manual_level_count = app.state.controller_service.config.steering.manual_level_count
-    if manual_level is not None and manual_level >= manual_level_count:
+    if manual_level >= manual_level_count:
         raise ApiProblem(
             422,
             "validation_error",
-            f"manual_level must be between 0 and {manual_level_count - 1}",
+            f"manual assistance level must be between 0 and {manual_level_count - 1}",
         )
     return await submit_command(
         app,
-        SetSteeringMode(SteeringMode(request.mode), manual_level),
+        SetManualAssistanceLevel(manual_level),
     )
 
 

@@ -17,7 +17,7 @@ export const CurveActions = ({
   activeMatchesSaved,
   hasSavedProfile,
   onModeChange,
-  onLevelChange,
+  onLevelAdjust,
   onMaximumChange,
   onSave,
   onReset,
@@ -33,7 +33,7 @@ export const CurveActions = ({
   activeMatchesSaved: boolean
   hasSavedProfile: boolean
   onModeChange: (mode: Mode) => void
-  onLevelChange: (level: number) => void
+  onLevelAdjust: (delta: -1 | 1) => void
   onMaximumChange: (enabled: boolean) => void
   onSave: () => void
   onReset: () => void
@@ -69,15 +69,11 @@ export const CurveActions = ({
             disabled={
               pendingAction !== null ||
               !modeControlAvailable ||
-              (mode === "manual" && manualAssistanceLevel === 0)
+              (mode === "manual" &&
+                !maximumAssistanceActive &&
+                manualAssistanceLevel === 0)
             }
-            onClick={() =>
-              onLevelChange(
-                mode === "manual" && !maximumAssistanceActive
-                  ? Math.max(0, manualAssistanceLevel - 1)
-                  : manualAssistanceLevel
-              )
-            }
+            onClick={() => onLevelAdjust(-1)}
           >
             <Minus />
           </Button>
@@ -95,13 +91,7 @@ export const CurveActions = ({
                 !maximumAssistanceActive &&
                 manualAssistanceLevel === manualAssistanceLevelCount - 1)
             }
-            onClick={() =>
-              onLevelChange(
-                mode === "manual" && !maximumAssistanceActive
-                  ? manualAssistanceLevel + 1
-                  : manualAssistanceLevel
-              )
-            }
+            onClick={() => onLevelAdjust(1)}
           >
             <Plus />
           </Button>

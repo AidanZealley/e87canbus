@@ -102,7 +102,12 @@ const requestBody = async <Body,>(
 const renderEditor = (
   activeCurve: ActiveSteeringCurveState,
   speedKph: number | null = 10,
-  activeAssistance: number | null = null
+  activeAssistance: number | null = null,
+  steering: {
+    mode?: "auto" | "manual"
+    manualAssistanceLevel?: number
+    maximumAssistanceActive?: boolean
+  } = {}
 ) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -113,10 +118,10 @@ const renderEditor = (
   const result = render(
     <SteeringCurveCard
       activeCurve={activeCurve}
-      mode="auto"
-      manualAssistanceLevel={0}
+      mode={steering.mode ?? "auto"}
+      manualAssistanceLevel={steering.manualAssistanceLevel ?? 0}
       manualAssistanceLevelCount={11}
-      maximumAssistanceActive={false}
+      maximumAssistanceActive={steering.maximumAssistanceActive ?? false}
       speedKph={speedKph}
       activeAssistance={activeAssistance}
     />,
@@ -166,8 +171,8 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Increase assistance" }))
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/commands\/steering-mode$/),
-      body: { mode: "manual", manual_level: 0 },
+      url: expect.stringMatching(/api\/commands\/manual-assistance-adjustment$/),
+      body: { delta: 1 },
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Max" }))
@@ -176,6 +181,53 @@ describe("SteeringCurveEditor", () => {
       url: expect.stringMatching(/api\/commands\/maximum-assistance$/),
       body: { enabled: true },
     })
+  })
+
+  it("uses a relative down command while Max masks the remembered manual level", async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = requestUrl(input)
+        if (url.endsWith("/api/steering/profile")) return jsonResponse([])
+        requests.push({ url, body: await requestBody(input, init) })
+        return commandResponse()
+      })
+    )
+    renderEditor(active(), 10, 1, {
+      mode: "manual",
+      manualAssistanceLevel: 0,
+      maximumAssistanceActive: true,
+    })
+
+    const decrease = screen.getByRole("button", {
+      name: "Decrease assistance",
+    }) as HTMLButtonElement
+    expect(decrease.disabled).toBe(false)
+    fireEvent.click(decrease)
+
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).toMatchObject({
+      url: expect.stringMatching(/api\/commands\/manual-assistance-adjustment$/),
+      body: { delta: -1 },
+    })
+  })
+
+  it("disables decrease at zero in normal Manual mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse([]))
+    )
+    renderEditor(active(), 10, 0, {
+      mode: "manual",
+      manualAssistanceLevel: 0,
+      maximumAssistanceActive: false,
+    })
+
+    const decrease = screen.getByRole("button", {
+      name: "Decrease assistance",
+    }) as HTMLButtonElement
+    expect(decrease.disabled).toBe(true)
   })
 
   it("always presents a smooth curve without an interpolation control", async () => {

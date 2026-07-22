@@ -93,6 +93,16 @@ compiled-in, replaceable binding profile. A server-owned dispatcher executes bot
 same authoritative transition rules and origin-neutral actuator effects. Button-origin handling adds
 only presentation details such as acknowledgement blinks and effect-origin metadata.
 
+Mode selection, relative Manual adjustment, and exact Manual level selection are separate intents.
+The latter two converge on one domain operation that cancels maximum assistance, selects Manual,
+and applies configured bounds. A relative adjustment from Auto or maximum assistance first restores
+the remembered Manual level without changing it; an exact-level selection deliberately replaces it.
+Transport DTOs must not combine mode selection with an optional Manual level.
+The configurable button catalogue names button `0`'s operation `ToggleAutomaticAssistance`, because
+its stateful meaning is whether Auto is active rather than an underspecified mode toggle. Relative
+adjustment accepts exactly one stage (`-1` or `+1`); direct multi-stage selection uses the exact-level
+intent.
+
 The built-in profile is an injection boundary, not a user-configurable feature: this decision does
 not add profile persistence, profile switching, RGB configuration, or configuration UI.
 `ButtonPressed` remains the protocol-layer event because physical and simulated devices must still
