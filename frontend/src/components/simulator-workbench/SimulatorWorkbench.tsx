@@ -96,7 +96,7 @@ const LiveSteeringCurveCard = () => {
         activationAvailable={
           registry.status === "active" && steering.curve_configuration_available
         }
-        modeControlAvailable={registry.source_mode === "emulated"}
+        modeControlAvailable={registry.status === "active"}
         mode={steering.mode}
         manualAssistanceLevel={steering.manual_assistance_level}
         maximumAssistanceActive={steering.maximum_assistance_active}

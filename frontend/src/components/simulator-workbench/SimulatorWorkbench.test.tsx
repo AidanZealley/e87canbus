@@ -27,11 +27,14 @@ vi.mock(
 vi.mock("./components/steering-curve-card", () => ({
   SteeringCurveCard: ({
     activationAvailable,
+    modeControlAvailable,
   }: {
     activationAvailable: boolean
+    modeControlAvailable: boolean
   }) => (
     <div data-testid="curve-configuration">
-      {activationAvailable ? "enabled" : "disabled"}
+      {activationAvailable ? "enabled" : "disabled"};controls=
+      {modeControlAvailable ? "enabled" : "disabled"}
     </div>
   ),
 }))
@@ -114,8 +117,11 @@ it.each([
         <SimulatorWorkbench />
       </QueryClientProvider>
     )
-    expect(screen.getByTestId("curve-configuration").textContent).toBe(
+    expect(screen.getByTestId("curve-configuration").textContent).toContain(
       expected
+    )
+    expect(screen.getByTestId("curve-configuration").textContent).toContain(
+      `controls=${status === "active" ? "enabled" : "disabled"}`
     )
   }
 )
