@@ -13,9 +13,79 @@ enum class Inhibit : uint8_t {
     NO_SPEED,
     STALE_SPEED,
     INVALID_SPEED,
-    NO_CONTROLLER,
     CAN_FAULT,
 };
+
+constexpr uint8_t CURVE_POINT_COUNT = 8;
+constexpr uint8_t CURVE_PROTOCOL_VERSION = 1;
+constexpr uint8_t CURVE_SET_OPCODE = 1;
+constexpr uint8_t CURVE_STATUS_OPCODE = 2;
+constexpr uint8_t CURVE_SCHEMA_VERSION = 1;
+constexpr uint8_t CURVE_INTERPOLATION_VERSION = 1;
+constexpr uint8_t CURVE_PAYLOAD_LENGTH = 44;
+constexpr uint8_t CURVE_STATUS_LENGTH = 19;
+
+enum class CurveResult : uint8_t {
+    ACCEPTED = 0, BAD_LENGTH = 1, UNSUPPORTED = 2, BAD_GRID = 3,
+    BAD_VALUES = 4, BAD_CRC = 5,
+};
+enum class CurveSource : uint8_t { BUILTIN_FALLBACK = 0, COORDINATOR_RAM = 1 };
+
+struct ActiveCurve {
+    uint16_t speeds[CURVE_POINT_COUNT] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
+    uint16_t assistance[CURVE_POINT_COUNT] = {1000, 889, 778, 667, 381, 0, 0, 0};
+    uint32_t revision = 0;
+    uint32_t crc32 = 0;
+    CurveSource source = CurveSource::BUILTIN_FALLBACK;
+};
+
+inline uint16_t readU16(const uint8_t *p) {
+    return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
+}
+inline uint32_t readU32(const uint8_t *p) {
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+}
+inline void writeU16(uint8_t *p, uint16_t value) {
+    p[0] = value & 0xff; p[1] = value >> 8;
+}
+inline void writeU32(uint8_t *p, uint32_t value) {
+    p[0] = value & 0xff; p[1] = (value >> 8) & 0xff;
+    p[2] = (value >> 16) & 0xff; p[3] = value >> 24;
+}
+inline uint32_t crc32(const uint8_t *payload, uint8_t length) {
+    uint32_t crc = 0xffffffffUL;
+    for (uint8_t i = 0; i < length; ++i) {
+        crc ^= payload[i];
+        for (uint8_t bit = 0; bit < 8; ++bit)
+            crc = (crc >> 1) ^ (0xedb88320UL & (0UL - (crc & 1UL)));
+    }
+    return crc ^ 0xffffffffUL;
+}
+
+inline CurveResult applyCurvePayload(const uint8_t *payload, uint16_t length,
+                                     ActiveCurve &active) {
+    if (payload == nullptr || length != CURVE_PAYLOAD_LENGTH) return CurveResult::BAD_LENGTH;
+    if (payload[0] != CURVE_PROTOCOL_VERSION || payload[1] != CURVE_SET_OPCODE ||
+        payload[2] != CURVE_SCHEMA_VERSION || payload[3] != CURVE_INTERPOLATION_VERSION)
+        return CurveResult::UNSUPPORTED;
+    if (crc32(payload, 40) != readU32(payload + 40)) return CurveResult::BAD_CRC;
+    static const uint16_t grid[CURVE_POINT_COUNT] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
+    ActiveCurve staged;
+    for (uint8_t i = 0; i < CURVE_POINT_COUNT; ++i) {
+        staged.speeds[i] = readU16(payload + 8 + i * 2);
+        staged.assistance[i] = readU16(payload + 24 + i * 2);
+        if (staged.speeds[i] != grid[i]) return CurveResult::BAD_GRID;
+        if (staged.assistance[i] > 1000 ||
+            (i != 0 && staged.assistance[i - 1] < staged.assistance[i]))
+            return CurveResult::BAD_VALUES;
+    }
+    staged.revision = readU32(payload + 4);
+    staged.crc32 = readU32(payload + 40);
+    staged.source = CurveSource::COORDINATOR_RAM;
+    active = staged;  // Single control-loop-boundary activation; no partial curve is observable.
+    return CurveResult::ACCEPTED;
+}
 
 struct SpeedState {
     bool seen = false;
@@ -81,19 +151,20 @@ inline float interpolateMonotoneCubicV1(uint16_t deciKph, const uint16_t *speeds
     return values[count - 1] / 1000.0f;
 }
 
-inline float assistanceForSpeed(uint16_t deciKph) {
+inline float assistanceForSpeed(uint16_t deciKph, const ActiveCurve &curve) {
     // Same Steffen/D3 monotone-cubic-v1 algorithm, schema grid, and values as
     // the coordinator; AVR evaluates in binary32 before PWM quantization.
-    static const uint16_t speeds[] = {0, 100, 200, 300, 600, 1000, 1600, 2500};
-    static const uint16_t assistance[] = {1000, 889, 778, 667, 381, 0, 0, 0};
-    return interpolateMonotoneCubicV1(deciKph, speeds, assistance,
-                                      sizeof(speeds) / sizeof(speeds[0]));
+    return interpolateMonotoneCubicV1(deciKph, curve.speeds, curve.assistance,
+                                      CURVE_POINT_COUNT);
 }
 
-inline Inhibit inhibitReason(const SpeedState &speed, uint32_t now,
-                             bool controllerFresh, bool canHealthy) {
+inline float assistanceForSpeed(uint16_t deciKph) {
+    const ActiveCurve fallback;
+    return assistanceForSpeed(deciKph, fallback);
+}
+
+inline Inhibit inhibitReason(const SpeedState &speed, uint32_t now, bool canHealthy) {
     if (!canHealthy) return Inhibit::CAN_FAULT;
-    if (!controllerFresh) return Inhibit::NO_CONTROLLER;
     if (speed.invalid) return Inhibit::INVALID_SPEED;
     if (!speed.seen) return Inhibit::NO_SPEED;
     if (now - speed.receivedMs > SPEED_TIMEOUT_MS) return Inhibit::STALE_SPEED;

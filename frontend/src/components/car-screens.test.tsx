@@ -140,6 +140,13 @@ const prepareLiveState = () => {
       effective_assistance: 0.5,
       last_command_reason: "auto",
       watchdog_timed_out: false,
+      active_curve_source: null,
+      active_curve_revision: null,
+      active_curve_crc32: null,
+      observed_speed_kph: null,
+      speed_fresh: null,
+      pwm_duty: null,
+      inhibit_reason: null,
     },
   }
   value.data.devices = {

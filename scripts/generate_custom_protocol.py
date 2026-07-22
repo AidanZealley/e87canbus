@@ -341,7 +341,7 @@ def render_markdown_section(definition: ProtocolDefinition) -> str:
         lines.append(
             f"| `0x{link.coordinator_to_device_id:03X}` / "
             f"`0x{link.device_to_coordinator_id:03X}` | "
-            f"Coordinator ↔ button pad | {link.purpose} | variable | ISO-TP; maximum "
+            f"Coordinator ↔ device | {link.purpose} | variable | ISO-TP; maximum "
             f"{link.maximum_payload_length} reassembled bytes |"
         )
     for message in definition.messages:
@@ -377,6 +377,7 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
             definition
         ),
         root / "devices" / "button-pad" / "include" / "can_ids.h": render_header(definition),
+        root / "devices" / "servotronic-controller" / "include" / "can_ids.h": render_header(definition),
         markdown_path: markdown,
     }
 

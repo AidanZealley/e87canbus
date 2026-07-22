@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import struct
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
@@ -14,6 +15,7 @@ from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
     ButtonFeedbackColour,
+    ConfigureServotronicCurve,
     SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
@@ -32,6 +34,7 @@ from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.servotronic_protocol import ServotronicStatus, pack_curve, unpack_status
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
@@ -62,6 +65,7 @@ class EffectRequest:
                 TriggerButtonPadBlink,
                 SetButtonPadBreathe,
                 SetSteeringAssistance,
+                ConfigureServotronicCurve,
                 SetHighBeam,
                 SendRegistryFrame,
             ),
@@ -181,6 +185,17 @@ class EffectExecutor:
                 minimum_payload_interval_s=button_pad_payload_interval_s,
             )
         )
+        self._servotronic_transport = (
+            None
+            if transmitter is None
+            else IsoTpEndpoint(
+                tx_id=self._router.ids.servotronic_transport_coordinator_to_device,
+                rx_id=self._router.ids.servotronic_transport_device_to_coordinator,
+                send_frame=send_transport_frame,
+                maximum_payload_length=self._router.ids.servotronic_transport_maximum_payload_length,
+            )
+        )
+        self._servotronic_statuses: deque[ServotronicStatus] = deque()
 
     def execute(
         self,
@@ -197,6 +212,17 @@ class EffectExecutor:
                     steering_failure = self._execute_steering(effect, origin_button_index)
                     if steering_failure is not None:
                         failures.append(steering_failure)
+                case ConfigureServotronicCurve():
+                    if self._servotronic_transport is not None:
+                        try:
+                            self._servotronic_transport.send(
+                                pack_curve(effect.definition, effect.activation_revision)
+                            )
+                            self._servotronic_transport.poll()
+                        except (OSError, RuntimeError, ValueError) as exc:
+                            failures.append(
+                                CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)
+                            )
                 case SetButtonPadProgram():
                     can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
@@ -264,20 +290,39 @@ class EffectExecutor:
 
     def poll_transport(self) -> None:
         """Advance the button-pad ISO-TP state machine on each service tick."""
-        if self._button_pad_transport is None:
-            return
         try:
-            self._button_pad_transport.poll()
+            if self._button_pad_transport is not None:
+                self._button_pad_transport.poll()
+            if self._servotronic_transport is not None:
+                self._servotronic_transport.poll()
+                self._drain_servotronic_statuses()
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("button-pad transport poll error: %s", exc)
 
     def on_frame(self, network: CanNetwork, frame: CanFrame) -> bool:
-        if network is not CanNetwork.KCAN or self._button_pad_transport is None:
+        if network is not CanNetwork.KCAN:
             return False
-        accepted = self._button_pad_transport.on_frame(frame)
-        if accepted:
-            self._button_pad_transport.poll()
+        accepted = False
+        for transport in (self._button_pad_transport, self._servotronic_transport):
+            if transport is not None and transport.on_frame(frame):
+                transport.poll()
+                accepted = True
+        self._drain_servotronic_statuses()
         return accepted
+
+    def _drain_servotronic_statuses(self) -> None:
+        if self._servotronic_transport is None:
+            return
+        while (payload := self._servotronic_transport.receive_payload()) is not None:
+            try:
+                self._servotronic_statuses.append(unpack_status(payload))
+            except (ValueError, struct.error):
+                LOGGER.warning("ignored malformed Servotronic status payload")
+
+    def take_servotronic_statuses(self) -> tuple[ServotronicStatus, ...]:
+        statuses = tuple(self._servotronic_statuses)
+        self._servotronic_statuses.clear()
+        return statuses
 
     def _execute_routed_can(
         self,

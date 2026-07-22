@@ -25,6 +25,8 @@ type SteeringCurveEditorProps = {
   activeAssistance?: number | null
   className?: string
   chartClassName?: string
+  activationAvailable?: boolean
+  modeControlAvailable?: boolean
 }
 
 export const SteeringCurveEditor = ({
@@ -34,6 +36,8 @@ export const SteeringCurveEditor = ({
   activeAssistance = null,
   className,
   chartClassName,
+  activationAvailable = true,
+  modeControlAvailable = true,
 }: SteeringCurveEditorProps) => {
   const queryClient = useQueryClient()
   const { data: savedProfile = null } = useQuery({
@@ -129,8 +133,13 @@ export const SteeringCurveEditor = ({
         speedKph={speedKph}
         activeAssistance={activeAssistance}
         className={chartClassName}
-        onPointCommit={(definition) =>
-          void runAction("apply", () => activateCurve({ body: { definition } }))
+        onPointCommit={
+          activationAvailable
+            ? (definition) =>
+                void runAction("apply", () =>
+                  activateCurve({ body: { definition } })
+                )
+            : undefined
         }
       />
       <CurveActions
@@ -138,6 +147,8 @@ export const SteeringCurveEditor = ({
         pendingAction={pendingAction}
         activeMatchesSaved={activeMatchesSaved}
         hasSavedProfile={savedProfile !== null}
+        activationAvailable={activationAvailable}
+        modeControlAvailable={modeControlAvailable}
         onModeChange={(nextMode) =>
           void runAction("mode", () => setMode({ body: { mode: nextMode } }))
         }

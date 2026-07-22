@@ -70,7 +70,7 @@ class ActiveSteeringCurveState(LiveModel):
 
 
 class ServotronicState(LiveModel):
-    effective_assistance: float
+    effective_assistance: float | None
     last_command_reason: (
         Literal[
             "auto",
@@ -85,6 +85,13 @@ class ServotronicState(LiveModel):
         | None
     )
     watchdog_timed_out: bool
+    active_curve_source: Literal["builtin_fallback", "coordinator_ram"] | None = None
+    active_curve_revision: int | None = None
+    active_curve_crc32: int | None = None
+    observed_speed_kph: float | None = None
+    speed_fresh: bool | None = None
+    pwm_duty: int | None = None
+    inhibit_reason: str | None = None
 
 
 class SteeringState(LiveModel):
@@ -93,6 +100,7 @@ class SteeringState(LiveModel):
     maximum_assistance_active: bool
     active_curve: ActiveSteeringCurveState
     servotronic: ServotronicState | None
+    curve_configuration_available: bool
 
 
 ButtonPadProgramByte = Annotated[int, Field(ge=0, le=255)]
@@ -318,6 +326,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
                 from_attributes=True,
             )
         ),
+        curve_configuration_available=application.curve_configuration_available,
     )
 
 

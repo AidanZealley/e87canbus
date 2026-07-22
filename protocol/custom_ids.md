@@ -19,7 +19,8 @@ a separate deployment defense.
 | `0x705` | Servotronic controller to coordinator | Device HELLO | 8 | byte 0 = protocol version, bytes 1-2 = stable device ID, bytes 3-4 = device session ID, byte 5 = sequence, bytes 6-7 = reserved zero |
 | `0x706` | Coordinator to Servotronic controller | WELCOME acknowledgement | 8 | byte 0 = controller protocol version high nibble and response code low nibble, bytes 1-2 = echoed device ID, bytes 3-4 = echoed device session ID, bytes 5-6 = controller session ID, byte 7 = echoed device sequence |
 | `0x707` | Servotronic controller to coordinator | Device HEARTBEAT | 8 | bytes 0-1 = stable device ID, bytes 2-3 = device session ID, bytes 4-5 = controller session ID, byte 6 = sequence, byte 7 = device status code |
-| `0x708` / `0x709` | Coordinator ↔ button pad | ISO-TP opaque transport link (simulation/bench only; collision validation required before in-car TX) | variable | ISO-TP; maximum 64 reassembled bytes |
+| `0x708` / `0x709` | Coordinator ↔ device | ISO-TP opaque transport link (simulation/bench only; collision validation required before in-car TX) | variable | ISO-TP; maximum 64 reassembled bytes |
+| `0x70A` / `0x70B` | Coordinator ↔ device | Servotronic curve configuration and status (provisional bench only; collision validation required before in-car TX) | variable | ISO-TP; maximum 64 reassembled bytes |
 
 ## Button State Constants
 

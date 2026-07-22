@@ -50,6 +50,12 @@ overlay without replacing that base scene. Commands are paced below the shared C
 changed tracks one device-local start time while unchanged tracks retain their phase. Malformed or unsupported commands are ignored; there is
 deliberately no acknowledgement layer.
 
+The provisional bench Servotronic link uses ISO-TP IDs `0x70A`/`0x70B`. Its
+fixed v1 request atomically installs the schema-v1 eight-point steering curve
+in controller RAM after version, grid, bounds, monotonicity, and CRC-32 checks.
+Status reports identify the built-in fallback or coordinator-supplied RAM curve
+by activation revision and CRC. Curves are not persisted in EEPROM.
+
 BMW message definitions remain unverified until backed by a named capture in
 `docs/candump_sessions/` and recorded in `docs/decoded_messages.md`.
 

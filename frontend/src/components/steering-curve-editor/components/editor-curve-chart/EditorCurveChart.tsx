@@ -6,7 +6,7 @@ type EditorCurveChartProps = {
   speedKph: number | null
   activeAssistance: number | null
   className?: string
-  onPointCommit: (definition: SteeringCurveDefinition) => void
+  onPointCommit?: (definition: SteeringCurveDefinition) => void
 }
 
 export const EditorCurveChart = ({

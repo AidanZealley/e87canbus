@@ -147,10 +147,15 @@ export type Fingerprint = string
 export type SavedProfileId = string | null
 export type SavedProfileRevision = number | null
 export type Status2 = "active" | "activating" | "activation_failed"
+export type CurveConfigurationAvailable = boolean
 export type ManualAssistanceLevel = number
 export type MaximumAssistanceActive = boolean
 export type Mode = "auto" | "manual"
-export type EffectiveAssistance = number
+export type ActiveCurveCrc32 = number | null
+export type ActiveCurveRevision = number | null
+export type ActiveCurveSource = ("builtin_fallback" | "coordinator_ram") | null
+export type EffectiveAssistance = number | null
+export type InhibitReason = string | null
 export type LastCommandReason =
   | (
       | "auto"
@@ -163,6 +168,9 @@ export type LastCommandReason =
       | "shutdown"
     )
   | null
+export type ObservedSpeedKph = number | null
+export type PwmDuty = number | null
+export type SpeedFresh = boolean | null
 export type WatchdogTimedOut = boolean
 export type Buttons = number
 export type Devices1 = number
@@ -418,6 +426,7 @@ export interface LightingState {
 }
 export interface SteeringState {
   active_curve: ActiveSteeringCurveState
+  curve_configuration_available: CurveConfigurationAvailable
   manual_assistance_level: ManualAssistanceLevel
   maximum_assistance_active: MaximumAssistanceActive
   mode: Mode
@@ -440,8 +449,15 @@ export interface SteeringCurvePoint {
   speed_deci_kph: SpeedDeciKph
 }
 export interface ServotronicState {
+  active_curve_crc32: ActiveCurveCrc32
+  active_curve_revision: ActiveCurveRevision
+  active_curve_source: ActiveCurveSource
   effective_assistance: EffectiveAssistance
+  inhibit_reason: InhibitReason
   last_command_reason: LastCommandReason
+  observed_speed_kph: ObservedSpeedKph
+  pwm_duty: PwmDuty
+  speed_fresh: SpeedFresh
   watchdog_timed_out: WatchdogTimedOut
 }
 export interface TopicRevisions {

@@ -28,6 +28,7 @@ from e87canbus.application.events import (
     ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ButtonPressed,
+    ConfigureServotronicCurve,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
     MaximumAssistanceSet,
@@ -74,6 +75,7 @@ from e87canbus.protocol.can import (
     RoutedCanFrame,
 )
 from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.servotronic_protocol import CurveResult, ServotronicStatus, pack_curve
 
 LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +158,11 @@ class ActivateSteeringCurve:
 
 
 @dataclass(frozen=True)
+class ServotronicStatusObserved:
+    status: ServotronicStatus
+
+
+@dataclass(frozen=True)
 class SetMaximumAssistance:
     enabled: bool
 
@@ -191,6 +198,7 @@ ControllerInput = (
     | DeviceAdapterFailed
     | ShutdownRequested
     | ActivateSteeringCurve
+    | ServotronicStatusObserved
     | SetMaximumAssistance
     | SetSteeringMode
 )
@@ -373,6 +381,7 @@ class CoordinatorKernel:
         active_steering_curve: ActiveSteeringCurve | None = None,
         device_sources: dict[DeviceRole, DeviceSource] | None = None,
         servotronic_output_available: bool = True,
+        servotronic_config_available: bool = False,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
@@ -385,9 +394,11 @@ class CoordinatorKernel:
         self._controller_session_id = _new_controller_session_id()
         self._registry = initial_registry(device_sources)
         self._servotronic_output_available = servotronic_output_available
+        self._servotronic_config_available = servotronic_config_available
         self._active_steering_curve = active_steering_curve or initial_active_steering_curve()
         validate_active_steering_curve(self._active_steering_curve)
         self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
+        self._servotronic_reported_status: ServotronicStatus | None = None
         self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
         self._health = RuntimeHealth()
@@ -431,6 +442,7 @@ class CoordinatorKernel:
             self._steering_curve_activation_status,
             self._servotronic_usable,
             self._high_beam_strobe_config.button_index,
+            self._servotronic_config_available or self._servotronic_output_available,
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:
@@ -579,8 +591,12 @@ class CoordinatorKernel:
             case ActivateSteeringCurve():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                self._require_servotronic_available()
+                self._require_servotronic_curve_config_available()
                 return self._activate_steering_curve(kernel_input)
+            case ServotronicStatusObserved():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._servotronic_status(kernel_input.status)
             case SetMaximumAssistance(enabled):
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -768,9 +784,19 @@ class CoordinatorKernel:
         )
         previous_snapshot = self.snapshot()
         self._active_steering_curve = next_active
-        self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVE
+        self._steering_curve_activation_status = (
+            SteeringCurveActivationStatus.ACTIVATING
+            if self._servotronic_config_available
+            else SteeringCurveActivationStatus.ACTIVE
+        )
         self._revision += 1
         effects: tuple[ApplicationEffect, ...] = ()
+        if self._servotronic_config_available:
+            effects = (
+                ConfigureServotronicCurve(
+                    request.definition, next_active.activation_revision
+                ),
+            )
         if definition_changed:
             command = steering_command_for_active_curve(
                 self._state,
@@ -778,7 +804,7 @@ class CoordinatorKernel:
                 request.definition,
             )
             if command is not None:
-                effects = (command,)
+                effects = (*effects, command)
         committed_snapshot = self.snapshot()
         return Commit(
             revision=self._revision,
@@ -791,6 +817,41 @@ class CoordinatorKernel:
                 health_changed=False,
             ),
             state_changed=committed_snapshot != previous_snapshot,
+        )
+
+    def _servotronic_status(self, status: ServotronicStatus) -> Commit:
+        previous_snapshot = self.snapshot()
+        self._servotronic_reported_status = status
+        matches = self._servotronic_curve_matches(status)
+        self._steering_curve_activation_status = (
+            SteeringCurveActivationStatus.ACTIVE
+            if matches
+            else SteeringCurveActivationStatus.ACTIVATION_FAILED
+            if status.result is not CurveResult.ACCEPTED
+            else SteeringCurveActivationStatus.ACTIVATING
+        )
+        self._revision += 1
+        committed = self.snapshot()
+        return Commit(
+            self._revision,
+            committed,
+            (),
+            _changed_controller_topics(
+                previous_snapshot, committed, buttons_changed=False, health_changed=False
+            ) | {StateTopic.STEERING},
+            committed != previous_snapshot,
+        )
+
+    def _servotronic_curve_matches(self, status: ServotronicStatus | None) -> bool:
+        if status is None or status.result is not CurveResult.ACCEPTED:
+            return False
+        expected = pack_curve(
+            self._active_steering_curve.definition,
+            self._active_steering_curve.activation_revision,
+        )
+        return (
+            status.activation_revision == self._active_steering_curve.activation_revision
+            and status.curve_crc32 == int.from_bytes(expected[-4:], "little")
         )
 
     def _timer(self, now: float) -> Commit:
@@ -853,6 +914,17 @@ class CoordinatorKernel:
         self._registry = tuple(
             next_entry if entry.role is role else entry for entry in self._registry
         )
+        if (
+            role is DeviceRole.SERVOTRONIC_CONTROLLER
+            and (
+                next_entry.device_session_id != previous_entry.device_session_id
+                or (
+                    previous_entry.status is DeviceLifecycleStatus.ACTIVE
+                    and next_entry.status is not DeviceLifecycleStatus.ACTIVE
+                )
+            )
+        ):
+            self._servotronic_reported_status = None
         effects: list[OutputEffect] = []
         if result.acknowledgement is not None:
             effects.append(
@@ -878,6 +950,18 @@ class CoordinatorKernel:
                         self._state,
                         self._steering_config,
                         self._active_steering_curve.definition,
+                    )
+                )
+            elif (
+                role is DeviceRole.SERVOTRONIC_CONTROLLER
+                and self._servotronic_config_available
+                and not self._servotronic_curve_matches(self._servotronic_reported_status)
+            ):
+                self._steering_curve_activation_status = SteeringCurveActivationStatus.ACTIVATING
+                effects.append(
+                    ConfigureServotronicCurve(
+                        self._active_steering_curve.definition,
+                        self._active_steering_curve.activation_revision,
                     )
                 )
         if (
@@ -937,6 +1021,18 @@ class CoordinatorKernel:
                 entry.status,
                 "servotronic output adapter is faulted",
             )
+        if entry.status is not DeviceLifecycleStatus.ACTIVE:
+            raise FeatureUnavailable(
+                DeviceRole.SERVOTRONIC_CONTROLLER,
+                entry.status,
+                f"servotronic controller is {entry.status.value}",
+            )
+
+    def _require_servotronic_curve_config_available(self) -> None:
+        if not self._servotronic_config_available:
+            self._require_servotronic_available()
+            return
+        entry = self.registry_for(DeviceRole.SERVOTRONIC_CONTROLLER)
         if entry.status is not DeviceLifecycleStatus.ACTIVE:
             raise FeatureUnavailable(
                 DeviceRole.SERVOTRONIC_CONTROLLER,

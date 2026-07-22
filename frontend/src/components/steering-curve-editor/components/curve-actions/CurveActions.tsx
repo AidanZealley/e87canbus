@@ -14,6 +14,8 @@ export const CurveActions = ({
   onModeChange,
   onSave,
   onReset,
+  activationAvailable = true,
+  modeControlAvailable = true,
 }: {
   mode: Mode
   pendingAction: PendingCurveAction
@@ -22,8 +24,10 @@ export const CurveActions = ({
   onModeChange: (mode: Mode) => void
   onSave: () => void
   onReset: () => void
+  activationAvailable?: boolean
+  modeControlAvailable?: boolean
 }) => {
-  const canAct = !activeMatchesSaved && hasSavedProfile
+  const canAct = activationAvailable && !activeMatchesSaved && hasSavedProfile
 
   return (
     <div className="flex items-center justify-between gap-3">
@@ -31,7 +35,7 @@ export const CurveActions = ({
         <Switch
           id="auto-assist"
           checked={mode === "auto"}
-          disabled={pendingAction !== null}
+          disabled={pendingAction !== null || !modeControlAvailable}
           onCheckedChange={(checked) =>
             onModeChange(checked ? "auto" : "manual")
           }

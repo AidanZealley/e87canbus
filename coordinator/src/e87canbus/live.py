@@ -40,6 +40,7 @@ from e87canbus.runtime import (
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
+    ServotronicStatusObserved,
     SetMaximumAssistance,
     SetSteeringMode,
     ShutdownRequested,
@@ -50,9 +51,11 @@ from e87canbus.runtime import (
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ObservedNetworkSnapshot,
+    ObservedServotronicSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
 )
+from e87canbus.servotronic_protocol import ServotronicStatus
 from e87canbus.simulation.commands import (
     SetVehicleSignal,
     SilenceVehicleSignal,
@@ -221,6 +224,7 @@ class LiveControllerRuntime:
         )
         if selected_servotronic_source is DeviceSource.EMULATED:
             raise ValueError("emulated Servotronic cannot use the SocketCAN runtime")
+        self._servotronic_source = selected_servotronic_source
         self._tx_grants = tx_grants
         self._bus_factory = bus_factory
         self._synthetic_vehicle = synthetic_vehicle
@@ -245,6 +249,14 @@ class LiveControllerRuntime:
                 DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
             },
             servotronic_output_available=False,
+            servotronic_config_available=(
+                selected_servotronic_source is DeviceSource.PHYSICAL
+                and CanNetwork.KCAN in tx_grants
+                and any(
+                    item.network is CanNetwork.KCAN and item.enabled and item.tx_enabled
+                    for item in config.can_networks
+                )
+            ),
         )
         self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
@@ -252,6 +264,7 @@ class LiveControllerRuntime:
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
         self._started = False
+        self._servotronic_status: ServotronicStatus | None = None
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         if self._started:
@@ -282,6 +295,7 @@ class LiveControllerRuntime:
             and (
                 item.network is not CanNetwork.KCAN
                 or self._button_pad_source is DeviceSource.PHYSICAL
+                or self._servotronic_source is DeviceSource.PHYSICAL
             )
         }
         self._transmitters = transmitters
@@ -408,7 +422,27 @@ class LiveControllerRuntime:
                     )
                     for item in enabled
                 ),
-                servotronic=None,
+                servotronic=(
+                    None
+                    if self._servotronic_status is None
+                    else ObservedServotronicSnapshot(
+                        effective_assistance=(
+                            self._servotronic_status.assistance_per_mille / 1000
+                        ),
+                        last_command_reason=None,
+                        watchdog_timed_out=False,
+                        active_curve_source=self._servotronic_status.source.name.lower(),
+                        active_curve_revision=self._servotronic_status.activation_revision,
+                        active_curve_crc32=self._servotronic_status.curve_crc32,
+                        observed_speed_kph=self._servotronic_status.speed_deci_kph / 10,
+                        speed_fresh=self._servotronic_status.speed_fresh,
+                        pwm_duty=self._servotronic_status.pwm_duty,
+                        inhibit_reason=(
+                            "none", "no_speed", "stale_speed", "invalid_speed",
+                            "can_fault",
+                        )[min(self._servotronic_status.inhibit_reason, 4)],
+                    )
+                ),
                 lighting=None,
             ),
         )
@@ -422,6 +456,11 @@ class LiveControllerRuntime:
             self._executor.on_frame(work.network, work.frame)
         commit = self._kernel.dispatch(work)
         commits = [] if commit is None else [commit]
+        for status in self._executor.take_servotronic_statuses():
+            self._servotronic_status = status
+            status_commit = self._kernel.dispatch(ServotronicStatusObserved(status))
+            if status_commit is not None:
+                commits.append(status_commit)
         failures = _execute(commit, self._executor, self._clock)
         for failure in failures:
             failure_commit = self._kernel.dispatch(failure)

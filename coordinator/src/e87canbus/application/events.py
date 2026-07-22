@@ -15,6 +15,7 @@ from e87canbus.application.state import (
     SteeringMode,
 )
 from e87canbus.button_pad import ButtonPadProgram
+from e87canbus.features.steering import SteeringCurveDefinition
 
 __all__ = ["ButtonFeedbackColour"]
 
@@ -214,6 +215,12 @@ class SetSteeringAssistance:
 
 
 @dataclass(frozen=True)
+class ConfigureServotronicCurve:
+    definition: SteeringCurveDefinition
+    activation_revision: int
+
+
+@dataclass(frozen=True)
 class SetHighBeam:
     """Protocol-independent high-beam capability request."""
 
@@ -229,5 +236,6 @@ ApplicationEffect = (
     | TriggerButtonPadBlink
     | SetButtonPadBreathe
     | SetSteeringAssistance
+    | ConfigureServotronicCurve
     | SetHighBeam
 )

@@ -56,6 +56,7 @@ const steering = {
     saved_profile_revision: null,
   },
   servotronic: null,
+  curve_configuration_available: true,
 }
 
 export const snapshot = (

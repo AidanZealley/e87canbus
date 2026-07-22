@@ -78,9 +78,16 @@ class ObservedNetworkSnapshot:
 
 @dataclass(frozen=True)
 class ObservedServotronicSnapshot:
-    effective_assistance: float
+    effective_assistance: float | None
     last_command_reason: str | None
     watchdog_timed_out: bool
+    active_curve_source: str | None = None
+    active_curve_revision: int | None = None
+    active_curve_crc32: int | None = None
+    observed_speed_kph: float | None = None
+    speed_fresh: bool | None = None
+    pwm_duty: int | None = None
+    inhibit_reason: str | None = None
 
 
 @dataclass(frozen=True)

@@ -7,6 +7,7 @@ from e87canbus.application.events import (
     RGB_WHITE,
     ButtonFeedbackColour,
     ButtonLedState,
+    ConfigureServotronicCurve,
     SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
@@ -16,6 +17,7 @@ from e87canbus.application.events import (
 )
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, TxPolicyConfig
+from e87canbus.features.steering import initial_active_steering_curve
 from e87canbus.output import (
     CanEffectFailure,
     EffectExecutor,
@@ -24,6 +26,15 @@ from e87canbus.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.protocol.can import CanFrame
+from e87canbus.servotronic_protocol import (
+    CurveResult,
+    CurveSource,
+    ServotronicStatus,
+    pack_status,
+    unpack_curve,
+)
+from e87canbus.simulation.bus import InMemoryCanTopology
+from e87canbus.transport.isotp import IsoTpEndpoint
 
 BLUE_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
 WHITE_LEDS = ButtonLedState((RGB_WHITE,) * 16)
@@ -94,6 +105,59 @@ def test_explicit_transmit_capability_encodes_led_effect() -> None:
 
     # Two distinct tracks pack into one 32-byte transfer (First Frame length 0x020).
     assert raw.sent == [CanFrame(0x708, b"\x10\x20\x02\x01\x01\x00\x01\x00")]
+
+
+def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None:
+    topology = InMemoryCanTopology(clock=lambda: 0.0)
+    coordinator_bus = topology.create_bus(CanNetwork.KCAN, "coordinator")
+    device_bus = topology.create_bus(CanNetwork.KCAN, "servotronic")
+    executor = EffectExecutor(
+        {CanNetwork.KCAN: SafeCanTransmitter(coordinator_bus, TxPolicyConfig())}
+    )
+    device = IsoTpEndpoint(
+        tx_id=0x70B,
+        rx_id=0x70A,
+        send_frame=device_bus.send,
+    )
+
+    def pump() -> None:
+        for _ in range(64):
+            executor.poll_transport()
+            device.poll()
+            progressed = False
+            while (frame := device_bus.receive(0)) is not None:
+                assert frame.arbitration_id == 0x70A
+                device.on_frame(frame)
+                progressed = True
+            while (frame := coordinator_bus.receive(0)) is not None:
+                executor.on_frame(CanNetwork.KCAN, frame)
+                progressed = True
+            if not progressed and not device.transmitting:
+                return
+        raise AssertionError("Servotronic ISO-TP exchange did not settle")
+
+    active = initial_active_steering_curve()
+    effect = ConfigureServotronicCurve(active.definition, active.activation_revision)
+    assert executor.execute((EffectRequest(effect),)) == ()
+    pump()
+    request = device.receive_payload()
+    assert request is not None and len(request) == 44
+    assert unpack_curve(request)[:2] == (active.definition, active.activation_revision)
+
+    status = ServotronicStatus(
+        CurveResult.ACCEPTED,
+        CurveSource.COORDINATOR_RAM,
+        active.activation_revision,
+        int.from_bytes(request[-4:], "little"),
+        425,
+        700,
+        90,
+        True,
+        0,
+    )
+    device.send(pack_status(status))
+    pump()
+    assert executor.take_servotronic_statuses() == (status,)
 
 
 def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:

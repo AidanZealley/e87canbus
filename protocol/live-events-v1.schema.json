@@ -1352,9 +1352,68 @@
     "ServotronicState": {
       "additionalProperties": false,
       "properties": {
+        "active_curve_crc32": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Curve Crc32"
+        },
+        "active_curve_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Curve Revision"
+        },
+        "active_curve_source": {
+          "anyOf": [
+            {
+              "enum": [
+                "builtin_fallback",
+                "coordinator_ram"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Curve Source"
+        },
         "effective_assistance": {
-          "title": "Effective Assistance",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Effective Assistance"
+        },
+        "inhibit_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inhibit Reason"
         },
         "last_command_reason": {
           "anyOf": [
@@ -1377,14 +1436,57 @@
           ],
           "title": "Last Command Reason"
         },
+        "observed_speed_kph": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Speed Kph"
+        },
+        "pwm_duty": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pwm Duty"
+        },
+        "speed_fresh": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Fresh"
+        },
         "watchdog_timed_out": {
           "title": "Watchdog Timed Out",
           "type": "boolean"
         }
       },
       "required": [
+        "active_curve_crc32",
+        "active_curve_revision",
+        "active_curve_source",
         "effective_assistance",
+        "inhibit_reason",
         "last_command_reason",
+        "observed_speed_kph",
+        "pwm_duty",
+        "speed_fresh",
         "watchdog_timed_out"
       ],
       "title": "ServotronicState",
@@ -1460,6 +1562,10 @@
         "active_curve": {
           "$ref": "#/definitions/ActiveSteeringCurveState"
         },
+        "curve_configuration_available": {
+          "title": "Curve Configuration Available",
+          "type": "boolean"
+        },
         "manual_assistance_level": {
           "minimum": 0,
           "title": "Manual Assistance Level",
@@ -1490,6 +1596,7 @@
       },
       "required": [
         "active_curve",
+        "curve_configuration_available",
         "manual_assistance_level",
         "maximum_assistance_active",
         "mode",

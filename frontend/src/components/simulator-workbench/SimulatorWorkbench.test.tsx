@@ -25,7 +25,15 @@ vi.mock(
   })
 )
 vi.mock("./components/steering-curve-card", () => ({
-  SteeringCurveCard: () => <div>Live steering curve</div>,
+  SteeringCurveCard: ({
+    activationAvailable,
+  }: {
+    activationAvailable: boolean
+  }) => (
+    <div data-testid="curve-configuration">
+      {activationAvailable ? "enabled" : "disabled"}
+    </div>
+  ),
 }))
 vi.mock("./components/simulator-toolbar", () => ({
   SimulatorToolbar: () => <div>Toolbar</div>,
@@ -59,6 +67,13 @@ it("masks workbench vehicle controls and curve state while disconnected", () => 
     effective_assistance: 0.5,
     last_command_reason: "auto",
     watchdog_timed_out: false,
+    active_curve_source: null,
+    active_curve_revision: null,
+    active_curve_crc32: null,
+    observed_speed_kph: null,
+    speed_fresh: null,
+    pwm_duty: null,
+    inhibit_reason: null,
   }
   useLiveStore.getState().applySnapshot(value)
   render(
@@ -69,12 +84,38 @@ it("masks workbench vehicle controls and curve state while disconnected", () => 
   expect(
     screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
   ).toContain("speed=72;rpm=4100;status=valid")
-  expect(screen.getByText("Live steering curve")).toBeTruthy()
+  expect(screen.getByTestId("curve-configuration")).toBeTruthy()
 
   act(() => useLiveStore.getState().transportDisconnected())
 
   expect(
     screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
   ).toContain("speed=unavailable;rpm=unavailable;status=stale")
-  expect(screen.queryByText("Live steering curve")).toBeNull()
+  expect(screen.queryByTestId("curve-configuration")).toBeNull()
 })
+
+it.each([
+  ["bench active", "active", true, "enabled"],
+  ["bench absent", "not_found", true, "disabled"],
+  ["active without config TX", "active", false, "disabled"],
+] as const)(
+  "gates curve activation for %s",
+  (_label, status, capability, expected) => {
+    const value = snapshot("capability-boot", 6)
+    value.data.devices.registry.servotronic_controller = {
+      ...value.data.devices.registry.servotronic_controller,
+      source_mode: "physical",
+      status,
+    }
+    value.data.steering.curve_configuration_available = capability
+    useLiveStore.getState().applySnapshot(value)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SimulatorWorkbench />
+      </QueryClientProvider>
+    )
+    expect(screen.getByTestId("curve-configuration").textContent).toBe(
+      expected
+    )
+  }
+)
