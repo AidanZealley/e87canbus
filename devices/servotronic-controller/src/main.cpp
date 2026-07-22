@@ -71,10 +71,12 @@ void sendHello(uint32_t now) {
     nextHelloMs = now + HELLO_MS;
 }
 
-void sendHeartbeat(uint32_t now, uint8_t status) {
+void sendHeartbeat(uint32_t now) {
     uint8_t p[8] = {};
     const uint8_t sentSequence = sequence++;
-    servotronic::encodeHeartbeat(p, DEVICE_ID, deviceSession, controllerSession, sentSequence, status);
+    // Registry health describes the controller itself. Missing or stale speed is
+    // an output inhibit reported in telemetry, not a device fault.
+    servotronic::encodeHeartbeat(p, DEVICE_ID, deviceSession, controllerSession, sentSequence, 0);
     acknowledgements.expect(servotronic::AckKind::HEARTBEAT, sentSequence);
     if (bus.sendMsgBuf(servotronic::HEARTBEAT_ID, 0, 8, p) != CAN_OK) canHealthy = false;
     nextHeartbeatMs = now + HEARTBEAT_MS;
@@ -171,7 +173,7 @@ void loop() {
                              ? servotronic::boundedDuty(assistance, PWM_DUTY_CEILING) : 0;
     analogWrite(PWM_OUTPUT_PIN, duty);
     lastDuty = duty; lastAssistancePerMille = static_cast<uint16_t>(assistance * 1000.0f + 0.5f);
-    if (leased && due(now, nextHeartbeatMs)) sendHeartbeat(now, static_cast<uint8_t>(inhibit));
+    if (leased && due(now, nextHeartbeatMs)) sendHeartbeat(now);
     if (leased && due(now, nextStatusMs)) sendStatus(now);
     if (inhibit != lastInhibit || due(now, nextDiagnosticMs)) {
         Serial.print("speed_dkph="); Serial.print(speed.deciKph);

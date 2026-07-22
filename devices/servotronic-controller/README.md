@@ -27,6 +27,8 @@ older than 500 ms. It is also zero on an
 MCP2515 error/send failure, during CAN reinitialisation, and during/reset by the
 hardware watchdog. A subsequent valid speed frame clears the invalid-frame
 inhibit. Diagnostics are rate-limited to one line per second (or a state change).
+Missing or stale speed is reported as an output inhibit in telemetry; it does
+not mark the controller's registry heartbeat as a device fault.
 
 ## Wiring
 

@@ -7,12 +7,7 @@ import zlib
 from dataclasses import dataclass
 from enum import IntEnum
 
-from e87canbus.features.steering import (
-    STEERING_CURVE_SCHEMA_VERSION,
-    STEERING_CURVE_V1_SPEEDS_DECI_KPH,
-    SteeringCurveDefinition,
-    SteeringCurvePoint,
-)
+from e87canbus.features.steering import STEERING_CURVE_SCHEMA_VERSION, SteeringCurveDefinition
 
 PROTOCOL_VERSION = 1
 INTERPOLATION_MONOTONE_CUBIC_V1 = 1
@@ -65,34 +60,6 @@ def pack_curve(definition: SteeringCurveDefinition, activation_revision: int) ->
     return header + struct.pack("<I", zlib.crc32(header))
 
 
-def unpack_curve(payload: bytes) -> tuple[SteeringCurveDefinition, int, int]:
-    if len(payload) != SET_CURVE_LENGTH:
-        raise ValueError("invalid Servotronic curve payload length")
-    if zlib.crc32(payload[:-4]) != struct.unpack_from("<I", payload, 40)[0]:
-        raise ValueError("invalid Servotronic curve CRC")
-    version, opcode, schema, interpolation, revision, *values = struct.unpack(
-        "<BBBBI8H8HI", payload
-    )
-    if (version, opcode, schema, interpolation) != (
-        PROTOCOL_VERSION,
-        SET_CURVE_OPCODE,
-        STEERING_CURVE_SCHEMA_VERSION,
-        INTERPOLATION_MONOTONE_CUBIC_V1,
-    ):
-        raise ValueError("unsupported Servotronic curve protocol")
-    speeds, assistance = values[:8], values[8:16]
-    definition = SteeringCurveDefinition(
-        schema,
-        tuple(
-            SteeringCurvePoint(speed, value)
-            for speed, value in zip(speeds, assistance, strict=True)
-        ),
-    )
-    if tuple(speeds) != STEERING_CURVE_V1_SPEEDS_DECI_KPH:
-        raise ValueError("invalid Servotronic curve speed grid")
-    return definition, revision, values[16]
-
-
 def unpack_status(payload: bytes) -> ServotronicStatus:
     if len(payload) != STATUS_LENGTH:
         raise ValueError("invalid Servotronic status payload length")
@@ -104,21 +71,4 @@ def unpack_status(payload: bytes) -> ServotronicStatus:
     return ServotronicStatus(
         CurveResult(result), CurveSource(source), revision, crc, speed, assistance, duty,
         bool(flags & 1), inhibit,
-    )
-
-
-def pack_status(status: ServotronicStatus) -> bytes:
-    return struct.pack(
-        "<BBBBIIHHBBB",
-        PROTOCOL_VERSION,
-        STATUS_OPCODE,
-        status.result,
-        status.source,
-        status.activation_revision,
-        status.curve_crc32,
-        status.speed_deci_kph,
-        status.assistance_per_mille,
-        status.pwm_duty,
-        int(status.speed_fresh),
-        status.inhibit_reason,
     )

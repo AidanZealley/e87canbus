@@ -1393,15 +1393,8 @@
           "title": "Active Curve Source"
         },
         "effective_assistance": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Effective Assistance"
+          "title": "Effective Assistance",
+          "type": "number"
         },
         "inhibit_reason": {
           "anyOf": [

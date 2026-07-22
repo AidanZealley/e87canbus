@@ -154,7 +154,7 @@ export type Mode = "auto" | "manual"
 export type ActiveCurveCrc32 = number | null
 export type ActiveCurveRevision = number | null
 export type ActiveCurveSource = ("builtin_fallback" | "coordinator_ram") | null
-export type EffectiveAssistance = number | null
+export type EffectiveAssistance = number
 export type InhibitReason = string | null
 export type LastCommandReason =
   | (

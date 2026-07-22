@@ -93,9 +93,7 @@ export const CarOverview = () => {
               label="Assistance"
               value={
                 steeringAvailability.available
-                  ? steeringAvailability.servotronic.effective_assistance === null
-                    ? "Unavailable"
-                    : `${Math.round(steeringAvailability.servotronic.effective_assistance * 100)}%`
+                  ? `${Math.round(steeringAvailability.servotronic.effective_assistance * 100)}%`
                   : `— · ${steeringAvailability.reason}`
               }
             />
