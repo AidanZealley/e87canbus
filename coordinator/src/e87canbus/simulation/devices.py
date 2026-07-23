@@ -9,6 +9,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from e87canbus.adapters.can_io import CanEndpoint
+from e87canbus.adapters.output import SafeCanTransmitter
 from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     RGB_OFF,
@@ -16,10 +18,8 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.can_io import CanEndpoint
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
-from e87canbus.output import SafeCanTransmitter
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     ButtonPadProgramPayload,

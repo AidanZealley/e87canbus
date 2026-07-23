@@ -10,9 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from e87canbus.adapters.output import EffectRequest
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.kernel.health import RuntimeHealth
-from e87canbus.output import EffectRequest
 
 
 class StateTopic(StrEnum):

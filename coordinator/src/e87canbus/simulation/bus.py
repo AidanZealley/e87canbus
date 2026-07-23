@@ -7,7 +7,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from e87canbus.can_io import CanEndpoint
+from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame
 

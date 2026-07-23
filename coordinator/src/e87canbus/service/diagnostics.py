@@ -13,7 +13,7 @@ from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import CanNetwork
 from e87canbus.device_registry import DeviceRegistryEntry
 from e87canbus.kernel import DiagnosticSnapshot, StateTopic
-from e87canbus.servotronic_protocol import (
+from e87canbus.protocol.servotronic_protocol import (
     CONTROL_MODE_WIRE,
     CURVE_SOURCE_WIRE,
     ServotronicStatus,

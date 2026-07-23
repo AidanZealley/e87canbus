@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from e87canbus.adapters.output import EffectRequest, SendRegistryFrame
 from e87canbus.application.controller import SOFT_AMBER, SOFT_WHITE
 from e87canbus.application.events import (
     RGB_BLUE,
@@ -29,7 +30,6 @@ from e87canbus.kernel import (
     StateTopic,
     TimerElapsed,
 )
-from e87canbus.output import EffectRequest, SendRegistryFrame
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceHeartbeatPayload,

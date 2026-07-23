@@ -2,6 +2,13 @@ import logging
 import struct
 
 import pytest
+from e87canbus.adapters.output import (
+    CanEffectFailure,
+    EffectExecutor,
+    EffectRequest,
+    SafeCanTransmitter,
+    SteeringActuatorFailure,
+)
 from e87canbus.application.events import (
     RGB_BLUE,
     RGB_OFF,
@@ -19,15 +26,8 @@ from e87canbus.application.events import (
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.features.steering import initial_active_steering_curve
-from e87canbus.output import (
-    CanEffectFailure,
-    EffectExecutor,
-    EffectRequest,
-    SafeCanTransmitter,
-    SteeringActuatorFailure,
-)
 from e87canbus.protocol.can import CanFrame
-from e87canbus.servotronic_protocol import (
+from e87canbus.protocol.servotronic_protocol import (
     CurveResult,
     CurveSource,
     ServotronicStatus,

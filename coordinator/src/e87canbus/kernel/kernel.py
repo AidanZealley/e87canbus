@@ -7,6 +7,7 @@ import secrets
 from dataclasses import replace
 from typing import assert_never
 
+from e87canbus.adapters.output import EffectRequest, OutputEffect, SendRegistryFrame
 from e87canbus.application.button_bindings import (
     ButtonBindingProfile,
     built_in_button_binding_profile,
@@ -104,10 +105,9 @@ from e87canbus.kernel.inputs import (
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.output import EffectRequest, OutputEffect, SendRegistryFrame
 from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.servotronic_protocol import CurveResult, ServotronicStatus, pack_curve
+from e87canbus.protocol.servotronic_protocol import CurveResult, ServotronicStatus, pack_curve
 
 LOGGER = logging.getLogger(__name__)
 
