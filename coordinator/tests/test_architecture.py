@@ -1,15 +1,9 @@
 import ast
-from collections.abc import Iterable
 from pathlib import Path
 
 from e87canbus.config import default_config
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "e87canbus"
-
-
-def python_files(*directories: str) -> Iterable[Path]:
-    for directory in directories:
-        yield from (PACKAGE / directory).rglob("*.py")
 
 
 def imported_modules(path: Path) -> set[str]:
@@ -32,23 +26,10 @@ def called_names(path: Path) -> set[str]:
     }
 
 
-def test_domain_and_application_import_inwards_only() -> None:
-    forbidden = {
-        "e87canbus.protocol",
-        "e87canbus.kernel",
-        "e87canbus.simulation",
-        "e87canbus.adapters",
-        "e87canbus.api",
-        "fastapi",
-        "threading",
-        "queue",
-    }
-
-    for path in python_files("application", "features"):
-        for module in imported_modules(path):
-            assert not any(module == name or module.startswith(f"{name}.") for name in forbidden), (
-                f"{path.relative_to(PACKAGE)} imports forbidden module {module}"
-            )
+# Domain-layer import direction (application/features must not import kernel,
+# service, adapters, protocol, api, ...) is enforced declaratively by the
+# import-linter contracts in pyproject.toml (`uv run lint-imports`). The tests
+# below cover the project-specific safety invariants import-linter cannot express.
 
 
 def test_wire_codecs_do_not_import_application_types() -> None:
