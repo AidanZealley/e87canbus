@@ -16,7 +16,7 @@ from e87canbus.config import CanNetwork, default_config, simulator_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.device import DeviceSource
 from e87canbus.features.steering import ActiveSteeringCurve
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     CoordinatorKernel,
     DiagnosticSnapshot,
     KernelStarted,

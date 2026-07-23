@@ -19,14 +19,7 @@ from e87canbus.features.steering import (
     interpolate_steering_curve_definition,
     steering_curve_fingerprint,
 )
-from e87canbus.output import EffectRequest
-from e87canbus.protocol.can import (
-    DeviceHeartbeatPayload,
-    DeviceHelloPayload,
-    encode_heartbeat,
-    encode_hello,
-)
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     ActivateSteeringCurve,
     CoordinatorKernel,
     KernelStarted,
@@ -34,6 +27,13 @@ from e87canbus.runtime import (
     StateTopic,
     SteeringActuatorFailed,
     TimerElapsed,
+)
+from e87canbus.output import EffectRequest
+from e87canbus.protocol.can import (
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    encode_heartbeat,
+    encode_hello,
 )
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 from e87canbus.simulation.runtime import (

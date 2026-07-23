@@ -9,7 +9,7 @@ from e87canbus.api.main import create_app
 from e87canbus.composition import build_live_controller_service
 from e87canbus.config import CanNetwork, default_config
 from e87canbus.features.settings_repository import SettingsStorageError
-from e87canbus.runtime import CanReaderFailed, StateTopic
+from e87canbus.kernel import CanReaderFailed, StateTopic
 from e87canbus.service import ControllerServiceLifecycle
 from fastapi.testclient import TestClient
 

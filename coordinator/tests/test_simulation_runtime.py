@@ -34,6 +34,7 @@ from e87canbus.config import (
 )
 from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
+from e87canbus.kernel import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceHeartbeatPayload,
@@ -44,7 +45,6 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.runtime import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
 from e87canbus.simulation.protocol import (

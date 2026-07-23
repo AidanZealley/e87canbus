@@ -30,7 +30,7 @@ from e87canbus.api.models.live import (
 from e87canbus.api.models.live_contract import ClientEvent, ServerEvent
 from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import AppConfig
-from e87canbus.runtime import StateTopic
+from e87canbus.kernel import StateTopic
 from e87canbus.service import (
     ControllerService,
     ControllerServiceSnapshot,

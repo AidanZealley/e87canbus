@@ -35,7 +35,7 @@ def called_names(path: Path) -> set[str]:
 def test_domain_and_application_import_inwards_only() -> None:
     forbidden = {
         "e87canbus.protocol",
-        "e87canbus.runtime",
+        "e87canbus.kernel",
         "e87canbus.simulation",
         "e87canbus.adapters",
         "e87canbus.api",
@@ -123,7 +123,7 @@ def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> No
     paths = (
         PACKAGE / "application" / "controller.py",
         PACKAGE / "output.py",
-        PACKAGE / "runtime.py",
+        PACKAGE / "kernel" / "kernel.py",
         PACKAGE / "live.py",
         PACKAGE / "simulation" / "runtime.py",
     )
