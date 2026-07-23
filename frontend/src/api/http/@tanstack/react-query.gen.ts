@@ -137,156 +137,6 @@ import type {
 } from "../types.gen"
 
 /**
- * Activate Steering Profile
- */
-export const activateSteeringProfileMutation = (
-  options?: Partial<Options<ActivateSteeringProfileData>>
-): UseMutationOptions<
-  ActivateSteeringProfileResponse,
-  ActivateSteeringProfileError,
-  Options<ActivateSteeringProfileData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ActivateSteeringProfileResponse,
-    ActivateSteeringProfileError,
-    Options<ActivateSteeringProfileData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await activateSteeringProfile({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Adjust Manual Assistance
- */
-export const adjustManualAssistanceMutation = (
-  options?: Partial<Options<AdjustManualAssistanceData>>
-): UseMutationOptions<
-  AdjustManualAssistanceResponse,
-  AdjustManualAssistanceError,
-  Options<AdjustManualAssistanceData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    AdjustManualAssistanceResponse,
-    AdjustManualAssistanceError,
-    Options<AdjustManualAssistanceData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await adjustManualAssistance({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Manual Assistance Level
- */
-export const setManualAssistanceLevelMutation = (
-  options?: Partial<Options<SetManualAssistanceLevelData>>
-): UseMutationOptions<
-  SetManualAssistanceLevelResponse,
-  SetManualAssistanceLevelError,
-  Options<SetManualAssistanceLevelData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetManualAssistanceLevelResponse,
-    SetManualAssistanceLevelError,
-    Options<SetManualAssistanceLevelData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setManualAssistanceLevel({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Maximum Assistance
- */
-export const setMaximumAssistanceMutation = (
-  options?: Partial<Options<SetMaximumAssistanceData>>
-): UseMutationOptions<
-  SetMaximumAssistanceResponse,
-  SetMaximumAssistanceError,
-  Options<SetMaximumAssistanceData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetMaximumAssistanceResponse,
-    SetMaximumAssistanceError,
-    Options<SetMaximumAssistanceData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setMaximumAssistance({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Activate Steering Curve
- */
-export const activateSteeringCurveMutation = (
-  options?: Partial<Options<ActivateSteeringCurveData>>
-): UseMutationOptions<
-  ActivateSteeringCurveResponse,
-  ActivateSteeringCurveError,
-  Options<ActivateSteeringCurveData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ActivateSteeringCurveResponse,
-    ActivateSteeringCurveError,
-    Options<ActivateSteeringCurveData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await activateSteeringCurve({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Steering Mode
- */
-export const setSteeringModeMutation = (
-  options?: Partial<Options<SetSteeringModeData>>
-): UseMutationOptions<
-  SetSteeringModeResponse,
-  SetSteeringModeError,
-  Options<SetSteeringModeData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSteeringModeResponse,
-    SetSteeringModeError,
-    Options<SetSteeringModeData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSteeringMode({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
  * Tap Button
  */
 export const tapSimulationButtonMutation = (
@@ -744,6 +594,156 @@ export const updateApplicationSettingsMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await updateApplicationSettings({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Activate Steering Profile
+ */
+export const activateSteeringProfileMutation = (
+  options?: Partial<Options<ActivateSteeringProfileData>>
+): UseMutationOptions<
+  ActivateSteeringProfileResponse,
+  ActivateSteeringProfileError,
+  Options<ActivateSteeringProfileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ActivateSteeringProfileResponse,
+    ActivateSteeringProfileError,
+    Options<ActivateSteeringProfileData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await activateSteeringProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Activate Steering Curve
+ */
+export const activateSteeringCurveMutation = (
+  options?: Partial<Options<ActivateSteeringCurveData>>
+): UseMutationOptions<
+  ActivateSteeringCurveResponse,
+  ActivateSteeringCurveError,
+  Options<ActivateSteeringCurveData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ActivateSteeringCurveResponse,
+    ActivateSteeringCurveError,
+    Options<ActivateSteeringCurveData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await activateSteeringCurve({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Adjust Manual Assistance
+ */
+export const adjustManualAssistanceMutation = (
+  options?: Partial<Options<AdjustManualAssistanceData>>
+): UseMutationOptions<
+  AdjustManualAssistanceResponse,
+  AdjustManualAssistanceError,
+  Options<AdjustManualAssistanceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    AdjustManualAssistanceResponse,
+    AdjustManualAssistanceError,
+    Options<AdjustManualAssistanceData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await adjustManualAssistance({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Set Manual Assistance Level
+ */
+export const setManualAssistanceLevelMutation = (
+  options?: Partial<Options<SetManualAssistanceLevelData>>
+): UseMutationOptions<
+  SetManualAssistanceLevelResponse,
+  SetManualAssistanceLevelError,
+  Options<SetManualAssistanceLevelData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetManualAssistanceLevelResponse,
+    SetManualAssistanceLevelError,
+    Options<SetManualAssistanceLevelData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await setManualAssistanceLevel({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Set Maximum Assistance
+ */
+export const setMaximumAssistanceMutation = (
+  options?: Partial<Options<SetMaximumAssistanceData>>
+): UseMutationOptions<
+  SetMaximumAssistanceResponse,
+  SetMaximumAssistanceError,
+  Options<SetMaximumAssistanceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetMaximumAssistanceResponse,
+    SetMaximumAssistanceError,
+    Options<SetMaximumAssistanceData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await setMaximumAssistance({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Set Steering Mode
+ */
+export const setSteeringModeMutation = (
+  options?: Partial<Options<SetSteeringModeData>>
+): UseMutationOptions<
+  SetSteeringModeResponse,
+  SetSteeringModeError,
+  Options<SetSteeringModeData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetSteeringModeResponse,
+    SetSteeringModeError,
+    Options<SetSteeringModeData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await setSteeringMode({
         ...options,
         ...fnOptions,
         throwOnError: true,

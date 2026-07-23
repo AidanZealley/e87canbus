@@ -162,7 +162,7 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
         json={"name": "Smooth", "definition": smooth},
     )
     activated = client.put(
-        "/api/commands/steering-curve",
+        "/api/steering/curve",
         json={"definition": smooth},
     )
     active = client.app.state.controller_service.snapshot().application
@@ -303,7 +303,7 @@ def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
     applied_definition = definition_json(second_assistance=850)
 
     applied = client.put(
-        "/api/commands/steering-curve",
+        "/api/steering/curve",
         json={"definition": applied_definition},
     )
     active_after_apply = client.app.state.controller_service.snapshot().application
@@ -332,7 +332,7 @@ def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     before = client.app.state.controller_service.snapshot().application
 
     response = client.post(
-        "/api/commands/activate-steering-profile",
+        "/api/steering/activate-profile",
         json={"profile_id": saved["profile_id"], "expected_revision": 99},
     )
 
@@ -347,7 +347,7 @@ def test_matching_saved_profile_is_activated(client: TestClient) -> None:
     saved = create_profile(client)
 
     response = client.post(
-        "/api/commands/activate-steering-profile",
+        "/api/steering/activate-profile",
         json={
             "profile_id": saved["profile_id"],
             "expected_revision": saved["revision"],
@@ -363,7 +363,7 @@ def test_matching_saved_profile_is_activated(client: TestClient) -> None:
 
 def test_saved_profile_command_rejects_unknown_fields(client: TestClient) -> None:
     response = client.post(
-        "/api/commands/activate-steering-profile",
+        "/api/steering/activate-profile",
         json={
             "profile_id": "11111111-1111-4111-8111-111111111111",
             "expected_revision": 1,
@@ -464,7 +464,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
             assert app.state.controller_service.inbox_depth == 1
             overloaded = pool.submit(
                 client.put,
-                "/api/commands/steering-curve",
+                "/api/steering/curve",
                 json={"definition": definition_json(second_assistance=850)},
             )
             try:
@@ -506,7 +506,7 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
         assert speed.status_code == 200
         before = app.state.controller_service.snapshot()
         activation = client.post(
-            "/api/commands/activate-steering-profile",
+            "/api/steering/activate-profile",
             json={
                 "profile_id": saved["profile_id"],
                 "expected_revision": saved["revision"],
@@ -536,7 +536,7 @@ def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     activate_simulation_devices(client.app.state.controller_service)
     applied_definition = definition_json(second_assistance=850)
     applied = client.put(
-        "/api/commands/steering-curve",
+        "/api/steering/curve",
         json={"definition": applied_definition},
     )
     assert applied.status_code == 200

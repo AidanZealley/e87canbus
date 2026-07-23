@@ -155,174 +155,6 @@ export type Options<
 }
 
 /**
- * Activate Steering Profile
- */
-export const activateSteeringProfile = <ThrowOnError extends boolean = true>(
-  options: Options<ActivateSteeringProfileData, ThrowOnError>
-): RequestResult<
-  ActivateSteeringProfileResponses,
-  ActivateSteeringProfileErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    ActivateSteeringProfileResponses,
-    ActivateSteeringProfileErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zActivateSteeringProfileResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/activate-steering-profile",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Adjust Manual Assistance
- */
-export const adjustManualAssistance = <ThrowOnError extends boolean = true>(
-  options: Options<AdjustManualAssistanceData, ThrowOnError>
-): RequestResult<
-  AdjustManualAssistanceResponses,
-  AdjustManualAssistanceErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    AdjustManualAssistanceResponses,
-    AdjustManualAssistanceErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zAdjustManualAssistanceResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/manual-assistance-adjustment",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Set Manual Assistance Level
- */
-export const setManualAssistanceLevel = <ThrowOnError extends boolean = true>(
-  options: Options<SetManualAssistanceLevelData, ThrowOnError>
-): RequestResult<
-  SetManualAssistanceLevelResponses,
-  SetManualAssistanceLevelErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    SetManualAssistanceLevelResponses,
-    SetManualAssistanceLevelErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zSetManualAssistanceLevelResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/manual-assistance-level",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Set Maximum Assistance
- */
-export const setMaximumAssistance = <ThrowOnError extends boolean = true>(
-  options: Options<SetMaximumAssistanceData, ThrowOnError>
-): RequestResult<
-  SetMaximumAssistanceResponses,
-  SetMaximumAssistanceErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    SetMaximumAssistanceResponses,
-    SetMaximumAssistanceErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zSetMaximumAssistanceResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/maximum-assistance",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Activate Steering Curve
- */
-export const activateSteeringCurve = <ThrowOnError extends boolean = true>(
-  options: Options<ActivateSteeringCurveData, ThrowOnError>
-): RequestResult<
-  ActivateSteeringCurveResponses,
-  ActivateSteeringCurveErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    ActivateSteeringCurveResponses,
-    ActivateSteeringCurveErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zActivateSteeringCurveResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/steering-curve",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Set Steering Mode
- */
-export const setSteeringMode = <ThrowOnError extends boolean = true>(
-  options: Options<SetSteeringModeData, ThrowOnError>
-): RequestResult<
-  SetSteeringModeResponses,
-  SetSteeringModeErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    SetSteeringModeResponses,
-    SetSteeringModeErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zSetSteeringModeResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/commands/steering-mode",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
  * Tap Button
  */
 export const tapSimulationButton = <ThrowOnError extends boolean = true>(
@@ -755,6 +587,174 @@ export const updateApplicationSettings = <ThrowOnError extends boolean = true>(
       await zUpdateApplicationSettingsResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/settings",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Activate Steering Profile
+ */
+export const activateSteeringProfile = <ThrowOnError extends boolean = true>(
+  options: Options<ActivateSteeringProfileData, ThrowOnError>
+): RequestResult<
+  ActivateSteeringProfileResponses,
+  ActivateSteeringProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    ActivateSteeringProfileResponses,
+    ActivateSteeringProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zActivateSteeringProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/activate-profile",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Activate Steering Curve
+ */
+export const activateSteeringCurve = <ThrowOnError extends boolean = true>(
+  options: Options<ActivateSteeringCurveData, ThrowOnError>
+): RequestResult<
+  ActivateSteeringCurveResponses,
+  ActivateSteeringCurveErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    ActivateSteeringCurveResponses,
+    ActivateSteeringCurveErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zActivateSteeringCurveResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/curve",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Adjust Manual Assistance
+ */
+export const adjustManualAssistance = <ThrowOnError extends boolean = true>(
+  options: Options<AdjustManualAssistanceData, ThrowOnError>
+): RequestResult<
+  AdjustManualAssistanceResponses,
+  AdjustManualAssistanceErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    AdjustManualAssistanceResponses,
+    AdjustManualAssistanceErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zAdjustManualAssistanceResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/manual-assistance-adjustment",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Manual Assistance Level
+ */
+export const setManualAssistanceLevel = <ThrowOnError extends boolean = true>(
+  options: Options<SetManualAssistanceLevelData, ThrowOnError>
+): RequestResult<
+  SetManualAssistanceLevelResponses,
+  SetManualAssistanceLevelErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetManualAssistanceLevelResponses,
+    SetManualAssistanceLevelErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetManualAssistanceLevelResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/manual-assistance-level",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Maximum Assistance
+ */
+export const setMaximumAssistance = <ThrowOnError extends boolean = true>(
+  options: Options<SetMaximumAssistanceData, ThrowOnError>
+): RequestResult<
+  SetMaximumAssistanceResponses,
+  SetMaximumAssistanceErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetMaximumAssistanceResponses,
+    SetMaximumAssistanceErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetMaximumAssistanceResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/maximum-assistance",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Steering Mode
+ */
+export const setSteeringMode = <ThrowOnError extends boolean = true>(
+  options: Options<SetSteeringModeData, ThrowOnError>
+): RequestResult<
+  SetSteeringModeResponses,
+  SetSteeringModeErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetSteeringModeResponses,
+    SetSteeringModeErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetSteeringModeResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/steering/mode",
     ...options,
     headers: {
       "Content-Type": "application/json",

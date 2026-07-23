@@ -464,220 +464,6 @@ export type ValidationIssue = {
   type: string
 }
 
-export type ActivateSteeringProfileData = {
-  body: ActivateSteeringProfileRequest
-  path?: never
-  query?: never
-  url: "/api/commands/activate-steering-profile"
-}
-
-export type ActivateSteeringProfileErrors = {
-  /**
-   * Not Found
-   */
-  404: ApiProblemResponse
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type ActivateSteeringProfileError =
-  ActivateSteeringProfileErrors[keyof ActivateSteeringProfileErrors]
-
-export type ActivateSteeringProfileResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type ActivateSteeringProfileResponse =
-  ActivateSteeringProfileResponses[keyof ActivateSteeringProfileResponses]
-
-export type AdjustManualAssistanceData = {
-  body: AdjustManualAssistanceRequest
-  path?: never
-  query?: never
-  url: "/api/commands/manual-assistance-adjustment"
-}
-
-export type AdjustManualAssistanceErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type AdjustManualAssistanceError =
-  AdjustManualAssistanceErrors[keyof AdjustManualAssistanceErrors]
-
-export type AdjustManualAssistanceResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type AdjustManualAssistanceResponse =
-  AdjustManualAssistanceResponses[keyof AdjustManualAssistanceResponses]
-
-export type SetManualAssistanceLevelData = {
-  body: SetManualAssistanceLevelRequest
-  path?: never
-  query?: never
-  url: "/api/commands/manual-assistance-level"
-}
-
-export type SetManualAssistanceLevelErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type SetManualAssistanceLevelError =
-  SetManualAssistanceLevelErrors[keyof SetManualAssistanceLevelErrors]
-
-export type SetManualAssistanceLevelResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type SetManualAssistanceLevelResponse =
-  SetManualAssistanceLevelResponses[keyof SetManualAssistanceLevelResponses]
-
-export type SetMaximumAssistanceData = {
-  body: SetMaximumAssistanceRequest
-  path?: never
-  query?: never
-  url: "/api/commands/maximum-assistance"
-}
-
-export type SetMaximumAssistanceErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type SetMaximumAssistanceError =
-  SetMaximumAssistanceErrors[keyof SetMaximumAssistanceErrors]
-
-export type SetMaximumAssistanceResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type SetMaximumAssistanceResponse =
-  SetMaximumAssistanceResponses[keyof SetMaximumAssistanceResponses]
-
-export type ActivateSteeringCurveData = {
-  body: ActivateSteeringCurveRequest
-  path?: never
-  query?: never
-  url: "/api/commands/steering-curve"
-}
-
-export type ActivateSteeringCurveErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type ActivateSteeringCurveError =
-  ActivateSteeringCurveErrors[keyof ActivateSteeringCurveErrors]
-
-export type ActivateSteeringCurveResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type ActivateSteeringCurveResponse =
-  ActivateSteeringCurveResponses[keyof ActivateSteeringCurveResponses]
-
-export type SetSteeringModeData = {
-  body: SetSteeringModeRequest
-  path?: never
-  query?: never
-  url: "/api/commands/steering-mode"
-}
-
-export type SetSteeringModeErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type SetSteeringModeError =
-  SetSteeringModeErrors[keyof SetSteeringModeErrors]
-
-export type SetSteeringModeResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type SetSteeringModeResponse =
-  SetSteeringModeResponses[keyof SetSteeringModeResponses]
-
 export type TapSimulationButtonData = {
   body?: never
   path: {
@@ -1282,6 +1068,220 @@ export type UpdateApplicationSettingsResponses = {
 
 export type UpdateApplicationSettingsResponse =
   UpdateApplicationSettingsResponses[keyof UpdateApplicationSettingsResponses]
+
+export type ActivateSteeringProfileData = {
+  body: ActivateSteeringProfileRequest
+  path?: never
+  query?: never
+  url: "/api/steering/activate-profile"
+}
+
+export type ActivateSteeringProfileErrors = {
+  /**
+   * Not Found
+   */
+  404: ApiProblemResponse
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type ActivateSteeringProfileError =
+  ActivateSteeringProfileErrors[keyof ActivateSteeringProfileErrors]
+
+export type ActivateSteeringProfileResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type ActivateSteeringProfileResponse =
+  ActivateSteeringProfileResponses[keyof ActivateSteeringProfileResponses]
+
+export type ActivateSteeringCurveData = {
+  body: ActivateSteeringCurveRequest
+  path?: never
+  query?: never
+  url: "/api/steering/curve"
+}
+
+export type ActivateSteeringCurveErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type ActivateSteeringCurveError =
+  ActivateSteeringCurveErrors[keyof ActivateSteeringCurveErrors]
+
+export type ActivateSteeringCurveResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type ActivateSteeringCurveResponse =
+  ActivateSteeringCurveResponses[keyof ActivateSteeringCurveResponses]
+
+export type AdjustManualAssistanceData = {
+  body: AdjustManualAssistanceRequest
+  path?: never
+  query?: never
+  url: "/api/steering/manual-assistance-adjustment"
+}
+
+export type AdjustManualAssistanceErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type AdjustManualAssistanceError =
+  AdjustManualAssistanceErrors[keyof AdjustManualAssistanceErrors]
+
+export type AdjustManualAssistanceResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type AdjustManualAssistanceResponse =
+  AdjustManualAssistanceResponses[keyof AdjustManualAssistanceResponses]
+
+export type SetManualAssistanceLevelData = {
+  body: SetManualAssistanceLevelRequest
+  path?: never
+  query?: never
+  url: "/api/steering/manual-assistance-level"
+}
+
+export type SetManualAssistanceLevelErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SetManualAssistanceLevelError =
+  SetManualAssistanceLevelErrors[keyof SetManualAssistanceLevelErrors]
+
+export type SetManualAssistanceLevelResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type SetManualAssistanceLevelResponse =
+  SetManualAssistanceLevelResponses[keyof SetManualAssistanceLevelResponses]
+
+export type SetMaximumAssistanceData = {
+  body: SetMaximumAssistanceRequest
+  path?: never
+  query?: never
+  url: "/api/steering/maximum-assistance"
+}
+
+export type SetMaximumAssistanceErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SetMaximumAssistanceError =
+  SetMaximumAssistanceErrors[keyof SetMaximumAssistanceErrors]
+
+export type SetMaximumAssistanceResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type SetMaximumAssistanceResponse =
+  SetMaximumAssistanceResponses[keyof SetMaximumAssistanceResponses]
+
+export type SetSteeringModeData = {
+  body: SetSteeringModeRequest
+  path?: never
+  query?: never
+  url: "/api/steering/mode"
+}
+
+export type SetSteeringModeErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SetSteeringModeError =
+  SetSteeringModeErrors[keyof SetSteeringModeErrors]
+
+export type SetSteeringModeResponses = {
+  /**
+   * Successful Response
+   */
+  200: CommandAcknowledgement
+}
+
+export type SetSteeringModeResponse =
+  SetSteeringModeResponses[keyof SetSteeringModeResponses]
 
 export type GetSavedSteeringProfileData = {
   body?: never

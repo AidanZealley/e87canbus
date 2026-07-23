@@ -44,17 +44,17 @@ def definition_json() -> dict[str, Any]:
 def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         activate_simulation_devices(client.app.state.controller_service)
-        first = client.put("/api/commands/maximum-assistance", json={"enabled": True})
-        repeated = client.put("/api/commands/maximum-assistance", json={"enabled": True})
+        first = client.put("/api/steering/maximum-assistance", json={"enabled": True})
+        repeated = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         mode = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 4},
         )
         repeated_mode = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 4},
         )
-        disabled = client.put("/api/commands/maximum-assistance", json={"enabled": False})
+        disabled = client.put("/api/steering/maximum-assistance", json={"enabled": False})
         snapshot = client.app.state.controller_service.snapshot()
 
     assert first.json()["accepted"] is True
@@ -81,11 +81,11 @@ def test_manual_level_validation_uses_the_server_steering_configuration(
     with TestClient(app) as client:
         activate_simulation_devices(client.app.state.controller_service)
         accepted = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 2},
         )
         rejected = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 3},
         )
 
@@ -102,16 +102,16 @@ def test_relative_adjustment_from_max_restores_remembered_level_before_adjusting
 ) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         activate_simulation_devices(client.app.state.controller_service)
-        client.put("/api/commands/manual-assistance-level", json={"level": 4})
-        client.put("/api/commands/maximum-assistance", json={"enabled": True})
+        client.put("/api/steering/manual-assistance-level", json={"level": 4})
+        client.put("/api/steering/maximum-assistance", json={"enabled": True})
 
         restored = client.post(
-            "/api/commands/manual-assistance-adjustment",
+            "/api/steering/manual-assistance-adjustment",
             json={"delta": -1},
         )
         first_snapshot = client.app.state.controller_service.snapshot().application
         adjusted = client.post(
-            "/api/commands/manual-assistance-adjustment",
+            "/api/steering/manual-assistance-adjustment",
             json={"delta": -1},
         )
         second_snapshot = client.app.state.controller_service.snapshot().application
@@ -130,7 +130,7 @@ def test_relative_adjustment_rejects_more_than_one_stage(
 ) -> None:
     with TestClient(command_app(tmp_path / f"app-{delta}.sqlite3")) as client:
         response = client.post(
-            "/api/commands/manual-assistance-adjustment",
+            "/api/steering/manual-assistance-adjustment",
             json={"delta": delta},
         )
 
@@ -145,14 +145,14 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
             json={"name": "Dry", "definition": definition_json()},
         ).json()
         saved = client.post(
-            "/api/commands/activate-steering-profile",
+            "/api/steering/activate-profile",
             json={
                 "profile_id": created["profile_id"],
                 "expected_revision": created["revision"],
             },
         )
         repeated_saved = client.post(
-            "/api/commands/activate-steering-profile",
+            "/api/steering/activate-profile",
             json={
                 "profile_id": created["profile_id"],
                 "expected_revision": created["revision"],
@@ -162,7 +162,7 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
         unsaved_definition = definition_json()
         unsaved_definition["points"][1]["assistance_per_mille"] = 870
         unsaved = client.put(
-            "/api/commands/steering-curve",
+            "/api/steering/curve",
             json={"definition": unsaved_definition},
         )
         unsaved_state = client.app.state.controller_service.snapshot().application
@@ -184,7 +184,7 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
 def test_commands_are_strict_and_active_state_has_no_http_read(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
         invalid = client.put(
-            "/api/commands/maximum-assistance",
+            "/api/steering/maximum-assistance",
             json={"enabled": True, "toggle": True},
         )
         active_state = client.get("/api/steering/curve-state")
@@ -214,19 +214,19 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
 
         app.state.controller_service.submit = record
         maximum = client.put(
-            "/api/commands/maximum-assistance",
+            "/api/steering/maximum-assistance",
             json={"enabled": True},
         )
         mode = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 3},
         )
         draft = client.put(
-            "/api/commands/steering-curve",
+            "/api/steering/curve",
             json={"definition": definition_json()},
         )
         saved = client.post(
-            "/api/commands/activate-steering-profile",
+            "/api/steering/activate-profile",
             json={
                 "profile_id": created["profile_id"],
                 "expected_revision": created["revision"],
@@ -266,14 +266,14 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
             "/api/steering/profiles",
             json={"name": "Dry", "definition": definition_json()},
         ).json()
-        maximum = client.put("/api/commands/maximum-assistance", json={"enabled": True})
+        maximum = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         mode = client.put(
-            "/api/commands/manual-assistance-level",
+            "/api/steering/manual-assistance-level",
             json={"level": 3},
         )
-        normal = client.put("/api/commands/maximum-assistance", json={"enabled": False})
+        normal = client.put("/api/steering/maximum-assistance", json={"enabled": False})
         activated = client.post(
-            "/api/commands/activate-steering-profile",
+            "/api/steering/activate-profile",
             json={
                 "profile_id": profile["profile_id"],
                 "expected_revision": profile["revision"],
