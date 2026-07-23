@@ -32,7 +32,7 @@ from e87canbus.protocol.servotronic_protocol import (
     CurveSource,
     ServotronicStatus,
 )
-from e87canbus.simulation.bus import InMemoryCanTopology
+from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 BLUE_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)

@@ -9,17 +9,17 @@ import pytest
 import socketio  # type: ignore[import-untyped]
 from e87canbus.api.internal.live import LiveStatePublisher
 from e87canbus.api.models.resources import ResourceChangedEvent
-from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.domain.intents import SetMaximumAssistance
 from e87canbus.kernel import ExecuteOperatorIntent, StateTopic
-from e87canbus.service import ControllerService, RuntimeExecution
-from e87canbus.simulation.runtime import (
+from e87canbus.runners.composition import build_simulated_controller_service
+from e87canbus.runners.simulation.runtime import (
     ResetSimulation,
     SetVehicleSignal,
     TapButton,
 )
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
+from e87canbus.service import ControllerService, RuntimeExecution
 from registry_test_support import activate_simulation_devices
 
 

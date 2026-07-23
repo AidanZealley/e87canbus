@@ -23,11 +23,11 @@ from e87canbus.deployment import (
     deployment_spec,
 )
 from e87canbus.domain.device import DeviceRole, DeviceSource
-from e87canbus.live import LiveControllerRuntime
+from e87canbus.runners.live import LiveControllerRuntime
+from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
+from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
+from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.service import ControllerService
-from e87canbus.simulation.devices import SimulatedServotronicPeer
-from e87canbus.simulation.runtime import SimulatedControllerRuntime
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 
 
 def build_live_controller_service(

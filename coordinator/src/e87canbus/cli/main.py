@@ -21,8 +21,8 @@ from e87canbus.api.main import (
     PROFILE_DATABASE_ENVIRONMENT_VARIABLE,
     create_app,
 )
-from e87canbus.composition import build_controller_service
 from e87canbus.deployment import CanTransport, DeploymentProfile
+from e87canbus.runners.composition import build_controller_service
 
 
 def build_parser() -> argparse.ArgumentParser:

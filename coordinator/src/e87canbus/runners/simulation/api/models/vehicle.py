@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
-from e87canbus.simulation.protocol import (
+from e87canbus.runners.simulation.protocol import (
     MAX_SIMULATED_ENGINE_RPM,
     MAX_SIMULATED_SPEED_KPH,
     MAX_SIMULATED_TEMPERATURE_C,

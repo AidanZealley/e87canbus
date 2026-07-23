@@ -45,15 +45,14 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.service import ControllerWorkUnavailable
-from e87canbus.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
-from e87canbus.simulation.protocol import (
+from e87canbus.runners.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
+from e87canbus.runners.simulation.protocol import (
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
     SIMULATION_ONLY_ENGINE_RPM_ID,
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
-from e87canbus.simulation.runtime import (
+from e87canbus.runners.simulation.runtime import (
     ConnectSimulatedDevice,
     DisconnectSimulatedDevice,
     PressButton,
@@ -68,7 +67,8 @@ from e87canbus.simulation.runtime import (
     SimulatedControllerRuntime,
     TapButton,
 )
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
+from e87canbus.service import ControllerWorkUnavailable
 
 TEST_SIMULATOR_CONFIG = replace(
     simulator_config(),

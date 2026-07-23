@@ -52,8 +52,8 @@ def test_simulation_commands_do_not_construct_application_events() -> None:
         "SteeringFallbackRequested",
     }
     for path in (
-        PACKAGE / "simulation" / "commands.py",
-        PACKAGE / "simulation" / "runtime.py",
+        PACKAGE / "runners" / "simulation" / "commands.py",
+        PACKAGE / "runners" / "simulation" / "runtime.py",
     ):
         tree = ast.parse(path.read_text(), filename=str(path))
         constructed = {
@@ -70,18 +70,18 @@ def test_default_live_composition_has_no_transmit_grant() -> None:
 
 def test_simulation_protocol_and_devices_stay_inside_simulation_composition() -> None:
     simulation_composition_imports = {
-        PACKAGE / "composition.py": {
-            "e87canbus.simulation.devices",
-            "e87canbus.simulation.runtime",
-            "e87canbus.simulation.vehicle_source",
+        PACKAGE / "runners" / "composition.py": {
+            "e87canbus.runners.simulation.devices",
+            "e87canbus.runners.simulation.runtime",
+            "e87canbus.runners.simulation.vehicle_source",
         },
         PACKAGE / "deployment.py": set(),
-        PACKAGE / "live.py": {
-            "e87canbus.simulation.commands",
-            "e87canbus.simulation.protocol",
-            "e87canbus.simulation.vehicle_source",
+        PACKAGE / "runners" / "live.py": {
+            "e87canbus.runners.simulation.commands",
+            "e87canbus.runners.simulation.protocol",
+            "e87canbus.runners.simulation.vehicle_source",
         },
-        PACKAGE / "api" / "main.py": {"e87canbus.simulation.api"},
+        PACKAGE / "api" / "main.py": {"e87canbus.runners.simulation.api"},
     }
     for path in PACKAGE.rglob("*.py"):
         if "simulation" in path.relative_to(PACKAGE).parts:
@@ -89,7 +89,8 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
         simulation_imports = {
             module
             for module in imported_modules(path)
-            if module == "e87canbus.simulation" or module.startswith("e87canbus.simulation.")
+            if module == "e87canbus.runners.simulation"
+            or module.startswith("e87canbus.runners.simulation.")
         }
         assert simulation_imports == simulation_composition_imports.get(path, set()), (
             f"{path.relative_to(PACKAGE)} has unexpected simulation imports"
@@ -97,7 +98,7 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
 
 
 def test_live_composition_supplies_no_steering_actuator() -> None:
-    assert "steering_actuator=" not in (PACKAGE / "live.py").read_text()
+    assert "steering_actuator=" not in (PACKAGE / "runners" / "live.py").read_text()
 
 
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
@@ -106,8 +107,8 @@ def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> No
         PACKAGE / "domain" / "controller" / "intents.py",
         PACKAGE / "adapters" / "output.py",
         PACKAGE / "kernel" / "kernel.py",
-        PACKAGE / "live.py",
-        PACKAGE / "simulation" / "effect_failures.py",
+        PACKAGE / "runners" / "live.py",
+        PACKAGE / "runners" / "simulation" / "effect_failures.py",
     )
 
     assert all("assert_never" in called_names(path) for path in paths)

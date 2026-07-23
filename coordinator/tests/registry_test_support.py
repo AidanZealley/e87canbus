@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import time
 
+from e87canbus.runners.simulation.runtime import RunControlTimer
 from e87canbus.service import ControllerService
-from e87canbus.simulation.runtime import RunControlTimer
 
 
 def activate_simulation_devices(service: ControllerService) -> None:

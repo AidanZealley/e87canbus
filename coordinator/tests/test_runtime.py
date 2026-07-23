@@ -57,7 +57,7 @@ from e87canbus.protocol.can import (
     encode_hello,
 )
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
+from e87canbus.runners.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
 
 def led_program(leds: ButtonLedState) -> SetButtonPadProgram:

@@ -6,11 +6,6 @@ from pathlib import Path
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.composition import (
-    build_controller_service,
-    build_live_controller_service,
-    build_simulated_controller_service,
-)
 from e87canbus.config import CanNetwork, TxPolicyConfig, default_config
 from e87canbus.deployment import (
     CanTransport,
@@ -22,8 +17,13 @@ from e87canbus.deployment import (
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.kernel import ReceivedCanFrame
 from e87canbus.protocol.can import CanFrame, DeviceHelloPayload, encode_hello
+from e87canbus.runners.composition import (
+    build_controller_service,
+    build_live_controller_service,
+    build_simulated_controller_service,
+)
+from e87canbus.runners.simulation.protocol import encode_simulated_speed
 from e87canbus.service import ControllerServiceLifecycle
-from e87canbus.simulation.protocol import encode_simulated_speed
 from fastapi.testclient import TestClient
 
 

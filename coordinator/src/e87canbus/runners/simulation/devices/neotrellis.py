@@ -24,7 +24,7 @@ from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_BREATHE,
     BUTTON_PAD_EFFECT_LENGTH,
 )
-from e87canbus.simulation.devices.peer import SimulatedDeviceState, SimulatedRegistryPeer
+from e87canbus.runners.simulation.devices.peer import SimulatedDeviceState, SimulatedRegistryPeer
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)

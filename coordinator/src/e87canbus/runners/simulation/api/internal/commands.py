@@ -3,8 +3,8 @@
 from fastapi import FastAPI
 
 from e87canbus.api.internal.commands import submit_runtime_work
-from e87canbus.simulation.api.models.common import SimulationCommandAcknowledgement
-from e87canbus.simulation.commands import SimulationCommand
+from e87canbus.runners.simulation.api.models.common import SimulationCommandAcknowledgement
+from e87canbus.runners.simulation.commands import SimulationCommand
 
 
 async def run_command(

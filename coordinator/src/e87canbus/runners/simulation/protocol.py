@@ -22,7 +22,7 @@ from e87canbus.domain.state import (
 )
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import DecodedProtocolEvent, ProtocolRouter
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
 
 SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
 SIMULATION_ONLY_ENGINE_RPM_ID = 0x1FFFFF01

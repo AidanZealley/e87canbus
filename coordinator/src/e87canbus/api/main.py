@@ -23,13 +23,13 @@ from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import health, settings, steering
-from e87canbus.composition import build_controller_service
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.settings_repository import ApplicationSettingsRepository
+from e87canbus.runners.composition import build_controller_service
+from e87canbus.runners.simulation.api import install_simulation_api
 from e87canbus.service import ControllerService
-from e87canbus.simulation.api import install_simulation_api
 
 PROFILE_DATABASE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE_DATABASE"
 DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE"

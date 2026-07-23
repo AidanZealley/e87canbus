@@ -17,14 +17,14 @@ from e87canbus.protocol.generated import (
     BUTTON_PRESSED,
     BUTTON_RELEASED,
 )
-from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
-from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
-from e87canbus.simulation.devices import (
+from e87canbus.runners.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
+from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
+from e87canbus.runners.simulation.devices import (
     SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
     SimulatedVehicleNode,
 )
-from e87canbus.simulation.protocol import (
+from e87canbus.runners.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     encode_simulated_coolant_temperature,
     encode_simulated_engine_rpm,
@@ -32,7 +32,7 @@ from e87canbus.simulation.protocol import (
     encode_simulated_oil_temperature,
     encode_simulated_speed,
 )
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
 
 
 class MutableClock:
