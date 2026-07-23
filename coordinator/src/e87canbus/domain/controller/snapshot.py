@@ -10,13 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.application.controller.button_leds import button_led_effect, button_pad_program
-from e87canbus.application.controller.steering import speed_is_valid, steering_command
-from e87canbus.application.events import ApplicationEffect
-from e87canbus.application.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.button_pad import ButtonPadProgram
 from e87canbus.config import EngineTelemetryConfig, HighBeamStrobeConfig, SteeringConfig
-from e87canbus.features.steering import (
+from e87canbus.domain.button_pad import ButtonPadProgram
+from e87canbus.domain.controller.button_leds import button_led_effect, button_pad_program
+from e87canbus.domain.controller.steering import speed_is_valid, steering_command
+from e87canbus.domain.events import ApplicationEffect
+from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
+from e87canbus.domain.steering import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,

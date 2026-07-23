@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from typing import Protocol, assert_never
 
 from e87canbus.adapters.can_io import CanTransmitter
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, TxPolicyConfig
+from e87canbus.domain.button_pad import pack_button_pad_transfers
+from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
     ButtonFeedbackColour,
@@ -24,8 +26,6 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.button_pad import pack_button_pad_transfers
-from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,

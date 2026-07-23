@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.config import CanNetwork
-from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.domain.device import DeviceRole, DeviceSource
 
 
 class DeploymentProfile(StrEnum):

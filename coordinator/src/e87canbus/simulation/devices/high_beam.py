@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from e87canbus.adapters.output import SafeCanTransmitter
-from e87canbus.application.events import SetHighBeam
+from e87canbus.domain.events import SetHighBeam
 
 
 @dataclass(frozen=True)

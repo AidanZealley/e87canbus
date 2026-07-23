@@ -18,15 +18,15 @@ from e87canbus.api.models.live_contract import (
     ClientEvent,
     ServerEvent,
 )
-from e87canbus.application import controller
-from e87canbus.application.state import (
+from e87canbus.config import EngineTelemetryConfig, SteeringConfig
+from e87canbus.domain import controller
+from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
     NormalSteering,
     SteeringMode,
 )
-from e87canbus.config import EngineTelemetryConfig, SteeringConfig
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     SteeringCurveActivationStatus,
     initial_active_steering_curve,
 )

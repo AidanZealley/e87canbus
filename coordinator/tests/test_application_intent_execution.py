@@ -1,7 +1,8 @@
 import pytest
-from e87canbus.application.controller import DEMO_BREATHE_BUTTON_INDEX, execute_operator_intent
-from e87canbus.application.events import SetButtonPadBreathe, SetHighBeam
-from e87canbus.application.intents import (
+from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.domain.controller import DEMO_BREATHE_BUTTON_INDEX, execute_operator_intent
+from e87canbus.domain.events import SetButtonPadBreathe, SetHighBeam
+from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntentContext,
     SelectSteeringMode,
@@ -12,13 +13,12 @@ from e87canbus.application.intents import (
     ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
 )
-from e87canbus.application.state import (
+from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
     NormalSteering,
     SteeringMode,
 )
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
 
 CONFIG = SteeringConfig(manual_level_count=11)
 

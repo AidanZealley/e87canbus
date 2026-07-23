@@ -1,7 +1,7 @@
 from dataclasses import fields, replace
 
 import pytest
-from e87canbus.features.application_settings import (
+from e87canbus.domain.application_settings import (
     DEFAULT_APPLICATION_SETTINGS,
     ApplicationSettings,
     ApplicationSettingsUpdate,

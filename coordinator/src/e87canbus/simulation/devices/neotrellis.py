@@ -7,9 +7,9 @@ import time
 from collections.abc import Callable
 
 from e87canbus.adapters.can_io import CanEndpoint
-from e87canbus.application.events import BUTTON_LED_COUNT, RGB_OFF
 from e87canbus.config import CustomCanIds
-from e87canbus.device import DeviceRole
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.events import BUTTON_LED_COUNT, RGB_OFF
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     ButtonPadProgramPayload,

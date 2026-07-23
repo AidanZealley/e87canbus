@@ -26,8 +26,8 @@ from e87canbus.api.routes import commands, health, settings, steering
 from e87canbus.composition import build_controller_service
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
-from e87canbus.features.profile_repository import SteeringProfileRepository
-from e87canbus.features.settings_repository import ApplicationSettingsRepository
+from e87canbus.domain.profile_repository import SteeringProfileRepository
+from e87canbus.domain.settings_repository import ApplicationSettingsRepository
 from e87canbus.service import ControllerService
 from e87canbus.simulation.api import install_simulation_api
 

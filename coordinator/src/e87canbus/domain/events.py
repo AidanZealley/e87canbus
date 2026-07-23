@@ -6,15 +6,15 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.application.state import (
+from e87canbus.domain.button_pad import ButtonPadProgram
+from e87canbus.domain.state import (
     ButtonFeedbackColour,
     CoolantTemperatureSample,
     EngineRpmSample,
     OilTemperatureSample,
     SpeedSample,
 )
-from e87canbus.button_pad import ButtonPadProgram
-from e87canbus.features.steering import SteeringCurveDefinition
+from e87canbus.domain.steering import SteeringCurveDefinition
 
 __all__ = ["ButtonFeedbackColour"]
 

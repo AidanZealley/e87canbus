@@ -14,7 +14,7 @@ from e87canbus.config import (
     default_config,
     simulator_config,
 )
-from e87canbus.device import DeviceSource
+from e87canbus.domain.device import DeviceSource
 from e87canbus.kernel import (
     CanReaderFailed,
     ControllerInput,

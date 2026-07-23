@@ -9,19 +9,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     DEFAULT_OPERATOR_INTENT_CONTEXT,
     OperatorIntent,
     OperatorIntentContext,
     is_operator_intent,
 )
-from e87canbus.config import CanNetwork
-from e87canbus.device import DeviceRole
-from e87canbus.features.steering import SteeringCurveDefinition
+from e87canbus.domain.steering import SteeringCurveDefinition
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.servotronic_protocol import ServotronicStatus
 

@@ -24,7 +24,7 @@ from e87canbus.adapters.sqlite_database import (
     SqliteApplicationDatabase,
     UnsupportedDatabaseVersionError,
 )
-from e87canbus.features.profile_repository import (
+from e87canbus.domain.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
     ProfileRevisionConflictError,
@@ -32,7 +32,7 @@ from e87canbus.features.profile_repository import (
     SteeringProfileStorageError,
     StoredProfileDataError,
 )
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
@@ -41,7 +41,7 @@ from e87canbus.features.steering import (
     validate_steering_curve_definition,
     validate_steering_profile_name,
 )
-from e87canbus.features.timestamps import canonical_utc_timestamp
+from e87canbus.domain.timestamps import canonical_utc_timestamp
 
 
 def _utc_now() -> datetime:

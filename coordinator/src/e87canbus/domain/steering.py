@@ -10,10 +10,10 @@ from enum import StrEnum
 from hashlib import sha256
 from uuid import UUID
 
-from e87canbus.features.timestamps import (
+from e87canbus.domain.timestamps import (
     canonical_utc_timestamp as canonical_utc_timestamp,
 )
-from e87canbus.features.timestamps import (
+from e87canbus.domain.timestamps import (
     validate_canonical_utc_timestamp,
 )
 

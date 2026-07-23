@@ -1,15 +1,22 @@
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
-from e87canbus.application import controller
-from e87canbus.application.controller import (
+from e87canbus.config import (
+    CanNetwork,
+    EngineTelemetryConfig,
+    HighBeamStrobeConfig,
+    SteeringConfig,
+)
+from e87canbus.domain import controller
+from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.controller import (
     ApplicationSnapshot,
     EngineTelemetrySnapshot,
     EngineTelemetryStatus,
     EngineTelemetryValue,
     Transition,
 )
-from e87canbus.application.events import (
+from e87canbus.domain.events import (
     RGB_AMBER,
     RGB_BLUE,
     RGB_OFF,
@@ -30,8 +37,8 @@ from e87canbus.application.events import (
     SteeringFallbackReason,
     SteeringFallbackRequested,
 )
-from e87canbus.application.intents import OperatorIntentContext, StartHighBeamStrobe
-from e87canbus.application.state import (
+from e87canbus.domain.intents import OperatorIntentContext, StartHighBeamStrobe
+from e87canbus.domain.state import (
     ApplicationState,
     CoolantTemperatureSample,
     EngineRpmSample,
@@ -41,14 +48,7 @@ from e87canbus.application.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.button_pad import static_button_pad_program
-from e87canbus.config import (
-    CanNetwork,
-    EngineTelemetryConfig,
-    HighBeamStrobeConfig,
-    SteeringConfig,
-)
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     ASSISTANCE_QUANTIZATION_TOLERANCE,
     SteeringCurveActivationStatus,
     default_steering_curve_definition,

@@ -5,8 +5,12 @@ from pathlib import Path
 
 import pytest
 from e87canbus.adapters.output import EffectRequest, SendRegistryFrame
-from e87canbus.application.controller import SOFT_AMBER, SOFT_WHITE
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.controller import SOFT_AMBER, SOFT_WHITE
+from e87canbus.domain.device import DeviceLifecycleStatus, DeviceRole
+from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.events import (
     RGB_BLUE,
     RGB_OFF,
     ButtonFeedbackColour,
@@ -16,11 +20,7 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.intents import SetManualAssistanceLevel, SetMaximumAssistance
-from e87canbus.button_pad import static_button_pad_program
-from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.device import DeviceLifecycleStatus, DeviceRole
-from e87canbus.device_registry import FeatureUnavailable
+from e87canbus.domain.intents import SetManualAssistanceLevel, SetMaximumAssistance
 from e87canbus.kernel import (
     CoordinatorKernel,
     DeviceAdapterFailed,

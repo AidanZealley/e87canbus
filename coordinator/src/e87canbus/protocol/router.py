@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
+from e87canbus.domain.events import (
     ApplicationEvent,
     ButtonPressed,
 )
-from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.device import DeviceRole
-from e87canbus.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.protocol.can import (
     DeviceWelcomeAckPayload,
     RoutedCanFrame,

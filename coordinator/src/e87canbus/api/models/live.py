@@ -7,9 +7,9 @@ from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.button_pad import BUTTON_PAD_PROGRAM_ENCODING
-from e87canbus.device import DeviceRole
-from e87canbus.features.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
+from e87canbus.domain.button_pad import BUTTON_PAD_PROGRAM_ENCODING
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.kernel import StateTopic
 from e87canbus.service import ControllerServiceSnapshot
 

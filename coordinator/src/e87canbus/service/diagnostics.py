@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import CanNetwork
-from e87canbus.device_registry import DeviceRegistryEntry
+from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.device_registry import DeviceRegistryEntry
 from e87canbus.kernel import DiagnosticSnapshot, StateTopic
 from e87canbus.protocol.servotronic_protocol import (
     CONTROL_MODE_WIRE,

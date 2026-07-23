@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.features.application_settings import (
+from e87canbus.domain.application_settings import (
     MAX_RPM,
     MAX_TEMPERATURE_C,
     MIN_RPM,

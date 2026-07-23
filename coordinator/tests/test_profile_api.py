@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, simulator_config
-from e87canbus.features.steering import BUILT_IN_STEERING_CURVE
+from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.domain.steering import BUILT_IN_STEERING_CURVE
 from e87canbus.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices

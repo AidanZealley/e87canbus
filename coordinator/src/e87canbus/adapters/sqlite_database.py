@@ -9,15 +9,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from e87canbus.features.application_settings import DEFAULT_APPLICATION_SETTINGS
-from e87canbus.features.steering import (
+from e87canbus.domain.application_settings import DEFAULT_APPLICATION_SETTINGS
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     SteeringCurvePoint,
     canonical_steering_curve_bytes,
     steering_curve_fingerprint,
 )
-from e87canbus.features.timestamps import canonical_utc_timestamp
+from e87canbus.domain.timestamps import canonical_utc_timestamp
 
 CURRENT_MIGRATION_VERSION = 4
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"

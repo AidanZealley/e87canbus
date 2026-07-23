@@ -6,9 +6,9 @@ import time
 from collections.abc import Callable
 
 from e87canbus.adapters.can_io import CanEndpoint
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.config import CustomCanIds
-from e87canbus.device import DeviceRole
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.simulation.devices.peer import SimulatedRegistryPeer
 
 

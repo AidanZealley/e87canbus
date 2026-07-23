@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from e87canbus.application.events import BUTTON_LED_COUNT
-from e87canbus.application.intents import (
+from e87canbus.config import BUILT_IN_RESERVED_BUTTON_INDEXES, HighBeamStrobeConfig
+from e87canbus.domain.events import BUTTON_LED_COUNT
+from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntent,
     StartHighBeamStrobe,
@@ -14,7 +15,6 @@ from e87canbus.application.intents import (
     ToggleMaximumAssistance,
     is_operator_intent,
 )
-from e87canbus.config import BUILT_IN_RESERVED_BUTTON_INDEXES, HighBeamStrobeConfig
 
 BUILT_IN_PROFILE_ID = "built-in"
 

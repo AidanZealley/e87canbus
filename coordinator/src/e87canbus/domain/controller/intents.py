@@ -10,15 +10,16 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import assert_never
 
-from e87canbus.application.controller.button_leds import (
+from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.domain.controller.button_leds import (
     DEMO_BREATHE_BUTTON_INDEX,
     MAXIMUM_ASSISTANCE_BUTTON_INDEX,
     button_led_effect,
     button_led_state,
 )
-from e87canbus.application.controller.reducer import Transition, transition
-from e87canbus.application.controller.steering import steering_command
-from e87canbus.application.events import (
+from e87canbus.domain.controller.reducer import Transition, transition
+from e87canbus.domain.controller.steering import steering_command
+from e87canbus.domain.events import (
     ApplicationEffect,
     ButtonCommandFailed,
     ButtonFeedbackColour,
@@ -27,7 +28,7 @@ from e87canbus.application.events import (
     SetHighBeam,
     SetSteeringAssistance,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     DEFAULT_OPERATOR_INTENT_CONTEXT,
     AdjustManualAssistance,
     OperatorIntent,
@@ -39,17 +40,16 @@ from e87canbus.application.intents import (
     ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     SetMaximumAssistance as SetMaximumAssistanceIntent,
 )
-from e87canbus.application.state import (
+from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
     SteeringMode,
     SteeringState,
 )
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     clamp_manual_level,

@@ -11,7 +11,7 @@ from e87canbus.adapters.sqlite_database import (
     ApplicationDatabaseError,
     SqliteApplicationDatabase,
 )
-from e87canbus.features.application_settings import (
+from e87canbus.domain.application_settings import (
     ApplicationSettings,
     ApplicationSettingsUpdate,
     SpeedUnit,
@@ -19,13 +19,13 @@ from e87canbus.features.application_settings import (
     validate_application_settings_update,
     validate_expected_revision,
 )
-from e87canbus.features.settings_repository import (
+from e87canbus.domain.settings_repository import (
     ApplicationSettingsRepositoryError,
     SettingsRevisionConflictError,
     SettingsStorageError,
     StoredSettingsDataError,
 )
-from e87canbus.features.timestamps import canonical_utc_timestamp
+from e87canbus.domain.timestamps import canonical_utc_timestamp
 
 
 def _utc_now() -> datetime:

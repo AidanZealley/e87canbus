@@ -11,8 +11,8 @@ from fastapi import FastAPI
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
-from e87canbus.features.profile_repository import SteeringProfileRepository
-from e87canbus.features.steering import initial_active_steering_curve
+from e87canbus.domain.profile_repository import SteeringProfileRepository
+from e87canbus.domain.steering import initial_active_steering_curve
 from e87canbus.service import ControllerService, RuntimeExecution
 
 

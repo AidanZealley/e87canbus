@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Path, Request
 
 from e87canbus.api.errors import api_problem_responses
-from e87canbus.application.events import BUTTON_LED_COUNT
-from e87canbus.device import DeviceRole
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.events import BUTTON_LED_COUNT
 from e87canbus.simulation.api.internal.commands import run_command
 from e87canbus.simulation.api.models.common import SimulationCommandAcknowledgement
 from e87canbus.simulation.api.models.devices import (
