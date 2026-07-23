@@ -1,54 +1,25 @@
-"""Simulated project CAN devices."""
+"""The base virtual registry peer shared by the simulated devices."""
 
 from __future__ import annotations
 
 import logging
 import math
-import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from enum import StrEnum
 
 from e87canbus.adapters.can_io import CanEndpoint
-from e87canbus.adapters.output import SafeCanTransmitter
-from e87canbus.application.events import (
-    BUTTON_LED_COUNT,
-    RGB_OFF,
-    SetHighBeam,
-    SetSteeringAssistance,
-    SteeringCommandReason,
-)
-from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.config import CustomCanIds
 from e87canbus.device import DeviceRole
 from e87canbus.protocol.can import (
-    ArduinoButtonEventPayload,
-    ButtonPadProgramPayload,
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    RoutedCanFrame,
-    decode_button_pad_commands,
     decode_welcome_ack,
-    encode_button_event,
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.protocol.generated import (
-    BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-    BUTTON_PAD_EFFECT_BREATHE,
-    BUTTON_PAD_EFFECT_LENGTH,
-    CUSTOM_DEVICE_PROTOCOL_VERSION,
-)
-from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
-from e87canbus.simulation.protocol import (
-    SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
-    decode_simulated_high_beam_command,
-)
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
-from e87canbus.transport.isotp import IsoTpEndpoint
+from e87canbus.protocol.generated import CUSTOM_DEVICE_PROTOCOL_VERSION
 
 LOGGER = logging.getLogger(__name__)
 
@@ -358,225 +329,3 @@ class SimulatedRegistryPeer:
 def _require_byte(value: int, name: str) -> None:
     if type(value) is not int or not 0 <= value <= 0xFF:
         raise ValueError(f"{name} must fit in an unsigned byte")
-
-
-@dataclass(frozen=True)
-class SimulatedHighBeamActuator:
-    """Simulator-only high-beam capability using the private virtual-car frame."""
-
-    transmitter: SafeCanTransmitter
-
-    def set_high_beam(self, command: SetHighBeam) -> None:
-        from e87canbus.simulation.protocol import encode_simulated_high_beam_command
-
-        self.transmitter.send(encode_simulated_high_beam_command(command.enabled))
-
-
-class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
-    """Simulation of the current Arduino NeoTrellis CAN firmware."""
-
-    def __init__(
-        self,
-        bus: CanEndpoint,
-        ids: CustomCanIds,
-        led_rgb: tuple[tuple[int, int, int], ...] = (RGB_OFF,) * BUTTON_LED_COUNT,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
-        super().__init__(
-            role=DeviceRole.BUTTON_PAD,
-            bus=bus,
-            ids=ids,
-            clock=clock,
-        )
-        self.led_rgb = led_rgb
-        self._pending_led_rgb: list[tuple[int, int, int]] | None = None
-        self.button_pad_program: ButtonPadProgramPayload | None = None
-        self.last_seen_monotonic_s: float | None = None
-        self.effect_commands: list[tuple[int, int, bool, int]] = []
-        self.transport = IsoTpEndpoint(
-            tx_id=ids.button_pad_transport_device_to_coordinator,
-            rx_id=ids.button_pad_transport_coordinator_to_device,
-            send_frame=bus.send,
-            maximum_payload_length=ids.button_pad_transport_maximum_payload_length,
-        )
-
-    def send_button_event(self, button_index: int, pressed: bool) -> CanFrame | None:
-        if not 0 <= button_index < BUTTON_LED_COUNT:
-            raise ValueError(f"button_index must be between 0 and {BUTTON_LED_COUNT - 1}")
-        if not self._operational_with_fresh_lease(self.clock()):
-            return None
-        frame = encode_button_event(
-            ArduinoButtonEventPayload(
-                button_index=button_index,
-                pressed=pressed,
-            ),
-            self.ids,
-        )
-        self._require_bus().send(frame)
-        return frame
-
-    def process_pending_led_programs(self, *, limit: int = 64) -> list[ButtonPadProgramPayload]:
-        programs: list[ButtonPadProgramPayload] = []
-        self._process_pending(self.clock(), limit=limit, programs=programs)
-        return programs
-
-    def process_pending(self, now: float, *, limit: int = 64) -> int:
-        return self._process_pending(now, limit=limit)
-
-    def _process_pending(
-        self,
-        now: float,
-        *,
-        limit: int,
-        programs: list[ButtonPadProgramPayload] | None = None,
-    ) -> int:
-        if limit < 1:
-            raise ValueError("simulated device frame limit must be positive")
-        bus = self._require_bus()
-        processed = 0
-        while processed < limit and (frame := bus.receive(timeout_s=0)) is not None:
-            processed += 1
-            if self._consume_registry_frame(frame, now):
-                continue
-            if frame.arbitration_id == self.ids.button_pad_effect:
-                if (
-                    self._operational_with_fresh_lease(now)
-                    and len(frame.data) == BUTTON_PAD_EFFECT_LENGTH
-                    and frame.data[0] == 1
-                    and frame.data[1]
-                    in (
-                        BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-                        BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-                        BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-                        BUTTON_PAD_EFFECT_BREATHE,
-                    )
-                    and frame.data[2] < BUTTON_LED_COUNT
-                    and frame.data[4] <= 1
-                    and frame.data[5:] == b"\x00\x00\x00"
-                ):
-                    self.effect_commands.append(
-                        (frame.data[1], frame.data[2], bool(frame.data[4]), frame.data[3])
-                    )
-                    self.last_seen_monotonic_s = now
-                continue
-            self.transport.on_frame(frame)
-        self.transport.poll()
-        while (payload := self.transport.receive_payload()) is not None:
-            if not self._operational_with_fresh_lease(now):
-                continue
-            try:
-                commands = decode_button_pad_commands(payload)
-            except ValueError as exc:
-                LOGGER.warning("sim neotrellis ignored malformed button-pad program: %s", exc)
-                continue
-            for program in commands:
-                self.button_pad_program = program
-                if program.replace_all:
-                    self._pending_led_rgb = [program.track.rgb] * BUTTON_LED_COUNT
-                if self._pending_led_rgb is None:
-                    continue
-                for index in range(BUTTON_LED_COUNT):
-                    if program.target_mask & (1 << index):
-                        self._pending_led_rgb[index] = program.track.rgb
-                if program.commit:
-                    self.led_rgb = tuple(self._pending_led_rgb)
-                    self._pending_led_rgb = None
-            self.last_seen_monotonic_s = now
-            if programs is not None:
-                programs.extend(commands)
-        return processed
-
-    def _operational_with_fresh_lease(self, now: float) -> bool:
-        return (
-            self.state is SimulatedDeviceState.OPERATIONAL
-            and self._controller_lease_deadline is not None
-            and now < self._controller_lease_deadline
-        )
-
-
-@dataclass
-class SimulatedVehicleNode:
-    """External simulation node with explicitly synthetic vehicle messages."""
-
-    buses: dict[CanNetwork, CanEndpoint]
-    signals: SyntheticVehicleSource = field(default_factory=SyntheticVehicleSource)
-    high_beam_enabled: bool = False
-
-    def execute(self, command: SetVehicleSignal | SilenceVehicleSignal) -> None:
-        self._send(self.signals.execute(command))
-
-    def emit(self) -> None:
-        self._send(self.signals.emit())
-
-    def _send(self, frames: tuple[RoutedCanFrame, ...]) -> None:
-        for routed in frames:
-            self.buses[routed.network].send(routed.frame)
-
-    def drain_pending(self) -> int:
-        drained = 0
-        for network in CanNetwork:
-            bus = self.buses.get(network)
-            if bus is None:
-                continue
-            while (frame := bus.receive(timeout_s=0)) is not None:
-                drained += 1
-                self._consume_frame(network, frame)
-        return drained
-
-    def _consume_frame(self, network: CanNetwork, frame: CanFrame) -> None:
-        if (
-            network is not CanNetwork.KCAN
-            or not frame.is_extended_id
-            or frame.arbitration_id != SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID
-        ):
-            return
-        try:
-            self.high_beam_enabled = decode_simulated_high_beam_command(frame)
-        except ValueError as exc:
-            LOGGER.warning(
-                "simulated vehicle ignored malformed high-beam command: data=%s error=%s",
-                frame.data.hex(),
-                exc,
-            )
-
-
-class SimulatedServotronicPeer(SimulatedRegistryPeer):
-    """Virtual Servotronic peer with an in-process dimensionless actuator model."""
-
-    def __init__(
-        self,
-        watchdog_timeout_s: float,
-        clock: Callable[[], float] = time.monotonic,
-        *,
-        bus: CanEndpoint | None = None,
-        ids: CustomCanIds | None = None,
-    ) -> None:
-        super().__init__(
-            role=DeviceRole.SERVOTRONIC_CONTROLLER,
-            bus=bus,
-            ids=ids,
-            clock=clock,
-        )
-        self.watchdog_timeout_s = watchdog_timeout_s
-        self.last_command: SetSteeringAssistance | None = None
-        self.last_command_at: float | None = None
-
-    def set_assistance(self, command: SetSteeringAssistance) -> None:
-        self.last_command = command
-        self.last_command_at = self.clock()
-
-    @property
-    def watchdog_timed_out(self) -> bool:
-        return self.last_command_at is None or (
-            self.clock() - self.last_command_at > self.watchdog_timeout_s
-        )
-
-    @property
-    def effective_assistance(self) -> float:
-        if self.watchdog_timed_out or self.last_command is None:
-            return 0.0
-        return self.last_command.assistance
-
-    @property
-    def last_command_reason(self) -> SteeringCommandReason | None:
-        return None if self.last_command is None else self.last_command.reason
