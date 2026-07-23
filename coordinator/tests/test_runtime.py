@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from e87canbus.adapters.output import EffectRequest
 from e87canbus.application.button_bindings import ButtonBinding, ButtonBindingProfile
 from e87canbus.application.controller import SOFT_WHITE
 from e87canbus.application.events import (
@@ -47,7 +48,6 @@ from e87canbus.kernel import (
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.output import EffectRequest
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceHeartbeatPayload,

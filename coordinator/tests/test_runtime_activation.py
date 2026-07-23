@@ -1,6 +1,7 @@
 from dataclasses import replace
 
 import pytest
+from e87canbus.adapters.output import EffectRequest
 from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.application.state import (
     ApplicationState,
@@ -28,7 +29,6 @@ from e87canbus.kernel import (
     SteeringActuatorFailed,
     TimerElapsed,
 )
-from e87canbus.output import EffectRequest
 from e87canbus.protocol.can import (
     DeviceHeartbeatPayload,
     DeviceHelloPayload,

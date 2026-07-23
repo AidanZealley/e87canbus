@@ -23,7 +23,7 @@ from e87canbus.config import CanNetwork
 from e87canbus.device import DeviceRole
 from e87canbus.features.steering import SteeringCurveDefinition
 from e87canbus.protocol.can import CanFrame
-from e87canbus.servotronic_protocol import ServotronicStatus
+from e87canbus.protocol.servotronic_protocol import ServotronicStatus
 
 
 @dataclass(frozen=True)

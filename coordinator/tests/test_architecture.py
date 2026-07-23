@@ -123,7 +123,7 @@ def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> No
     paths = (
         PACKAGE / "application" / "controller" / "reducer.py",
         PACKAGE / "application" / "controller" / "intents.py",
-        PACKAGE / "output.py",
+        PACKAGE / "adapters" / "output.py",
         PACKAGE / "kernel" / "kernel.py",
         PACKAGE / "live.py",
         PACKAGE / "simulation" / "runtime.py",

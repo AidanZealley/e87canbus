@@ -30,8 +30,7 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.service import observed_servotronic_snapshot
-from e87canbus.servotronic_protocol import (
+from e87canbus.protocol.servotronic_protocol import (
     ControlMode,
     CurveResult,
     CurveSource,
@@ -40,6 +39,7 @@ from e87canbus.servotronic_protocol import (
     pack_curve,
     unpack_status,
 )
+from e87canbus.service import observed_servotronic_snapshot
 
 
 def test_control_payload_encodes_manual_override() -> None:

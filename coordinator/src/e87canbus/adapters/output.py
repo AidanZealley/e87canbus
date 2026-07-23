@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, assert_never
 
+from e87canbus.adapters.can_io import CanTransmitter
 from e87canbus.application.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
@@ -24,7 +25,6 @@ from e87canbus.application.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.button_pad import pack_button_pad_transfers
-from e87canbus.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.generated import (
@@ -35,7 +35,7 @@ from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.servotronic_protocol import (
+from e87canbus.protocol.servotronic_protocol import (
     ControlMode,
     ServotronicStatus,
     pack_control,
