@@ -30,7 +30,6 @@ from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runtime import (
     ActivateSteeringCurve,
-    AdjustManualAssistance,
     CanEffectExecutionFailed,
     CanReaderFailed,
     Commit,
@@ -38,13 +37,11 @@ from e87canbus.runtime import (
     CoordinatorKernel,
     DeviceAdapterFailed,
     DiagnosticSnapshot,
+    ExecuteOperatorIntent,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
     ServotronicStatusObserved,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
-    SetSteeringMode,
     ShutdownRequested,
     StateTopic,
     SteeringActuatorFailed,
@@ -84,10 +81,7 @@ CONTROLLER_INPUT_TYPES = (
     DeviceAdapterFailed,
     ShutdownRequested,
     ActivateSteeringCurve,
-    SetMaximumAssistance,
-    AdjustManualAssistance,
-    SetManualAssistanceLevel,
-    SetSteeringMode,
+    ExecuteOperatorIntent,
 )
 VEHICLE_COMMAND_TYPES = (
     SetVehicleSignal,

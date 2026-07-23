@@ -9,9 +9,10 @@ import pytest
 import socketio  # type: ignore[import-untyped]
 from e87canbus.api.internal.live import LiveStatePublisher
 from e87canbus.api.models.resources import ResourceChangedEvent
+from e87canbus.application.intents import SetMaximumAssistance
 from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import LivePublicationConfig, simulator_config
-from e87canbus.runtime import SetMaximumAssistance, StateTopic
+from e87canbus.runtime import ExecuteOperatorIntent, StateTopic
 from e87canbus.service import ControllerService, RuntimeExecution
 from e87canbus.simulation.runtime import (
     ResetSimulation,
@@ -187,7 +188,9 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
         await wait_for_initial_publication(socket_server)
         socket_server.emissions.clear()
         assert all(entry.status.value == "active" for entry in service.snapshot().adapter.registry)
-        result = await asyncio.wrap_future(service.submit(SetMaximumAssistance(True)))
+        result = await asyncio.wrap_future(
+            service.submit(ExecuteOperatorIntent(SetMaximumAssistance(True)))
+        )
         await wait_until(
             lambda: (
                 {event for event, *_ in socket_server.emissions}

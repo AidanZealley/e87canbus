@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import StrEnum
-from functools import lru_cache
 from typing import assert_never
 
 from e87canbus.application.events import (
@@ -68,6 +67,7 @@ from e87canbus.button_pad import (
 )
 from e87canbus.config import EngineTelemetryConfig, HighBeamStrobeConfig, SteeringConfig
 from e87canbus.features.steering import (
+    BUILT_IN_STEERING_CURVE,
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,
@@ -248,18 +248,22 @@ def finish_button_intent(
     active_definition: SteeringCurveDefinition,
     high_beam_strobe_config: HighBeamStrobeConfig,
 ) -> Transition:
-    """Add button-origin presentation and actuator effects to an intent result."""
-    intent_result = finish_operator_intent(state, intent_result, config, active_definition)
+    """Layer button-origin presentation onto an already-complete intent result.
+
+    ``intent_result`` is the self-contained output of ``execute_operator_intent``;
+    this only substitutes the button-LED program for the pressing origin and adds a
+    white confirmation blink when nothing the operator can see actually changed.
+    """
+    high_beam_button_index = high_beam_strobe_config.button_index
     new_state = intent_result.state
-    previous_leds = button_led_effect(
-        state, high_beam_button_index=high_beam_strobe_config.button_index
-    )
-    new_leds = button_led_effect(
-        new_state, high_beam_button_index=high_beam_strobe_config.button_index
-    )
+    previous_leds = button_led_effect(state, high_beam_button_index=high_beam_button_index)
+    new_leds = button_led_effect(new_state, high_beam_button_index=high_beam_button_index)
     effects = tuple(
         new_leds if isinstance(effect, SetButtonPadProgram) else effect
         for effect in intent_result.effects
+    )
+    demo_breathe_changed = (
+        new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
     )
     if new_leds != previous_leds and not any(
         isinstance(effect, (SetButtonPadProgram, SetButtonPadBreathe)) for effect in effects
@@ -271,26 +275,19 @@ def finish_button_intent(
                     new_state.button_pad_demo_breathe_enabled,
                 ),
             )
-            if new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
+            if demo_breathe_changed
             else (new_leds,)
         )
-    button_visual_changed = button_led_state(
-        new_state, high_beam_button_index=high_beam_strobe_config.button_index
-    ).rgb[button_index] != button_led_state(
-        state, high_beam_button_index=high_beam_strobe_config.button_index
-    ).rgb[button_index] or (
-        button_index == DEMO_BREATHE_BUTTON_INDEX
-        and new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
-    )
+    previous_led_state = button_led_state(state, high_beam_button_index=high_beam_button_index)
+    new_led_state = button_led_state(new_state, high_beam_button_index=high_beam_button_index)
+    button_visual_changed = new_led_state.rgb[button_index] != previous_led_state.rgb[
+        button_index
+    ] or (button_index == DEMO_BREATHE_BUTTON_INDEX and demo_breathe_changed)
     # A manual-assistance press can cancel the maximum-assistance override. In
     # that case the persistent program replaces button 3 without a racing blink.
     maximum_indicator_changed = (
-        button_led_state(
-            new_state, high_beam_button_index=high_beam_strobe_config.button_index
-        ).rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
-        != button_led_state(state, high_beam_button_index=high_beam_strobe_config.button_index).rgb[
-            MAXIMUM_ASSISTANCE_BUTTON_INDEX
-        ]
+        new_led_state.rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
+        != previous_led_state.rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
     )
     if not button_visual_changed and not maximum_indicator_changed:
         feedback = transition(
@@ -305,13 +302,19 @@ def finish_button_intent(
     return Transition(new_state, effects)
 
 
-def finish_operator_intent(
+def _complete_operator_effects(
     state: ApplicationState,
     intent_result: Transition,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
 ) -> Transition:
-    """Add origin-neutral output effects after canonical intent execution."""
+    """Append the actuator effects implied by a state change, without duplicating.
+
+    Called by ``execute_operator_intent`` so its result is complete on its own; the
+    LED-program effects are produced inline by each intent, and this adds the
+    ``SetSteeringAssistance``/``SetHighBeam`` commands only when the relevant state
+    changed and the intent did not already emit them.
+    """
 
     effects = intent_result.effects
     new_state = intent_result.state
@@ -420,14 +423,38 @@ def execute_operator_intent(
     config: SteeringConfig,
     context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
     *,
+    active_definition: SteeringCurveDefinition = BUILT_IN_STEERING_CURVE,
     high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> Transition:
-    """Apply one transport-independent operator request to authoritative state.
+    """Apply one operator request and return its complete origin-neutral effects.
 
     Adapters are responsible for availability checks and origin-specific feedback.
-    This function owns the behavior of the request itself, including the steering
-    invariants shared by exact API selections and relative button-pad actions.
+    This function owns the behavior of the request itself (including the steering
+    invariants shared by exact API selections and relative button-pad actions) and
+    returns a self-contained result: the LED program plus the ``SetSteeringAssistance``
+    and ``SetHighBeam`` actuator commands implied by the state change. No mandatory
+    post-pass is required for the effect set to be complete.
     """
+
+    result = _apply_operator_intent(
+        state,
+        intent,
+        config,
+        context,
+        high_beam_strobe_config=high_beam_strobe_config,
+    )
+    return _complete_operator_effects(state, result, config, active_definition)
+
+
+def _apply_operator_intent(
+    state: ApplicationState,
+    intent: OperatorIntent,
+    config: SteeringConfig,
+    context: OperatorIntentContext,
+    *,
+    high_beam_strobe_config: HighBeamStrobeConfig | None,
+) -> Transition:
+    """Apply one transport-independent operator request to authoritative state."""
 
     match intent:
         case SelectSteeringMode(mode):
@@ -579,8 +606,7 @@ def _establish_manual_assistance(
         case _SelectLevel(level):
             if not 0 <= level < config.manual_level_count:
                 raise ValueError(
-                    f"manual assistance level must be between 0 and "
-                    f"{config.manual_level_count - 1}"
+                    f"manual assistance level must be between 0 and {config.manual_level_count - 1}"
                 )
         case _:
             assert_never(change)
@@ -714,7 +740,6 @@ def button_led_state(
     return ButtonLedState(normal)
 
 
-@lru_cache(maxsize=16)
 def button_led_effect(
     state: ApplicationState,
     servotronic_usable: bool = True,
@@ -722,8 +747,8 @@ def button_led_effect(
 ) -> SetButtonPadProgram:
     """Return the complete device program; static RGB remains the normal case.
 
-    Memoized because a single commit compares the effect for the same state
-    several times; the frozen ``SetButtonPadProgram`` result is safe to share.
+    The frozen ``SetButtonPadProgram`` result is shareable, so callers that need
+    it more than once in a single commit compute it once and reuse the local.
     """
 
     displayed = button_led_state(state, servotronic_usable, high_beam_button_index).rgb

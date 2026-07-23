@@ -15,6 +15,7 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
+from e87canbus.application.intents import SetManualAssistanceLevel, SetMaximumAssistance
 from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceLifecycleStatus, DeviceRole
@@ -30,10 +31,9 @@ from e87canbus.protocol.can import (
 from e87canbus.runtime import (
     CoordinatorKernel,
     DeviceAdapterFailed,
+    ExecuteOperatorIntent,
     KernelStarted,
     ReceivedCanFrame,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
     StateTopic,
     TimerElapsed,
 )
@@ -324,16 +324,16 @@ def test_steering_operations_are_gated_until_active_and_adapter_fault_is_nonfata
     kernel.dispatch(KernelStarted(0.0))
 
     with pytest.raises(FeatureUnavailable, match="servotronic controller is not_found"):
-        kernel.dispatch(SetMaximumAssistance(True))
+        kernel.dispatch(ExecuteOperatorIntent(SetMaximumAssistance(True)))
 
     button_failure = kernel.dispatch(DeviceAdapterFailed(DeviceRole.BUTTON_PAD, 1.0, "adapter"))
     assert button_failure is not None
     assert button_failure.changed_topics == {StateTopic.HEALTH}
     with pytest.raises(FeatureUnavailable):
-        kernel.dispatch(SetManualAssistanceLevel(2))
+        kernel.dispatch(ExecuteOperatorIntent(SetManualAssistanceLevel(2)))
 
     register(kernel, DeviceRole.SERVOTRONIC_CONTROLLER)
-    kernel.dispatch(SetMaximumAssistance(True))
+    kernel.dispatch(ExecuteOperatorIntent(SetMaximumAssistance(True)))
     failed = kernel.dispatch(DeviceAdapterFailed(DeviceRole.SERVOTRONIC_CONTROLLER, 2.0, "adapter"))
 
     assert failed is not None
@@ -346,7 +346,7 @@ def test_servotronic_fault_clears_maximum_and_healthy_recovery_syncs_normal_outp
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
     register(kernel, DeviceRole.SERVOTRONIC_CONTROLLER)
-    kernel.dispatch(SetMaximumAssistance(True))
+    kernel.dispatch(ExecuteOperatorIntent(SetMaximumAssistance(True)))
 
     fault = receive(
         kernel,

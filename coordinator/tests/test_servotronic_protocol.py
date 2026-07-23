@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.application.events import ConfigureServotronicCurve
+from e87canbus.application.intents import SetMaximumAssistance
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.device_registry import FeatureUnavailable
@@ -23,10 +24,10 @@ from e87canbus.runtime import (
     ActivateSteeringCurve,
     CoordinatorKernel,
     DeviceAdapterFailed,
+    ExecuteOperatorIntent,
     KernelStarted,
     ReceivedCanFrame,
     ServotronicStatusObserved,
-    SetMaximumAssistance,
     TimerElapsed,
 )
 from e87canbus.service import observed_servotronic_snapshot
@@ -62,7 +63,11 @@ def test_fixed_curve_and_status_payloads_round_trip() -> None:
         CurveSource.COORDINATOR_RAM,
         active.activation_revision,
         crc,
-        425, 700, 90, True, 0,
+        425,
+        700,
+        90,
+        True,
+        0,
     )
     status_payload = struct.pack(
         "<BBBBIIHHBBB",
@@ -98,9 +103,7 @@ def _register(kernel: CoordinatorKernel, session: int, at: float):
     hello = kernel.dispatch(
         ReceivedCanFrame(
             CanNetwork.KCAN,
-            encode_hello(
-                DeviceHelloPayload(1, 1, session, 0), ids.servotronic_controller_hello
-            ),
+            encode_hello(DeviceHelloPayload(1, 1, session, 0), ids.servotronic_controller_hello),
             at,
         )
     )
@@ -155,8 +158,7 @@ def test_physical_registration_reconciles_once_and_matching_status_activates() -
     accepted = kernel.dispatch(ServotronicStatusObserved(_matching_status(kernel)))
     assert accepted is not None
     assert (
-        accepted.snapshot.steering_curve_activation_status
-        is SteeringCurveActivationStatus.ACTIVE
+        accepted.snapshot.steering_curve_activation_status is SteeringCurveActivationStatus.ACTIVE
     )
 
     timer = kernel.dispatch(TimerElapsed(1.0))
@@ -170,9 +172,7 @@ def test_rejection_or_mismatch_cannot_claim_active_or_replace_coordinator_curve(
     _register(kernel, 1, 0.1)
     active = kernel.snapshot().active_steering_curve
     rejected = kernel.dispatch(
-        ServotronicStatusObserved(
-            replace(_matching_status(kernel), result=CurveResult.BAD_CRC)
-        )
+        ServotronicStatusObserved(replace(_matching_status(kernel), result=CurveResult.BAD_CRC))
     )
     assert rejected is not None
     assert (
@@ -235,7 +235,7 @@ def test_maximum_assistance_requires_output_even_with_curve_config() -> None:
     kernel = _physical_kernel(config_available=True)
     _register(kernel, 1, 0.1)
     with pytest.raises(FeatureUnavailable, match="output adapter is unavailable"):
-        kernel.dispatch(SetMaximumAssistance(True))
+        kernel.dispatch(ExecuteOperatorIntent(SetMaximumAssistance(True)))
 
 
 def test_observed_servotronic_snapshot_uses_canonical_wire_strings() -> None:
@@ -304,9 +304,7 @@ def test_kernel_drops_retained_status_on_adapter_failure() -> None:
     _register(kernel, 1, 0.1)
     kernel.dispatch(ServotronicStatusObserved(_matching_status(kernel)))
     assert kernel.servotronic_status is not None
-    kernel.dispatch(
-        DeviceAdapterFailed(DeviceRole.SERVOTRONIC_CONTROLLER, 1.0, "adapter fault")
-    )
+    kernel.dispatch(DeviceAdapterFailed(DeviceRole.SERVOTRONIC_CONTROLLER, 1.0, "adapter fault"))
     assert kernel.servotronic_status is None
 
 

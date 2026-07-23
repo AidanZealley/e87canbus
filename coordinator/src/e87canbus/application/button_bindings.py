@@ -14,7 +14,7 @@ from e87canbus.application.intents import (
     ToggleMaximumAssistance,
     is_operator_intent,
 )
-from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.config import BUILT_IN_RESERVED_BUTTON_INDEXES, HighBeamStrobeConfig
 
 BUILT_IN_PROFILE_ID = "built-in"
 
@@ -64,22 +64,37 @@ class ButtonBindingProfile:
         )
 
 
+# The built-in profile's fixed (non-high-beam) button bindings. Their indexes are
+# owned by config.BUILT_IN_RESERVED_BUTTON_INDEXES so a HighBeamStrobeConfig can never
+# be placed on one of them; the two definitions are checked for agreement below so
+# neither can drift without failing loudly at import time.
+_BUILT_IN_FIXED_BINDINGS: tuple[ButtonBinding, ...] = (
+    ButtonBinding(0, ToggleAutomaticAssistance()),
+    ButtonBinding(1, AdjustManualAssistance(-1)),
+    ButtonBinding(2, AdjustManualAssistance(1)),
+    ButtonBinding(3, ToggleMaximumAssistance()),
+    ButtonBinding(15, ToggleButtonPadDemoBreathe()),
+)
+
+if (
+    frozenset(binding.button_index for binding in _BUILT_IN_FIXED_BINDINGS)
+    != BUILT_IN_RESERVED_BUTTON_INDEXES
+):
+    raise RuntimeError(
+        "built-in fixed button bindings must match config.BUILT_IN_RESERVED_BUTTON_INDEXES"
+    )
+
+
 def built_in_button_binding_profile(
     high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> ButtonBindingProfile:
     """Return the current compiled-in pad mapping as a replaceable profile."""
 
-    high_beam_button_index = (
-        high_beam_strobe_config or HighBeamStrobeConfig()
-    ).button_index
+    high_beam_button_index = (high_beam_strobe_config or HighBeamStrobeConfig()).button_index
     return ButtonBindingProfile(
         profile_id=BUILT_IN_PROFILE_ID,
         bindings=(
-            ButtonBinding(0, ToggleAutomaticAssistance()),
-            ButtonBinding(1, AdjustManualAssistance(-1)),
-            ButtonBinding(2, AdjustManualAssistance(1)),
-            ButtonBinding(3, ToggleMaximumAssistance()),
+            *_BUILT_IN_FIXED_BINDINGS,
             ButtonBinding(high_beam_button_index, StartHighBeamStrobe()),
-            ButtonBinding(15, ToggleButtonPadDemoBreathe()),
         ),
     )

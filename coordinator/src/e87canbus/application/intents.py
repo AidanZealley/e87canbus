@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, TypeGuard, TypeVar, assert_never
+from typing import TypeGuard, assert_never
 
 from e87canbus.application.state import SteeringMode
 
@@ -141,32 +140,3 @@ def intent_requires_servotronic(intent: OperatorIntent) -> bool:
             return False
         case _:
             assert_never(intent)
-
-
-DispatchResult = TypeVar("DispatchResult")
-
-
-class IntentDispatcher(Generic[DispatchResult]):
-    """The single server-owned entry point for executing operator intent.
-
-    Input adapters construct typed intents; the injected executor owns application
-    semantics. Keeping this boundary independent of HTTP and CAN lets both adapters
-    converge here when runtime wiring is introduced.
-    """
-
-    def __init__(
-        self,
-        executor: Callable[[OperatorIntent, OperatorIntentContext], DispatchResult],
-    ) -> None:
-        self._executor = executor
-
-    def dispatch(
-        self,
-        intent: OperatorIntent,
-        context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
-    ) -> DispatchResult:
-        if not is_operator_intent(intent):
-            raise TypeError(f"unsupported operator intent: {type(intent).__name__}")
-        if not isinstance(context, OperatorIntentContext):
-            raise TypeError("context must be an OperatorIntentContext")
-        return self._executor(intent, context)

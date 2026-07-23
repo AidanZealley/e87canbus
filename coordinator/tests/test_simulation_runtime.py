@@ -22,7 +22,7 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.application.intents import ToggleMaximumAssistance
+from e87canbus.application.intents import SetMaximumAssistance, ToggleMaximumAssistance
 from e87canbus.application.state import ApplicationState, SteeringMode
 from e87canbus.button_pad import resolve_button_pad_tracks
 from e87canbus.config import (
@@ -44,7 +44,7 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.runtime import ReceivedCanFrame, SetMaximumAssistance, StateTopic
+from e87canbus.runtime import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.service import ControllerWorkUnavailable
 from e87canbus.simulation.devices import SimulatedDeviceState, SimulatedServotronicPeer
 from e87canbus.simulation.protocol import (
@@ -460,7 +460,7 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
         raise OSError("emulator decoder failed")
 
     emulator.process_pending_led_programs = fail  # type: ignore[method-assign]
-    execution = controller.execute(SetMaximumAssistance(True))
+    execution = controller.execute(ExecuteOperatorIntent(SetMaximumAssistance(True)))
 
     fault = controller.kernel.health.devices[0].fault
     assert fault is not None
@@ -482,7 +482,7 @@ def test_emulator_failure_is_reported_without_claiming_physical_health() -> None
 def test_disabled_role_is_absent_but_semantic_controller_commands_still_apply() -> None:
     controller = build_test_engine(button_pad_source=DeviceSource.DISABLED)
 
-    controller.execute(SetMaximumAssistance(True))
+    controller.execute(ExecuteOperatorIntent(SetMaximumAssistance(True)))
 
     assert application(controller).maximum_assistance_active is True
     assert button_led_rgb(application(controller)) == MAXIMUM_LEDS
