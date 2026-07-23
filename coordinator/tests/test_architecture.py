@@ -9,7 +9,7 @@ PACKAGE = Path(__file__).resolve().parents[1] / "src" / "e87canbus"
 
 def python_files(*directories: str) -> Iterable[Path]:
     for directory in directories:
-        yield from (PACKAGE / directory).glob("*.py")
+        yield from (PACKAGE / directory).rglob("*.py")
 
 
 def imported_modules(path: Path) -> set[str]:
@@ -121,7 +121,8 @@ def test_live_composition_supplies_no_steering_actuator() -> None:
 
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
     paths = (
-        PACKAGE / "application" / "controller.py",
+        PACKAGE / "application" / "controller" / "reducer.py",
+        PACKAGE / "application" / "controller" / "intents.py",
         PACKAGE / "output.py",
         PACKAGE / "kernel" / "kernel.py",
         PACKAGE / "live.py",
