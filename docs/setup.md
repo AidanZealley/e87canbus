@@ -95,3 +95,17 @@ boot overlay, reboot and rerun the setup script so the deployed service and CAN 
 sync.
 
 Three-interface live bring-up and a live vehicle coordinator process are not part of this milestone.
+
+## Capture physical CAN traffic
+
+From an already working bench or car deployment, connect the device and run:
+
+```bash
+./scripts/capture_can.sh ccc-knob
+```
+
+The script validates that `can0` is up at 100 kbit/s in normal, ACK-capable mode, temporarily stops
+the coordinator to prevent application transmissions, and records until Ctrl-C. It restores the
+previous controller-service state on exit. Captures and interface metadata are written beneath
+`~/e87canbus-captures/`, outside the Git checkout and immediately accessible after SSH login.
+Override that location for a particular run by setting `CAPTURE_ROOT` before invoking the script.
