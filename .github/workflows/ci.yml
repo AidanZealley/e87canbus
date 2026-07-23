@@ -30,6 +30,7 @@ jobs:
       - run: uv run pytest -q
       - run: uv run mypy
       - run: uv run ruff check coordinator scripts/watch_frontend_contracts.py
+      - run: uv run lint-imports
       - run: pnpm typecheck
         working-directory: frontend
       - run: pnpm lint

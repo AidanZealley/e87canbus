@@ -18,6 +18,7 @@ e87canbus = "e87canbus.cli.main:main"
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.0",
     "mypy>=1.10",
     "httpx2>=2.0",
     "pytest>=8.2",
@@ -48,3 +49,46 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["coordinator/src/e87canbus"]
+
+# Layer boundaries, enforced in CI with `uv run lint-imports`. The intended
+# dependency direction points inward: adapters/runners -> service -> kernel ->
+# application (the pure domain). See docs/decisions/0008 for the rationale.
+[tool.importlinter]
+root_package = "e87canbus"
+
+[[tool.importlinter.contracts]]
+name = "The controller flow is layered"
+type = "layers"
+layers = [
+    "e87canbus.api",
+    "e87canbus.service",
+    "e87canbus.kernel",
+    "e87canbus.application",
+]
+
+[[tool.importlinter.contracts]]
+name = "The domain layer imports inward only"
+type = "forbidden"
+source_modules = [
+    "e87canbus.application",
+    "e87canbus.features",
+]
+forbidden_modules = [
+    "e87canbus.kernel",
+    "e87canbus.service",
+    "e87canbus.api",
+    "e87canbus.cli",
+    "e87canbus.live",
+    "e87canbus.composition",
+    "e87canbus.deployment",
+    "e87canbus.simulation",
+    "e87canbus.adapters",
+    "e87canbus.protocol",
+    "e87canbus.transport",
+]
+# The button-pad program model and config legitimately use foundational wire
+# types; every other path from the domain into protocol/infra stays forbidden.
+ignore_imports = [
+    "e87canbus.button_pad.program -> e87canbus.protocol.can",
+    "e87canbus.config -> e87canbus.protocol.generated",
+]
