@@ -5,13 +5,16 @@ from typing import Any
 
 import pytest
 from e87canbus.api.main import create_app
+from e87canbus.application.intents import (
+    SetManualAssistanceLevel,
+    SetMaximumAssistance,
+)
 from e87canbus.application.state import SteeringMode
 from e87canbus.composition import build_live_controller_service
 from e87canbus.config import default_config, simulator_config
 from e87canbus.runtime import (
     ActivateSteeringCurve,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
+    ExecuteOperatorIntent,
 )
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
@@ -231,8 +234,8 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
         )
 
     assert all(response.status_code == 200 for response in (maximum, mode, draft, saved))
-    assert submissions[0] == SetMaximumAssistance(True)
-    assert submissions[1] == SetManualAssistanceLevel(3)
+    assert submissions[0] == ExecuteOperatorIntent(SetMaximumAssistance(True))
+    assert submissions[1] == ExecuteOperatorIntent(SetManualAssistanceLevel(3))
     assert isinstance(submissions[2], ActivateSteeringCurve)
     assert submissions[2].saved_profile_id is None
     assert submissions[2].saved_profile_revision is None

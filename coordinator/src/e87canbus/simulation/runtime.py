@@ -28,19 +28,16 @@ from e87canbus.output import (
 )
 from e87canbus.runtime import (
     ActivateSteeringCurve,
-    AdjustManualAssistance,
     CanEffectExecutionFailed,
     Commit,
     ControllerInput,
     CoordinatorKernel,
     DeviceAdapterFailed,
     DiagnosticSnapshot,
+    ExecuteOperatorIntent,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
-    SetSteeringMode,
     ShutdownRequested,
     StateTopic,
     SteeringActuatorFailed,
@@ -211,13 +208,7 @@ class SimulatedControllerRuntime:
                 self._peer_for(role).set_protocol_version(protocol_version)
             case SetSimulatedDeviceStatusCode(role, status_code):
                 self._peer_for(role).set_status_code(status_code)
-            case (
-                ActivateSteeringCurve()
-                | SetMaximumAssistance()
-                | SetSteeringMode()
-                | AdjustManualAssistance()
-                | SetManualAssistanceLevel()
-            ):
+            case ActivateSteeringCurve() | ExecuteOperatorIntent():
                 self._dispatch(command)
             case InboxOverflowed() | DeviceAdapterFailed():
                 self._dispatch(command)

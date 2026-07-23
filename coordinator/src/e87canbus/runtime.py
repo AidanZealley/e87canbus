@@ -19,7 +19,6 @@ from e87canbus.application.controller import (
     clear_maximum_assistance,
     execute_operator_intent,
     finish_button_intent,
-    finish_operator_intent,
     initial_effects,
     normalize_state,
     snapshot,
@@ -45,22 +44,13 @@ from e87canbus.application.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.application.intents import (
-    AdjustManualAssistance as AdjustManualAssistanceIntent,
-)
-from e87canbus.application.intents import (
-    IntentDispatcher,
+    DEFAULT_OPERATOR_INTENT_CONTEXT,
     OperatorIntent,
     OperatorIntentContext,
-    SelectSteeringMode,
     intent_requires_servotronic,
+    is_operator_intent,
 )
-from e87canbus.application.intents import (
-    SetManualAssistanceLevel as SetManualAssistanceLevelIntent,
-)
-from e87canbus.application.intents import (
-    SetMaximumAssistance as SetMaximumAssistanceIntent,
-)
-from e87canbus.application.state import ApplicationState, SteeringMode
+from e87canbus.application.state import ApplicationState
 from e87canbus.config import (
     CanNetwork,
     EngineTelemetryConfig,
@@ -183,39 +173,17 @@ class ServotronicStatusObserved:
 
 
 @dataclass(frozen=True)
-class SetMaximumAssistance:
-    enabled: bool
+class ExecuteOperatorIntent:
+    """A transport-independent operator intent submitted through a non-button adapter."""
+
+    intent: OperatorIntent
+    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT
 
     def __post_init__(self) -> None:
-        if type(self.enabled) is not bool:
-            raise ValueError("enabled must be a boolean")
-
-
-@dataclass(frozen=True)
-class SetSteeringMode:
-    mode: SteeringMode
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.mode, SteeringMode):
-            raise ValueError("mode must be a supported SteeringMode value")
-
-
-@dataclass(frozen=True)
-class AdjustManualAssistance:
-    delta: int
-
-    def __post_init__(self) -> None:
-        if type(self.delta) is not int or self.delta not in (-1, 1):
-            raise ValueError("manual assistance delta must be -1 or 1")
-
-
-@dataclass(frozen=True)
-class SetManualAssistanceLevel:
-    level: int
-
-    def __post_init__(self) -> None:
-        if type(self.level) is not int or self.level < 0:
-            raise ValueError("manual assistance level must be a non-negative integer")
+        if not is_operator_intent(self.intent):
+            raise TypeError(f"unsupported operator intent: {type(self.intent).__name__}")
+        if not isinstance(self.context, OperatorIntentContext):
+            raise TypeError("context must be an OperatorIntentContext")
 
 
 ControllerInput = (
@@ -232,10 +200,7 @@ ControllerInput = (
     | ShutdownRequested
     | ActivateSteeringCurve
     | ServotronicStatusObserved
-    | SetMaximumAssistance
-    | SetSteeringMode
-    | AdjustManualAssistance
-    | SetManualAssistanceLevel
+    | ExecuteOperatorIntent
 )
 
 
@@ -441,7 +406,6 @@ class CoordinatorKernel:
         self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
         self._health = RuntimeHealth()
-        self._intent_dispatcher = IntentDispatcher(self._execute_operator_intent)
 
     @property
     def state(self) -> ApplicationState:
@@ -650,26 +614,12 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._servotronic_status(kernel_input.status)
-            case SetMaximumAssistance(enabled):
+            case ExecuteOperatorIntent():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
-                self._require_servotronic()
-                return self._dispatch_operator_intent(SetMaximumAssistanceIntent(enabled))
-            case SetSteeringMode(mode):
-                if self._lifecycle is not KernelLifecycle.RUNNING:
-                    return None
-                self._require_servotronic()
-                return self._dispatch_operator_intent(SelectSteeringMode(mode))
-            case AdjustManualAssistance(delta):
-                if self._lifecycle is not KernelLifecycle.RUNNING:
-                    return None
-                self._require_servotronic()
-                return self._dispatch_operator_intent(AdjustManualAssistanceIntent(delta))
-            case SetManualAssistanceLevel(level):
-                if self._lifecycle is not KernelLifecycle.RUNNING:
-                    return None
-                self._require_servotronic()
-                return self._dispatch_operator_intent(SetManualAssistanceLevelIntent(level))
+                if intent_requires_servotronic(kernel_input.intent):
+                    self._require_servotronic()
+                return self._dispatch_operator_intent(kernel_input.intent, kernel_input.context)
             case _:
                 assert_never(kernel_input)
 
@@ -739,6 +689,7 @@ class CoordinatorKernel:
             intent,
             self._steering_config,
             context,
+            active_definition=self._active_steering_curve.definition,
             high_beam_strobe_config=self._high_beam_strobe_config,
         )
 
@@ -749,7 +700,7 @@ class CoordinatorKernel:
     ) -> Commit:
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
-        result = self._intent_dispatcher.dispatch(
+        result = self._execute_operator_intent(
             intent,
             OperatorIntentContext(observed_at=event.observed_at),
         )
@@ -769,17 +720,16 @@ class CoordinatorKernel:
             origin_button_index=event.button_index,
         )
 
-    def _dispatch_operator_intent(self, intent: OperatorIntent) -> Commit:
+    def _dispatch_operator_intent(
+        self,
+        intent: OperatorIntent,
+        context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
+    ) -> Commit:
         """Execute a non-button adapter request through the canonical intent path."""
 
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
-        result = finish_operator_intent(
-            self._state,
-            self._intent_dispatcher.dispatch(intent),
-            self._steering_config,
-            self._active_steering_curve.definition,
-        )
+        result = self._execute_operator_intent(intent, context)
         return self._commit_application_result(
             result,
             previous_snapshot,
@@ -832,16 +782,18 @@ class CoordinatorKernel:
         self._state = result.state
         self._revision += 1
         committed_snapshot = self.snapshot()
+        current_button_leds = self._button_led_effect()
+        buttons_changed = current_button_leds != previous_button_leds
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             committed_snapshot,
-            buttons_changed=self._button_led_effect() != previous_button_leds,
+            buttons_changed=buttons_changed,
             health_changed=(previous_health is not None and self._health != previous_health),
         )
         changed_topics |= extra_topics
         effect_requests = tuple(
             EffectRequest(
-                self._button_led_effect() if isinstance(effect, SetButtonPadProgram) else effect,
+                current_button_leds if isinstance(effect, SetButtonPadProgram) else effect,
                 origin_button_index if origin_button_index is not None else None,
             )
             for effect in (*extra_effects, *result.effects)
@@ -851,10 +803,7 @@ class CoordinatorKernel:
             snapshot=committed_snapshot,
             effects=self._gate_effects(effect_requests),
             changed_topics=frozenset(changed_topics),
-            state_changed=(
-                committed_snapshot != previous_snapshot
-                or self._button_led_effect() != previous_button_leds
-            ),
+            state_changed=(committed_snapshot != previous_snapshot or buttons_changed),
         )
 
     def _commit_health(self, previous_health: RuntimeHealth) -> Commit:
@@ -1070,12 +1019,15 @@ class CoordinatorKernel:
             # A new controller identity invalidates retained telemetry even without a lifecycle
             # transition; the active->inactive path already drops it via _deactivate_servotronic.
             self._servotronic_reported_status = None
+        # State and registry are now settled for this commit, so the derived button-LED
+        # program is stable; compute it once and reuse it for every consumer below.
+        current_button_leds = self._button_led_effect()
         if (
             previous_entry.status is not DeviceLifecycleStatus.ACTIVE
             and next_entry.status is DeviceLifecycleStatus.ACTIVE
         ):
             if role is DeviceRole.BUTTON_PAD:
-                effects.append(self._button_led_effect())
+                effects.append(current_button_leds)
             elif self._servotronic_usable:
                 effects.append(
                     steering_command_for_current_state(
@@ -1100,11 +1052,11 @@ class CoordinatorKernel:
             previous_servotronic_usable != self._servotronic_usable
             and self.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.ACTIVE
         ):
-            effects.append(self._button_led_effect())
+            effects.append(current_button_leds)
         changed_topics = _changed_controller_topics(
             previous_snapshot,
             self.snapshot(),
-            buttons_changed=self._button_led_effect() != previous_button_leds,
+            buttons_changed=current_button_leds != previous_button_leds,
             health_changed=False,
         )
         if self._registry != previous_registry:

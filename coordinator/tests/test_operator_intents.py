@@ -8,7 +8,6 @@ from e87canbus.application.button_bindings import (
 )
 from e87canbus.application.intents import (
     AdjustManualAssistance,
-    IntentDispatcher,
     OperatorIntentContext,
     SelectSteeringMode,
     SetManualAssistanceLevel,
@@ -47,43 +46,12 @@ def test_operator_intents_are_immutable_values() -> None:
         intent.delta = -1  # type: ignore[misc]
 
 
-def test_dispatcher_forwards_supported_intent_to_one_executor() -> None:
-    received: list[object] = []
-    dispatcher = IntentDispatcher(
-        lambda intent, context: received.append((intent, context)) or "handled"
-    )
-    intent = ToggleMaximumAssistance()
-    context = OperatorIntentContext(observed_at=12.5)
-
-    assert dispatcher.dispatch(intent, context) == "handled"
-    assert received == [(intent, context)]
-
-
-def test_dispatcher_supplies_empty_context_for_non_timed_intents() -> None:
-    received: list[OperatorIntentContext] = []
-    dispatcher = IntentDispatcher(lambda intent, context: received.append(context))
-
-    dispatcher.dispatch(ToggleAutomaticAssistance())
-
-    assert received == [OperatorIntentContext()]
-
-
 @pytest.mark.parametrize("observed_at", [-0.1, float("inf"), float("nan"), True, "now"])
 def test_intent_context_requires_a_finite_non_negative_observation_time(
     observed_at: object,
 ) -> None:
     with pytest.raises(ValueError, match="finite non-negative"):
         OperatorIntentContext(observed_at=observed_at)  # type: ignore[arg-type]
-
-
-def test_dispatcher_rejects_values_outside_the_closed_intent_set() -> None:
-    dispatcher = IntentDispatcher(lambda intent, context: intent)
-
-    with pytest.raises(TypeError, match="unsupported operator intent"):
-        dispatcher.dispatch(object())  # type: ignore[arg-type]
-
-    with pytest.raises(TypeError, match="OperatorIntentContext"):
-        dispatcher.dispatch(ToggleAutomaticAssistance(), object())  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

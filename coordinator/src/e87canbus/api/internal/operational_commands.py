@@ -20,15 +20,18 @@ from e87canbus.api.models.commands import (
     SetMaximumAssistanceRequest,
     SetSteeringModeRequest,
 )
+from e87canbus.application.intents import (
+    AdjustManualAssistance,
+    SelectSteeringMode,
+    SetManualAssistanceLevel,
+    SetMaximumAssistance,
+)
 from e87canbus.application.state import SteeringMode
 from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.steering import SteeringCurveDefinition
 from e87canbus.runtime import (
     ActivateSteeringCurve,
-    AdjustManualAssistance,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
-    SetSteeringMode,
+    ExecuteOperatorIntent,
 )
 
 
@@ -36,21 +39,23 @@ async def set_maximum_assistance(
     app: FastAPI,
     request: SetMaximumAssistanceRequest,
 ) -> CommandAcknowledgement:
-    return await submit_command(app, SetMaximumAssistance(request.enabled))
+    return await submit_command(app, ExecuteOperatorIntent(SetMaximumAssistance(request.enabled)))
 
 
 async def set_steering_mode(
     app: FastAPI,
     request: SetSteeringModeRequest,
 ) -> CommandAcknowledgement:
-    return await submit_command(app, SetSteeringMode(SteeringMode(request.mode)))
+    return await submit_command(
+        app, ExecuteOperatorIntent(SelectSteeringMode(SteeringMode(request.mode)))
+    )
 
 
 async def adjust_manual_assistance(
     app: FastAPI,
     request: AdjustManualAssistanceRequest,
 ) -> CommandAcknowledgement:
-    return await submit_command(app, AdjustManualAssistance(request.delta))
+    return await submit_command(app, ExecuteOperatorIntent(AdjustManualAssistance(request.delta)))
 
 
 async def set_manual_assistance_level(
@@ -67,7 +72,7 @@ async def set_manual_assistance_level(
         )
     return await submit_command(
         app,
-        SetManualAssistanceLevel(manual_level),
+        ExecuteOperatorIntent(SetManualAssistanceLevel(manual_level)),
     )
 
 

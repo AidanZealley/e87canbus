@@ -114,8 +114,17 @@ class EngineTelemetryConfig:
             raise ValueError("engine telemetry timeout must be finite and positive")
 
 
-_BUTTON_PAD_BUTTON_COUNT = 16
-_BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3, 15})
+# Canonical physical button-pad size, owned here because config sits below the
+# application layer in the import graph (application.events mirrors this as
+# BUTTON_LED_COUNT but transitively imports config, so it cannot be imported here
+# without a cycle).
+BUTTON_PAD_BUTTON_COUNT = 16
+
+# The fixed button indexes bound by the built-in profile's non-high-beam intents.
+# This is the single source of truth for "which pad buttons are already reserved":
+# application.button_bindings imports this constant and builds those fixed bindings
+# from it, so the profile and this reservation set cannot silently drift apart.
+BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3, 15})
 
 
 @dataclass(frozen=True)
@@ -130,13 +139,12 @@ class HighBeamStrobeConfig:
     def __post_init__(self) -> None:
         if (
             type(self.button_index) is not int
-            or not 0 <= self.button_index < _BUTTON_PAD_BUTTON_COUNT
+            or not 0 <= self.button_index < BUTTON_PAD_BUTTON_COUNT
         ):
             raise ValueError(
-                "high-beam strobe button_index must be between 0 and "
-                f"{_BUTTON_PAD_BUTTON_COUNT - 1}"
+                f"high-beam strobe button_index must be between 0 and {BUTTON_PAD_BUTTON_COUNT - 1}"
             )
-        if self.button_index in _BUILT_IN_RESERVED_BUTTON_INDEXES:
+        if self.button_index in BUILT_IN_RESERVED_BUTTON_INDEXES:
             raise ValueError(
                 "high-beam strobe button_index is reserved by the built-in button profile"
             )
