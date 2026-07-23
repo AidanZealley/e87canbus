@@ -284,48 +284,6 @@ export const zApiProblemResponse = z.object({
   error: zApiProblemDetail,
 })
 
-export const zActivateSteeringProfileBody = zActivateSteeringProfileRequest
-
-/**
- * Successful Response
- */
-export const zActivateSteeringProfileResponse = zCommandAcknowledgement
-
-export const zAdjustManualAssistanceBody = zAdjustManualAssistanceRequest
-
-/**
- * Successful Response
- */
-export const zAdjustManualAssistanceResponse = zCommandAcknowledgement
-
-export const zSetManualAssistanceLevelBody = zSetManualAssistanceLevelRequest
-
-/**
- * Successful Response
- */
-export const zSetManualAssistanceLevelResponse = zCommandAcknowledgement
-
-export const zSetMaximumAssistanceBody = zSetMaximumAssistanceRequest
-
-/**
- * Successful Response
- */
-export const zSetMaximumAssistanceResponse = zCommandAcknowledgement
-
-export const zActivateSteeringCurveBody = zActivateSteeringCurveRequest
-
-/**
- * Successful Response
- */
-export const zActivateSteeringCurveResponse = zCommandAcknowledgement
-
-export const zSetSteeringModeBody = zSetSteeringModeRequest
-
-/**
- * Successful Response
- */
-export const zSetSteeringModeResponse = zCommandAcknowledgement
-
 export const zTapSimulationButtonPath = z.object({
   button_index: z.int().gte(0).lt(16),
 })
@@ -455,6 +413,48 @@ export const zUpdateApplicationSettingsBody = zUpdateApplicationSettingsRequest
  * Successful Response
  */
 export const zUpdateApplicationSettingsResponse = zApplicationSettingsResponse
+
+export const zActivateSteeringProfileBody = zActivateSteeringProfileRequest
+
+/**
+ * Successful Response
+ */
+export const zActivateSteeringProfileResponse = zCommandAcknowledgement
+
+export const zActivateSteeringCurveBody = zActivateSteeringCurveRequest
+
+/**
+ * Successful Response
+ */
+export const zActivateSteeringCurveResponse = zCommandAcknowledgement
+
+export const zAdjustManualAssistanceBody = zAdjustManualAssistanceRequest
+
+/**
+ * Successful Response
+ */
+export const zAdjustManualAssistanceResponse = zCommandAcknowledgement
+
+export const zSetManualAssistanceLevelBody = zSetManualAssistanceLevelRequest
+
+/**
+ * Successful Response
+ */
+export const zSetManualAssistanceLevelResponse = zCommandAcknowledgement
+
+export const zSetMaximumAssistanceBody = zSetMaximumAssistanceRequest
+
+/**
+ * Successful Response
+ */
+export const zSetMaximumAssistanceResponse = zCommandAcknowledgement
+
+export const zSetSteeringModeBody = zSetSteeringModeRequest
+
+/**
+ * Successful Response
+ */
+export const zSetSteeringModeResponse = zCommandAcknowledgement
 
 /**
  * Successful Response

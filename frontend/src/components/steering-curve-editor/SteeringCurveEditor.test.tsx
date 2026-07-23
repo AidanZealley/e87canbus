@@ -171,14 +171,14 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Increase assistance" }))
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/commands\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
       body: { delta: 1 },
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Max" }))
     await waitFor(() => expect(requests).toHaveLength(2))
     expect(requests[1]).toMatchObject({
-      url: expect.stringMatching(/api\/commands\/maximum-assistance$/),
+      url: expect.stringMatching(/api\/steering\/maximum-assistance$/),
       body: { enabled: true },
     })
   })
@@ -208,7 +208,7 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/commands\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
       body: { delta: -1 },
     })
   })
@@ -256,7 +256,7 @@ describe("SteeringCurveEditor", () => {
         if (url.endsWith("/api/steering/profile") && method === "GET") {
           return jsonResponse(saved)
         }
-        if (url.endsWith("/api/commands/steering-curve")) {
+        if (url.endsWith("/api/steering/curve")) {
           return commandResponse()
         }
         throw new Error(`Unexpected request: ${method} ${url}`)
@@ -268,7 +268,11 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() =>
       expect(
-        requests.filter((r) => r.url.includes("/api/commands/"))
+        requests.filter(
+          (r) =>
+            r.url.includes("/api/steering/") &&
+            !r.url.includes("/api/steering/profile")
+        )
       ).toHaveLength(1)
     )
     expect(
@@ -289,7 +293,7 @@ describe("SteeringCurveEditor", () => {
         if (url.endsWith("/api/steering/profile") && method === "GET") {
           return jsonResponse(saved)
         }
-        if (url.endsWith("/api/commands/steering-curve")) {
+        if (url.endsWith("/api/steering/curve")) {
           requests.push({ url, method })
           return commandResponse()
         }
@@ -298,7 +302,7 @@ describe("SteeringCurveEditor", () => {
           requests.push({ url, method, body })
           return jsonResponse({ ...saved, revision: 2 })
         }
-        if (url.endsWith("/api/commands/activate-steering-profile")) {
+        if (url.endsWith("/api/steering/activate-profile")) {
           requests.push({ url, method })
           return commandResponse()
         }
@@ -353,7 +357,7 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }))
     await waitFor(() =>
       expect(
-        requests.some((r) => r.url.includes("activate-steering-profile"))
+        requests.some((r) => r.url.includes("activate-profile"))
       ).toBe(true)
     )
   })
@@ -377,9 +381,13 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() =>
       expect(
-        fetchMock.mock.calls.filter(([input]) =>
-          requestUrl(input).includes("/api/commands/")
-        )
+        fetchMock.mock.calls.filter(([input]) => {
+          const url = requestUrl(input)
+          return (
+            url.includes("/api/steering/") &&
+            !url.includes("/api/steering/profile")
+          )
+        })
       ).toHaveLength(1)
     )
     resolveActivation?.(commandResponse())

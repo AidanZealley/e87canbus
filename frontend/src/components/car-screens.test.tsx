@@ -328,7 +328,7 @@ it("uses the shared thin steering editor and applies point changes immediately",
   expect(screen.getByRole("switch", { name: "Auto" })).toBeTruthy()
   fireEvent.click(screen.getByRole("button", { name: "Drag draft point" }))
   await waitFor(() => expect(requests).toHaveLength(1))
-  expect(requests[0]?.url).toMatch(/api\/commands\/steering-curve$/)
+  expect(requests[0]?.url).toMatch(/api\/steering\/curve$/)
   expect(requests[0]?.body).toEqual({
     definition: definition([1000, 800, 780, 670, 380, 0, 0, 0]),
   })
