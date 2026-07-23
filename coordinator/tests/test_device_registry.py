@@ -20,15 +20,7 @@ from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceLifecycleStatus, DeviceRole
 from e87canbus.device_registry import FeatureUnavailable
-from e87canbus.output import EffectRequest, SendRegistryFrame
-from e87canbus.protocol.can import (
-    CanFrame,
-    DeviceHeartbeatPayload,
-    DeviceHelloPayload,
-    encode_heartbeat,
-    encode_hello,
-)
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     CoordinatorKernel,
     DeviceAdapterFailed,
     ExecuteOperatorIntent,
@@ -36,6 +28,14 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     StateTopic,
     TimerElapsed,
+)
+from e87canbus.output import EffectRequest, SendRegistryFrame
+from e87canbus.protocol.can import (
+    CanFrame,
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    encode_heartbeat,
+    encode_hello,
 )
 
 IDS = CustomCanIds()
@@ -135,7 +135,7 @@ def test_controller_session_changes_across_process_restarts() -> None:
     command = [
         sys.executable,
         "-c",
-        "from e87canbus.runtime import CoordinatorKernel; "
+        "from e87canbus.kernel import CoordinatorKernel; "
         "print(CoordinatorKernel().controller_session_id)",
     ]
 

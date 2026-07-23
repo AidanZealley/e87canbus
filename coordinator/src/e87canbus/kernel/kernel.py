@@ -1,11 +1,10 @@
-"""Single-owner coordinator kernel shared by simulated and live runners."""
+"""The single-owner coordinator kernel shared by simulated and live runners."""
 
 from __future__ import annotations
 
 import logging
 import secrets
-from dataclasses import dataclass, field, replace
-from enum import StrEnum
+from dataclasses import replace
 from typing import assert_never
 
 from e87canbus.application.button_bindings import (
@@ -48,11 +47,9 @@ from e87canbus.application.intents import (
     OperatorIntent,
     OperatorIntentContext,
     intent_requires_servotronic,
-    is_operator_intent,
 )
 from e87canbus.application.state import ApplicationState
 from e87canbus.config import (
-    CanNetwork,
     EngineTelemetryConfig,
     HighBeamStrobeConfig,
     SteeringConfig,
@@ -73,17 +70,42 @@ from e87canbus.device_registry import (
 from e87canbus.features.steering import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
-    SteeringCurveDefinition,
     initial_active_steering_curve,
     steering_curve_fingerprint,
     validate_active_steering_curve,
     validate_steering_curve_definition,
 )
-from e87canbus.output import EffectRequest, OutputEffect, SendRegistryFrame
-from e87canbus.protocol.can import (
-    CanFrame,
-    RoutedCanFrame,
+from e87canbus.kernel.commit import (
+    INITIAL_KERNEL_TOPICS,
+    Commit,
+    DiagnosticSnapshot,
+    KernelLifecycle,
+    StateTopic,
+    changed_controller_topics,
 )
+from e87canbus.kernel.health import (
+    DeviceRuntimeHealth,
+    RuntimeFault,
+    RuntimeFaultKind,
+    RuntimeHealth,
+)
+from e87canbus.kernel.inputs import (
+    ActivateSteeringCurve,
+    CanEffectExecutionFailed,
+    CanReaderFailed,
+    ControllerInput,
+    DeviceAdapterFailed,
+    ExecuteOperatorIntent,
+    InboxOverflowed,
+    KernelStarted,
+    ReceivedCanFrame,
+    ServotronicStatusObserved,
+    ShutdownRequested,
+    SteeringActuatorFailed,
+    TimerElapsed,
+)
+from e87canbus.output import EffectRequest, OutputEffect, SendRegistryFrame
+from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.servotronic_protocol import CurveResult, ServotronicStatus, pack_curve
 
@@ -97,275 +119,6 @@ def _new_controller_session_id() -> int:
     session_id = _controller_session_seed
     _controller_session_seed = (_controller_session_seed % 0xFFFF) + 1
     return session_id
-
-
-@dataclass(frozen=True)
-class KernelStarted:
-    now: float
-
-
-@dataclass(frozen=True)
-class ReceivedCanFrame:
-    """A CAN frame paired with its network and ingress observation time."""
-
-    network: CanNetwork
-    frame: CanFrame
-    received_at: float
-
-
-@dataclass(frozen=True)
-class TimerElapsed:
-    now: float
-
-
-@dataclass(frozen=True)
-class CanReaderFailed:
-    network: CanNetwork
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class CanEffectExecutionFailed:
-    network: CanNetwork
-    failed_at: float
-    message: str
-    origin_button_index: int | None = None
-
-
-@dataclass(frozen=True)
-class SteeringActuatorFailed:
-    failed_at: float
-    message: str
-    origin_button_index: int | None = None
-
-
-@dataclass(frozen=True)
-class InboxOverflowed:
-    network: CanNetwork | None
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class DeviceAdapterFailed:
-    role: DeviceRole
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class ShutdownRequested:
-    now: float
-
-
-@dataclass(frozen=True)
-class ActivateSteeringCurve:
-    definition: SteeringCurveDefinition
-    saved_profile_id: str | None = None
-    saved_profile_revision: int | None = None
-    requested_at: float = field(kw_only=True)
-
-
-@dataclass(frozen=True)
-class ServotronicStatusObserved:
-    status: ServotronicStatus
-
-
-@dataclass(frozen=True)
-class ExecuteOperatorIntent:
-    """A transport-independent operator intent submitted through a non-button adapter."""
-
-    intent: OperatorIntent
-    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT
-
-    def __post_init__(self) -> None:
-        if not is_operator_intent(self.intent):
-            raise TypeError(f"unsupported operator intent: {type(self.intent).__name__}")
-        if not isinstance(self.context, OperatorIntentContext):
-            raise TypeError("context must be an OperatorIntentContext")
-
-
-ControllerInput = (
-    KernelStarted
-    | ReceivedCanFrame
-    | TimerElapsed
-    | ButtonFeedbackDeadlineReached
-    | HighBeamStrobeDeadlineReached
-    | CanReaderFailed
-    | CanEffectExecutionFailed
-    | SteeringActuatorFailed
-    | InboxOverflowed
-    | DeviceAdapterFailed
-    | ShutdownRequested
-    | ActivateSteeringCurve
-    | ServotronicStatusObserved
-    | ExecuteOperatorIntent
-)
-
-
-class StateTopic(StrEnum):
-    """Closed service projection topics; not a runtime-extensible event bus."""
-
-    VEHICLE = "vehicle"
-    ENGINE = "engine"
-    STEERING = "steering"
-    BUTTONS = "buttons"
-    LIGHTING = "lighting"
-    DEVICES = "devices"
-    HEALTH = "health"
-
-
-INITIAL_KERNEL_TOPICS = frozenset(
-    {
-        StateTopic.VEHICLE,
-        StateTopic.ENGINE,
-        StateTopic.STEERING,
-        StateTopic.BUTTONS,
-        StateTopic.LIGHTING,
-        StateTopic.HEALTH,
-        StateTopic.DEVICES,
-    }
-)
-
-
-class KernelLifecycle(StrEnum):
-    CREATED = "created"
-    RUNNING = "running"
-    STOPPED = "stopped"
-
-
-class RuntimeFaultKind(StrEnum):
-    CAN_READER = "can_reader"
-    CAN_EFFECT_EXECUTION = "can_effect_execution"
-    STEERING_ACTUATOR = "steering_actuator"
-    INBOX_OVERFLOW = "inbox_overflow"
-    DEVICE_ADAPTER = "device_adapter"
-
-
-@dataclass(frozen=True)
-class RuntimeFault:
-    kind: RuntimeFaultKind
-    occurred_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class NetworkRuntimeHealth:
-    network: CanNetwork
-    fault: RuntimeFault | None = None
-    received_frames: int = 0
-    decoded_frames: int = 0
-    ignored_frames: int = 0
-    malformed_frames: int = 0
-
-
-@dataclass(frozen=True)
-class DeviceRuntimeHealth:
-    role: DeviceRole
-    fault: RuntimeFault | None = None
-
-
-def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
-    return tuple(NetworkRuntimeHealth(network) for network in CanNetwork)
-
-
-@dataclass(frozen=True)
-class RuntimeHealth:
-    networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
-    steering_actuator_fault: RuntimeFault | None = None
-    inbox_overflow_fault: RuntimeFault | None = None
-    devices: tuple[DeviceRuntimeHealth, ...] = tuple(
-        DeviceRuntimeHealth(role) for role in DeviceRole
-    )
-
-    def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
-        return next(item for item in self.networks if item.network is network)
-
-    @property
-    def fatal(self) -> bool:
-        return self.inbox_overflow_fault is not None or any(
-            item.fault is not None for item in self.networks
-        )
-
-    def with_fault(self, network: CanNetwork, fault: RuntimeFault) -> RuntimeHealth:
-        return self._replace(replace(self.for_network(network), fault=fault))
-
-    def _replace(self, replacement: NetworkRuntimeHealth) -> RuntimeHealth:
-        return replace(
-            self,
-            networks=tuple(
-                replacement if item.network is replacement.network else item
-                for item in self.networks
-            ),
-        )
-
-    def with_steering_actuator_fault(self, fault: RuntimeFault) -> RuntimeHealth:
-        return replace(self, steering_actuator_fault=fault)
-
-    def with_inbox_overflow(
-        self,
-        network: CanNetwork | None,
-        fault: RuntimeFault,
-    ) -> RuntimeHealth:
-        updated = replace(self, inbox_overflow_fault=fault)
-        return updated if network is None else updated.with_fault(network, fault)
-
-    def with_device_fault(self, role: DeviceRole, fault: RuntimeFault) -> RuntimeHealth:
-        return replace(
-            self,
-            devices=tuple(
-                replace(item, fault=fault) if item.role is role else item for item in self.devices
-            ),
-        )
-
-    def with_frame_outcome(self, network: CanNetwork, outcome: str) -> RuntimeHealth:
-        current = self.for_network(network)
-        if outcome == "decoded":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                decoded_frames=current.decoded_frames + 1,
-            )
-        elif outcome == "ignored":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                ignored_frames=current.ignored_frames + 1,
-            )
-        elif outcome == "malformed":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                malformed_frames=current.malformed_frames + 1,
-            )
-        else:
-            raise ValueError(f"unsupported frame outcome: {outcome}")
-        return self._replace(updated)
-
-
-@dataclass(frozen=True)
-class Commit:
-    """One accepted transition after state mutation, with ordered desired effects.
-
-    ``snapshot`` is the complete immutable application projection. Button output is derived from
-    that application state and emitted atomically; adapter-owned device observations and immutable
-    runtime diagnostics remain separate service projections rather than duplicate application
-    state.
-    """
-
-    revision: int
-    snapshot: ApplicationSnapshot
-    effects: tuple[EffectRequest, ...]
-    changed_topics: frozenset[StateTopic]
-    state_changed: bool
-
-
-@dataclass(frozen=True)
-class DiagnosticSnapshot:
-    lifecycle: KernelLifecycle
-    revision: int
-    health: RuntimeHealth
 
 
 class CoordinatorKernel:
@@ -784,7 +537,7 @@ class CoordinatorKernel:
         committed_snapshot = self.snapshot()
         current_button_leds = self._button_led_effect()
         buttons_changed = current_button_leds != previous_button_leds
-        changed_topics = _changed_controller_topics(
+        changed_topics = changed_controller_topics(
             previous_snapshot,
             committed_snapshot,
             buttons_changed=buttons_changed,
@@ -884,7 +637,7 @@ class CoordinatorKernel:
             revision=self._revision,
             snapshot=committed_snapshot,
             effects=self._gate_effects(tuple(EffectRequest(effect) for effect in effects)),
-            changed_topics=_changed_controller_topics(
+            changed_topics=changed_controller_topics(
                 previous_snapshot,
                 committed_snapshot,
                 buttons_changed=False,
@@ -910,7 +663,7 @@ class CoordinatorKernel:
             self._revision,
             committed,
             (),
-            _changed_controller_topics(
+            changed_controller_topics(
                 previous_snapshot, committed, buttons_changed=False, health_changed=False
             )
             | {StateTopic.STEERING},
@@ -1053,7 +806,7 @@ class CoordinatorKernel:
             and self.registry_for(DeviceRole.BUTTON_PAD).status is DeviceLifecycleStatus.ACTIVE
         ):
             effects.append(current_button_leds)
-        changed_topics = _changed_controller_topics(
+        changed_topics = changed_controller_topics(
             previous_snapshot,
             self.snapshot(),
             buttons_changed=current_button_leds != previous_button_leds,
@@ -1136,41 +889,3 @@ class CoordinatorKernel:
             )
             and (not isinstance(request.effect, SetSteeringAssistance) or self._servotronic_usable)
         )
-
-
-def _changed_controller_topics(
-    previous: ApplicationSnapshot,
-    current: ApplicationSnapshot,
-    *,
-    buttons_changed: bool,
-    health_changed: bool,
-) -> frozenset[StateTopic]:
-    """Compare fixed projections without introducing string dispatch or registration."""
-
-    changed: set[StateTopic] = set()
-    if (
-        current.vehicle_speed_kph != previous.vehicle_speed_kph
-        or current.speed_valid != previous.speed_valid
-    ):
-        changed.add(StateTopic.VEHICLE)
-    if current.engine != previous.engine:
-        changed.add(StateTopic.ENGINE)
-    if (
-        current.steering_mode != previous.steering_mode
-        or current.manual_assistance_level != previous.manual_assistance_level
-        or current.maximum_assistance_active != previous.maximum_assistance_active
-        or current.active_steering_curve != previous.active_steering_curve
-        or (current.steering_curve_activation_status != previous.steering_curve_activation_status)
-    ):
-        changed.add(StateTopic.STEERING)
-    if buttons_changed:
-        changed.add(StateTopic.BUTTONS)
-    if (
-        current.high_beam_enabled != previous.high_beam_enabled
-        or current.high_beam_strobe_active != previous.high_beam_strobe_active
-        or (current.high_beam_strobe_cycles_remaining != previous.high_beam_strobe_cycles_remaining)
-    ):
-        changed.add(StateTopic.LIGHTING)
-    if health_changed:
-        changed.add(StateTopic.HEALTH)
-    return frozenset(changed)

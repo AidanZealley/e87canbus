@@ -19,7 +19,7 @@ from e87canbus.deployment import DeploymentSpec
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import DeviceRegistryEntry
 from e87canbus.features.steering import ActiveSteeringCurve
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     DiagnosticSnapshot,
     InboxOverflowed,
     ReceivedCanFrame,

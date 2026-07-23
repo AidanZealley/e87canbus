@@ -12,7 +12,7 @@ from e87canbus.application.intents import (
 from e87canbus.application.state import SteeringMode
 from e87canbus.composition import build_live_controller_service
 from e87canbus.config import default_config, simulator_config
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
 )

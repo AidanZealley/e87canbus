@@ -29,7 +29,7 @@ from e87canbus.application.intents import (
 from e87canbus.application.state import SteeringMode
 from e87canbus.features.profile_repository import SteeringProfileRepository
 from e87canbus.features.steering import SteeringCurveDefinition
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
 )

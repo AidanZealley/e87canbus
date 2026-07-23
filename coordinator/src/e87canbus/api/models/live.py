@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from e87canbus.button_pad import BUTTON_PAD_PROGRAM_ENCODING
 from e87canbus.device import DeviceRole
 from e87canbus.features.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
-from e87canbus.runtime import StateTopic
+from e87canbus.kernel import StateTopic
 from e87canbus.service import ControllerServiceSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
@@ -421,7 +421,7 @@ def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
 
 
 def _fault_state(fault: object) -> RuntimeFaultState | None:
-    from e87canbus.runtime import RuntimeFault
+    from e87canbus.kernel import RuntimeFault
 
     if fault is None:
         return None

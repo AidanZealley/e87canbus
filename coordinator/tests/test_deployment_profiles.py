@@ -20,8 +20,8 @@ from e87canbus.deployment import (
     deployment_spec,
 )
 from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.kernel import ReceivedCanFrame
 from e87canbus.protocol.can import CanFrame, DeviceHelloPayload, encode_hello
-from e87canbus.runtime import ReceivedCanFrame
 from e87canbus.service import ControllerServiceLifecycle
 from e87canbus.simulation.protocol import encode_simulated_speed
 from fastapi.testclient import TestClient

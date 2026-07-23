@@ -29,17 +29,7 @@ from e87canbus.button_pad import static_button_pad_program
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.device import DeviceRole
 from e87canbus.device_registry import FeatureUnavailable
-from e87canbus.output import EffectRequest
-from e87canbus.protocol.can import (
-    CanFrame,
-    DeviceHeartbeatPayload,
-    DeviceHelloPayload,
-    RoutedCanFrame,
-    encode_heartbeat,
-    encode_hello,
-)
-from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     INITIAL_KERNEL_TOPICS,
     CanEffectExecutionFailed,
     CanReaderFailed,
@@ -57,6 +47,16 @@ from e87canbus.runtime import (
     SteeringActuatorFailed,
     TimerElapsed,
 )
+from e87canbus.output import EffectRequest
+from e87canbus.protocol.can import (
+    CanFrame,
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    RoutedCanFrame,
+    encode_heartbeat,
+    encode_hello,
+)
+from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
 

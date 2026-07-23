@@ -15,14 +15,14 @@ from e87canbus.config import (
     simulator_config,
 )
 from e87canbus.device import DeviceSource
-from e87canbus.live import read_frames_into_queue
-from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
-from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     CanReaderFailed,
     ControllerInput,
     ReceivedCanFrame,
 )
+from e87canbus.live import read_frames_into_queue
+from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
+from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
 from e87canbus.service import (
     ControllerServiceError,
     ControllerServiceLifecycle,

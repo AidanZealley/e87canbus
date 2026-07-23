@@ -14,13 +14,7 @@ from e87canbus.features.steering import (
     SteeringCurveActivationStatus,
     initial_active_steering_curve,
 )
-from e87canbus.protocol.can import (
-    DeviceHeartbeatPayload,
-    DeviceHelloPayload,
-    encode_heartbeat,
-    encode_hello,
-)
-from e87canbus.runtime import (
+from e87canbus.kernel import (
     ActivateSteeringCurve,
     CoordinatorKernel,
     DeviceAdapterFailed,
@@ -29,6 +23,12 @@ from e87canbus.runtime import (
     ReceivedCanFrame,
     ServotronicStatusObserved,
     TimerElapsed,
+)
+from e87canbus.protocol.can import (
+    DeviceHeartbeatPayload,
+    DeviceHelloPayload,
+    encode_heartbeat,
+    encode_hello,
 )
 from e87canbus.service import observed_servotronic_snapshot
 from e87canbus.servotronic_protocol import (
