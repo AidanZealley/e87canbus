@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import TypeGuard, assert_never
 
-from e87canbus.application.state import SteeringMode
+from e87canbus.domain.state import SteeringMode
 
 
 @dataclass(frozen=True)

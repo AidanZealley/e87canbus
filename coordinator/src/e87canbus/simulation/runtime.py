@@ -10,15 +10,15 @@ from typing import Any
 
 from e87canbus.adapters.can_io import CanReceiver
 from e87canbus.adapters.output import EffectExecutor
-from e87canbus.application.button_bindings import ButtonBindingProfile
-from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.application.events import (
+from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
+from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
-from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
-from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.features.steering import ActiveSteeringCurve
+from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateSteeringCurve,
     Commit,

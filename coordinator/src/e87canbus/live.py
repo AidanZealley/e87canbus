@@ -18,14 +18,14 @@ from e87canbus.adapters.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.application.controller import ApplicationSnapshot
-from e87canbus.application.events import (
+from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
-from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.features.steering import ActiveSteeringCurve
+from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateSteeringCurve,
     CanEffectExecutionFailed,

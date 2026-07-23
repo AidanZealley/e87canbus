@@ -1,12 +1,12 @@
 import logging
 
 import pytest
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceWelcomeAckPayload,

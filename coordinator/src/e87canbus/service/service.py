@@ -13,11 +13,11 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
 
-from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentSpec
-from e87canbus.device import DeviceRole
-from e87canbus.features.steering import ActiveSteeringCurve
+from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
     DiagnosticSnapshot,
     InboxOverflowed,

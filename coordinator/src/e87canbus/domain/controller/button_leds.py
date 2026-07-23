@@ -7,7 +7,15 @@ tracks. It reads state and never mutates it.
 
 from __future__ import annotations
 
-from e87canbus.application.events import (
+from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.button_pad import (
+    ButtonPadProgram,
+    blink_track,
+    breathe_track,
+    resolved_button_pad_program,
+    solid_track,
+)
+from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
     BUTTON_LED_COUNT,
@@ -20,15 +28,7 @@ from e87canbus.application.events import (
     ButtonLedState,
     SetButtonPadProgram,
 )
-from e87canbus.application.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.button_pad import (
-    ButtonPadProgram,
-    blink_track,
-    breathe_track,
-    resolved_button_pad_program,
-    solid_track,
-)
-from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 
 STEERING_MODE_BUTTON_INDEX = 0
 MAXIMUM_ASSISTANCE_BUTTON_INDEX = 3

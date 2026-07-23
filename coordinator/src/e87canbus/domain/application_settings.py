@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.features.timestamps import validate_canonical_utc_timestamp
+from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
 MIN_TEMPERATURE_C = -40.0
 MAX_TEMPERATURE_C = 250.0

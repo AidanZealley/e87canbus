@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from e87canbus.button_pad import ButtonPadProgram, pack_button_pad_transfers
+from e87canbus.domain.button_pad import ButtonPadProgram, pack_button_pad_transfers
 from e87canbus.protocol.can import (
     BUTTON_PAD_TRANSFER_MAX_LENGTH,
     decode_button_pad_commands,

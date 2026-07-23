@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     STEERING_CURVE_V1_SPEEDS_DECI_KPH,
     STEERING_PROFILE_NAME_MAX_LENGTH,

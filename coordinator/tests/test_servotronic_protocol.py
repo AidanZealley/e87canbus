@@ -5,12 +5,12 @@ import zlib
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.events import ConfigureServotronicCurve
-from e87canbus.application.intents import SetMaximumAssistance
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.device_registry import FeatureUnavailable
-from e87canbus.features.steering import (
+from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.events import ConfigureServotronicCurve
+from e87canbus.domain.intents import SetMaximumAssistance
+from e87canbus.domain.steering import (
     SteeringCurveActivationStatus,
     initial_active_steering_curve,
 )

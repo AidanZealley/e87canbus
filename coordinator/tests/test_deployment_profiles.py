@@ -19,7 +19,7 @@ from e87canbus.deployment import (
     VehicleSource,
     deployment_spec,
 )
-from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.kernel import ReceivedCanFrame
 from e87canbus.protocol.can import CanFrame, DeviceHelloPayload, encode_hello
 from e87canbus.service import ControllerServiceLifecycle

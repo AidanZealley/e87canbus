@@ -7,15 +7,15 @@ from pathlib import Path
 import pytest
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.main import create_app
-from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.composition import (
     build_live_controller_service,
     build_simulated_controller_service,
 )
 from e87canbus.config import CanNetwork, default_config, simulator_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
-from e87canbus.device import DeviceSource
-from e87canbus.features.steering import ActiveSteeringCurve
+from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.device import DeviceSource
+from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
     CoordinatorKernel,
     DiagnosticSnapshot,

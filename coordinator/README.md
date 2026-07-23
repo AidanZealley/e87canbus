@@ -5,26 +5,36 @@ authoritative application state and coordinates vehicle inputs, project devices,
 
 ## Source map
 
-- `src/e87canbus/application/` — state, events, and application decisions. Start here when changing what the system does.
-- `src/e87canbus/features/` — pure steering-assistance calculations.
-- `src/e87canbus/protocol/` — CAN frame types plus encoding and decoding.
-- `src/e87canbus/runtime.py` — single-owner kernel, ordered input values, commits, and diagnostics.
-- `src/e87canbus/service.py` — bounded controller inbox, owner thread, timer and lifecycle.
-- `src/e87canbus/composition.py` — validated live/simulated adapter presets and service factory.
-- `src/e87canbus/live.py` — SocketCAN readers and the live runtime adapter.
-- `src/e87canbus/adapters/` — integrations with real hardware or operating-system services.
-- `src/e87canbus/simulation/` — in-memory CAN and virtual device implementations.
-- `src/e87canbus/api/` — HTTP resources/commands and bounded Socket.IO live publication.
+Every top-level folder is one architectural layer. Dependencies point inward:
+`api`/`cli` and the runners → `service` → `kernel` → `domain`. The layering is
+enforced in CI by `uv run lint-imports` (contracts in `pyproject.toml`).
+
+- `src/e87canbus/domain/` — the pure core: state, events, operator intents, steering
+  math, the device catalogue/registry and the button-pad program model. No I/O, no
+  framework, no async. Start here when changing what the system does.
+- `src/e87canbus/kernel/` — the single-owner state machine: ordered `ControllerInput`
+  values, `Commit`s, projection topics and runtime health.
+- `src/e87canbus/service/` — bounded controller inbox, owner thread, timer, lifecycle
+  and the published service snapshot/diagnostics.
+- `src/e87canbus/protocol/` — CAN frame types and wire codecs (encoding/decoding).
+- `src/e87canbus/transport/` — ISO-TP framing.
+- `src/e87canbus/adapters/` — driven adapters: effect execution, CAN I/O, SocketCAN,
+  and SQLite persistence.
+- `src/e87canbus/api/` — the HTTP + Socket.IO driving adapter (`routes` → `internal`
+  use-cases → `models` DTOs).
 - `src/e87canbus/cli/` — executable entry points and bench utilities.
+- `src/e87canbus/live.py`, `composition.py`, `deployment.py`, `simulation/` — the
+  runners that compose the layers above for a live or simulated deployment.
+- `config.py` — foundational, app-wide configuration read by every layer.
 - `tests/` — tests arranged to mirror the source responsibilities.
 
 The outer `coordinator/` directory names the deployable component. The inner `src/e87canbus/`
 directory is the project-specific import namespace, following Python's conventional `src` layout.
-This is why code imports `e87canbus.application` even though it is deployed as the coordinator.
+This is why code imports `e87canbus.domain` even though it is deployed as the coordinator.
 
 ## Steering curve profile contract
 
-`features/steering.py` owns the immutable steering-curve definition and stored-profile metadata
+`domain/steering.py` owns the immutable steering-curve definition and stored-profile metadata
 values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
 160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
 per-mille assistance (`assistance_per_mille`, `0..1000`) and requires assistance to be

@@ -2,16 +2,16 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.adapters.output import EffectRequest
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.application.state import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
     NormalSteering,
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,

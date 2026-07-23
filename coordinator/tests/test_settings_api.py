@@ -6,13 +6,13 @@ from typing import Any, cast
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.features.application_settings import (
+from e87canbus.domain.application_settings import (
     DEFAULT_APPLICATION_SETTINGS,
     ApplicationSettings,
     ApplicationSettingsUpdate,
 )
-from e87canbus.features.profile_repository import SteeringProfileRepository
-from e87canbus.features.settings_repository import (
+from e87canbus.domain.profile_repository import SteeringProfileRepository
+from e87canbus.domain.settings_repository import (
     ApplicationSettingsRepository,
     SettingsRevisionConflictError,
     SettingsStorageError,

@@ -19,7 +19,7 @@ from e87canbus.config import (
     simulator_config,
     sorted_network_names,
 )
-from e87canbus.device import (
+from e87canbus.domain.device import (
     DEFAULT_DEVICE_CATALOGUE,
     DeviceCatalogueEntry,
     DeviceIdentity,
@@ -118,7 +118,7 @@ def test_high_beam_button_cannot_collide_with_built_in_bindings(button_index: in
 
 
 def test_reserved_button_indexes_match_the_built_in_profile() -> None:
-    from e87canbus.application.button_bindings import built_in_button_binding_profile
+    from e87canbus.domain.button_bindings import built_in_button_binding_profile
 
     profile = built_in_button_binding_profile()
     high_beam_index = HighBeamStrobeConfig().button_index

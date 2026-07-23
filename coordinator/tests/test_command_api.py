@@ -5,13 +5,13 @@ from typing import Any
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.application.intents import (
+from e87canbus.composition import build_live_controller_service
+from e87canbus.config import default_config, simulator_config
+from e87canbus.domain.intents import (
     SetManualAssistanceLevel,
     SetMaximumAssistance,
 )
-from e87canbus.application.state import SteeringMode
-from e87canbus.composition import build_live_controller_service
-from e87canbus.config import default_config, simulator_config
+from e87canbus.domain.state import SteeringMode
 from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,

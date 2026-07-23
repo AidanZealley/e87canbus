@@ -9,7 +9,7 @@ from enum import StrEnum
 
 from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CustomCanIds
-from e87canbus.device import DeviceRole
+from e87canbus.domain.device import DeviceRole
 from e87canbus.protocol.can import (
     CanFrame,
     DeviceHeartbeatPayload,

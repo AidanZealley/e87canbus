@@ -7,10 +7,10 @@ speed-freshness rules that gate Auto output.
 
 from __future__ import annotations
 
-from e87canbus.application.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.application.state import ApplicationState, MaximumAssistance, SteeringMode
 from e87canbus.config import SteeringConfig
-from e87canbus.features.steering import (
+from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
+from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
+from e87canbus.domain.steering import (
     SteeringCurveDefinition,
     interpolate_steering_curve_definition,
 )

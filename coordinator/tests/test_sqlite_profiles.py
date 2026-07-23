@@ -13,14 +13,14 @@ from e87canbus.adapters.sqlite_profiles import (
     SqliteSteeringProfileRepository,
     UnsupportedDatabaseVersionError,
 )
-from e87canbus.features.profile_repository import (
+from e87canbus.domain.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
     ProfileRevisionConflictError,
     SteeringProfileStorageError,
     StoredProfileDataError,
 )
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     SteeringCurvePoint,

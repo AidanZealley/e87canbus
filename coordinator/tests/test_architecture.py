@@ -36,7 +36,7 @@ def test_wire_codecs_do_not_import_application_types() -> None:
     for name in ("can.py", "generated.py"):
         path = PACKAGE / "protocol" / name
         assert not any(
-            module == "e87canbus.application" or module.startswith("e87canbus.application.")
+            module == "e87canbus.domain" or module.startswith("e87canbus.domain.")
             for module in imported_modules(path)
         )
 
@@ -102,8 +102,8 @@ def test_live_composition_supplies_no_steering_actuator() -> None:
 
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
     paths = (
-        PACKAGE / "application" / "controller" / "reducer.py",
-        PACKAGE / "application" / "controller" / "intents.py",
+        PACKAGE / "domain" / "controller" / "reducer.py",
+        PACKAGE / "domain" / "controller" / "intents.py",
         PACKAGE / "adapters" / "output.py",
         PACKAGE / "kernel" / "kernel.py",
         PACKAGE / "live.py",

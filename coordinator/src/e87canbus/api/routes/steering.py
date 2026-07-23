@@ -10,7 +10,7 @@ from e87canbus.api.models.steering import (
     SteeringProfileResponse,
     UpdateProfileRequest,
 )
-from e87canbus.features.steering import StoredSteeringProfile
+from e87canbus.domain.steering import StoredSteeringProfile
 
 router = APIRouter(prefix="/api/steering", tags=["steering"])
 

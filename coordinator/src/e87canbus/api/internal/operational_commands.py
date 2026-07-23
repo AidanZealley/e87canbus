@@ -20,15 +20,15 @@ from e87canbus.api.models.commands import (
     SetMaximumAssistanceRequest,
     SetSteeringModeRequest,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
 )
-from e87canbus.application.state import SteeringMode
-from e87canbus.features.profile_repository import SteeringProfileRepository
-from e87canbus.features.steering import SteeringCurveDefinition
+from e87canbus.domain.profile_repository import SteeringProfileRepository
+from e87canbus.domain.state import SteeringMode
+from e87canbus.domain.steering import SteeringCurveDefinition
 from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,

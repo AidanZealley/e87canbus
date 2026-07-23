@@ -11,8 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import assert_never
 
-from e87canbus.application.controller.steering import steering_command
-from e87canbus.application.events import (
+from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.domain.controller.steering import steering_command
+from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
     BUTTON_FEEDBACK_DURATION_S,
@@ -34,9 +35,8 @@ from e87canbus.application.events import (
     SteeringFallbackRequested,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
-from e87canbus.features.steering import SteeringCurveDefinition, clamp_manual_level
+from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
+from e87canbus.domain.steering import SteeringCurveDefinition, clamp_manual_level
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     STEERING_CURVE_V1_SPEEDS_DECI_KPH,
     STEERING_PROFILE_NAME_MAX_LENGTH,
 )

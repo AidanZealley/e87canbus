@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.models.commands import CommandAcknowledgement
-from e87canbus.device_registry import FeatureUnavailable
+from e87canbus.domain.device_registry import FeatureUnavailable
 from e87canbus.service import (
     ControllerInboxFull,
     ControllerServiceNotRunning,

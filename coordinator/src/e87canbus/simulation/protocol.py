@@ -6,20 +6,20 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.events import (
     ApplicationEvent,
     CoolantTemperatureObserved,
     EngineRpmObserved,
     OilTemperatureObserved,
     SpeedObserved,
 )
-from e87canbus.application.state import (
+from e87canbus.domain.state import (
     CoolantTemperatureSample,
     EngineRpmSample,
     OilTemperatureSample,
     SpeedSample,
 )
-from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import DecodedProtocolEvent, ProtocolRouter
 from e87canbus.simulation.signals import VehicleSignal

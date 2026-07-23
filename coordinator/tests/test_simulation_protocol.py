@@ -1,13 +1,13 @@
 import math
 
 import pytest
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork
+from e87canbus.domain.events import (
     CoolantTemperatureObserved,
     EngineRpmObserved,
     OilTemperatureObserved,
     SpeedObserved,
 )
-from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.simulation.protocol import (

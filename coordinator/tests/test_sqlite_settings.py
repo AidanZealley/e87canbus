@@ -13,16 +13,16 @@ from e87canbus.adapters.sqlite_database import (
 )
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
-from e87canbus.features.application_settings import (
+from e87canbus.domain.application_settings import (
     DEFAULT_APPLICATION_SETTINGS,
     SpeedUnit,
 )
-from e87canbus.features.settings_repository import (
+from e87canbus.domain.settings_repository import (
     SettingsRevisionConflictError,
     SettingsStorageError,
     StoredSettingsDataError,
 )
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     canonical_steering_curve_bytes,
 )

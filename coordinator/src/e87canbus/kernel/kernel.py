@@ -8,11 +8,16 @@ from dataclasses import replace
 from typing import assert_never
 
 from e87canbus.adapters.output import EffectRequest, OutputEffect, SendRegistryFrame
-from e87canbus.application.button_bindings import (
+from e87canbus.config import (
+    EngineTelemetryConfig,
+    HighBeamStrobeConfig,
+    SteeringConfig,
+)
+from e87canbus.domain.button_bindings import (
     ButtonBindingProfile,
     built_in_button_binding_profile,
 )
-from e87canbus.application.controller import (
+from e87canbus.domain.controller import (
     ApplicationSnapshot,
     Transition,
     button_led_effect,
@@ -26,7 +31,20 @@ from e87canbus.application.controller import (
     steering_command_for_current_state,
     transition,
 )
-from e87canbus.application.events import (
+from e87canbus.domain.device import DeviceLifecycleStatus, DeviceRole, DeviceSource
+from e87canbus.domain.device_registry import (
+    DeviceRegistryEntry,
+    FeatureUnavailable,
+    RegistryHeartbeatObserved,
+    RegistryHelloObserved,
+    RegistryTransition,
+    expire_entry,
+    initial_registry,
+    registry_entry,
+    transition_heartbeat,
+    transition_hello,
+)
+from e87canbus.domain.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
@@ -43,32 +61,14 @@ from e87canbus.application.events import (
     SteeringFallbackRequested,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     DEFAULT_OPERATOR_INTENT_CONTEXT,
     OperatorIntent,
     OperatorIntentContext,
     intent_requires_servotronic,
 )
-from e87canbus.application.state import ApplicationState
-from e87canbus.config import (
-    EngineTelemetryConfig,
-    HighBeamStrobeConfig,
-    SteeringConfig,
-)
-from e87canbus.device import DeviceLifecycleStatus, DeviceRole, DeviceSource
-from e87canbus.device_registry import (
-    DeviceRegistryEntry,
-    FeatureUnavailable,
-    RegistryHeartbeatObserved,
-    RegistryHelloObserved,
-    RegistryTransition,
-    expire_entry,
-    initial_registry,
-    registry_entry,
-    transition_heartbeat,
-    transition_hello,
-)
-from e87canbus.features.steering import (
+from e87canbus.domain.state import ApplicationState
+from e87canbus.domain.steering import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
     initial_active_steering_curve,

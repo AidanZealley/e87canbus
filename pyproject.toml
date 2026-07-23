@@ -63,15 +63,14 @@ layers = [
     "e87canbus.api",
     "e87canbus.service",
     "e87canbus.kernel",
-    "e87canbus.application",
+    "e87canbus.domain",
 ]
 
 [[tool.importlinter.contracts]]
 name = "The domain layer imports inward only"
 type = "forbidden"
 source_modules = [
-    "e87canbus.application",
-    "e87canbus.features",
+    "e87canbus.domain",
 ]
 forbidden_modules = [
     "e87canbus.kernel",
@@ -86,9 +85,12 @@ forbidden_modules = [
     "e87canbus.protocol",
     "e87canbus.transport",
 ]
-# The button-pad program model and config legitimately use foundational wire
-# types; every other path from the domain into protocol/infra stays forbidden.
+# The button-pad program model, the device catalogue and config legitimately use
+# foundational wire types; every other path from the domain into protocol/infra
+# stays forbidden.
 ignore_imports = [
-    "e87canbus.button_pad.program -> e87canbus.protocol.can",
+    "e87canbus.domain.button_pad -> e87canbus.protocol.can",
+    "e87canbus.domain.device -> e87canbus.protocol.generated",
+    "e87canbus.domain.device_registry -> e87canbus.protocol.can",
     "e87canbus.config -> e87canbus.protocol.generated",
 ]

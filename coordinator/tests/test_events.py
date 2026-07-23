@@ -1,12 +1,12 @@
 import pytest
-from e87canbus.application.events import (
+from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.events import (
     ButtonLedState,
     HighBeamStrobeDeadlineReached,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.config import HighBeamStrobeConfig
 
 
 def test_steering_effect_rejects_out_of_range_assistance() -> None:

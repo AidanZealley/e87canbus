@@ -2,9 +2,13 @@ import logging
 
 import pytest
 from e87canbus.adapters.output import EffectRequest
-from e87canbus.application.button_bindings import ButtonBinding, ButtonBindingProfile
-from e87canbus.application.controller import SOFT_WHITE
-from e87canbus.application.events import (
+from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.domain.button_bindings import ButtonBinding, ButtonBindingProfile
+from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.controller import SOFT_WHITE
+from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.events import (
     RGB_AMBER,
     RGB_BLUE,
     RGB_OFF,
@@ -18,18 +22,14 @@ from e87canbus.application.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
 )
-from e87canbus.application.state import SpeedSample, SteeringMode
-from e87canbus.button_pad import static_button_pad_program
-from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.device import DeviceRole
-from e87canbus.device_registry import FeatureUnavailable
+from e87canbus.domain.state import SpeedSample, SteeringMode
 from e87canbus.kernel import (
     INITIAL_KERNEL_TOPICS,
     CanEffectExecutionFailed,

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from e87canbus.config import CanNetwork
-from e87canbus.device import DeviceRole
+from e87canbus.domain.device import DeviceRole
 
 
 class RuntimeFaultKind(StrEnum):

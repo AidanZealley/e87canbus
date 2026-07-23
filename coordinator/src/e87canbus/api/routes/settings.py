@@ -8,7 +8,7 @@ from e87canbus.api.models.settings import (
     ApplicationSettingsResponse,
     UpdateApplicationSettingsRequest,
 )
-from e87canbus.features.application_settings import ApplicationSettings
+from e87canbus.domain.application_settings import ApplicationSettings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 

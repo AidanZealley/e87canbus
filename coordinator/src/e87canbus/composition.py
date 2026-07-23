@@ -22,7 +22,7 @@ from e87canbus.deployment import (
     VehicleSource,
     deployment_spec,
 )
-from e87canbus.device import DeviceRole, DeviceSource
+from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.live import LiveControllerRuntime
 from e87canbus.service import ControllerService
 from e87canbus.simulation.devices import SimulatedServotronicPeer

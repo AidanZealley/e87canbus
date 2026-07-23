@@ -16,14 +16,14 @@ from e87canbus.api.models.steering import (
     SteeringCurveDefinitionRequest,
     UpdateProfileRequest,
 )
-from e87canbus.features.profile_repository import (
+from e87canbus.domain.profile_repository import (
     ProfileNameConflictError,
     ProfileNotFoundError,
     ProfileRevisionConflictError,
     SteeringProfileRepository,
     SteeringProfileStorageError,
 )
-from e87canbus.features.steering import (
+from e87canbus.domain.steering import (
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,

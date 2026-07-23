@@ -6,7 +6,7 @@ The controller is split by concern: ``button_leds`` (LED projection),
 Import the public surface from this package; the split is an internal layout.
 """
 
-from e87canbus.application.controller.button_leds import (
+from e87canbus.domain.controller.button_leds import (
     DEMO_BREATHE_BUTTON_INDEX,
     MAXIMUM_ASSISTANCE_BUTTON_INDEX,
     SOFT_AMBER,
@@ -16,17 +16,17 @@ from e87canbus.application.controller.button_leds import (
     button_led_state,
     button_pad_program,
 )
-from e87canbus.application.controller.intents import (
+from e87canbus.domain.controller.intents import (
     clear_maximum_assistance,
     execute_operator_intent,
     finish_button_intent,
 )
-from e87canbus.application.controller.reducer import (
+from e87canbus.domain.controller.reducer import (
     Transition,
     normalize_state,
     transition,
 )
-from e87canbus.application.controller.snapshot import (
+from e87canbus.domain.controller.snapshot import (
     ApplicationSnapshot,
     EngineTelemetrySnapshot,
     EngineTelemetryStatus,
@@ -34,7 +34,7 @@ from e87canbus.application.controller.snapshot import (
     initial_effects,
     snapshot,
 )
-from e87canbus.application.controller.steering import (
+from e87canbus.domain.controller.steering import (
     steering_command_for_active_curve,
     steering_command_for_current_state,
 )

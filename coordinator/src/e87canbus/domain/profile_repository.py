@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from e87canbus.features.steering import SteeringCurveDefinition, StoredSteeringProfile
+from e87canbus.domain.steering import SteeringCurveDefinition, StoredSteeringProfile
 
 
 class SteeringProfileRepositoryError(Exception):

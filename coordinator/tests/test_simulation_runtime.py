@@ -4,15 +4,24 @@ from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
-from e87canbus.application.button_bindings import ButtonBinding, ButtonBindingProfile
-from e87canbus.application.controller import (
+from e87canbus.config import (
+    CanNetwork,
+    HighBeamStrobeConfig,
+    TxPolicyConfig,
+    default_config,
+    simulator_config,
+)
+from e87canbus.domain.button_bindings import ButtonBinding, ButtonBindingProfile
+from e87canbus.domain.button_pad import resolve_button_pad_tracks
+from e87canbus.domain.controller import (
     SOFT_AMBER,
     SOFT_WHITE,
     ApplicationSnapshot,
     EngineTelemetryStatus,
     EngineTelemetryValue,
 )
-from e87canbus.application.events import (
+from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     RGB_AMBER,
     RGB_BLUE,
@@ -22,18 +31,9 @@ from e87canbus.application.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.application.intents import SetMaximumAssistance, ToggleMaximumAssistance
-from e87canbus.application.state import ApplicationState, SteeringMode
-from e87canbus.button_pad import resolve_button_pad_tracks
-from e87canbus.config import (
-    CanNetwork,
-    HighBeamStrobeConfig,
-    TxPolicyConfig,
-    default_config,
-    simulator_config,
-)
-from e87canbus.device import DeviceRole, DeviceSource
-from e87canbus.features.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
+from e87canbus.domain.intents import SetMaximumAssistance, ToggleMaximumAssistance
+from e87canbus.domain.state import ApplicationState, SteeringMode
+from e87canbus.domain.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.kernel import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.protocol.can import (
     CanFrame,

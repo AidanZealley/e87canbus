@@ -1,12 +1,13 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-from e87canbus.application.button_bindings import (
+from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.button_bindings import (
     ButtonBinding,
     ButtonBindingProfile,
     built_in_button_binding_profile,
 )
-from e87canbus.application.intents import (
+from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntentContext,
     SelectSteeringMode,
@@ -18,8 +19,7 @@ from e87canbus.application.intents import (
     ToggleMaximumAssistance,
     intent_requires_servotronic,
 )
-from e87canbus.application.state import SteeringMode
-from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.state import SteeringMode
 
 
 def test_exact_steering_intents_validate_their_values() -> None:
