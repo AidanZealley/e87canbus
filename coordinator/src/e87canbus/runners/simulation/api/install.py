@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from e87canbus.deployment import SimulationApiScope
-from e87canbus.simulation.api.routes import devices, session, vehicle
+from e87canbus.runners.simulation.api.routes import devices, session, vehicle
 
 
 def install_simulation_api(

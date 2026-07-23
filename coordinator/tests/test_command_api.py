@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.composition import build_live_controller_service
 from e87canbus.config import default_config, simulator_config
 from e87canbus.domain.intents import (
     SetManualAssistanceLevel,
@@ -16,6 +15,7 @@ from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
 )
+from e87canbus.runners.composition import build_live_controller_service
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 

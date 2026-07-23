@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from e87canbus.domain.device import DeviceRole
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
 
 
 @dataclass(frozen=True)

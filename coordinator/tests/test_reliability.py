@@ -6,10 +6,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from e87canbus.api.main import create_app
-from e87canbus.composition import build_live_controller_service
 from e87canbus.config import CanNetwork, default_config
 from e87canbus.domain.settings_repository import SettingsStorageError
 from e87canbus.kernel import CanReaderFailed, StateTopic
+from e87canbus.runners.composition import build_live_controller_service
 from e87canbus.service import ControllerServiceLifecycle
 from fastapi.testclient import TestClient
 

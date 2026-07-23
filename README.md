@@ -31,7 +31,8 @@ The Python package uses the conventional `src` layout, with one architectural la
 top-level folder (dependencies point inward: `api`/`cli`/runners → `service` → `kernel` →
 `domain`). Start in `coordinator/src/e87canbus/domain/` for system behaviour, `kernel/` for the
 state machine, `service/` for the owner lifecycle, `protocol/` for CAN encoding, `adapters/` for
-real hardware, `simulation/` for virtual hardware, and `api/` for the frontend interface.
+real hardware, `runners/` for the live/simulated compositions (including `runners/simulation/`
+virtual hardware), and `api/` for the frontend interface.
 
 Live readers timestamp CAN frames before placing them in a bounded inbox. One kernel owns immutable
 application state and applies pure transitions in input order; committed effects leave through an

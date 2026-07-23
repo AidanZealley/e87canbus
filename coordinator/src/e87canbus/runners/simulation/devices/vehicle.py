@@ -8,12 +8,12 @@ from dataclasses import dataclass, field
 from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
-from e87canbus.simulation.protocol import (
+from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
+from e87canbus.runners.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     decode_simulated_high_beam_command,
 )
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
+from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 
 LOGGER = logging.getLogger(__name__)
 

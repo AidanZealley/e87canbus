@@ -10,7 +10,7 @@ from e87canbus.domain.events import (
 )
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
-from e87canbus.simulation.protocol import (
+from e87canbus.runners.simulation.protocol import (
     MAX_SIMULATED_ENGINE_RPM,
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
     SIMULATION_ONLY_ENGINE_RPM_ID,

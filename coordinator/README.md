@@ -23,9 +23,11 @@ enforced in CI by `uv run lint-imports` (contracts in `pyproject.toml`).
 - `src/e87canbus/api/` — the HTTP + Socket.IO driving adapter (`routes` → `internal`
   use-cases → `models` DTOs).
 - `src/e87canbus/cli/` — executable entry points and bench utilities.
-- `src/e87canbus/live.py`, `composition.py`, `deployment.py`, `simulation/` — the
-  runners that compose the layers above for a live or simulated deployment.
-- `config.py` — foundational, app-wide configuration read by every layer.
+- `src/e87canbus/runners/` — the compositions that wire the layers above for a live
+  or simulated deployment: `composition` (service factory), `live` (SocketCAN runtime
+  adapter) and the in-memory `simulation/` engine.
+- `config.py`, `deployment.py` — foundational descriptors read across layers: app-wide
+  configuration and the deployment/adapter spec that `runners` compose from.
 - `tests/` — tests arranged to mirror the source responsibilities.
 
 The outer `coordinator/` directory names the deployable component. The inner `src/e87canbus/`

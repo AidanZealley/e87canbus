@@ -9,7 +9,7 @@ from e87canbus.protocol.generated import (
     CAN_ID_BUTTON_PAD_TRANSPORT_COORDINATOR_TO_DEVICE,
     CAN_ID_BUTTON_PAD_TRANSPORT_DEVICE_TO_COORDINATOR,
 )
-from e87canbus.simulation.bus import InMemoryCanTopology
+from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 

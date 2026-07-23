@@ -1,6 +1,6 @@
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame
-from e87canbus.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
+from e87canbus.runners.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 
 
 def test_network_delivers_to_each_peer_but_not_the_sender() -> None:

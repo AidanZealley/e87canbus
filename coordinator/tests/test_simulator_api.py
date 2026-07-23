@@ -10,7 +10,6 @@ from threading import Event
 import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
-from e87canbus.composition import build_simulated_controller_service
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.domain.button_pad import resolve_button_pad_tracks
 from e87canbus.domain.controller import SOFT_WHITE
@@ -21,7 +20,8 @@ from e87canbus.domain.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.simulation.devices import SimulatedServotronicPeer
+from e87canbus.runners.composition import build_simulated_controller_service
+from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 

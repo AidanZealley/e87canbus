@@ -18,15 +18,15 @@ from e87canbus.domain.button_bindings import ButtonBindingProfile
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
-from e87canbus.simulation.bus import InMemoryCanTopology
-from e87canbus.simulation.devices import (
+from e87canbus.runners.simulation.bus import InMemoryCanTopology
+from e87canbus.runners.simulation.devices import (
     SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
     SimulatedVehicleNode,
 )
-from e87canbus.simulation.protocol import SimulationProtocolRouter
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
+from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
+from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 
 
 @dataclass(frozen=True)

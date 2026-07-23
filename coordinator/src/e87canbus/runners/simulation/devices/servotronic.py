@@ -9,7 +9,7 @@ from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CustomCanIds
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.simulation.devices.peer import SimulatedRegistryPeer
+from e87canbus.runners.simulation.devices.peer import SimulatedRegistryPeer
 
 
 class SimulatedServotronicPeer(SimulatedRegistryPeer):

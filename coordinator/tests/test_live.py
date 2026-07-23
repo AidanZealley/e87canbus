@@ -5,9 +5,8 @@ import time
 from collections.abc import Callable
 from dataclasses import replace
 
-import e87canbus.live as live
+import e87canbus.runners.live as live
 import pytest
-from e87canbus.composition import build_live_controller_service
 from e87canbus.config import (
     CanNetwork,
     configure_can_networks,
@@ -20,9 +19,10 @@ from e87canbus.kernel import (
     ControllerInput,
     ReceivedCanFrame,
 )
-from e87canbus.live import read_frames_into_queue
 from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
 from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
+from e87canbus.runners.composition import build_live_controller_service
+from e87canbus.runners.live import read_frames_into_queue
 from e87canbus.service import (
     ControllerServiceError,
     ControllerServiceLifecycle,

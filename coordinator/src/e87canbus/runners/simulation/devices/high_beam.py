@@ -15,6 +15,6 @@ class SimulatedHighBeamActuator:
     transmitter: SafeCanTransmitter
 
     def set_high_beam(self, command: SetHighBeam) -> None:
-        from e87canbus.simulation.protocol import encode_simulated_high_beam_command
+        from e87canbus.runners.simulation.protocol import encode_simulated_high_beam_command
 
         self.transmitter.send(encode_simulated_high_beam_command(command.enabled))

@@ -35,13 +35,13 @@ from e87canbus.protocol.can import (
     encode_heartbeat,
     encode_hello,
 )
-from e87canbus.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
-from e87canbus.simulation.runtime import (
+from e87canbus.runners.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
+from e87canbus.runners.simulation.runtime import (
     RunControlTimer,
     SetVehicleSignal,
     SimulatedControllerRuntime,
 )
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.signals import VehicleSignal
 
 SAVED_PROFILE_ID = "11111111-1111-4111-8111-111111111111"
 

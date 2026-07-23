@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import RoutedCanFrame
-from e87canbus.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
-from e87canbus.simulation.protocol import VEHICLE_SIGNALS
-from e87canbus.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
+from e87canbus.runners.simulation.protocol import VEHICLE_SIGNALS
+from e87canbus.runners.simulation.signals import VehicleSignal
 
 VehicleCommand = SetVehicleSignal | SilenceVehicleSignal
 

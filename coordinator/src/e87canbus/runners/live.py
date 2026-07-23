@@ -47,6 +47,12 @@ from e87canbus.kernel import (
 )
 from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.runners.simulation.commands import (
+    SetVehicleSignal,
+    SilenceVehicleSignal,
+)
+from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
+from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ObservedNetworkSnapshot,
@@ -54,12 +60,6 @@ from e87canbus.service import (
     RuntimeInputSink,
     observed_servotronic_snapshot,
 )
-from e87canbus.simulation.commands import (
-    SetVehicleSignal,
-    SilenceVehicleSignal,
-)
-from e87canbus.simulation.protocol import SimulationProtocolRouter
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
 
 LOGGER = logging.getLogger(__name__)
 
