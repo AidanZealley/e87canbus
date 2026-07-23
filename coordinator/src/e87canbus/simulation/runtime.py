@@ -6,17 +6,10 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Any, assert_never
+from typing import Any
 
 from e87canbus.adapters.can_io import CanReceiver
-from e87canbus.adapters.output import (
-    CanEffectFailure,
-    EffectExecutor,
-    EffectFailure,
-    HighBeamActuatorFailure,
-    SafeCanTransmitter,
-    SteeringActuatorFailure,
-)
+from e87canbus.adapters.output import EffectExecutor
 from e87canbus.application.button_bindings import ButtonBindingProfile
 from e87canbus.application.controller import ApplicationSnapshot
 from e87canbus.application.events import (
@@ -28,7 +21,6 @@ from e87canbus.device import DeviceRole, DeviceSource
 from e87canbus.features.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateSteeringCurve,
-    CanEffectExecutionFailed,
     Commit,
     ControllerInput,
     CoordinatorKernel,
@@ -40,7 +32,6 @@ from e87canbus.kernel import (
     ReceivedCanFrame,
     ShutdownRequested,
     StateTopic,
-    SteeringActuatorFailed,
     TimerElapsed,
 )
 from e87canbus.service import (
@@ -69,23 +60,18 @@ from e87canbus.simulation.commands import (
     TapButton,
 )
 from e87canbus.simulation.devices import (
-    SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
     SimulatedRegistryPeer,
     SimulatedServotronicPeer,
-    SimulatedVehicleNode,
 )
-from e87canbus.simulation.protocol import SimulationProtocolRouter
-from e87canbus.simulation.vehicle_source import SyntheticVehicleSource
+from e87canbus.simulation.effect_failures import effect_failure_input
+from e87canbus.simulation.session import build_session
 
 LOGGER = logging.getLogger(__name__)
 
 MAX_VIRTUAL_DRAIN_ITERATIONS = 32
 MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION = 256
 MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION = 128
-
-
-EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
 
 
 def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict[str, Any]:
@@ -273,83 +259,21 @@ class SimulatedControllerRuntime:
 
     def _build_session(self) -> None:
         self._session_id += 1
-        self.topology = InMemoryCanTopology(
-            trace_capacity=self.config.simulation.trace_capacity,
-            clock=self._clock,
-        )
-        enabled = tuple(item for item in self.config.can_networks if item.enabled)
-
-        self.pi_buses = {}
-        transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
-        for item in enabled:
-            bus = self.topology.create_bus(item.network, "pi")
-            self.pi_buses[item.network] = bus
-            if item.tx_enabled:
-                transmitters[item.network] = SafeCanTransmitter(
-                    bus,
-                    self.config.tx_policy,
-                    self._clock,
-                )
-        vehicle_buses = {
-            item.network: self.topology.create_bus(item.network, "simulated-vehicle")
-            for item in self.config.can_networks
-        }
-        self.vehicle = SimulatedVehicleNode(
-            vehicle_buses,
-            SyntheticVehicleSource(self.config.simulation.synthetic_speed_network),
-        )
-
-        kcan_enabled = CanNetwork.KCAN in self.pi_buses
-
-        self.neotrellis = (
-            SimulatedNeoTrellisNode(
-                bus=self.topology.create_bus(CanNetwork.KCAN, "button-pad-emulator"),
-                ids=self.config.custom_can_ids,
-                clock=self._clock,
-            )
-            if self.button_pad_source is DeviceSource.EMULATED and kcan_enabled
-            else None
-        )
-        self.servotronic = self._servotronic_factory(
-            self.config.simulation.steering_watchdog_timeout_s,
+        session = build_session(
+            self.config,
             self._clock,
-        )
-        if kcan_enabled:
-            self.servotronic.configure_registry(
-                self.topology.create_bus(CanNetwork.KCAN, "servotronic-emulator"),
-                self.config.custom_can_ids,
-            )
-
-        router = SimulationProtocolRouter(
-            self.config.custom_can_ids,
-            button_input_enabled=self.button_pad_source is DeviceSource.EMULATED,
-            synthetic_speed_network=self.config.simulation.synthetic_speed_network,
-        )
-        self.kernel = CoordinatorKernel(
-            steering_config=self.config.steering,
-            engine_telemetry_config=self.config.engine_telemetry,
-            high_beam_strobe_config=self.config.high_beam_strobe,
-            router=router,
-            device_sources={
-                DeviceRole.BUTTON_PAD: self.button_pad_source,
-                DeviceRole.SERVOTRONIC_CONTROLLER: (
-                    DeviceSource.EMULATED if kcan_enabled else DeviceSource.DISABLED
-                ),
-            },
-            servotronic_output_available=kcan_enabled,
-            active_steering_curve=self._initial_steering_curve,
+            button_pad_source=self.button_pad_source,
+            servotronic_factory=self._servotronic_factory,
             button_binding_profile=self._button_binding_profile,
+            initial_steering_curve=self._initial_steering_curve,
         )
-        self.executor = EffectExecutor(
-            transmitters,
-            router,
-            steering_actuator=self.servotronic,
-            high_beam_actuator=(
-                None
-                if (transmitter := transmitters.get(CanNetwork.KCAN)) is None
-                else SimulatedHighBeamActuator(transmitter)
-            ),
-        )
+        self.topology = session.topology
+        self.pi_buses = session.pi_buses
+        self.vehicle = session.vehicle
+        self.neotrellis = session.neotrellis
+        self.servotronic = session.servotronic
+        self.kernel = session.kernel
+        self.executor = session.executor
 
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
@@ -521,13 +445,13 @@ class SimulatedControllerRuntime:
         commits = [] if commit is None else [commit]
         failures = () if commit is None else self.executor.execute(commit.effects)
         for failure in failures:
-            failure_commit = self.kernel.dispatch(_effect_failure_input(failure, self._clock()))
+            failure_commit = self.kernel.dispatch(effect_failure_input(failure, self._clock()))
             if failure_commit is not None:
                 commits.append(failure_commit)
                 feedback_failures = self.executor.execute(failure_commit.effects)
                 for feedback_failure in feedback_failures:
                     feedback_commit = self.kernel.dispatch(
-                        _effect_failure_input(feedback_failure, self._clock())
+                        effect_failure_input(feedback_failure, self._clock())
                     )
                     if feedback_commit is not None:
                         commits.append(feedback_commit)
@@ -595,23 +519,3 @@ class SimulatedControllerRuntime:
     def _require_started(self) -> None:
         if not self._started:
             raise RuntimeError("simulated controller runtime has not started")
-
-
-def _effect_failure_input(
-    failure: EffectFailure,
-    failed_at: float,
-) -> EffectFailureInput:
-    match failure:
-        case CanEffectFailure(network, message, origin_button_index):
-            return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
-        case SteeringActuatorFailure(message, origin_button_index):
-            return SteeringActuatorFailed(failed_at, message, origin_button_index)
-        case HighBeamActuatorFailure(message, origin_button_index):
-            return CanEffectExecutionFailed(
-                CanNetwork.KCAN,
-                failed_at,
-                message,
-                origin_button_index,
-            )
-        case _:
-            assert_never(failure)

@@ -126,7 +126,7 @@ def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> No
         PACKAGE / "adapters" / "output.py",
         PACKAGE / "kernel" / "kernel.py",
         PACKAGE / "live.py",
-        PACKAGE / "simulation" / "runtime.py",
+        PACKAGE / "simulation" / "effect_failures.py",
     )
 
     assert all("assert_never" in called_names(path) for path in paths)
