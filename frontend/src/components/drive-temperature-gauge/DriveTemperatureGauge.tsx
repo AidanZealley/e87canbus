@@ -13,6 +13,7 @@ export type DriveTemperatureGaugeProps = {
   valueC: number | null
   unit: "°C" | "°F"
   operatingTemperatureC: number
+  maximumTemperatureC: number
   status: EngineTelemetryValue["status"]
   severity: TemperatureSeverity
 }
@@ -26,12 +27,15 @@ const severityLabel: Record<TemperatureSeverity, string> = {
 
 const temperaturePosition = (
   valueC: number | null,
-  operatingTemperatureC: number
+  operatingTemperatureC: number,
+  maximumTemperatureC: number
 ) => {
   if (valueC === null) return 0
+  const halfRange = Math.max(1, maximumTemperatureC - operatingTemperatureC)
+  const minimumTemperatureC = operatingTemperatureC - halfRange
   return Math.min(
     100,
-    Math.max(0, (valueC / (operatingTemperatureC * 2)) * 100)
+    Math.max(0, ((valueC - minimumTemperatureC) / (halfRange * 2)) * 100)
   )
 }
 
@@ -42,20 +46,23 @@ export const DriveTemperatureGauge = ({
   valueC,
   unit,
   operatingTemperatureC,
+  maximumTemperatureC,
   status,
   severity,
 }: DriveTemperatureGaugeProps) => {
   const available =
     value !== null && valueC !== null && severity !== "unavailable"
+  const belowOperatingTemperature = available && valueC < operatingTemperatureC
   const displayStatus = available
-    ? severityLabel[severity]
+    ? belowOperatingTemperature
+      ? "Cold"
+      : severityLabel[severity]
     : status === "stale"
       ? "Stale"
       : "Unavailable"
   const position = available
-    ? temperaturePosition(valueC, operatingTemperatureC)
+    ? temperaturePosition(valueC, operatingTemperatureC, maximumTemperatureC)
     : 0
-
   return (
     <div className="flex flex-col gap-3" aria-label={label}>
       <div className="flex flex-col gap-3">
@@ -63,6 +70,7 @@ export const DriveTemperatureGauge = ({
           className={cn(
             "flex items-center justify-between gap-3",
             !available && "text-muted-foreground",
+            belowOperatingTemperature && "text-blue-600 dark:text-blue-400",
             severity === "warning" && "text-amber-600 dark:text-amber-400",
             severity === "critical" && "text-destructive"
           )}
@@ -85,11 +93,13 @@ export const DriveTemperatureGauge = ({
           aria-label={`${label} position`}
           aria-valuetext={
             available
-              ? `${value}${unit}, ${displayStatus.toLowerCase()}; operating temperature is the midpoint`
+              ? `${value}${unit}, ${displayStatus.toLowerCase()}; operating temperature is ${operatingTemperatureC}°C`
               : displayStatus
           }
           className={cn(
             "gap-0 **:data-[slot=progress-indicator]:bg-foreground/70 **:data-[slot=progress-track]:h-1.5 **:data-[slot=progress-track]:bg-muted/60",
+            belowOperatingTemperature &&
+              "**:data-[slot=progress-indicator]:bg-blue-500",
             severity === "warning" &&
               "**:data-[slot=progress-indicator]:bg-amber-500",
             severity === "critical" &&
@@ -112,7 +122,9 @@ export const DriveTemperatureGauge = ({
               ? "destructive"
               : severity === "warning"
                 ? "warning"
-                : "default"
+                : belowOperatingTemperature
+                  ? "cold"
+                  : "default"
           }
         >
           {severity === "critical" ? (

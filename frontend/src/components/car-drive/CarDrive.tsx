@@ -9,13 +9,14 @@ import {
 import { useTemperatureSeverity } from "@/components/car-layout/use-temperature-severity"
 import { RpmBar } from "@/components/rpm-bar"
 import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
+import {
+  COOLANT_MAXIMUM_TEMPERATURE_C,
+  OIL_MAXIMUM_TEMPERATURE_C,
+} from "@/components/car-layout/engine-temperature-scale"
 import { TelemetryValue } from "@/components/telemetry-value"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import { cn } from "@/lib/utils"
 import { useLiveStore } from "@/live/live-store"
-
-const OIL_OPERATING_TEMPERATURE_C = 110
-const COOLANT_OPERATING_TEMPERATURE_C = 95
 
 export const CarDrive = () => {
   const vehicle = useLiveStore((state) => state.vehicle)
@@ -110,7 +111,8 @@ export const CarDrive = () => {
           value={presentTemperature(connected ? oilTelemetry.value : null)}
           valueC={connected ? oilTelemetry.value : null}
           unit={temperatureUnit}
-          operatingTemperatureC={OIL_OPERATING_TEMPERATURE_C}
+          operatingTemperatureC={settings.oil_operating_c}
+          maximumTemperatureC={OIL_MAXIMUM_TEMPERATURE_C}
           status={connected ? oilTelemetry.status : "stale"}
           severity={oilSeverity}
         />
@@ -120,7 +122,8 @@ export const CarDrive = () => {
           value={presentTemperature(connected ? coolantTelemetry.value : null)}
           valueC={connected ? coolantTelemetry.value : null}
           unit={temperatureUnit}
-          operatingTemperatureC={COOLANT_OPERATING_TEMPERATURE_C}
+          operatingTemperatureC={settings.coolant_operating_c}
+          maximumTemperatureC={COOLANT_MAXIMUM_TEMPERATURE_C}
           status={connected ? coolantTelemetry.status : "stale"}
           severity={coolantSeverity}
         />

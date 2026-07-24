@@ -80,8 +80,8 @@ class SqliteApplicationSettingsRepository:
                 UPDATE application_settings
                 SET revision = revision + 1,
                     speed_unit = ?, temperature_unit = ?,
-                    oil_warning_c = ?, oil_critical_c = ?,
-                    coolant_warning_c = ?, coolant_critical_c = ?,
+                    oil_operating_c = ?, oil_warning_c = ?, oil_critical_c = ?,
+                    coolant_operating_c = ?, coolant_warning_c = ?, coolant_critical_c = ?,
                     shift_stage_1_rpm = ?, shift_stage_2_rpm = ?, redline_rpm = ?,
                     updated_at_utc = ?
                 WHERE singleton_id = 1 AND revision = ?
@@ -89,8 +89,10 @@ class SqliteApplicationSettingsRepository:
                 (
                     candidate.speed_unit.value,
                     candidate.temperature_unit.value,
+                    candidate.oil_operating_c,
                     candidate.oil_warning_c,
                     candidate.oil_critical_c,
+                    candidate.coolant_operating_c,
                     candidate.coolant_warning_c,
                     candidate.coolant_critical_c,
                     candidate.shift_stage_1_rpm,
@@ -136,8 +138,10 @@ class SqliteApplicationSettingsRepository:
                 revision=row["revision"],
                 speed_unit=SpeedUnit(row["speed_unit"]),
                 temperature_unit=TemperatureUnit(row["temperature_unit"]),
+                oil_operating_c=row["oil_operating_c"],
                 oil_warning_c=row["oil_warning_c"],
                 oil_critical_c=row["oil_critical_c"],
+                coolant_operating_c=row["coolant_operating_c"],
                 coolant_warning_c=row["coolant_warning_c"],
                 coolant_critical_c=row["coolant_critical_c"],
                 shift_stage_1_rpm=row["shift_stage_1_rpm"],

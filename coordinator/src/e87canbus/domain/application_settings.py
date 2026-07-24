@@ -31,8 +31,10 @@ class ApplicationSettingsUpdate:
 
     speed_unit: SpeedUnit
     temperature_unit: TemperatureUnit
+    oil_operating_c: float
     oil_warning_c: float
     oil_critical_c: float
+    coolant_operating_c: float
     coolant_warning_c: float
     coolant_critical_c: float
     shift_stage_1_rpm: int
@@ -50,8 +52,10 @@ class ApplicationSettings:
     revision: int
     speed_unit: SpeedUnit
     temperature_unit: TemperatureUnit
+    oil_operating_c: float
     oil_warning_c: float
     oil_critical_c: float
+    coolant_operating_c: float
     coolant_warning_c: float
     coolant_critical_c: float
     shift_stage_1_rpm: int
@@ -66,8 +70,10 @@ class ApplicationSettings:
         return ApplicationSettingsUpdate(
             speed_unit=self.speed_unit,
             temperature_unit=self.temperature_unit,
+            oil_operating_c=self.oil_operating_c,
             oil_warning_c=self.oil_warning_c,
             oil_critical_c=self.oil_critical_c,
+            coolant_operating_c=self.coolant_operating_c,
             coolant_warning_c=self.coolant_warning_c,
             coolant_critical_c=self.coolant_critical_c,
             shift_stage_1_rpm=self.shift_stage_1_rpm,
@@ -83,8 +89,10 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
         raise ValueError("temperature_unit must be a supported TemperatureUnit value")
 
     temperatures = {
+        "oil_operating_c": candidate.oil_operating_c,
         "oil_warning_c": candidate.oil_warning_c,
         "oil_critical_c": candidate.oil_critical_c,
+        "coolant_operating_c": candidate.coolant_operating_c,
         "coolant_warning_c": candidate.coolant_warning_c,
         "coolant_critical_c": candidate.coolant_critical_c,
     }
@@ -95,10 +103,18 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
             raise ValueError(
                 f"{field_name} must be between {MIN_TEMPERATURE_C:g} and {MAX_TEMPERATURE_C:g} C"
             )
-    if candidate.oil_warning_c >= candidate.oil_critical_c:
-        raise ValueError("oil_warning_c must be below oil_critical_c")
-    if candidate.coolant_warning_c >= candidate.coolant_critical_c:
-        raise ValueError("coolant_warning_c must be below coolant_critical_c")
+    if not candidate.oil_operating_c < candidate.oil_warning_c < candidate.oil_critical_c:
+        raise ValueError(
+            "oil_operating_c must be below oil_warning_c and oil_critical_c"
+        )
+    if not (
+        candidate.coolant_operating_c
+        < candidate.coolant_warning_c
+        < candidate.coolant_critical_c
+    ):
+        raise ValueError(
+            "coolant_operating_c must be below coolant_warning_c and coolant_critical_c"
+        )
 
     rpm_values = {
         "shift_stage_1_rpm": candidate.shift_stage_1_rpm,
@@ -130,10 +146,12 @@ DEFAULT_APPLICATION_SETTINGS = ApplicationSettings(
     revision=1,
     speed_unit=SpeedUnit.MPH,
     temperature_unit=TemperatureUnit.CELSIUS,
+    oil_operating_c=110.0,
     oil_warning_c=125.0,
-    oil_critical_c=135.0,
-    coolant_warning_c=105.0,
-    coolant_critical_c=115.0,
+    oil_critical_c=140.0,
+    coolant_operating_c=95.0,
+    coolant_warning_c=110.0,
+    coolant_critical_c=120.0,
     shift_stage_1_rpm=6800,
     shift_stage_2_rpm=7000,
     redline_rpm=7200,

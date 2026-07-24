@@ -133,12 +133,20 @@
             "title": "Coolant Critical C",
             "type": "number"
           },
+          "coolant_operating_c": {
+            "title": "Coolant Operating C",
+            "type": "number"
+          },
           "coolant_warning_c": {
             "title": "Coolant Warning C",
             "type": "number"
           },
           "oil_critical_c": {
             "title": "Oil Critical C",
+            "type": "number"
+          },
+          "oil_operating_c": {
+            "title": "Oil Operating C",
             "type": "number"
           },
           "oil_warning_c": {
@@ -177,8 +185,10 @@
           "revision",
           "speed_unit",
           "temperature_unit",
+          "oil_operating_c",
           "oil_warning_c",
           "oil_critical_c",
+          "coolant_operating_c",
           "coolant_warning_c",
           "coolant_critical_c",
           "shift_stage_1_rpm",
@@ -633,6 +643,12 @@
             "title": "Coolant Critical C",
             "type": "number"
           },
+          "coolant_operating_c": {
+            "maximum": 250.0,
+            "minimum": -40.0,
+            "title": "Coolant Operating C",
+            "type": "number"
+          },
           "coolant_warning_c": {
             "maximum": 250.0,
             "minimum": -40.0,
@@ -648,6 +664,12 @@
             "maximum": 250.0,
             "minimum": -40.0,
             "title": "Oil Critical C",
+            "type": "number"
+          },
+          "oil_operating_c": {
+            "maximum": 250.0,
+            "minimum": -40.0,
+            "title": "Oil Operating C",
             "type": "number"
           },
           "oil_warning_c": {
@@ -695,8 +717,10 @@
           "expected_revision",
           "speed_unit",
           "temperature_unit",
+          "oil_operating_c",
           "oil_warning_c",
           "oil_critical_c",
+          "coolant_operating_c",
           "coolant_warning_c",
           "coolant_critical_c",
           "shift_stage_1_rpm",

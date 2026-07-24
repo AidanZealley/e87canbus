@@ -20,8 +20,10 @@ class UpdateApplicationSettingsRequest(BaseModel):
     expected_revision: int = Field(ge=1)
     speed_unit: Literal["mph", "kmh"]
     temperature_unit: Literal["c", "f"]
+    oil_operating_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
     oil_warning_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
     oil_critical_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
+    coolant_operating_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
     coolant_warning_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
     coolant_critical_c: float = Field(ge=MIN_TEMPERATURE_C, le=MAX_TEMPERATURE_C)
     shift_stage_1_rpm: int = Field(ge=MIN_RPM, le=MAX_RPM)
@@ -35,8 +37,10 @@ class ApplicationSettingsResponse(BaseModel):
     revision: int = Field(ge=1)
     speed_unit: SpeedUnit
     temperature_unit: TemperatureUnit
+    oil_operating_c: float
     oil_warning_c: float
     oil_critical_c: float
+    coolant_operating_c: float
     coolant_warning_c: float
     coolant_critical_c: float
     shift_stage_1_rpm: int

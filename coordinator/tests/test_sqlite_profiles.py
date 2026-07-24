@@ -63,7 +63,9 @@ def test_fresh_migration_and_repeat_initialization(tmp_path: Path) -> None:
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
         columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
-    assert versions == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
+    assert versions == [
+        (version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)
+    ]
     assert journal_mode == "wal"
     assert "interpolation" not in columns
     assert repository.list_profiles() == (repository.get_profile(BUILT_IN_PROFILE_ID),)

@@ -17,10 +17,12 @@ def test_default_settings_are_valid_stable_and_have_no_theme() -> None:
             revision=1,
             speed_unit=SpeedUnit.MPH,
             temperature_unit=TemperatureUnit.CELSIUS,
+            oil_operating_c=110.0,
             oil_warning_c=125.0,
-            oil_critical_c=135.0,
-            coolant_warning_c=105.0,
-            coolant_critical_c=115.0,
+            oil_critical_c=140.0,
+            coolant_operating_c=95.0,
+            coolant_warning_c=110.0,
+            coolant_critical_c=120.0,
             shift_stage_1_rpm=6800,
             shift_stage_2_rpm=7000,
             redline_rpm=7200,
@@ -51,11 +53,13 @@ def test_temperature_unit_must_be_an_enum(temperature_unit: object) -> None:
     ("field_name", "value"),
     [
         ("oil_warning_c", float("nan")),
+        ("oil_operating_c", float("nan")),
         ("oil_warning_c", float("inf")),
         ("oil_warning_c", True),
         ("oil_warning_c", -40.1),
         ("oil_critical_c", 250.1),
         ("coolant_warning_c", float("-inf")),
+        ("coolant_operating_c", -40.1),
         ("coolant_critical_c", "115"),
     ],
 )
@@ -67,10 +71,10 @@ def test_temperatures_must_be_finite_numbers_in_range(field_name: str, value: ob
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
-        ({"oil_warning_c": 135.0}, "oil_warning_c"),
-        ({"oil_warning_c": 136.0}, "oil_warning_c"),
-        ({"coolant_warning_c": 115.0}, "coolant_warning_c"),
-        ({"coolant_warning_c": 116.0}, "coolant_warning_c"),
+        ({"oil_warning_c": 140.0}, "oil_warning_c"),
+        ({"oil_operating_c": 125.0}, "oil_operating_c"),
+        ({"coolant_warning_c": 120.0}, "coolant_warning_c"),
+        ({"coolant_operating_c": 110.0}, "coolant_operating_c"),
     ],
 )
 def test_warning_thresholds_must_be_below_critical(changes: dict[str, float], message: str) -> None:

@@ -19,7 +19,7 @@ from e87canbus.domain.steering import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 4
+CURRENT_MIGRATION_VERSION = 5
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 
@@ -96,6 +96,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_3(connection)
                 elif version == 4:
                     self._apply_migration_4(connection)
+                elif version == 5:
+                    self._apply_migration_5(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -253,6 +255,17 @@ class SqliteApplicationDatabase:
         )
         connection.execute("DROP TABLE steering_profiles_legacy")
         self._record_migration(connection, 4)
+
+    def _apply_migration_5(self, connection: sqlite3.Connection) -> None:
+        """Add independently configurable engine operating temperatures."""
+
+        connection.execute(
+            "ALTER TABLE application_settings ADD COLUMN oil_operating_c REAL NOT NULL DEFAULT 110"
+        )
+        connection.execute(
+            "ALTER TABLE application_settings ADD COLUMN coolant_operating_c REAL NOT NULL DEFAULT 95"
+        )
+        self._record_migration(connection, 5)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]

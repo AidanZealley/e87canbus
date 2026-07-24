@@ -20,8 +20,12 @@ import {
 } from "@/components/ui/card"
 import { TelemetrySlider } from "./TelemetrySlider"
 import {
+  COOLANT_MAXIMUM_TEMPERATURE_C,
+  OIL_MAXIMUM_TEMPERATURE_C,
+} from "@/components/car-layout/engine-temperature-scale"
+import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
+import {
   IDLE_RPM,
-  OPERATING_TEMPERATURE_C,
   setSimulatedVehicleRunning,
 } from "../../simulated-vehicle-power"
 
@@ -39,26 +43,31 @@ export const SimulatedVehicleControls = ({
   engine,
   observedHighBeamEnabled,
 }: SimulatedVehicleControlsProps) => {
+  const settings = useEffectiveApplicationSettings().settings
   const [speed, setSpeed] = useState(speedKph ?? 0)
   const [rpm, setRpm] = useState(engine.rpm.value ?? IDLE_RPM)
   const [oilTemperature, setOilTemperatureDraft] = useState(
-    engine.oil_temperature_c.value ?? OPERATING_TEMPERATURE_C
+    engine.oil_temperature_c.value ?? settings.oil_operating_c
   )
   const [coolantTemperature, setCoolantTemperatureDraft] = useState(
-    engine.coolant_temperature_c.value ?? OPERATING_TEMPERATURE_C
+    engine.coolant_temperature_c.value ?? settings.coolant_operating_c
   )
   const speedMutation = useMutation(setVehicleSpeedMutation())
   const rpmMutation = useMutation(setEngineRpmMutation())
   const oilMutation = useMutation(setOilTemperatureMutation())
   const coolantMutation = useMutation(setCoolantTemperatureMutation())
   const carMutation = useMutation({
-    mutationFn: setSimulatedVehicleRunning,
+    mutationFn: (running: boolean) =>
+      setSimulatedVehicleRunning(running, {
+        oilOperatingC: settings.oil_operating_c,
+        coolantOperatingC: settings.coolant_operating_c,
+      }),
     onSuccess: (_, running) => {
       if (running) {
         setSpeed(0)
         setRpm(IDLE_RPM)
-        setOilTemperatureDraft(OPERATING_TEMPERATURE_C)
-        setCoolantTemperatureDraft(OPERATING_TEMPERATURE_C)
+        setOilTemperatureDraft(settings.oil_operating_c)
+        setCoolantTemperatureDraft(settings.coolant_operating_c)
       }
     },
   })
@@ -148,7 +157,7 @@ export const SimulatedVehicleControls = ({
           label="Oil temperature"
           unit="°C"
           minimum={-40}
-          maximum={200}
+          maximum={OIL_MAXIMUM_TEMPERATURE_C}
           step={1}
           value={oilTemperature}
           disabled={!isRunning || controlsDisabled || oilMutation.isPending}
@@ -163,7 +172,7 @@ export const SimulatedVehicleControls = ({
           label="Coolant temperature"
           unit="°C"
           minimum={-40}
-          maximum={200}
+          maximum={COOLANT_MAXIMUM_TEMPERATURE_C}
           step={1}
           value={coolantTemperature}
           disabled={!isRunning || controlsDisabled || coolantMutation.isPending}

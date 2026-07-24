@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { test } from "vitest"
 
 import type { TraceRow as CanTraceEntry } from "@/api/live-contract.gen"
 import { decodeMeaning } from "./utils.ts"

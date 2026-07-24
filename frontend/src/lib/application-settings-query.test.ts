@@ -9,19 +9,19 @@ import type {
   ApplicationSettingsResponse,
   UpdateApplicationSettingsRequest,
 } from "../api/http/types.gen.ts"
-import {
-  resolveEffectiveApplicationSettings,
-} from "./application-settings-query.ts"
+import { resolveEffectiveApplicationSettings } from "./application-settings-query.ts"
 import { DEFAULT_APPLICATION_SETTINGS } from "./application-settings.ts"
 
 const updateRequest: UpdateApplicationSettingsRequest = {
   expected_revision: 1,
   speed_unit: "kmh",
   temperature_unit: "f",
+  oil_operating_c: 110,
   oil_warning_c: 124.5,
-  oil_critical_c: 135,
-  coolant_warning_c: 105,
-  coolant_critical_c: 115,
+  oil_critical_c: 140,
+  coolant_operating_c: 95,
+  coolant_warning_c: 110,
+  coolant_critical_c: 120,
   shift_stage_1_rpm: 6800,
   shift_stage_2_rpm: 7000,
   redline_rpm: 7200,

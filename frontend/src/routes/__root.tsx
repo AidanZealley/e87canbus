@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router"
 
 import { buttonVariants } from "@/components/ui/button"
-import { SimulatedVehiclePopover } from "@/components/simulated-vehicle-popover/SimulatedVehiclePopover"
+import { SimulatedVehiclePopover } from "@/components/simulated-vehicle-popover"
 import { cn } from "@/lib/utils"
 
 export const Route = createRootRoute({

@@ -33,8 +33,10 @@ def candidate_from_request(
         return ApplicationSettingsUpdate(
             speed_unit=SpeedUnit(request.speed_unit),
             temperature_unit=TemperatureUnit(request.temperature_unit),
+            oil_operating_c=request.oil_operating_c,
             oil_warning_c=request.oil_warning_c,
             oil_critical_c=request.oil_critical_c,
+            coolant_operating_c=request.coolant_operating_c,
             coolant_warning_c=request.coolant_warning_c,
             coolant_critical_c=request.coolant_critical_c,
             shift_stage_1_rpm=request.shift_stage_1_rpm,

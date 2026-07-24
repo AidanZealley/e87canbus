@@ -87,10 +87,10 @@ it("starts a realistic warm, idling car", async () => {
     })
     expect(api.setEngineRpm).toHaveBeenCalledWith({ body: { rpm: 600 } })
     expect(api.setOilTemperature).toHaveBeenCalledWith({
-      body: { temperature_c: 90 },
+      body: { temperature_c: 110 },
     })
     expect(api.setCoolantTemperature).toHaveBeenCalledWith({
-      body: { temperature_c: 90 },
+      body: { temperature_c: 95 },
     })
   })
 })

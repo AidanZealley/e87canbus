@@ -49,6 +49,7 @@ it("renders severity and RPM stage as text in addition to color", () => {
         valueC={110}
         unit="°F"
         operatingTemperatureC={110}
+        maximumTemperatureC={150}
         status="valid"
         severity="critical"
       />
@@ -83,6 +84,76 @@ it("renders severity and RPM stage as text in addition to color", () => {
   expect(
     criticalBadge.querySelector("svg[data-icon=inline-start]")
   ).toBeTruthy()
+})
+
+it("shows cold below OT, centers OT, and holds the bar below its useful range", () => {
+  render(
+    <div>
+      <DriveTemperatureGauge
+        icon={DropletIcon}
+        label="Very cold oil"
+        value={60}
+        valueC={60}
+        unit="°C"
+        operatingTemperatureC={110}
+        maximumTemperatureC={150}
+        status="valid"
+        severity="normal"
+      />
+      <DriveTemperatureGauge
+        icon={DropletIcon}
+        label="Cold oil"
+        value={90}
+        valueC={90}
+        unit="°C"
+        operatingTemperatureC={110}
+        maximumTemperatureC={150}
+        status="valid"
+        severity="normal"
+      />
+      <DriveTemperatureGauge
+        icon={DropletIcon}
+        label="Warm oil"
+        value={110}
+        valueC={110}
+        unit="°C"
+        operatingTemperatureC={110}
+        maximumTemperatureC={150}
+        status="valid"
+        severity="normal"
+      />
+    </div>
+  )
+
+  const veryCold = screen.getByLabelText("Very cold oil")
+  expect(within(veryCold).getByText("Cold").getAttribute("data-variant")).toBe(
+    "cold"
+  )
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Very cold oil position" })
+      .getAttribute("aria-valuenow")
+  ).toBe("0")
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Cold oil position" })
+      .getAttribute("aria-valuenow")
+  ).toBe("25")
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Warm oil position" })
+      .getAttribute("aria-valuenow")
+  ).toBe("50")
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Cold oil position" })
+      .className.includes("bg-blue-500")
+  ).toBe(true)
+  expect(
+    screen
+      .getByRole("progressbar", { name: "Warm oil position" })
+      .className.includes("bg-emerald-500")
+  ).toBe(false)
 })
 
 it("does not render disabled or not-found registry entries", () => {

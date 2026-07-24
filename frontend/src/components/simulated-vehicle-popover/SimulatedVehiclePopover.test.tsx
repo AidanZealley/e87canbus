@@ -11,7 +11,10 @@ const runtime = vi.hoisted(() => ({
   simulatedVehicle: false,
 }))
 
-vi.mock("@/api/http/@tanstack/react-query.gen", () => ({
+vi.mock("@/api/http/@tanstack/react-query.gen", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/api/http/@tanstack/react-query.gen")
+  >()),
   getRuntimeConfigurationOptions: () => ({
     queryKey: ["runtime-configuration"],
     queryFn: async () => ({
@@ -84,6 +87,7 @@ it("makes the power shortcut destructive while the car is running", async () => 
   renderPopover()
 
   expect(
-    (await screen.findByRole("button", { name: "Stop simulated car" })).className
+    (await screen.findByRole("button", { name: "Stop simulated car" }))
+      .className
   ).toContain("bg-destructive/10")
 })

@@ -243,7 +243,12 @@ const AuthoritativeSettingsForm = ({
         <CardHeader>
           <CardTitle>Temperature thresholds</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <NumberField
+            label={`Oil OT (${temperatureSuffix})`}
+            value={draft.oilOperating}
+            onChange={(value) => setField("oilOperating", value)}
+          />
           <NumberField
             label={`Oil warning (${temperatureSuffix})`}
             value={draft.oilWarning}
@@ -253,6 +258,11 @@ const AuthoritativeSettingsForm = ({
             label={`Oil critical (${temperatureSuffix})`}
             value={draft.oilCritical}
             onChange={(value) => setField("oilCritical", value)}
+          />
+          <NumberField
+            label={`Coolant OT (${temperatureSuffix})`}
+            value={draft.coolantOperating}
+            onChange={(value) => setField("coolantOperating", value)}
           />
           <NumberField
             label={`Coolant warning (${temperatureSuffix})`}

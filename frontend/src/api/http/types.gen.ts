@@ -87,6 +87,10 @@ export type ApplicationSettingsResponse = {
    */
   coolant_critical_c: number
   /**
+   * Coolant Operating C
+   */
+  coolant_operating_c: number
+  /**
    * Coolant Warning C
    */
   coolant_warning_c: number
@@ -94,6 +98,10 @@ export type ApplicationSettingsResponse = {
    * Oil Critical C
    */
   oil_critical_c: number
+  /**
+   * Oil Operating C
+   */
+  oil_operating_c: number
   /**
    * Oil Warning C
    */
@@ -421,6 +429,10 @@ export type UpdateApplicationSettingsRequest = {
    */
   coolant_critical_c: number
   /**
+   * Coolant Operating C
+   */
+  coolant_operating_c: number
+  /**
    * Coolant Warning C
    */
   coolant_warning_c: number
@@ -432,6 +444,10 @@ export type UpdateApplicationSettingsRequest = {
    * Oil Critical C
    */
   oil_critical_c: number
+  /**
+   * Oil Operating C
+   */
+  oil_operating_c: number
   /**
    * Oil Warning C
    */

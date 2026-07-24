@@ -397,11 +397,13 @@ it("loads settings only from authority and saves one canonical document", async 
   expect(requests).toHaveLength(1)
   expect(requests[0]).toMatchObject({
     expected_revision: 1,
+    oil_operating_c: 110,
     oil_warning_c: 124.5,
-    coolant_critical_c: 115,
+    coolant_operating_c: 95,
+    coolant_critical_c: 120,
     redline_rpm: 7200,
   })
-  expect(Object.keys(requests[0] ?? {})).toHaveLength(10)
+  expect(Object.keys(requests[0] ?? {})).toHaveLength(12)
 })
 
 it("keeps theme and retry available after an initial settings load failure", async () => {

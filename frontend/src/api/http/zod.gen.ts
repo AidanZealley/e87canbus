@@ -227,8 +227,10 @@ export const zTemperatureUnit = z.enum(["c", "f"])
  */
 export const zApplicationSettingsResponse = z.object({
   coolant_critical_c: z.number(),
+  coolant_operating_c: z.number(),
   coolant_warning_c: z.number(),
   oil_critical_c: z.number(),
+  oil_operating_c: z.number(),
   oil_warning_c: z.number(),
   redline_rpm: z.int(),
   revision: z.int().gte(1),
@@ -244,9 +246,11 @@ export const zApplicationSettingsResponse = z.object({
  */
 export const zUpdateApplicationSettingsRequest = z.object({
   coolant_critical_c: z.number().gte(-40).lte(250),
+  coolant_operating_c: z.number().gte(-40).lte(250),
   coolant_warning_c: z.number().gte(-40).lte(250),
   expected_revision: z.int().gte(1),
   oil_critical_c: z.number().gte(-40).lte(250),
+  oil_operating_c: z.number().gte(-40).lte(250),
   oil_warning_c: z.number().gte(-40).lte(250),
   redline_rpm: z.int().gte(1000).lte(12000),
   shift_stage_1_rpm: z.int().gte(1000).lte(12000),

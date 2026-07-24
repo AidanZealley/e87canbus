@@ -94,7 +94,7 @@ def test_fresh_database_applies_all_migrations_and_seeds(tmp_path: Path) -> None
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-    assert versions == [(1,), (2,), (3,), (4,)]
+    assert versions == [(1,), (2,), (3,), (4,), (5,)]
     assert journal_mode == "wal"
     assert profiles.get_profile(BUILT_IN_PROFILE_ID) is not None
     assert settings.get_settings() == DEFAULT_APPLICATION_SETTINGS
@@ -113,7 +113,9 @@ def test_version_1_upgrade_converts_legacy_profile_to_smooth(tmp_path: Path) -> 
     with sqlite3.connect(path) as connection:
         assert connection.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
-        ).fetchall() == [(1,), (2,), (3,), (CURRENT_MIGRATION_VERSION,)]
+        ).fetchall() == [
+            (version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)
+        ]
         columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
         stored_json = connection.execute(
             "SELECT definition_json FROM steering_profiles WHERE profile_id = ?",
@@ -198,6 +200,7 @@ def test_concurrent_same_revision_writers_allow_one_success(tmp_path: Path) -> N
         ("speed_unit", "knots"),
         ("revision", "invalid"),
         ("oil_warning_c", 140.0),
+        ("oil_operating_c", 140.0),
         ("shift_stage_1_rpm", 6800.5),
         ("updated_at_utc", "not-a-timestamp"),
     ],

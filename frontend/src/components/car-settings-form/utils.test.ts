@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { test } from "vitest"
 
 import { DEFAULT_APPLICATION_SETTINGS } from "../../lib/application-settings.ts"
 import {
@@ -12,13 +12,15 @@ import {
 test("initializes from authoritative values and preserves canonical meaning across unit changes", () => {
   const celsius = settingsToDraft(DEFAULT_APPLICATION_SETTINGS)
   const fahrenheit = changeDraftTemperatureUnit(celsius, "f")
+  assert.equal(fahrenheit.oilOperating, "230")
   assert.equal(fahrenheit.oilWarning, "257")
-  assert.equal(fahrenheit.coolantCritical, "239")
+  assert.equal(fahrenheit.coolantOperating, "203")
+  assert.equal(fahrenheit.coolantCritical, "248")
 
   const result = validateSettingsDraft(fahrenheit)
   assert.equal(result.error, null)
   assert.equal(result.request?.oil_warning_c, 125)
-  assert.equal(result.request?.coolant_critical_c, 115)
+  assert.equal(result.request?.coolant_critical_c, 120)
   assert.equal(result.request?.temperature_unit, "f")
 
   assert.equal(
@@ -46,8 +48,8 @@ test("matches backend temperature and RPM range and ordering rules", () => {
     /number for every temperature/
   )
   assert.match(
-    validateSettingsDraft({ ...base, oilWarning: "135" }).error ?? "",
-    /Oil warning/
+    validateSettingsDraft({ ...base, oilOperating: "125" }).error ?? "",
+    /Oil OT/
   )
   assert.match(
     validateSettingsDraft({ ...base, coolantCritical: "251" }).error ?? "",

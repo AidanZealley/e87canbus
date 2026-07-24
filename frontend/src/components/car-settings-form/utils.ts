@@ -20,12 +20,20 @@ export const settingsToDraft = (
   sourceRevision: settings.revision,
   speedUnit: settings.speed_unit,
   temperatureUnit: settings.temperature_unit,
+  oilOperating: displayTemperature(
+    settings.oil_operating_c,
+    settings.temperature_unit
+  ),
   oilWarning: displayTemperature(
     settings.oil_warning_c,
     settings.temperature_unit
   ),
   oilCritical: displayTemperature(
     settings.oil_critical_c,
+    settings.temperature_unit
+  ),
+  coolantOperating: displayTemperature(
+    settings.coolant_operating_c,
     settings.temperature_unit
   ),
   coolantWarning: displayTemperature(
@@ -42,8 +50,10 @@ export const settingsToDraft = (
 })
 
 const temperatureFields = [
+  "oilOperating",
   "oilWarning",
   "oilCritical",
+  "coolantOperating",
   "coolantWarning",
   "coolantCritical",
 ] as const
@@ -90,33 +100,52 @@ export const validateSettingsDraft = (
     number,
     number,
     number,
+    number,
+    number,
   ]
-  const [oilWarning, oilCritical, coolantWarning, coolantCritical] =
-    displayTemperatures.map((value) =>
-      draft.temperatureUnit === "f"
-        ? fahrenheitThresholdToCelsius(value)
-        : Math.round(value * 10) / 10
-    )
+  const [
+    oilOperating,
+    oilWarning,
+    oilCritical,
+    coolantOperating,
+    coolantWarning,
+    coolantCritical,
+  ] = displayTemperatures.map((value) =>
+    draft.temperatureUnit === "f"
+      ? fahrenheitThresholdToCelsius(value)
+      : Math.round(value * 10) / 10
+  )
   if (
-    [oilWarning, oilCritical, coolantWarning, coolantCritical].some(
-      (value) => value === undefined || value < -40 || value > 250
-    )
+    [
+      oilOperating,
+      oilWarning,
+      oilCritical,
+      coolantOperating,
+      coolantWarning,
+      coolantCritical,
+    ].some((value) => value === undefined || value < -40 || value > 250)
   ) {
     return {
       request: null,
       error: "Temperature thresholds must be between -40°C and 250°C.",
     }
   }
-  if ((oilWarning ?? 0) >= (oilCritical ?? 0)) {
+  if (!(
+    (oilOperating ?? 0) < (oilWarning ?? 0) &&
+    (oilWarning ?? 0) < (oilCritical ?? 0)
+  )) {
     return {
       request: null,
-      error: "Oil warning must be below oil critical.",
+      error: "Oil OT must be below warning, and warning below critical.",
     }
   }
-  if ((coolantWarning ?? 0) >= (coolantCritical ?? 0)) {
+  if (!(
+    (coolantOperating ?? 0) < (coolantWarning ?? 0) &&
+    (coolantWarning ?? 0) < (coolantCritical ?? 0)
+  )) {
     return {
       request: null,
-      error: "Coolant warning must be below coolant critical.",
+      error: "Coolant OT must be below warning, and warning below critical.",
     }
   }
   const rpmFields = [
@@ -149,8 +178,10 @@ export const validateSettingsDraft = (
       expected_revision: draft.sourceRevision,
       speed_unit: draft.speedUnit,
       temperature_unit: draft.temperatureUnit,
+      oil_operating_c: oilOperating!,
       oil_warning_c: oilWarning!,
       oil_critical_c: oilCritical!,
+      coolant_operating_c: coolantOperating!,
       coolant_warning_c: coolantWarning!,
       coolant_critical_c: coolantCritical!,
       shift_stage_1_rpm: shiftStage1Rpm!,
@@ -172,8 +203,10 @@ export const settingsDraftMatches = (
     draft.sourceRevision === settings.revision &&
     editable.speed_unit === settings.speed_unit &&
     editable.temperature_unit === settings.temperature_unit &&
+    editable.oil_operating_c === settings.oil_operating_c &&
     editable.oil_warning_c === settings.oil_warning_c &&
     editable.oil_critical_c === settings.oil_critical_c &&
+    editable.coolant_operating_c === settings.coolant_operating_c &&
     editable.coolant_warning_c === settings.coolant_warning_c &&
     editable.coolant_critical_c === settings.coolant_critical_c &&
     editable.shift_stage_1_rpm === settings.shift_stage_1_rpm &&

@@ -10,9 +10,11 @@ import {
 } from "@/components/ui/popover"
 import { LiveSimulatedVehicleControls } from "@/components/simulator-workbench/LiveSimulatedVehicleControls"
 import { setSimulatedVehicleRunning } from "@/components/simulator-workbench/simulated-vehicle-power"
+import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import { useLiveStore } from "@/live/live-store"
 
 export const SimulatedVehiclePopover = () => {
+  const settings = useEffectiveApplicationSettings().settings
   const runtime = useQuery({
     ...getRuntimeConfigurationOptions(),
     staleTime: Infinity,
@@ -22,7 +24,11 @@ export const SimulatedVehiclePopover = () => {
     (state) => state.connection.synchronized && state.vehicle.speed_valid
   )
   const power = useMutation({
-    mutationFn: setSimulatedVehicleRunning,
+    mutationFn: (running: boolean) =>
+      setSimulatedVehicleRunning(running, {
+        oilOperatingC: settings.oil_operating_c,
+        coolantOperatingC: settings.coolant_operating_c,
+      }),
   })
 
   if (!runtime.data?.capabilities.simulated_vehicle) return null
