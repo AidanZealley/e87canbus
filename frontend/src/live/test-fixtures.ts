@@ -87,6 +87,8 @@ export const snapshot = (
     },
     steering,
     buttons: {
+      active_profile_id: "00000000-0000-4000-8000-000000000002",
+      active_profile_revision: revision || null,
       program: staticButtonPadProgram(
         Array.from(
           { length: 16 },

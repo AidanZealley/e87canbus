@@ -102,11 +102,31 @@
     "ButtonsState": {
       "additionalProperties": false,
       "properties": {
+        "active_profile_id": {
+          "minLength": 1,
+          "title": "Active Profile Id",
+          "type": "string"
+        },
+        "active_profile_revision": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Profile Revision"
+        },
         "program": {
           "$ref": "#/definitions/ButtonPadProgramState"
         }
       },
       "required": [
+        "active_profile_id",
+        "active_profile_revision",
         "program"
       ],
       "title": "ButtonsState",
@@ -1230,7 +1250,8 @@
         "resource": {
           "enum": [
             "settings",
-            "steering_profile"
+            "steering_profile",
+            "button_profile"
           ],
           "title": "Resource",
           "type": "string"

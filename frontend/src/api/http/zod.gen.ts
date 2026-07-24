@@ -3,6 +3,16 @@
 import * as z from "zod"
 
 /**
+ * ActivateButtonProfileRequest
+ */
+export const zActivateButtonProfileRequest = z.object({
+  expected_revision: z.int().gte(1),
+  profile_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
  * ActivateSteeringProfileRequest
  */
 export const zActivateSteeringProfileRequest = z.object({
@@ -10,6 +20,14 @@ export const zActivateSteeringProfileRequest = z.object({
   profile_id: z
     .string()
     .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * AdjustManualAssistanceCommand
+ */
+export const zAdjustManualAssistanceCommand = z.object({
+  delta: z.union([z.literal(-1), z.literal(1)]),
+  type: z.literal("adjust_manual_assistance"),
 })
 
 /**
@@ -77,10 +95,34 @@ export const zRuntimeConfigurationResponse = z.object({
 })
 
 /**
+ * SelectSteeringModeCommand
+ */
+export const zSelectSteeringModeCommand = z.object({
+  mode: z.enum(["auto", "manual"]),
+  type: z.literal("select_steering_mode"),
+})
+
+/**
+ * SetManualAssistanceLevelCommand
+ */
+export const zSetManualAssistanceLevelCommand = z.object({
+  level: z.int().gte(0),
+  type: z.literal("set_manual_assistance_level"),
+})
+
+/**
  * SetManualAssistanceLevelRequest
  */
 export const zSetManualAssistanceLevelRequest = z.object({
   level: z.int().gte(0),
+})
+
+/**
+ * SetMaximumAssistanceCommand
+ */
+export const zSetMaximumAssistanceCommand = z.object({
+  enabled: z.boolean(),
+  type: z.literal("set_maximum_assistance"),
 })
 
 /**
@@ -130,6 +172,13 @@ export const zSpeedRequest = z.object({
  * SpeedUnit
  */
 export const zSpeedUnit = z.enum(["mph", "kmh"])
+
+/**
+ * StartHighBeamStrobeCommand
+ */
+export const zStartHighBeamStrobeCommand = z.object({
+  type: z.literal("start_high_beam_strobe"),
+})
 
 /**
  * SteeringCurvePointRequest
@@ -242,6 +291,412 @@ export const zApplicationSettingsResponse = z.object({
 })
 
 /**
+ * ToggleAutomaticAssistanceCommand
+ */
+export const zToggleAutomaticAssistanceCommand = z.object({
+  type: z.literal("toggle_automatic_assistance"),
+})
+
+/**
+ * ToggleMaximumAssistanceCommand
+ */
+export const zToggleMaximumAssistanceCommand = z.object({
+  type: z.literal("toggle_maximum_assistance"),
+})
+
+/**
+ * ButtonProfileDefinitionRequest
+ */
+export const zButtonProfileDefinitionRequest = z.object({
+  schema_version: z.literal(1),
+  slots: z.tuple([
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+  ]),
+})
+
+/**
+ * ButtonProfileDefinitionResponse
+ */
+export const zButtonProfileDefinitionResponse = z.object({
+  schema_version: z.literal(1),
+  slots: z.tuple([
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+    z
+      .discriminatedUnion("type", [
+        zSelectSteeringModeCommand,
+        zToggleAutomaticAssistanceCommand,
+        zAdjustManualAssistanceCommand,
+        zSetManualAssistanceLevelCommand,
+        zSetMaximumAssistanceCommand,
+        zToggleMaximumAssistanceCommand,
+        zStartHighBeamStrobeCommand,
+      ])
+      .nullable(),
+  ]),
+})
+
+/**
+ * ButtonProfileResponse
+ */
+export const zButtonProfileResponse = z.object({
+  created_at: z.string(),
+  definition: zButtonProfileDefinitionResponse,
+  name: z.string().min(1).max(100),
+  profile_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+  revision: z.int().gte(1),
+  updated_at: z.string(),
+})
+
+/**
+ * CreateButtonProfileRequest
+ */
+export const zCreateButtonProfileRequest = z.object({
+  definition: zButtonProfileDefinitionRequest.nullish(),
+  name: z.string().min(1).max(100),
+})
+
+/**
  * UpdateApplicationSettingsRequest
  */
 export const zUpdateApplicationSettingsRequest = z.object({
@@ -257,6 +712,15 @@ export const zUpdateApplicationSettingsRequest = z.object({
   shift_stage_2_rpm: z.int().gte(1000).lte(12000),
   speed_unit: z.enum(["mph", "kmh"]),
   temperature_unit: z.enum(["c", "f"]),
+})
+
+/**
+ * UpdateButtonProfileRequest
+ */
+export const zUpdateButtonProfileRequest = z.object({
+  definition: zButtonProfileDefinitionRequest,
+  expected_revision: z.int().gte(1),
+  name: z.string().min(1).max(100),
 })
 
 /**
@@ -289,6 +753,7 @@ export const zApiProblemDetail = z.object({
     "profile_revision_conflict",
     "profile_name_conflict",
     "profile_storage_error",
+    "profile_protected",
     "runtime_queue_full",
     "controller_unavailable",
     "command_timeout",
@@ -308,6 +773,71 @@ export const zApiProblemDetail = z.object({
 export const zApiProblemResponse = z.object({
   error: zApiProblemDetail,
 })
+
+export const zActivateButtonProfileBody = zActivateButtonProfileRequest
+
+/**
+ * Successful Response
+ */
+export const zActivateButtonProfileResponse = zCommandAcknowledgement
+
+/**
+ * Successful Response
+ */
+export const zGetSavedButtonProfileResponse = zButtonProfileResponse
+
+/**
+ * Response Listbuttonprofiles
+ *
+ * Successful Response
+ */
+export const zListButtonProfilesResponse = z.array(zButtonProfileResponse)
+
+export const zCreateButtonProfileBody = zCreateButtonProfileRequest
+
+/**
+ * Successful Response
+ */
+export const zCreateButtonProfileResponse = zButtonProfileResponse
+
+export const zDeleteButtonProfilePath = z.object({
+  profile_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+export const zDeleteButtonProfileQuery = z.object({
+  expected_revision: z.int().gte(1),
+})
+
+/**
+ * Successful Response
+ */
+export const zDeleteButtonProfileResponse = z.void()
+
+export const zGetButtonProfilePath = z.object({
+  profile_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Successful Response
+ */
+export const zGetButtonProfileResponse = zButtonProfileResponse
+
+export const zUpdateButtonProfileBody = zUpdateButtonProfileRequest
+
+export const zUpdateButtonProfilePath = z.object({
+  profile_id: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+})
+
+/**
+ * Successful Response
+ */
+export const zUpdateButtonProfileResponse = zButtonProfileResponse
 
 export const zTapSimulationButtonPath = z.object({
   button_index: z.int().gte(0).lt(16),

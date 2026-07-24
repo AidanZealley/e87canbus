@@ -8,19 +8,25 @@ import {
 
 import { client } from "../client.gen"
 import {
+  activateButtonProfile,
   activateSteeringCurve,
   activateSteeringProfile,
   adjustManualAssistance,
   checkLiveness,
   checkReadiness,
   connectSimulationDevice,
+  createButtonProfile,
   createSteeringProfile,
+  deleteButtonProfile,
   deleteSteeringProfile,
   disconnectSimulationDevice,
   getApplicationSettings,
+  getButtonProfile,
   getRuntimeConfiguration,
+  getSavedButtonProfile,
   getSavedSteeringProfile,
   getSteeringProfile,
+  listButtonProfiles,
   listSteeringProfiles,
   type Options,
   rebootSimulationDevice,
@@ -40,9 +46,13 @@ import {
   silenceVehicleSpeed,
   tapSimulationButton,
   updateApplicationSettings,
+  updateButtonProfile,
   updateSteeringProfile,
 } from "../sdk.gen"
 import type {
+  ActivateButtonProfileData,
+  ActivateButtonProfileError,
+  ActivateButtonProfileResponse,
   ActivateSteeringCurveData,
   ActivateSteeringCurveError,
   ActivateSteeringCurveResponse,
@@ -60,9 +70,15 @@ import type {
   ConnectSimulationDeviceData,
   ConnectSimulationDeviceError,
   ConnectSimulationDeviceResponse,
+  CreateButtonProfileData,
+  CreateButtonProfileError,
+  CreateButtonProfileResponse,
   CreateSteeringProfileData,
   CreateSteeringProfileError,
   CreateSteeringProfileResponse,
+  DeleteButtonProfileData,
+  DeleteButtonProfileError,
+  DeleteButtonProfileResponse,
   DeleteSteeringProfileData,
   DeleteSteeringProfileError,
   DeleteSteeringProfileResponse,
@@ -72,14 +88,23 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsError,
   GetApplicationSettingsResponse,
+  GetButtonProfileData,
+  GetButtonProfileError,
+  GetButtonProfileResponse,
   GetRuntimeConfigurationData,
   GetRuntimeConfigurationResponse,
+  GetSavedButtonProfileData,
+  GetSavedButtonProfileError,
+  GetSavedButtonProfileResponse,
   GetSavedSteeringProfileData,
   GetSavedSteeringProfileError,
   GetSavedSteeringProfileResponse,
   GetSteeringProfileData,
   GetSteeringProfileError,
   GetSteeringProfileResponse,
+  ListButtonProfilesData,
+  ListButtonProfilesError,
+  ListButtonProfilesResponse,
   ListSteeringProfilesData,
   ListSteeringProfilesError,
   ListSteeringProfilesResponse,
@@ -134,10 +159,231 @@ import type {
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsError,
   UpdateApplicationSettingsResponse,
+  UpdateButtonProfileData,
+  UpdateButtonProfileError,
+  UpdateButtonProfileResponse,
   UpdateSteeringProfileData,
   UpdateSteeringProfileError,
   UpdateSteeringProfileResponse,
 } from "../types.gen"
+
+/**
+ * Activate Button Profile
+ */
+export const activateButtonProfileMutation = (
+  options?: Partial<Options<ActivateButtonProfileData>>
+): UseMutationOptions<
+  ActivateButtonProfileResponse,
+  ActivateButtonProfileError,
+  Options<ActivateButtonProfileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ActivateButtonProfileResponse,
+    ActivateButtonProfileError,
+    Options<ActivateButtonProfileData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await activateButtonProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+export type QueryKey<TOptions extends Options> = [
+  Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {
+    _id: string
+    _infinite?: boolean
+    tags?: ReadonlyArray<string>
+  },
+]
+
+const createQueryKey = <TOptions extends Options>(
+  id: string,
+  options?: TOptions,
+  infinite?: boolean,
+  tags?: ReadonlyArray<string>
+): [QueryKey<TOptions>[0]] => {
+  const params: QueryKey<TOptions>[0] = {
+    _id: id,
+    baseUrl:
+      options?.baseUrl || (options?.client ?? client).getConfig().baseUrl,
+  } as QueryKey<TOptions>[0]
+  if (infinite) {
+    params._infinite = infinite
+  }
+  if (tags) {
+    params.tags = tags
+  }
+  if (options?.body) {
+    params.body = options.body
+  }
+  if (options?.headers) {
+    params.headers = options.headers
+  }
+  if (options?.path) {
+    params.path = options.path
+  }
+  if (options?.query) {
+    params.query = options.query
+  }
+  return [params]
+}
+
+export const getSavedButtonProfileQueryKey = (
+  options?: Options<GetSavedButtonProfileData>
+) => createQueryKey("getSavedButtonProfile", options)
+
+/**
+ * Get Saved Button Profile
+ */
+export const getSavedButtonProfileOptions = (
+  options?: Options<GetSavedButtonProfileData>
+) =>
+  queryOptions<
+    GetSavedButtonProfileResponse,
+    GetSavedButtonProfileError,
+    GetSavedButtonProfileResponse,
+    ReturnType<typeof getSavedButtonProfileQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await getSavedButtonProfile({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: getSavedButtonProfileQueryKey(options),
+  })
+
+export const listButtonProfilesQueryKey = (
+  options?: Options<ListButtonProfilesData>
+) => createQueryKey("listButtonProfiles", options)
+
+/**
+ * List Button Profiles
+ */
+export const listButtonProfilesOptions = (
+  options?: Options<ListButtonProfilesData>
+) =>
+  queryOptions<
+    ListButtonProfilesResponse,
+    ListButtonProfilesError,
+    ListButtonProfilesResponse,
+    ReturnType<typeof listButtonProfilesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await listButtonProfiles({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: listButtonProfilesQueryKey(options),
+  })
+
+/**
+ * Create Button Profile
+ */
+export const createButtonProfileMutation = (
+  options?: Partial<Options<CreateButtonProfileData>>
+): UseMutationOptions<
+  CreateButtonProfileResponse,
+  CreateButtonProfileError,
+  Options<CreateButtonProfileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateButtonProfileResponse,
+    CreateButtonProfileError,
+    Options<CreateButtonProfileData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await createButtonProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Delete Button Profile
+ */
+export const deleteButtonProfileMutation = (
+  options?: Partial<Options<DeleteButtonProfileData>>
+): UseMutationOptions<
+  DeleteButtonProfileResponse,
+  DeleteButtonProfileError,
+  Options<DeleteButtonProfileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteButtonProfileResponse,
+    DeleteButtonProfileError,
+    Options<DeleteButtonProfileData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await deleteButtonProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+export const getButtonProfileQueryKey = (
+  options: Options<GetButtonProfileData>
+) => createQueryKey("getButtonProfile", options)
+
+/**
+ * Get Button Profile
+ */
+export const getButtonProfileOptions = (
+  options: Options<GetButtonProfileData>
+) =>
+  queryOptions<
+    GetButtonProfileResponse,
+    GetButtonProfileError,
+    GetButtonProfileResponse,
+    ReturnType<typeof getButtonProfileQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await getButtonProfile({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: getButtonProfileQueryKey(options),
+  })
+
+/**
+ * Update Button Profile
+ */
+export const updateButtonProfileMutation = (
+  options?: Partial<Options<UpdateButtonProfileData>>
+): UseMutationOptions<
+  UpdateButtonProfileResponse,
+  UpdateButtonProfileError,
+  Options<UpdateButtonProfileData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateButtonProfileResponse,
+    UpdateButtonProfileError,
+    Options<UpdateButtonProfileData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await updateButtonProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
 
 /**
  * Tap Button
@@ -512,46 +758,6 @@ export const silenceVehicleSpeedMutation = (
       }),
   }
   return mutationOptions
-}
-
-export type QueryKey<TOptions extends Options> = [
-  Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {
-    _id: string
-    _infinite?: boolean
-    tags?: ReadonlyArray<string>
-  },
-]
-
-const createQueryKey = <TOptions extends Options>(
-  id: string,
-  options?: TOptions,
-  infinite?: boolean,
-  tags?: ReadonlyArray<string>
-): [QueryKey<TOptions>[0]] => {
-  const params: QueryKey<TOptions>[0] = {
-    _id: id,
-    baseUrl:
-      options?.baseUrl || (options?.client ?? client).getConfig().baseUrl,
-  } as QueryKey<TOptions>[0]
-  if (infinite) {
-    params._infinite = infinite
-  }
-  if (tags) {
-    params.tags = tags
-  }
-  if (options?.body) {
-    params.body = options.body
-  }
-  if (options?.headers) {
-    params.headers = options.headers
-  }
-  if (options?.path) {
-    params.path = options.path
-  }
-  if (options?.query) {
-    params.query = options.query
-  }
-  return [params]
 }
 
 export const getRuntimeConfigurationQueryKey = (

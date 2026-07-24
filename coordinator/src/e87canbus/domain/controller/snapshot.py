@@ -59,6 +59,8 @@ class ApplicationSnapshot:
     high_beam_strobe_active: bool
     high_beam_strobe_cycles_remaining: int
     high_beam_next_transition_at: float | None
+    active_button_profile_id: str = "built-in"
+    active_button_profile_revision: int | None = None
 
 
 def snapshot(
@@ -112,6 +114,8 @@ def snapshot(
         steering_curve_activation_status=activation_status,
         curve_activation_available=curve_activation_available,
         button_pad_program=button_pad_program(state, servotronic_usable, high_beam_button_index),
+        active_button_profile_id="built-in",
+        active_button_profile_revision=None,
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,

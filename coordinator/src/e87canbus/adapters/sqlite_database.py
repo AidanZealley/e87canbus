@@ -24,7 +24,7 @@ from e87canbus.domain.steering import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 6
+CURRENT_MIGRATION_VERSION = 7
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 BUILT_IN_BUTTON_PROFILE_ID = "00000000-0000-4000-8000-000000000002"
@@ -67,6 +67,7 @@ class SqliteApplicationDatabase:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA busy_timeout = 5000")
             connection.execute("PRAGMA synchronous = FULL")
+            connection.execute("PRAGMA foreign_keys = ON")
             return connection
         except sqlite3.Error as error:
             raise ApplicationDatabaseError("could not open the application database") from error
@@ -107,6 +108,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_5(connection)
                 elif version == 6:
                     self._apply_migration_6(connection)
+                elif version == 7:
+                    self._apply_migration_7(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -305,6 +308,42 @@ class SqliteApplicationDatabase:
             ),
         )
         self._record_migration(connection, 6)
+
+    def _apply_migration_7(self, connection: sqlite3.Connection) -> None:
+        """Persist the single selected button profile without allowing dangling IDs."""
+
+        if connection.execute("SELECT COUNT(*) FROM button_profiles").fetchone()[0] == 0:
+            timestamp = canonical_utc_timestamp(self.clock())
+            definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
+            connection.execute(
+                "INSERT INTO button_profiles VALUES (?, ?, 1, ?, ?, ?, ?, ?)",
+                (
+                    BUILT_IN_BUTTON_PROFILE_ID,
+                    BUILT_IN_BUTTON_PROFILE_NAME,
+                    BUILT_IN_BUTTON_PROFILE.schema_version,
+                    definition_json,
+                    button_profile_fingerprint(BUILT_IN_BUTTON_PROFILE),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+        connection.execute("""
+            CREATE TABLE selected_button_profile (
+                singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+                profile_id TEXT NOT NULL,
+                FOREIGN KEY (profile_id) REFERENCES button_profiles(profile_id)
+                    ON UPDATE RESTRICT ON DELETE RESTRICT
+            )
+        """)
+        connection.execute(
+            """INSERT INTO selected_button_profile (singleton_id, profile_id)
+            SELECT 1, profile_id FROM button_profiles
+            ORDER BY CASE WHEN profile_id=? THEN 0 ELSE 1 END,
+                     name COLLATE NOCASE, profile_id
+            LIMIT 1""",
+            (BUILT_IN_BUTTON_PROFILE_ID,),
+        )
+        self._record_migration(connection, 7)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]

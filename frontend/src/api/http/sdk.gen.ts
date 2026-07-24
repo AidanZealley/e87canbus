@@ -9,6 +9,9 @@ import type {
 } from "./client"
 import { client } from "./client.gen"
 import type {
+  ActivateButtonProfileData,
+  ActivateButtonProfileErrors,
+  ActivateButtonProfileResponses,
   ActivateSteeringCurveData,
   ActivateSteeringCurveErrors,
   ActivateSteeringCurveResponses,
@@ -26,9 +29,15 @@ import type {
   ConnectSimulationDeviceData,
   ConnectSimulationDeviceErrors,
   ConnectSimulationDeviceResponses,
+  CreateButtonProfileData,
+  CreateButtonProfileErrors,
+  CreateButtonProfileResponses,
   CreateSteeringProfileData,
   CreateSteeringProfileErrors,
   CreateSteeringProfileResponses,
+  DeleteButtonProfileData,
+  DeleteButtonProfileErrors,
+  DeleteButtonProfileResponses,
   DeleteSteeringProfileData,
   DeleteSteeringProfileErrors,
   DeleteSteeringProfileResponses,
@@ -38,14 +47,23 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
+  GetButtonProfileData,
+  GetButtonProfileErrors,
+  GetButtonProfileResponses,
   GetRuntimeConfigurationData,
   GetRuntimeConfigurationResponses,
+  GetSavedButtonProfileData,
+  GetSavedButtonProfileErrors,
+  GetSavedButtonProfileResponses,
   GetSavedSteeringProfileData,
   GetSavedSteeringProfileErrors,
   GetSavedSteeringProfileResponses,
   GetSteeringProfileData,
   GetSteeringProfileErrors,
   GetSteeringProfileResponses,
+  ListButtonProfilesData,
+  ListButtonProfilesErrors,
+  ListButtonProfilesResponses,
   ListSteeringProfilesData,
   ListSteeringProfilesErrors,
   ListSteeringProfilesResponses,
@@ -100,24 +118,33 @@ import type {
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsErrors,
   UpdateApplicationSettingsResponses,
+  UpdateButtonProfileData,
+  UpdateButtonProfileErrors,
+  UpdateButtonProfileResponses,
   UpdateSteeringProfileData,
   UpdateSteeringProfileErrors,
   UpdateSteeringProfileResponses,
 } from "./types.gen"
 import {
+  zActivateButtonProfileResponse,
   zActivateSteeringCurveResponse,
   zActivateSteeringProfileResponse,
   zAdjustManualAssistanceResponse,
   zCheckLivenessResponse,
   zCheckReadinessResponse,
   zConnectSimulationDeviceResponse,
+  zCreateButtonProfileResponse,
   zCreateSteeringProfileResponse,
+  zDeleteButtonProfileResponse,
   zDeleteSteeringProfileResponse,
   zDisconnectSimulationDeviceResponse,
   zGetApplicationSettingsResponse,
+  zGetButtonProfileResponse,
   zGetRuntimeConfigurationResponse,
+  zGetSavedButtonProfileResponse,
   zGetSavedSteeringProfileResponse,
   zGetSteeringProfileResponse,
+  zListButtonProfilesResponse,
   zListSteeringProfilesResponse,
   zRebootSimulationDeviceResponse,
   zResetSimulationResponse,
@@ -136,6 +163,7 @@ import {
   zSilenceVehicleSpeedResponse,
   zTapSimulationButtonResponse,
   zUpdateApplicationSettingsResponse,
+  zUpdateButtonProfileResponse,
   zUpdateSteeringProfileResponse,
 } from "./zod.gen"
 
@@ -156,6 +184,186 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta
 }
+
+/**
+ * Activate Button Profile
+ */
+export const activateButtonProfile = <ThrowOnError extends boolean = true>(
+  options: Options<ActivateButtonProfileData, ThrowOnError>
+): RequestResult<
+  ActivateButtonProfileResponses,
+  ActivateButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    ActivateButtonProfileResponses,
+    ActivateButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zActivateButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/activate-profile",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Get Saved Button Profile
+ */
+export const getSavedButtonProfile = <ThrowOnError extends boolean = true>(
+  options?: Options<GetSavedButtonProfileData, ThrowOnError>
+): RequestResult<
+  GetSavedButtonProfileResponses,
+  GetSavedButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetSavedButtonProfileResponses,
+    GetSavedButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetSavedButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profile",
+    ...options,
+  })
+
+/**
+ * List Button Profiles
+ */
+export const listButtonProfiles = <ThrowOnError extends boolean = true>(
+  options?: Options<ListButtonProfilesData, ThrowOnError>
+): RequestResult<
+  ListButtonProfilesResponses,
+  ListButtonProfilesErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    ListButtonProfilesResponses,
+    ListButtonProfilesErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zListButtonProfilesResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profiles",
+    ...options,
+  })
+
+/**
+ * Create Button Profile
+ */
+export const createButtonProfile = <ThrowOnError extends boolean = true>(
+  options: Options<CreateButtonProfileData, ThrowOnError>
+): RequestResult<
+  CreateButtonProfileResponses,
+  CreateButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    CreateButtonProfileResponses,
+    CreateButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zCreateButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profiles",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Delete Button Profile
+ */
+export const deleteButtonProfile = <ThrowOnError extends boolean = true>(
+  options: Options<DeleteButtonProfileData, ThrowOnError>
+): RequestResult<
+  DeleteButtonProfileResponses,
+  DeleteButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).delete<
+    DeleteButtonProfileResponses,
+    DeleteButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zDeleteButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profiles/{profile_id}",
+    ...options,
+  })
+
+/**
+ * Get Button Profile
+ */
+export const getButtonProfile = <ThrowOnError extends boolean = true>(
+  options: Options<GetButtonProfileData, ThrowOnError>
+): RequestResult<
+  GetButtonProfileResponses,
+  GetButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).get<
+    GetButtonProfileResponses,
+    GetButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profiles/{profile_id}",
+    ...options,
+  })
+
+/**
+ * Update Button Profile
+ */
+export const updateButtonProfile = <ThrowOnError extends boolean = true>(
+  options: Options<UpdateButtonProfileData, ThrowOnError>
+): RequestResult<
+  UpdateButtonProfileResponses,
+  UpdateButtonProfileErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    UpdateButtonProfileResponses,
+    UpdateButtonProfileErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zUpdateButtonProfileResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/button-pad/profiles/{profile_id}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
 
 /**
  * Tap Button

@@ -8,7 +8,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 from fastapi import FastAPI
 
-from e87canbus.adapters.sqlite_database import BUILT_IN_BUTTON_PROFILE_ID, SqliteApplicationDatabase
+from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
 from e87canbus.domain.button_bindings import button_binding_profile_from_definition
@@ -51,20 +51,12 @@ def create_lifespan(
                         saved_profile_revision=saved.revision,
                     )
                 )
-            stored_button_profiles = (
-                await asyncio.to_thread(button_profiles.list_profiles)
+            saved_buttons = (
+                await asyncio.to_thread(button_profiles.get_selected_profile)
                 if service.load_persisted_button_profile
-                else ()
+                else None
             )
-            if stored_button_profiles:
-                saved_buttons = next(
-                    (
-                        profile
-                        for profile in stored_button_profiles
-                        if profile.profile_id == BUILT_IN_BUTTON_PROFILE_ID
-                    ),
-                    stored_button_profiles[0],
-                )
+            if saved_buttons is not None:
                 service.configure_initial_button_profile(
                     button_binding_profile_from_definition(
                         saved_buttons.definition, saved_buttons.profile_id
