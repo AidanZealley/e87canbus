@@ -17,6 +17,7 @@ import { Route as CarIndexRouteImport } from './routes/car/index'
 import { Route as CarSteeringIndexRouteImport } from './routes/car/steering/index'
 import { Route as CarSettingsIndexRouteImport } from './routes/car/settings/index'
 import { Route as CarDriveIndexRouteImport } from './routes/car/drive/index'
+import { Route as CarButtonsIndexRouteImport } from './routes/car/buttons/index'
 
 const DevRouteRoute = DevRouteRouteImport.update({
   id: '/dev',
@@ -58,6 +59,11 @@ const CarDriveIndexRoute = CarDriveIndexRouteImport.update({
   path: '/drive/',
   getParentRoute: () => CarRouteRoute,
 } as any)
+const CarButtonsIndexRoute = CarButtonsIndexRouteImport.update({
+  id: '/buttons/',
+  path: '/buttons/',
+  getParentRoute: () => CarRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/dev': typeof DevRouteRouteWithChildren
   '/car/': typeof CarIndexRoute
   '/dev/': typeof DevIndexRoute
+  '/car/buttons/': typeof CarButtonsIndexRoute
   '/car/drive/': typeof CarDriveIndexRoute
   '/car/settings/': typeof CarSettingsIndexRoute
   '/car/steering/': typeof CarSteeringIndexRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/car': typeof CarIndexRoute
   '/dev': typeof DevIndexRoute
+  '/car/buttons': typeof CarButtonsIndexRoute
   '/car/drive': typeof CarDriveIndexRoute
   '/car/settings': typeof CarSettingsIndexRoute
   '/car/steering': typeof CarSteeringIndexRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/dev': typeof DevRouteRouteWithChildren
   '/car/': typeof CarIndexRoute
   '/dev/': typeof DevIndexRoute
+  '/car/buttons/': typeof CarButtonsIndexRoute
   '/car/drive/': typeof CarDriveIndexRoute
   '/car/settings/': typeof CarSettingsIndexRoute
   '/car/steering/': typeof CarSteeringIndexRoute
@@ -96,11 +105,19 @@ export interface FileRouteTypes {
     | '/dev'
     | '/car/'
     | '/dev/'
+    | '/car/buttons/'
     | '/car/drive/'
     | '/car/settings/'
     | '/car/steering/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/car' | '/dev' | '/car/drive' | '/car/settings' | '/car/steering'
+  to:
+    | '/'
+    | '/car'
+    | '/dev'
+    | '/car/buttons'
+    | '/car/drive'
+    | '/car/settings'
+    | '/car/steering'
   id:
     | '__root__'
     | '/'
@@ -108,6 +125,7 @@ export interface FileRouteTypes {
     | '/dev'
     | '/car/'
     | '/dev/'
+    | '/car/buttons/'
     | '/car/drive/'
     | '/car/settings/'
     | '/car/steering/'
@@ -177,11 +195,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CarDriveIndexRouteImport
       parentRoute: typeof CarRouteRoute
     }
+    '/car/buttons/': {
+      id: '/car/buttons/'
+      path: '/buttons'
+      fullPath: '/car/buttons/'
+      preLoaderRoute: typeof CarButtonsIndexRouteImport
+      parentRoute: typeof CarRouteRoute
+    }
   }
 }
 
 interface CarRouteRouteChildren {
   CarIndexRoute: typeof CarIndexRoute
+  CarButtonsIndexRoute: typeof CarButtonsIndexRoute
   CarDriveIndexRoute: typeof CarDriveIndexRoute
   CarSettingsIndexRoute: typeof CarSettingsIndexRoute
   CarSteeringIndexRoute: typeof CarSteeringIndexRoute
@@ -189,6 +215,7 @@ interface CarRouteRouteChildren {
 
 const CarRouteRouteChildren: CarRouteRouteChildren = {
   CarIndexRoute: CarIndexRoute,
+  CarButtonsIndexRoute: CarButtonsIndexRoute,
   CarDriveIndexRoute: CarDriveIndexRoute,
   CarSettingsIndexRoute: CarSettingsIndexRoute,
   CarSteeringIndexRoute: CarSteeringIndexRoute,

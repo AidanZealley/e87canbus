@@ -25,10 +25,7 @@ vi.mock("@/components/simulator-workbench", async () => {
     SimulatorWorkbench: () => (
       <div>
         <p>Existing simulator workbench</p>
-        <SimulatorToolbar
-          connectionState="connected"
-          onReset={vi.fn()}
-        />
+        <SimulatorToolbar connectionState="connected" onReset={vi.fn()} />
       </div>
     ),
   }
@@ -101,6 +98,7 @@ describe.each([
   ["/car", "Overview"],
   ["/car/drive", "Drive"],
   ["/car/steering", "Steering"],
+  ["/car/buttons", "Buttons"],
   ["/car/settings", "Settings"],
 ])("car route %s", (path, heading) => {
   it("renders inside the isolated car layout with the correct active link", async () => {
@@ -109,11 +107,12 @@ describe.each([
     expect(screen.getByRole("heading", { name: heading })).toBeTruthy()
     const navigation = screen.getByRole("navigation", { name: "Car display" })
     const links = Array.from(navigation.querySelectorAll("a"))
-    expect(links).toHaveLength(4)
+    expect(links).toHaveLength(5)
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/car",
       "/car/drive",
       "/car/steering",
+      "/car/buttons",
       "/car/settings",
     ])
     expect(
