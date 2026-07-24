@@ -1,0 +1,125 @@
+import json
+import sqlite3
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID
+
+import pytest
+from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
+from e87canbus.adapters.sqlite_database import (
+    BUILT_IN_BUTTON_PROFILE_ID,
+    BUILT_IN_BUTTON_PROFILE_NAME,
+    CURRENT_MIGRATION_VERSION,
+)
+from e87canbus.domain.button_profile_repository import (
+    ButtonProfileNameConflictError,
+    ButtonProfileRevisionConflictError,
+    StoredButtonProfileDataError,
+)
+from e87canbus.domain.button_profiles import (
+    BUILT_IN_BUTTON_PROFILE,
+    ButtonProfileDefinition,
+    canonical_button_profile_bytes,
+    decode_button_profile,
+    empty_button_profile_definition,
+)
+from e87canbus.domain.intents import (
+    AdjustManualAssistance,
+    SelectSteeringMode,
+    SetManualAssistanceLevel,
+    SetMaximumAssistance,
+    StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
+    ToggleButtonPadDemoBreathe,
+    ToggleMaximumAssistance,
+)
+from e87canbus.domain.state import SteeringMode
+
+NOW = datetime(2026, 7, 24, 12, tzinfo=UTC)
+IDENTIFIER = UUID("12345678-1234-4678-9234-567812345678")
+
+
+def repository(path: Path) -> SqliteButtonProfileRepository:
+    return SqliteButtonProfileRepository(
+        path, clock=lambda: NOW, identifier_factory=lambda: IDENTIFIER
+    )
+
+
+def test_migration_seeds_editable_current_mapping_and_is_idempotent(tmp_path: Path) -> None:
+    repo = repository(tmp_path / "app.sqlite")
+    repo.initialize()
+    repo.initialize()
+    seed = repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+    assert seed is not None
+    assert seed.name == BUILT_IN_BUTTON_PROFILE_NAME
+    assert seed.definition == BUILT_IN_BUTTON_PROFILE
+    assert seed.definition.slots[15] is None  # development breathe action is deliberately omitted
+    renamed = repo.update_profile(seed.profile_id, 1, "My buttons", seed.definition)
+    repo.initialize()
+    assert repo.get_profile(seed.profile_id) == renamed
+    with sqlite3.connect(tmp_path / "app.sqlite") as connection:
+        assert (
+            connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+            == CURRENT_MIGRATION_VERSION
+        )
+
+
+def test_create_defaults_to_explicit_complete_inert_pad_and_crud(tmp_path: Path) -> None:
+    repo = repository(tmp_path / "app.sqlite")
+    repo.initialize()
+    created = repo.create_profile("Empty")
+    assert created.definition == empty_button_profile_definition()
+    assert len(created.definition.slots) == 16 and set(created.definition.slots) == {None}
+    changed = replace(created.definition, slots=(ToggleMaximumAssistance(),) + (None,) * 15)
+    updated = repo.update_profile(created.profile_id, 1, "Edited", changed)
+    assert updated.revision == 2 and repo.get_profile(created.profile_id) == updated
+    repo.delete_profile(created.profile_id, 2)
+    assert repo.get_profile(created.profile_id) is None
+
+
+def test_optimistic_revision_and_case_insensitive_names(tmp_path: Path) -> None:
+    repo = repository(tmp_path / "app.sqlite")
+    repo.initialize()
+    created = repo.create_profile("Track")
+    repo.update_profile(created.profile_id, 1, "Track", created.definition)
+    with pytest.raises(ButtonProfileRevisionConflictError):
+        repo.update_profile(created.profile_id, 1, "Track", created.definition)
+    with pytest.raises(ButtonProfileNameConflictError):
+        repo.create_profile("track")
+
+
+def test_codec_round_trips_every_user_command_and_rejects_dev_command() -> None:
+    commands = (
+        SelectSteeringMode(SteeringMode.AUTO),
+        ToggleAutomaticAssistance(),
+        AdjustManualAssistance(-1),
+        SetManualAssistanceLevel(3),
+        SetMaximumAssistance(True),
+        ToggleMaximumAssistance(),
+        StartHighBeamStrobe(),
+    )
+    definition = ButtonProfileDefinition(1, commands + (None,) * 9)
+    assert (
+        decode_button_profile(json.loads(canonical_button_profile_bytes(definition))) == definition
+    )
+    with pytest.raises(ValueError, match="not user-bindable"):
+        ButtonProfileDefinition(1, (ToggleButtonPadDemoBreathe(),) + (None,) * 15)  # type: ignore[arg-type]
+    raw = {"schema_version": 1, "slots": [{"type": "toggle_button_pad_demo_breathe"}] + [None] * 15}
+    with pytest.raises(ValueError, match="unsupported"):
+        decode_button_profile(raw)
+    with pytest.raises(ValueError, match="must be an integer"):
+        ButtonProfileDefinition(True, (None,) * 16)  # type: ignore[arg-type]
+
+
+def test_corrupt_noncanonical_storage_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE button_profiles SET definition_json=? WHERE profile_id=?",
+            ('{"slots":[],"schema_version":1}', BUILT_IN_BUTTON_PROFILE_ID),
+        )
+    with pytest.raises(StoredButtonProfileDataError):
+        repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)

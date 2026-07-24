@@ -94,7 +94,7 @@ def test_fresh_database_applies_all_migrations_and_seeds(tmp_path: Path) -> None
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-    assert versions == [(1,), (2,), (3,), (4,), (5,)]
+    assert versions == [(version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)]
     assert journal_mode == "wal"
     assert profiles.get_profile(BUILT_IN_PROFILE_ID) is not None
     assert settings.get_settings() == DEFAULT_APPLICATION_SETTINGS
