@@ -1,4 +1,4 @@
-import { DropletIcon, LightbulbIcon, WavesIcon } from "lucide-react"
+import { DropletIcon, WavesIcon } from "lucide-react"
 
 import {
   celsiusToFahrenheit,
@@ -14,6 +14,20 @@ import {
   OIL_MAXIMUM_TEMPERATURE_C,
 } from "@/components/car-layout/engine-temperature-scale"
 import { TelemetryValue } from "@/components/telemetry-value"
+import {
+  Abs,
+  Battery,
+  CheckEngine,
+  CoolantTemperature,
+  Fuel,
+  HighBeam,
+  LowBeam,
+  OilPressure,
+  TirePressure,
+  TractionControl,
+  TurnSignalLeft,
+  TurnSignalRight,
+} from "@/icons"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import { cn } from "@/lib/utils"
 import { useLiveStore } from "@/live/live-store"
@@ -76,22 +90,68 @@ export const CarDrive = () => {
       </h1>
       <div className="flex flex-col gap-6">
         <div
-          className="flex items-center gap-6"
+          className="flex w-full items-center justify-between"
           role="status"
           aria-label="Indicator lights"
         >
-          <LightbulbIcon
-            aria-label={
-              connected && lighting.high_beam_enabled
-                ? "High beam on"
-                : "High beam off"
-            }
-            className={cn(
-              "size-6 transition-colors",
-              connected && lighting.high_beam_enabled
-                ? "text-yellow-300"
-                : "text-muted-foreground/20"
-            )}
+          <TurnSignalLeft
+            aria-label="Left indicator"
+            className="size-6 text-muted-foreground/20"
+          />
+          <div className="flex items-center gap-4">
+            <LowBeam
+              aria-label="Dipped beam"
+              className="size-6 text-muted-foreground/20"
+            />
+            <HighBeam
+              aria-label={
+                connected && lighting.high_beam_enabled
+                  ? "High beam on"
+                  : "High beam off"
+              }
+              className={cn(
+                "size-6 transition-colors",
+                connected && lighting.high_beam_enabled
+                  ? "text-blue-500"
+                  : "text-muted-foreground/20"
+              )}
+            />
+            <CheckEngine
+              aria-label="Engine warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <Abs
+              aria-label="ABS warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <TirePressure
+              aria-label="Tyre pressure warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <TractionControl
+              aria-label="Traction control warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <OilPressure
+              aria-label="Oil pressure warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <CoolantTemperature
+              aria-label="Coolant temperature warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <Battery
+              aria-label="Battery warning"
+              className="size-6 text-muted-foreground/20"
+            />
+            <Fuel
+              aria-label="Low fuel warning"
+              className="size-6 text-muted-foreground/20"
+            />
+          </div>
+          <TurnSignalRight
+            aria-label="Right indicator"
+            className="size-6 text-muted-foreground/20"
           />
         </div>
         <div className="flex flex-col gap-4">

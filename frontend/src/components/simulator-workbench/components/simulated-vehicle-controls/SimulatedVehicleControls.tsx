@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { LightbulbIcon, PowerIcon } from "lucide-react"
+import { PowerIcon } from "lucide-react"
 import type { EngineState } from "@/api/live-contract.gen"
 
 import {
@@ -24,6 +24,7 @@ import {
   OIL_MAXIMUM_TEMPERATURE_C,
 } from "@/components/car-layout/engine-temperature-scale"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
+import { HighBeam } from "@/icons"
 import {
   IDLE_RPM,
   setSimulatedVehicleRunning,
@@ -109,7 +110,7 @@ export const SimulatedVehicleControls = ({
                       : "Virtual-car high beam off"
                 }
               >
-                <LightbulbIcon
+                <HighBeam
                   aria-hidden="true"
                   className={
                     observedHighBeamEnabled
