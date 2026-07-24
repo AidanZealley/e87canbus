@@ -19,9 +19,11 @@ from e87canbus.domain.button_bindings import (
 )
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
+    ButtonLedPresenter,
     Transition,
     button_led_effect,
     clear_maximum_assistance,
+    derived_button_led_state,
     execute_operator_intent,
     finish_button_intent,
     initial_effects,
@@ -91,6 +93,7 @@ from e87canbus.kernel.health import (
     RuntimeHealth,
 )
 from e87canbus.kernel.inputs import (
+    ActivateButtonProfile,
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     CanReaderFailed,
@@ -136,6 +139,7 @@ class CoordinatorKernel:
         servotronic_output_available: bool = True,
         servotronic_config_available: bool = False,
         button_binding_profile: ButtonBindingProfile | None = None,
+        button_led_presenter: ButtonLedPresenter = derived_button_led_state,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
@@ -143,6 +147,8 @@ class CoordinatorKernel:
         self._button_binding_profile = button_binding_profile or built_in_button_binding_profile(
             self._high_beam_strobe_config
         )
+        self._button_led_presenter = button_led_presenter
+        self._button_profile_saved_revision: int | None = None
         self._state = normalize_state(
             state or ApplicationState(),
             self._steering_config,
@@ -187,6 +193,14 @@ class CoordinatorKernel:
     def registry(self) -> tuple[DeviceRegistryEntry, ...]:
         return self._registry
 
+    @property
+    def button_binding_profile(self) -> ButtonBindingProfile:
+        return self._button_binding_profile
+
+    @property
+    def button_profile_saved_revision(self) -> int | None:
+        return self._button_profile_saved_revision
+
     def registry_for(self, role: DeviceRole) -> DeviceRegistryEntry:
         return registry_entry(self._registry, role)
 
@@ -202,19 +216,19 @@ class CoordinatorKernel:
         return min(deadlines) if deadlines else None
 
     def snapshot(self) -> ApplicationSnapshot:
-        return snapshot(
-            self._state,
-            self._steering_config,
-            self._engine_telemetry_config,
-            self._active_steering_curve,
-            self._steering_curve_activation_status,
-            self._servotronic_usable,
-            self._high_beam_strobe_config.button_index,
-            # ``curve_activation_available`` gates curve ACTIVATION in the UI: a curve can be
-            # pushed whenever the coordinator can configure it (config path) or drive assistance
-            # directly (output path).  In the live composition both flags are wired identically
-            # from the same KCAN TX grant, so this OR degrades to that single grant there.
-            self._servotronic_config_available or self._servotronic_output_available,
+        return replace(
+            snapshot(
+                self._state,
+                self._steering_config,
+                self._engine_telemetry_config,
+                self._active_steering_curve,
+                self._steering_curve_activation_status,
+                self._servotronic_usable,
+                self._high_beam_strobe_config.button_index,
+                # ``curve_activation_available`` gates curve ACTIVATION in the UI.
+                self._servotronic_config_available or self._servotronic_output_available,
+            ),
+            button_pad_program=self._button_led_effect().program,
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:
@@ -222,6 +236,8 @@ class CoordinatorKernel:
             self._state,
             self._servotronic_usable,
             self._high_beam_strobe_config.button_index,
+            self._button_binding_profile,
+            self._button_led_presenter,
         )
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
@@ -231,6 +247,24 @@ class CoordinatorKernel:
             raise RuntimeError("initial steering curve must be configured before startup")
         validate_active_steering_curve(curve)
         self._active_steering_curve = curve
+
+    def configure_initial_button_profile(
+        self,
+        profile: ButtonBindingProfile,
+        saved_profile_revision: int | None = None,
+    ) -> None:
+        """Install a persisted button profile before the kernel starts."""
+
+        if self._lifecycle is not KernelLifecycle.CREATED or self._revision != 0:
+            raise RuntimeError("initial button profile must be configured before startup")
+        if not isinstance(profile, ButtonBindingProfile):
+            raise TypeError("profile must be a ButtonBindingProfile")
+        if saved_profile_revision is not None and (
+            type(saved_profile_revision) is not int or saved_profile_revision < 1
+        ):
+            raise ValueError("saved_profile_revision must be a positive integer")
+        self._button_binding_profile = profile
+        self._button_profile_saved_revision = saved_profile_revision
 
     def diagnostics(self) -> DiagnosticSnapshot:
         return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
@@ -363,6 +397,10 @@ class CoordinatorKernel:
                     return None
                 self._require_servotronic(for_curve_config=True)
                 return self._activate_steering_curve(kernel_input)
+            case ActivateButtonProfile():
+                if self._lifecycle is not KernelLifecycle.RUNNING:
+                    return None
+                return self._activate_button_profile(kernel_input)
             case ServotronicStatusObserved():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -578,17 +616,18 @@ class CoordinatorKernel:
             replace(entry, last_transition_monotonic_s=now) for entry in self._registry
         )
         self._revision = 1
+        startup_effects = initial_effects(
+            self._state,
+            self._steering_config,
+            self._active_steering_curve.definition,
+        )
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
             effects=self._gate_effects(
                 tuple(
                     EffectRequest(effect)
-                    for effect in initial_effects(
-                        self._state,
-                        self._steering_config,
-                        self._active_steering_curve.definition,
-                    )
+                    for effect in (self._button_led_effect(), *startup_effects[1:])
                 )
             ),
             changed_topics=INITIAL_KERNEL_TOPICS,
@@ -644,6 +683,35 @@ class CoordinatorKernel:
                 health_changed=False,
             ),
             state_changed=committed_snapshot != previous_snapshot,
+        )
+
+    def _activate_button_profile(self, request: ActivateButtonProfile) -> Commit:
+        """Atomically replace routing and emit its complete derived LED program."""
+
+        # Constructing ActivateButtonProfile and ButtonBindingProfile performs all
+        # validation before mutation; retain locals so a future presenter failure
+        # cannot leave half-applied routing.
+        previous_profile = self._button_binding_profile
+        previous_revision = self._button_profile_saved_revision
+        self._button_binding_profile = request.profile
+        self._button_profile_saved_revision = request.saved_profile_revision
+        try:
+            current_button_leds = self._button_led_effect()
+        except BaseException:
+            self._button_binding_profile = previous_profile
+            self._button_profile_saved_revision = previous_revision
+            raise
+        changed = (
+            request.profile != previous_profile
+            or request.saved_profile_revision != previous_revision
+        )
+        self._revision += 1
+        return Commit(
+            revision=self._revision,
+            snapshot=self.snapshot(),
+            effects=self._gate_effects((EffectRequest(current_button_leds),)),
+            changed_topics=frozenset({StateTopic.BUTTONS}) if changed else frozenset(),
+            state_changed=changed,
         )
 
     def _servotronic_status(self, status: ServotronicStatus) -> Commit:

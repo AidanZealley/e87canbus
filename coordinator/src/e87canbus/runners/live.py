@@ -19,6 +19,7 @@ from e87canbus.adapters.output import (
 )
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
+from e87canbus.domain.button_bindings import ButtonBindingProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
@@ -27,6 +28,7 @@ from e87canbus.domain.events import (
 )
 from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
+    ActivateButtonProfile,
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     CanReaderFailed,
@@ -80,6 +82,7 @@ CONTROLLER_INPUT_TYPES = (
     InboxOverflowed,
     DeviceAdapterFailed,
     ShutdownRequested,
+    ActivateButtonProfile,
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
 )
@@ -267,6 +270,15 @@ class LiveControllerRuntime:
         if self._started:
             raise RuntimeError("initial steering curve must be configured before startup")
         self._kernel.configure_initial_steering_curve(curve)
+
+    def configure_initial_button_profile(
+        self,
+        profile: ButtonBindingProfile,
+        saved_profile_revision: int | None = None,
+    ) -> None:
+        if self._started:
+            raise RuntimeError("initial button profile must be configured before startup")
+        self._kernel.configure_initial_button_profile(profile, saved_profile_revision)
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution:
         if self._started:

@@ -80,6 +80,7 @@ def build_live_controller_service(
         deployment=selected_deployment,
         clock=clock,
         load_persisted_steering_curve=profile_database_path is not None,
+        load_persisted_button_profile=profile_database_path is not None,
     )
 
 
@@ -92,6 +93,7 @@ def build_simulated_controller_service(
         [float, Callable[[], float]], SimulatedServotronicPeer
     ] = SimulatedServotronicPeer,
     deployment: DeploymentSpec | None = None,
+    profile_database_path: str | Path | None = None,
 ) -> ControllerService:
     selected_deployment = deployment or deployment_spec(DeploymentProfile.SIMULATOR)
     if selected_deployment.transport is not CanTransport.IN_MEMORY:
@@ -122,6 +124,7 @@ def build_simulated_controller_service(
         ),
         deployment=selected_deployment,
         clock=clock,
+        load_persisted_button_profile=profile_database_path is not None,
     )
 
 
@@ -156,6 +159,7 @@ def build_controller_service(
             button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
             clock=clock,
             deployment=spec,
+            profile_database_path=profile_database_path,
         )
 
     selected_config = configure_can_networks(

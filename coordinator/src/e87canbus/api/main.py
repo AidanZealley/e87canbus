@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHttpException
 from starlette.responses import Response
 from starlette.types import Scope
 
+from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
@@ -25,6 +26,7 @@ from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import health, settings, steering
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
+from e87canbus.domain.button_profile_repository import ButtonProfileRepository
 from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.settings_repository import ApplicationSettingsRepository
 from e87canbus.runners.composition import build_controller_service
@@ -90,6 +92,7 @@ def create_app(
     clock: Callable[[], float] = time.monotonic,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
+    button_profile_repository: ButtonProfileRepository | None = None,
     settings_repository: ApplicationSettingsRepository | None = None,
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
@@ -113,12 +116,19 @@ def create_app(
     )
     database = (
         SqliteApplicationDatabase(profile_database_path)
-        if profile_repository is None or settings_repository is None
+        if (
+            profile_repository is None
+            or button_profile_repository is None
+            or settings_repository is None
+        )
         else None
     )
     if profile_repository is None:
         assert database is not None
         profile_repository = SqliteSteeringProfileRepository(database)
+    if button_profile_repository is None:
+        assert database is not None
+        button_profile_repository = SqliteButtonProfileRepository(database)
     if settings_repository is None:
         assert database is not None
         settings_repository = SqliteApplicationSettingsRepository(database)
@@ -133,7 +143,9 @@ def create_app(
 
     app = FastAPI(
         title="E87 CAN Bus Controller API",
-        lifespan=create_lifespan(service, database, profile_repository, publisher),
+        lifespan=create_lifespan(
+            service, database, profile_repository, button_profile_repository, publisher
+        ),
     )
     install_exception_handlers(app)
     app.add_middleware(
@@ -149,6 +161,7 @@ def create_app(
     app.state.socketio = sio
     app.state.live_publisher = publisher
     app.state.profile_repository = profile_repository
+    app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository
     app.state.monotonic_clock = clock
 

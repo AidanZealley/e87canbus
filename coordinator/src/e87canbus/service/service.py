@@ -15,6 +15,7 @@ from typing import Protocol
 
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentSpec
+from e87canbus.domain.button_bindings import ButtonBindingProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.steering import ActiveSteeringCurve
@@ -76,6 +77,9 @@ class ControllerRuntimeAdapter(Protocol):
     def config(self) -> AppConfig: ...
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None: ...
+    def configure_initial_button_profile(
+        self, profile: ButtonBindingProfile, saved_profile_revision: int | None = None
+    ) -> None: ...
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution: ...
 
@@ -120,11 +124,13 @@ class ControllerService:
         deployment: DeploymentSpec,
         clock: Callable[[], float] = time.monotonic,
         load_persisted_steering_curve: bool = False,
+        load_persisted_button_profile: bool = False,
     ) -> None:
         self._runtime = runtime
         self._deployment = deployment
         self._clock = clock
         self._load_persisted_steering_curve = load_persisted_steering_curve
+        self._load_persisted_button_profile = load_persisted_button_profile
         self._inbox: queue.Queue[_QueuedWork] = queue.Queue(
             maxsize=runtime.config.runtime_inbox_capacity
         )
@@ -167,6 +173,10 @@ class ControllerService:
     @property
     def load_persisted_steering_curve(self) -> bool:
         return self._load_persisted_steering_curve
+
+    @property
+    def load_persisted_button_profile(self) -> bool:
+        return self._load_persisted_button_profile
 
     @property
     def lifecycle(self) -> ControllerServiceLifecycle:
@@ -217,6 +227,18 @@ class ControllerService:
                     "initial steering curve must be configured before service startup"
                 )
             self._runtime.configure_initial_steering_curve(curve)
+
+    def configure_initial_button_profile(
+        self,
+        profile: ButtonBindingProfile,
+        saved_profile_revision: int | None = None,
+    ) -> None:
+        with self._lock:
+            if self._lifecycle is not ControllerServiceLifecycle.CREATED:
+                raise ControllerServiceError(
+                    "initial button profile must be configured before service startup"
+                )
+            self._runtime.configure_initial_button_profile(profile, saved_profile_revision)
 
     def mark_persistence_fault(self, message: str) -> None:
         self._update_external_health(persistence=PersistenceDiagnostics(False, message))

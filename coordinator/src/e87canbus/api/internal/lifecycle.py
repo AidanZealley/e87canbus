@@ -8,9 +8,11 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 from fastapi import FastAPI
 
-from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
+from e87canbus.adapters.sqlite_database import BUILT_IN_BUTTON_PROFILE_ID, SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
+from e87canbus.domain.button_bindings import button_binding_profile_from_definition
+from e87canbus.domain.button_profile_repository import ButtonProfileRepository
 from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.steering import initial_active_steering_curve
 from e87canbus.service import ControllerService, RuntimeExecution
@@ -20,6 +22,7 @@ def create_lifespan(
     service: ControllerService,
     database: SqliteApplicationDatabase | None,
     profiles: SteeringProfileRepository,
+    button_profiles: ButtonProfileRepository,
     publisher: LiveStatePublisher,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
@@ -47,6 +50,26 @@ def create_lifespan(
                         saved_profile_id=saved.profile_id,
                         saved_profile_revision=saved.revision,
                     )
+                )
+            stored_button_profiles = (
+                await asyncio.to_thread(button_profiles.list_profiles)
+                if service.load_persisted_button_profile
+                else ()
+            )
+            if stored_button_profiles:
+                saved_buttons = next(
+                    (
+                        profile
+                        for profile in stored_button_profiles
+                        if profile.profile_id == BUILT_IN_BUTTON_PROFILE_ID
+                    ),
+                    stored_button_profiles[0],
+                )
+                service.configure_initial_button_profile(
+                    button_binding_profile_from_definition(
+                        saved_buttons.definition, saved_buttons.profile_id
+                    ),
+                    saved_buttons.revision,
                 )
             service.mark_persistence_available()
         except BaseException as exc:
