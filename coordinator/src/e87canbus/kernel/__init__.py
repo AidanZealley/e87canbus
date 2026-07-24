@@ -21,6 +21,7 @@ from e87canbus.kernel.health import (
     RuntimeHealth,
 )
 from e87canbus.kernel.inputs import (
+    ActivateButtonProfile,
     ActivateSteeringCurve,
     CanEffectExecutionFailed,
     CanReaderFailed,
@@ -39,6 +40,7 @@ from e87canbus.kernel.kernel import CoordinatorKernel
 
 __all__ = [
     "INITIAL_KERNEL_TOPICS",
+    "ActivateButtonProfile",
     "ActivateSteeringCurve",
     "CanEffectExecutionFailed",
     "CanReaderFailed",

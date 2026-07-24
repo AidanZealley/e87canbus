@@ -20,6 +20,7 @@ from e87canbus.domain.events import (
 )
 from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import (
+    ActivateButtonProfile,
     ActivateSteeringCurve,
     Commit,
     ControllerInput,
@@ -116,6 +117,7 @@ class SimulatedControllerRuntime:
         self._session_id = 0
         self._started = False
         self._initial_steering_curve: ActiveSteeringCurve | None = None
+        self._initial_button_profile_revision: int | None = None
         self._execution_commits: list[Commit] = []
         self._previous_projection: ControllerAdapterSnapshot | None = None
         self._previous_diagnostics: DiagnosticSnapshot | None = None
@@ -131,6 +133,16 @@ class SimulatedControllerRuntime:
         if self._started:
             raise RuntimeError("initial steering curve must be configured before startup")
         self._initial_steering_curve = curve
+
+    def configure_initial_button_profile(
+        self,
+        profile: ButtonBindingProfile,
+        saved_profile_revision: int | None = None,
+    ) -> None:
+        if self._started:
+            raise RuntimeError("initial button profile must be configured before startup")
+        self._button_binding_profile = profile
+        self._initial_button_profile_revision = saved_profile_revision
 
     def start(self, submit_input: RuntimeInputSink | None = None) -> RuntimeExecution:
         del submit_input
@@ -194,7 +206,7 @@ class SimulatedControllerRuntime:
                 self._peer_for(role).set_protocol_version(protocol_version)
             case SetSimulatedDeviceStatusCode(role, status_code):
                 self._peer_for(role).set_status_code(status_code)
-            case ActivateSteeringCurve() | ExecuteOperatorIntent():
+            case ActivateButtonProfile() | ActivateSteeringCurve() | ExecuteOperatorIntent():
                 self._dispatch(command)
             case InboxOverflowed() | DeviceAdapterFailed():
                 self._dispatch(command)
@@ -265,6 +277,7 @@ class SimulatedControllerRuntime:
             button_pad_source=self.button_pad_source,
             servotronic_factory=self._servotronic_factory,
             button_binding_profile=self._button_binding_profile,
+            button_profile_saved_revision=self._initial_button_profile_revision,
             initial_steering_curve=self._initial_steering_curve,
         )
         self.topology = session.topology

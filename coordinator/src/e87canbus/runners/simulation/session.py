@@ -50,6 +50,7 @@ def build_session(
     servotronic_factory: Callable[[float, Callable[[], float]], SimulatedServotronicPeer],
     button_binding_profile: ButtonBindingProfile | None,
     initial_steering_curve: ActiveSteeringCurve | None,
+    button_profile_saved_revision: int | None = None,
 ) -> SimulationSession:
     topology = InMemoryCanTopology(
         trace_capacity=config.simulation.trace_capacity,
@@ -116,8 +117,11 @@ def build_session(
         },
         servotronic_output_available=kcan_enabled,
         active_steering_curve=initial_steering_curve,
-        button_binding_profile=button_binding_profile,
     )
+    if button_binding_profile is not None:
+        kernel.configure_initial_button_profile(
+            button_binding_profile, button_profile_saved_revision
+        )
     executor = EffectExecutor(
         transmitters,
         router,

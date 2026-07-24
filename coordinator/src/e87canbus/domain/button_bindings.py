@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from e87canbus.config import BUILT_IN_RESERVED_BUTTON_INDEXES, HighBeamStrobeConfig
+from e87canbus.domain.button_profiles import ButtonProfileDefinition
 from e87canbus.domain.events import BUTTON_LED_COUNT
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
@@ -62,6 +63,24 @@ class ButtonBindingProfile:
             ),
             None,
         )
+
+
+def button_binding_profile_from_definition(
+    definition: ButtonProfileDefinition,
+    profile_id: str,
+) -> ButtonBindingProfile:
+    """Compile a durable user profile into the runtime's press-routing value."""
+
+    if not isinstance(definition, ButtonProfileDefinition):
+        raise TypeError("definition must be a ButtonProfileDefinition")
+    return ButtonBindingProfile(
+        profile_id,
+        tuple(
+            ButtonBinding(index, intent)
+            for index, intent in enumerate(definition.slots)
+            if intent is not None
+        ),
+    )
 
 
 # The built-in profile's fixed (non-high-beam) button bindings. Their indexes are

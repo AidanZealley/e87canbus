@@ -7,7 +7,10 @@ tracks. It reads state and never mutates it.
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.button_bindings import ButtonBindingProfile, built_in_button_binding_profile
 from e87canbus.domain.button_pad import (
     ButtonPadProgram,
     blink_track,
@@ -28,6 +31,16 @@ from e87canbus.domain.events import (
     ButtonLedState,
     SetButtonPadProgram,
 )
+from e87canbus.domain.intents import (
+    AdjustManualAssistance,
+    SelectSteeringMode,
+    SetManualAssistanceLevel,
+    SetMaximumAssistance,
+    StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
+    ToggleButtonPadDemoBreathe,
+    ToggleMaximumAssistance,
+)
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 
 STEERING_MODE_BUTTON_INDEX = 0
@@ -42,50 +55,81 @@ DEMO_BREATHE_MAXIMUM_BRIGHTNESS = 255
 DEMO_BREATHE_PERIOD_MS = 1600
 
 
+class ButtonLedPresenter(Protocol):
+    """Replaceable seam for deriving LED presentation from a binding profile."""
+
+    def __call__(
+        self,
+        state: ApplicationState,
+        profile: ButtonBindingProfile,
+        servotronic_usable: bool,
+    ) -> ButtonLedState: ...
+
+
+def derived_button_led_state(
+    state: ApplicationState,
+    profile: ButtonBindingProfile,
+    servotronic_usable: bool = True,
+) -> ButtonLedState:
+    """Derive default colours from intent semantics, independent of button indexes."""
+
+    steering = state.steering
+    mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
+    colours = [RGB_OFF] * BUTTON_LED_COUNT
+    for binding in profile.bindings:
+        intent = binding.press_intent
+        colour = SOFT_WHITE
+        if isinstance(intent, (ToggleAutomaticAssistance, SelectSteeringMode)):
+            colour = (
+                RGB_BLUE
+                if servotronic_usable and mode is SteeringMode.AUTO
+                else RGB_AMBER
+                if servotronic_usable
+                else SOFT_AMBER
+            )
+        elif isinstance(
+            intent,
+            (
+                AdjustManualAssistance,
+                SetManualAssistanceLevel,
+                SetMaximumAssistance,
+                ToggleMaximumAssistance,
+            ),
+        ):
+            colour = (
+                RGB_WHITE
+                if isinstance(intent, (SetMaximumAssistance, ToggleMaximumAssistance))
+                and isinstance(state.steering, MaximumAssistance)
+                else SOFT_AMBER
+                if not servotronic_usable
+                else SOFT_WHITE
+            )
+        elif isinstance(intent, (StartHighBeamStrobe, ToggleButtonPadDemoBreathe)):
+            colour = SOFT_WHITE
+        colours[binding.button_index] = colour
+    return ButtonLedState(tuple(colours))
+
+
 def button_led_state(
     state: ApplicationState,
     servotronic_usable: bool = True,
     high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+    profile: ButtonBindingProfile | None = None,
+    presenter: ButtonLedPresenter = derived_button_led_state,
 ) -> ButtonLedState:
     """Derive the complete button-pad LED projection from application state."""
-
-    steering = state.steering
-    mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    mode_colour = (
-        RGB_BLUE
-        if servotronic_usable and mode is SteeringMode.AUTO
-        else RGB_AMBER
-        if servotronic_usable
-        else SOFT_AMBER
+    selected = profile or built_in_button_binding_profile(
+        HighBeamStrobeConfig(button_index=high_beam_button_index)
     )
-    maximum_colour = (
-        RGB_WHITE
-        if servotronic_usable and isinstance(state.steering, MaximumAssistance)
-        else RGB_OFF
-    )
-    assigned_buttons = SERVOTRONIC_BUTTON_INDEXES | {
-        high_beam_button_index,
-        DEMO_BREATHE_BUTTON_INDEX,
-    }
-    normal = tuple(
-        mode_colour
-        if index == STEERING_MODE_BUTTON_INDEX
-        else maximum_colour
-        if index == MAXIMUM_ASSISTANCE_BUTTON_INDEX and maximum_colour != RGB_OFF
-        else SOFT_AMBER
-        if index in SERVOTRONIC_BUTTON_INDEXES and not servotronic_usable
-        else SOFT_WHITE
-        if index in assigned_buttons
-        else RGB_OFF
-        for index in range(BUTTON_LED_COUNT)
-    )
-    return ButtonLedState(normal)
+    return presenter(state, selected, servotronic_usable)
 
 
 def button_led_effect(
     state: ApplicationState,
     servotronic_usable: bool = True,
     high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+    profile: ButtonBindingProfile | None = None,
+    presenter: ButtonLedPresenter = derived_button_led_state,
 ) -> SetButtonPadProgram:
     """Return the complete device program; static RGB remains the normal case.
 
@@ -93,15 +137,26 @@ def button_led_effect(
     it more than once in a single commit compute it once and reuse the local.
     """
 
-    displayed = button_led_state(state, servotronic_usable, high_beam_button_index).rgb
+    selected = profile or built_in_button_binding_profile(
+        HighBeamStrobeConfig(button_index=high_beam_button_index)
+    )
+    displayed = presenter(state, selected, servotronic_usable).rgb
     tracks = [solid_track(rgb) for rgb in displayed]
-    if state.button_pad_demo_breathe_enabled:
-        tracks[DEMO_BREATHE_BUTTON_INDEX] = breathe_track(
+    breathe_index = next(
+        (
+            binding.button_index
+            for binding in selected.bindings
+            if isinstance(binding.press_intent, ToggleButtonPadDemoBreathe)
+        ),
+        None,
+    )
+    if state.button_pad_demo_breathe_enabled and breathe_index is not None:
+        tracks[breathe_index] = breathe_track(
             DEMO_BREATHE_RGB,
             DEMO_BREATHE_MINIMUM_BRIGHTNESS,
             DEMO_BREATHE_MAXIMUM_BRIGHTNESS,
             DEMO_BREATHE_PERIOD_MS,
-            final_rgb=displayed[DEMO_BREATHE_BUTTON_INDEX],
+            final_rgb=displayed[breathe_index],
         )
     feedback_rgb = {
         ButtonFeedbackColour.RED: RGB_RED,
@@ -124,5 +179,9 @@ def button_pad_program(
     state: ApplicationState,
     servotronic_usable: bool = True,
     high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+    profile: ButtonBindingProfile | None = None,
+    presenter: ButtonLedPresenter = derived_button_led_state,
 ) -> ButtonPadProgram:
-    return button_led_effect(state, servotronic_usable, high_beam_button_index).program
+    return button_led_effect(
+        state, servotronic_usable, high_beam_button_index, profile, presenter
+    ).program
