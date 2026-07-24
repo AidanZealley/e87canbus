@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from e87canbus.domain.application_settings import DEFAULT_APPLICATION_SETTINGS
+from e87canbus.domain.button_profiles import (
+    BUILT_IN_BUTTON_PROFILE,
+    button_profile_fingerprint,
+    canonical_button_profile_bytes,
+)
 from e87canbus.domain.steering import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
@@ -19,9 +24,11 @@ from e87canbus.domain.steering import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 5
+CURRENT_MIGRATION_VERSION = 6
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
+BUILT_IN_BUTTON_PROFILE_ID = "00000000-0000-4000-8000-000000000002"
+BUILT_IN_BUTTON_PROFILE_NAME = "Button pad"
 
 
 class ApplicationDatabaseError(Exception):
@@ -98,6 +105,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_4(connection)
                 elif version == 5:
                     self._apply_migration_5(connection)
+                elif version == 6:
+                    self._apply_migration_6(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -263,9 +272,39 @@ class SqliteApplicationDatabase:
             "ALTER TABLE application_settings ADD COLUMN oil_operating_c REAL NOT NULL DEFAULT 110"
         )
         connection.execute(
-            "ALTER TABLE application_settings ADD COLUMN coolant_operating_c REAL NOT NULL DEFAULT 95"
+            "ALTER TABLE application_settings "
+            "ADD COLUMN coolant_operating_c REAL NOT NULL DEFAULT 95"
         )
         self._record_migration(connection, 5)
+
+    def _apply_migration_6(self, connection: sqlite3.Connection) -> None:
+        connection.execute("""
+            CREATE TABLE button_profiles (
+                profile_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                revision INTEGER NOT NULL CHECK (revision > 0),
+                schema_version INTEGER NOT NULL,
+                definition_json TEXT NOT NULL,
+                definition_fingerprint TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            )
+        """)
+        timestamp = canonical_utc_timestamp(self.clock())
+        definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
+        connection.execute(
+            "INSERT INTO button_profiles VALUES (?, ?, 1, ?, ?, ?, ?, ?)",
+            (
+                BUILT_IN_BUTTON_PROFILE_ID,
+                BUILT_IN_BUTTON_PROFILE_NAME,
+                BUILT_IN_BUTTON_PROFILE.schema_version,
+                definition_json,
+                button_profile_fingerprint(BUILT_IN_BUTTON_PROFILE),
+                timestamp,
+                timestamp,
+            ),
+        )
+        self._record_migration(connection, 6)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]
