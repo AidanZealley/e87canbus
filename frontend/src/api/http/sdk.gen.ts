@@ -38,6 +38,8 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
+  GetRuntimeConfigurationData,
+  GetRuntimeConfigurationResponses,
   GetSavedSteeringProfileData,
   GetSavedSteeringProfileErrors,
   GetSavedSteeringProfileResponses,
@@ -113,6 +115,7 @@ import {
   zDeleteSteeringProfileResponse,
   zDisconnectSimulationDeviceResponse,
   zGetApplicationSettingsResponse,
+  zGetRuntimeConfigurationResponse,
   zGetSavedSteeringProfileResponse,
   zGetSteeringProfileResponse,
   zListSteeringProfilesResponse,
@@ -539,6 +542,30 @@ export const silenceVehicleSpeed = <ThrowOnError extends boolean = true>(
       await zSilenceVehicleSpeedResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/dev/simulation/vehicle/speed/silence",
+    ...options,
+  })
+
+/**
+ * Runtime Configuration
+ */
+export const getRuntimeConfiguration = <ThrowOnError extends boolean = true>(
+  options?: Options<GetRuntimeConfigurationData, ThrowOnError>
+): RequestResult<
+  GetRuntimeConfigurationResponses,
+  unknown,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetRuntimeConfigurationResponses,
+    unknown,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetRuntimeConfigurationResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/runtime",
     ...options,
   })
 

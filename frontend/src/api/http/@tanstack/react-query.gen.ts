@@ -18,6 +18,7 @@ import {
   deleteSteeringProfile,
   disconnectSimulationDevice,
   getApplicationSettings,
+  getRuntimeConfiguration,
   getSavedSteeringProfile,
   getSteeringProfile,
   listSteeringProfiles,
@@ -71,6 +72,8 @@ import type {
   GetApplicationSettingsData,
   GetApplicationSettingsError,
   GetApplicationSettingsResponse,
+  GetRuntimeConfigurationData,
+  GetRuntimeConfigurationResponse,
   GetSavedSteeringProfileData,
   GetSavedSteeringProfileError,
   GetSavedSteeringProfileResponse,
@@ -550,6 +553,32 @@ const createQueryKey = <TOptions extends Options>(
   }
   return [params]
 }
+
+export const getRuntimeConfigurationQueryKey = (
+  options?: Options<GetRuntimeConfigurationData>
+) => createQueryKey("getRuntimeConfiguration", options)
+
+/**
+ * Runtime Configuration
+ */
+export const getRuntimeConfigurationOptions = (
+  options?: Options<GetRuntimeConfigurationData>
+) =>
+  queryOptions<
+    GetRuntimeConfigurationResponse,
+    DefaultError,
+    GetRuntimeConfigurationResponse,
+    ReturnType<typeof getRuntimeConfigurationQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await getRuntimeConfiguration({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: getRuntimeConfigurationQueryKey(options),
+  })
 
 export const getApplicationSettingsQueryKey = (
   options?: Options<GetApplicationSettingsData>

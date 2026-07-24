@@ -29,6 +29,11 @@ export const zCommandAcknowledgement = z.object({
 })
 
 /**
+ * DeploymentProfile
+ */
+export const zDeploymentProfile = z.enum(["car", "bench", "simulator"])
+
+/**
  * DeviceRole
  */
 export const zDeviceRole = z.enum(["button_pad", "servotronic_controller"])
@@ -53,6 +58,22 @@ export const zLivenessResponse = z.object({
 export const zReadinessResponse = z.object({
   boot_id: z.string().min(1),
   status: z.enum(["ready", "not_ready"]),
+})
+
+/**
+ * RuntimeCapabilities
+ */
+export const zRuntimeCapabilities = z.object({
+  simulated_vehicle: z.boolean(),
+  simulation_workbench: z.boolean(),
+})
+
+/**
+ * RuntimeConfigurationResponse
+ */
+export const zRuntimeConfigurationResponse = z.object({
+  capabilities: zRuntimeCapabilities,
+  profile: zDeploymentProfile,
 })
 
 /**
@@ -401,6 +422,11 @@ export const zSetVehicleSpeedResponse = zSimulationCommandAcknowledgement
  * Successful Response
  */
 export const zSilenceVehicleSpeedResponse = zSimulationCommandAcknowledgement
+
+/**
+ * Successful Response
+ */
+export const zGetRuntimeConfigurationResponse = zRuntimeConfigurationResponse
 
 /**
  * Successful Response

@@ -152,6 +152,11 @@ export type CreateProfileRequest = {
 }
 
 /**
+ * DeploymentProfile
+ */
+export type DeploymentProfile = "car" | "bench" | "simulator"
+
+/**
  * DeviceRole
  */
 export type DeviceRole = "button_pad" | "servotronic_controller"
@@ -188,6 +193,28 @@ export type ReadinessResponse = {
    * Status
    */
   status: "ready" | "not_ready"
+}
+
+/**
+ * RuntimeCapabilities
+ */
+export type RuntimeCapabilities = {
+  /**
+   * Simulated Vehicle
+   */
+  simulated_vehicle: boolean
+  /**
+   * Simulation Workbench
+   */
+  simulation_workbench: boolean
+}
+
+/**
+ * RuntimeConfigurationResponse
+ */
+export type RuntimeConfigurationResponse = {
+  capabilities: RuntimeCapabilities
+  profile: DeploymentProfile
 }
 
 /**
@@ -1002,6 +1029,23 @@ export type SilenceVehicleSpeedResponses = {
 
 export type SilenceVehicleSpeedResponse =
   SilenceVehicleSpeedResponses[keyof SilenceVehicleSpeedResponses]
+
+export type GetRuntimeConfigurationData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/runtime"
+}
+
+export type GetRuntimeConfigurationResponses = {
+  /**
+   * Successful Response
+   */
+  200: RuntimeConfigurationResponse
+}
+
+export type GetRuntimeConfigurationResponse =
+  GetRuntimeConfigurationResponses[keyof GetRuntimeConfigurationResponses]
 
 export type GetApplicationSettingsData = {
   body?: never

@@ -116,6 +116,13 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert client.get("/health/live").json() == {"status": "live"}
     assert client.get("/health/ready").json()["status"] == "ready"
     assert client.get("/api/health").status_code == 404
+    assert client.get("/api/runtime").json() == {
+        "profile": "simulator",
+        "capabilities": {
+            "simulated_vehicle": True,
+            "simulation_workbench": True,
+        },
+    }
 
     response = client.options(
         "/api/dev/simulation/devices/button-pad/buttons/0/tap",

@@ -9,17 +9,6 @@ import {
   setOilTemperatureMutation,
   setVehicleSpeedMutation,
 } from "@/api/http/@tanstack/react-query.gen"
-import {
-  setCoolantTemperature,
-  setEngineRpm,
-  setOilTemperature,
-  setVehicleSpeed,
-  silenceCoolantTemperature,
-  silenceEngineRpm,
-  silenceOilTemperature,
-  silenceVehicleSpeed,
-} from "@/api/http/sdk.gen"
-
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -30,11 +19,14 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { TelemetrySlider } from "./TelemetrySlider"
+import {
+  IDLE_RPM,
+  OPERATING_TEMPERATURE_C,
+  setSimulatedVehicleRunning,
+} from "../../simulated-vehicle-power"
 
 const MIN_SPEED_KPH = 0
 const MAX_SPEED_KPH = 300
-const IDLE_RPM = 600
-const OPERATING_TEMPERATURE_C = 90
 
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
@@ -60,24 +52,7 @@ export const SimulatedVehicleControls = ({
   const oilMutation = useMutation(setOilTemperatureMutation())
   const coolantMutation = useMutation(setCoolantTemperatureMutation())
   const carMutation = useMutation({
-    mutationFn: (running: boolean) =>
-      running
-        ? Promise.all([
-            setVehicleSpeed({ body: { speed_kph: 0 } }),
-            setEngineRpm({ body: { rpm: IDLE_RPM } }),
-            setOilTemperature({
-              body: { temperature_c: OPERATING_TEMPERATURE_C },
-            }),
-            setCoolantTemperature({
-              body: { temperature_c: OPERATING_TEMPERATURE_C },
-            }),
-          ])
-        : Promise.all([
-            silenceVehicleSpeed({}),
-            silenceEngineRpm({}),
-            silenceOilTemperature({}),
-            silenceCoolantTemperature({}),
-          ]),
+    mutationFn: setSimulatedVehicleRunning,
     onSuccess: (_, running) => {
       if (running) {
         setSpeed(0)

@@ -52,7 +52,7 @@ afterEach(() => {
   useLiveStore.getState().reset()
 })
 
-it("masks workbench vehicle controls and curve state while disconnected", () => {
+it("keeps simulated vehicle controls out of the route-local workbench", () => {
   const value = snapshot("workbench-boot", 5)
   value.data.vehicle = { speed_kph: 72, speed_valid: true }
   value.data.engine.rpm = { value: 4100, status: "valid" }
@@ -81,16 +81,12 @@ it("masks workbench vehicle controls and curve state while disconnected", () => 
       <SimulatorWorkbench />
     </QueryClientProvider>
   )
-  expect(
-    screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
-  ).toContain("speed=72;rpm=4100;status=valid")
+  expect(screen.queryByTestId("vehicle-controls")).toBeNull()
   expect(screen.getByTestId("curve-configuration")).toBeTruthy()
 
   act(() => useLiveStore.getState().transportDisconnected())
 
-  expect(
-    screen.getByTestId("vehicle-controls").textContent?.replaceAll(" ", "")
-  ).toContain("speed=unavailable;rpm=unavailable;status=stale")
+  expect(screen.queryByTestId("vehicle-controls")).toBeNull()
   expect(screen.queryByTestId("curve-configuration")).toBeNull()
 })
 

@@ -6,12 +6,22 @@ import {
 } from "@tanstack/react-router"
 
 import { buttonVariants } from "@/components/ui/button"
+import { SimulatedVehiclePopover } from "@/components/simulated-vehicle-popover/SimulatedVehiclePopover"
 import { cn } from "@/lib/utils"
 
 export const Route = createRootRoute({
-  component: Outlet,
+  component: RootLayout,
   notFoundComponent: NotFound,
 })
+
+function RootLayout() {
+  return (
+    <>
+      <Outlet />
+      <SimulatedVehiclePopover />
+    </>
+  )
+}
 
 function NotFound() {
   const pathname = useLocation({ select: (location) => location.pathname })

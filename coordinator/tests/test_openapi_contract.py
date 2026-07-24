@@ -24,9 +24,10 @@ def test_simulator_schema_has_stable_unique_operation_ids(tmp_path: Path) -> Non
     schema = schema_for(DeploymentProfile.SIMULATOR, tmp_path / "simulator.sqlite3")
     operation_ids = [operation["operationId"] for operation in operations(schema)]
 
-    assert len(operation_ids) == 31
+    assert len(operation_ids) == 32
     assert len(operation_ids) == len(set(operation_ids))
     assert "getApplicationSettings" in operation_ids
+    assert "getRuntimeConfiguration" in operation_ids
     assert "resetSimulation" in operation_ids
 
 
@@ -72,8 +73,12 @@ def test_profile_schemas_preserve_runtime_route_scopes(tmp_path: Path) -> None:
     vehicle_path = "/api/dev/simulation/vehicle/speed"
     device_path = "/api/dev/simulation/devices/{role}/connect"
     reset_path = "/api/dev/simulation/reset"
+    runtime_path = "/api/runtime"
     assert vehicle_path not in car_paths
     assert vehicle_path in bench_paths
     assert device_path not in bench_paths
     assert reset_path not in bench_paths
     assert {vehicle_path, device_path, reset_path}.issubset(simulator_paths)
+    assert runtime_path in car_paths
+    assert runtime_path in bench_paths
+    assert runtime_path in simulator_paths

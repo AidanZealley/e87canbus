@@ -235,6 +235,15 @@
         "title": "CreateProfileRequest",
         "type": "object"
       },
+      "DeploymentProfile": {
+        "enum": [
+          "car",
+          "bench",
+          "simulator"
+        ],
+        "title": "DeploymentProfile",
+        "type": "string"
+      },
       "DeviceRole": {
         "enum": [
           "button_pad",
@@ -294,6 +303,42 @@
           "boot_id"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RuntimeCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "simulated_vehicle": {
+            "title": "Simulated Vehicle",
+            "type": "boolean"
+          },
+          "simulation_workbench": {
+            "title": "Simulation Workbench",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "simulated_vehicle",
+          "simulation_workbench"
+        ],
+        "title": "RuntimeCapabilities",
+        "type": "object"
+      },
+      "RuntimeConfigurationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/RuntimeCapabilities"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/DeploymentProfile"
+          }
+        },
+        "required": [
+          "profile",
+          "capabilities"
+        ],
+        "title": "RuntimeConfigurationResponse",
         "type": "object"
       },
       "SetManualAssistanceLevelRequest": {
@@ -1614,6 +1659,27 @@
         "summary": "Silence Vehicle Speed",
         "tags": [
           "development simulation: vehicle"
+        ]
+      }
+    },
+    "/api/runtime": {
+      "get": {
+        "operationId": "getRuntimeConfiguration",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Runtime Configuration",
+        "tags": [
+          "health"
         ]
       }
     },
