@@ -1,12 +1,9 @@
 import { useMutation } from "@tanstack/react-query"
 
 import { resetSimulationMutation } from "@/api/http/@tanstack/react-query.gen"
-import { useServotronicAvailability } from "@/components/car-layout/use-servotronic-availability"
 import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { SimulatedVehicleControls } from "./components/simulated-vehicle-controls/SimulatedVehicleControls"
-import { SteeringCurveCard } from "./components/steering-curve-card"
-import { LightingStatus } from "./components/lighting-status/LightingStatus"
 import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
 import { SimulatorServotronic } from "./SimulatorServotronic"
@@ -47,14 +44,10 @@ export const SimulatorWorkbench = () => {
             </section>
           </div>
 
-          <LiveSteeringCurveCard />
+          <SimulatorServotronic />
         </div>
 
-        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <SimulatorServotronic />
-          <LightingStatus />
-          <NetworkTopology />
-        </div>
+        <NetworkTopology />
 
         <SimulatorTrace />
       </main>
@@ -76,39 +69,5 @@ const LiveSimulatedVehicleControls = () => {
       engine={synchronized ? engine : unavailableEngine}
       observedHighBeamEnabled={synchronized ? observedHighBeamEnabled : null}
     />
-  )
-}
-
-const LiveSteeringCurveCard = () => {
-  const synchronized = useLiveStore((state) => state.connection.synchronized)
-  const steering = useLiveStore((state) => state.steering)
-  const vehicle = useLiveStore((state) => state.vehicle)
-  const servotronic = useLiveStore((state) => state.steering?.servotronic)
-  const availability = useServotronicAvailability()
-
-  if (!synchronized || steering === null) return null
-
-  return (
-    <section className="min-w-0" aria-label="Steering curve settings">
-      <SteeringCurveCard
-        activeCurve={steering.active_curve}
-        activationAvailable={availability.activation}
-        modeControlAvailable={availability.modeControl}
-        mode={steering.mode}
-        manualAssistanceLevel={steering.manual_assistance_level}
-        manualAssistanceLevelCount={steering.manual_assistance_level_count}
-        maximumAssistanceActive={steering.maximum_assistance_active}
-        speedKph={vehicle.speed_valid ? vehicle.speed_kph : null}
-        activeAssistance={
-          !availability.telemetry
-            ? null
-            : steering.maximum_assistance_active
-              ? 1
-              : steering.mode === "manual" || vehicle.speed_valid
-                ? (servotronic?.effective_assistance ?? null)
-                : null
-        }
-      />
-    </section>
   )
 }

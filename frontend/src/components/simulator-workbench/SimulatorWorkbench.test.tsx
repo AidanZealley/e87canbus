@@ -24,8 +24,8 @@ vi.mock(
     ),
   })
 )
-vi.mock("./components/steering-curve-card", () => ({
-  SteeringCurveCard: ({
+vi.mock("@/components/steering-curve-editor", () => ({
+  SteeringCurveEditor: ({
     activationAvailable,
     modeControlAvailable,
   }: {
@@ -43,9 +43,6 @@ vi.mock("./components/simulator-toolbar", () => ({
 }))
 vi.mock("./components/network-topology/NetworkTopology", () => ({
   NetworkTopology: () => null,
-}))
-vi.mock("./components/steering-status/SteeringStatus", () => ({
-  SteeringStatus: () => null,
 }))
 vi.mock("./SimulatorNeoTrellis", () => ({ SimulatorNeoTrellis: () => null }))
 vi.mock("./SimulatorTrace", () => ({ SimulatorTrace: () => null }))
