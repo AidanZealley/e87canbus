@@ -27,6 +27,8 @@ it("shows fields applicable to the selected command and applies changes", async 
   expect(screen.getByRole("dialog")).toBeTruthy()
   expect(screen.getByRole("heading", { name: "Edit button 5" })).toBeTruthy()
   expect(screen.getByText(/dim amber preview/)).toBeTruthy()
+  expect(screen.getByText("Set manual assistance level")).toBeTruthy()
+  expect(screen.queryByText("set_manual_assistance_level")).toBeNull()
   const input = screen.getByLabelText("Level")
   fireEvent.change(input, { target: { value: "7" } })
   fireEvent.click(screen.getByRole("button", { name: "Apply binding" }))
@@ -53,4 +55,21 @@ it("does not show irrelevant parameter fields", () => {
   expect(screen.queryByLabelText("Level")).toBeNull()
   expect(screen.queryByLabelText("Mode")).toBeNull()
   expect(screen.queryByLabelText("State")).toBeNull()
+})
+
+it("shows presentation labels for the selected command and its parameters", () => {
+  render(
+    <ButtonBindingDialog
+      buttonIndex={2}
+      command={{ type: "adjust_manual_assistance", delta: -1 }}
+      open
+      onOpenChange={vi.fn()}
+      onApply={vi.fn()}
+    />
+  )
+
+  expect(screen.getByText("Adjust manual assistance")).toBeTruthy()
+  expect(screen.getByText("Decrease")).toBeTruthy()
+  expect(screen.queryByText("adjust_manual_assistance")).toBeNull()
+  expect(screen.queryByText("-1")).toBeNull()
 })
