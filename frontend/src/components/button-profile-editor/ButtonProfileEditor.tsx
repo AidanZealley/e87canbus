@@ -11,6 +11,7 @@ import {
 import type {
   ApiProblemResponse,
   ButtonProfileDefinitionRequest,
+  ButtonProfileResponse,
 } from "@/api/http"
 import { useLiveStore } from "@/live/live-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -37,9 +38,16 @@ const errorDetail = (error: unknown): string => {
   return error instanceof Error ? error.message : "The request failed."
 }
 
-export const ButtonProfileEditor = () => {
+type ButtonProfileEditorProps = {
+  profile?: ButtonProfileResponse
+}
+
+export const ButtonProfileEditor = ({
+  profile: profileOverride,
+}: ButtonProfileEditorProps = {}) => {
   const queryClient = useQueryClient()
   const profileQuery = useQuery(getSavedButtonProfileOptions())
+  const savedProfile = profileOverride ?? profileQuery.data
   const liveButtons = useLiveStore((state) => state.buttons)
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const steering = useLiveStore((state) => state.steering)
@@ -58,12 +66,12 @@ export const ButtonProfileEditor = () => {
 
   const dirty = isButtonProfileDraftDirty(draft)
   const serverChanged =
-    profileQuery.data !== undefined &&
+    savedProfile !== undefined &&
     draft !== null &&
-    profileQuery.data.revision !== draft.sourceRevision
+    savedProfile.revision !== draft.sourceRevision
 
   useEffect(() => {
-    const profile = profileQuery.data
+    const profile = savedProfile
     if (!profile) return
     const synchronizedDraft = synchronizeButtonProfileDraft(
       draft,
@@ -74,7 +82,7 @@ export const ButtonProfileEditor = () => {
     // The query result is external state; synchronize only a pristine draft.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(synchronizedDraft.draft)
-  }, [draft, profileQuery.data])
+  }, [draft, savedProfile])
   const slots = draft?.slots ?? null
   const displayRgb = deriveButtonProfileLedPreview(slots ?? [], {
     synchronized,
@@ -107,7 +115,7 @@ export const ButtonProfileEditor = () => {
     onError: (error) => toast.error(errorDetail(error)),
   })
 
-  if (profileQuery.isError) {
+  if (!profileOverride && profileQuery.isError) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Could not load button profile</AlertTitle>
@@ -121,7 +129,7 @@ export const ButtonProfileEditor = () => {
     )
   }
 
-  if (profileQuery.isPending || slots === null) {
+  if (savedProfile === undefined || slots === null) {
     return (
       <div className="grid min-h-64 place-items-center" role="status">
         <Spinner />
@@ -130,7 +138,7 @@ export const ButtonProfileEditor = () => {
     )
   }
 
-  const profile = profileQuery.data
+  const profile = savedProfile
   const isActive =
     synchronized &&
     liveButtons.active_profile_id === profile.profile_id &&
@@ -187,7 +195,7 @@ export const ButtonProfileEditor = () => {
             Discard changes
           </Button>
           <Button
-            disabled={!dirty || save.isPending}
+            disabled={!dirty || serverChanged || save.isPending}
             onClick={() =>
               save.mutate({
                 path: { profile_id: profile.profile_id },
