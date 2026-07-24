@@ -67,7 +67,11 @@ it("renders eight accessible points on honest linear series", async () => {
   expect(document.querySelectorAll(".recharts-line-curve")).toHaveLength(1)
   for (const path of document.querySelectorAll(".recharts-line-curve")) {
     expect(path.getAttribute("d")).not.toContain("C")
+    expect(path.getAttribute("stroke")).toBe("var(--color-assistance)")
   }
+  expect(document.querySelector("style")?.textContent).toContain(
+    "--color-assistance: var(--color-foreground)"
+  )
   const marker = document.querySelector(".recharts-reference-line line")
   expect(marker?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
   const activeDots = document.querySelectorAll(".recharts-active-dot circle")

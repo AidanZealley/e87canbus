@@ -29,6 +29,21 @@ type ButtonBindingDialogProps = {
   onApply: (command: ButtonCommand) => void
 }
 
+const steeringModeOptions = [
+  { value: "auto", label: "Automatic" },
+  { value: "manual", label: "Manual" },
+]
+
+const assistanceDirectionOptions = [
+  { value: "1", label: "Increase" },
+  { value: "-1", label: "Decrease" },
+]
+
+const maximumStateOptions = [
+  { value: "true", label: "Enabled" },
+  { value: "false", label: "Disabled" },
+]
+
 export const ButtonBindingDialog = ({
   buttonIndex,
   command,
@@ -46,7 +61,7 @@ export const ButtonBindingDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-xs">
         <DialogHeader>
           <DialogTitle>Edit button {buttonIndex}</DialogTitle>
           <DialogDescription>
@@ -69,6 +84,7 @@ export const ButtonBindingDialog = ({
                 <Label htmlFor="button-command">Command</Label>
                 <Select
                   value={field.state.value}
+                  items={commandTypeOptions}
                   onValueChange={(value) =>
                     field.handleChange(value as (typeof field.state)["value"])
                   }
@@ -97,6 +113,7 @@ export const ButtonBindingDialog = ({
                         <Label htmlFor="steering-mode">Mode</Label>
                         <Select
                           value={field.state.value}
+                          items={steeringModeOptions}
                           onValueChange={(value) =>
                             field.handleChange(value as "auto" | "manual")
                           }
@@ -120,6 +137,7 @@ export const ButtonBindingDialog = ({
                         <Label htmlFor="assistance-direction">Direction</Label>
                         <Select
                           value={field.state.value}
+                          items={assistanceDirectionOptions}
                           onValueChange={(value) =>
                             field.handleChange(value as "-1" | "1")
                           }
@@ -167,6 +185,7 @@ export const ButtonBindingDialog = ({
                         <Label htmlFor="maximum-state">State</Label>
                         <Select
                           value={field.state.value}
+                          items={maximumStateOptions}
                           onValueChange={(value) =>
                             field.handleChange(value as "true" | "false")
                           }

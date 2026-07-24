@@ -24,7 +24,7 @@ type CurveChartProps = {
 }
 
 const chartConfig = {
-  assistance: { label: "Assistance", color: "white" },
+  assistance: { label: "Assistance", color: "var(--color-foreground)" },
 } satisfies ChartConfig
 
 const CHART_MARGIN = { top: 18, right: 18, bottom: 8, left: 0 } as const
@@ -101,7 +101,7 @@ export const CurveChart = ({
         <Line
           dataKey="assistance"
           type="linear"
-          stroke="white"
+          stroke="var(--color-assistance)"
           strokeWidth={2}
           dot={false}
           activeDot={false}
