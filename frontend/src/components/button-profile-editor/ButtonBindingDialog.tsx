@@ -1,0 +1,203 @@
+import { useForm } from "@tanstack/react-form"
+
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import type { ButtonCommand } from "./types"
+import { commandToDraft, commandTypeOptions, draftToCommand } from "./utils"
+
+type ButtonBindingDialogProps = {
+  buttonIndex: number
+  command: ButtonCommand
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onApply: (command: ButtonCommand) => void
+}
+
+export const ButtonBindingDialog = ({
+  buttonIndex,
+  command,
+  open,
+  onOpenChange,
+  onApply,
+}: ButtonBindingDialogProps) => {
+  const form = useForm({
+    defaultValues: commandToDraft(command),
+    onSubmit: ({ value }) => {
+      onApply(draftToCommand(value))
+      onOpenChange(false)
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit button {buttonIndex}</DialogTitle>
+          <DialogDescription>
+            Choose the command sent when this button is pressed. LED appearance
+            is previewed from the command and current vehicle state. A dim amber
+            preview means live state is unavailable.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void form.handleSubmit()
+          }}
+        >
+          <form.Field name="type">
+            {(field) => (
+              <div className="grid gap-2">
+                <Label htmlFor="button-command">Command</Label>
+                <Select
+                  value={field.state.value}
+                  onValueChange={(value) =>
+                    field.handleChange(value as (typeof field.state)["value"])
+                  }
+                >
+                  <SelectTrigger id="button-command" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {commandTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.values.type}>
+            {(type) => (
+              <>
+                {type === "select_steering_mode" ? (
+                  <form.Field name="mode">
+                    {(field) => (
+                      <div className="grid gap-2">
+                        <Label htmlFor="steering-mode">Mode</Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(value) =>
+                            field.handleChange(value as "auto" | "manual")
+                          }
+                        >
+                          <SelectTrigger id="steering-mode" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Automatic</SelectItem>
+                            <SelectItem value="manual">Manual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+                ) : null}
+                {type === "adjust_manual_assistance" ? (
+                  <form.Field name="delta">
+                    {(field) => (
+                      <div className="grid gap-2">
+                        <Label htmlFor="assistance-direction">Direction</Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(value) =>
+                            field.handleChange(value as "-1" | "1")
+                          }
+                        >
+                          <SelectTrigger
+                            id="assistance-direction"
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Increase</SelectItem>
+                            <SelectItem value="-1">Decrease</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+                ) : null}
+                {type === "set_manual_assistance_level" ? (
+                  <form.Field name="level">
+                    {(field) => (
+                      <div className="grid gap-2">
+                        <Label htmlFor="assistance-level">Level</Label>
+                        <Input
+                          id="assistance-level"
+                          type="number"
+                          min={0}
+                          step={1}
+                          required
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                ) : null}
+                {type === "set_maximum_assistance" ? (
+                  <form.Field name="enabled">
+                    {(field) => (
+                      <div className="grid gap-2">
+                        <Label htmlFor="maximum-state">State</Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(value) =>
+                            field.handleChange(value as "true" | "false")
+                          }
+                        >
+                          <SelectTrigger id="maximum-state" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="true">Enabled</SelectItem>
+                            <SelectItem value="false">Disabled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+                ) : null}
+              </>
+            )}
+          </form.Subscribe>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">Apply binding</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

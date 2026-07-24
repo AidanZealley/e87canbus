@@ -1,4 +1,5 @@
 import {
+  Grid2X2Icon,
   GaugeIcon,
   HouseIcon,
   SettingsIcon,
@@ -14,11 +15,12 @@ const navigation = [
   { to: "/car", label: "Overview", icon: HouseIcon },
   { to: "/car/drive", label: "Drive", icon: GaugeIcon },
   { to: "/car/steering", label: "Steering", icon: SlidersHorizontalIcon },
+  { to: "/car/buttons", label: "Buttons", icon: Grid2X2Icon },
   { to: "/car/settings", label: "Settings", icon: SettingsIcon },
 ] as const
 
 export const CarLayout = () => (
-  <div className="flex h-svh min-w-0 select-none overflow-hidden bg-background text-foreground">
+  <div className="flex h-svh min-w-0 overflow-hidden bg-background text-foreground select-none">
     <aside className="flex w-12 shrink-0 flex-col">
       <nav
         className="flex flex-1 flex-col items-center justify-center gap-2 py-3"
