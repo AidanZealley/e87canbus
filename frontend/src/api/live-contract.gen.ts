@@ -36,6 +36,8 @@ export type ServerToClientEvent =
  */
 export type Args3 = [LiveEnvelopeControllerSnapshotData]
 export type BootId = string
+export type ActiveProfileId = string
+export type ActiveProfileRevision = number | null
 /**
  * @minItems 1
  * @maxItems 16
@@ -262,7 +264,7 @@ export type Event10 = "controller.health"
  */
 export type Args11 = [ResourceChangedEvent]
 export type Id1 = string | null
-export type Resource = "settings" | "steering_profile"
+export type Resource = "settings" | "steering_profile" | "button_profile"
 export type Revision8 = number
 export type Type = "resources.changed"
 export type Event11 = "resources.changed"
@@ -331,6 +333,8 @@ export interface ControllerSnapshotData {
   vehicle: VehicleState
 }
 export interface ButtonsState {
+  active_profile_id: ActiveProfileId
+  active_profile_revision: ActiveProfileRevision
   program: ButtonPadProgramState
 }
 export interface ButtonPadProgramState {

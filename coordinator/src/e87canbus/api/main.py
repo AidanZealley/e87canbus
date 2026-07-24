@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from collections.abc import Callable, Sequence
@@ -23,7 +24,7 @@ from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
-from e87canbus.api.routes import health, settings, steering
+from e87canbus.api.routes import button_profiles, health, settings, steering
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.domain.button_profile_repository import ButtonProfileRepository
@@ -164,10 +165,12 @@ def create_app(
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository
     app.state.monotonic_clock = clock
+    app.state.button_profile_mutation_lock = asyncio.Lock()
 
     app.include_router(health.router)
     app.include_router(settings.router)
     app.include_router(steering.router)
+    app.include_router(button_profiles.router)
     install_simulation_api(app, service.deployment.simulation_api)
     static_app = (
         SpaStaticFiles(directory=frontend_directory, html=True)

@@ -116,6 +116,8 @@ class ButtonPadProgramState(LiveModel):
 
 class ButtonsState(LiveModel):
     program: ButtonPadProgramState
+    active_profile_id: str = Field(min_length=1)
+    active_profile_revision: int | None = Field(default=None, ge=1)
 
 
 class LightingState(LiveModel):
@@ -340,6 +342,8 @@ def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
                 tuple(payload) for payload in snapshot.application.button_pad_program.payloads
             ),
         ),
+        active_profile_id=snapshot.application.active_button_profile_id,
+        active_profile_revision=snapshot.application.active_button_profile_revision,
     )
 
 

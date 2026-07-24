@@ -229,6 +229,8 @@ class CoordinatorKernel:
                 self._servotronic_config_available or self._servotronic_output_available,
             ),
             button_pad_program=self._button_led_effect().program,
+            active_button_profile_id=self._button_binding_profile.profile_id,
+            active_button_profile_revision=self._button_profile_saved_revision,
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:

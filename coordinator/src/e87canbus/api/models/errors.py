@@ -12,6 +12,7 @@ ApiProblemCode = Literal[
     "profile_revision_conflict",
     "profile_name_conflict",
     "profile_storage_error",
+    "profile_protected",
     "runtime_queue_full",
     "controller_unavailable",
     "command_timeout",

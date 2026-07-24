@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "ActivateButtonProfileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "profile_id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Profile Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "expected_revision"
+        ],
+        "title": "ActivateButtonProfileRequest",
+        "type": "object"
+      },
       "ActivateSteeringCurveRequest": {
         "additionalProperties": false,
         "properties": {
@@ -35,6 +56,30 @@
         "title": "ActivateSteeringProfileRequest",
         "type": "object"
       },
+      "AdjustManualAssistanceCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "delta": {
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Delta",
+            "type": "integer"
+          },
+          "type": {
+            "const": "adjust_manual_assistance",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "delta"
+        ],
+        "title": "AdjustManualAssistanceCommand",
+        "type": "object"
+      },
       "AdjustManualAssistanceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -65,6 +110,7 @@
               "profile_revision_conflict",
               "profile_name_conflict",
               "profile_storage_error",
+              "profile_protected",
               "runtime_queue_full",
               "controller_unavailable",
               "command_timeout",
@@ -199,6 +245,180 @@
         "title": "ApplicationSettingsResponse",
         "type": "object"
       },
+      "ButtonProfileDefinitionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "slots": {
+            "items": {
+              "anyOf": [
+                {
+                  "discriminator": {
+                    "mapping": {
+                      "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
+                      "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
+                      "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
+                      "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
+                      "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
+                      "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
+                      "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SelectSteeringModeCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxItems": 16,
+            "minItems": 16,
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "slots"
+        ],
+        "title": "ButtonProfileDefinitionRequest",
+        "type": "object"
+      },
+      "ButtonProfileDefinitionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "slots": {
+            "items": {
+              "anyOf": [
+                {
+                  "discriminator": {
+                    "mapping": {
+                      "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
+                      "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
+                      "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
+                      "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
+                      "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
+                      "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
+                      "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SelectSteeringModeCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxItems": 16,
+            "minItems": 16,
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "slots"
+        ],
+        "title": "ButtonProfileDefinitionResponse",
+        "type": "object"
+      },
+      "ButtonProfileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/ButtonProfileDefinitionResponse"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "profile_id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "name",
+          "revision",
+          "definition",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ButtonProfileResponse",
+        "type": "object"
+      },
       "CommandAcknowledgement": {
         "additionalProperties": false,
         "properties": {
@@ -223,6 +443,32 @@
           "revision"
         ],
         "title": "CommandAcknowledgement",
+        "type": "object"
+      },
+      "CreateButtonProfileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "definition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ButtonProfileDefinitionRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateButtonProfileRequest",
         "type": "object"
       },
       "CreateProfileRequest": {
@@ -351,6 +597,51 @@
         "title": "RuntimeConfigurationResponse",
         "type": "object"
       },
+      "SelectSteeringModeCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "type": {
+            "const": "select_steering_mode",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "mode"
+        ],
+        "title": "SelectSteeringModeCommand",
+        "type": "object"
+      },
+      "SetManualAssistanceLevelCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "minimum": 0.0,
+            "title": "Level",
+            "type": "integer"
+          },
+          "type": {
+            "const": "set_manual_assistance_level",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "level"
+        ],
+        "title": "SetManualAssistanceLevelCommand",
+        "type": "object"
+      },
       "SetManualAssistanceLevelRequest": {
         "additionalProperties": false,
         "properties": {
@@ -364,6 +655,26 @@
           "level"
         ],
         "title": "SetManualAssistanceLevelRequest",
+        "type": "object"
+      },
+      "SetMaximumAssistanceCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "set_maximum_assistance",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "enabled"
+        ],
+        "title": "SetMaximumAssistanceCommand",
         "type": "object"
       },
       "SetMaximumAssistanceRequest": {
@@ -473,6 +784,21 @@
         ],
         "title": "SpeedUnit",
         "type": "string"
+      },
+      "StartHighBeamStrobeCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "const": "start_high_beam_strobe",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "StartHighBeamStrobeCommand",
+        "type": "object"
       },
       "SteeringCurveDefinitionRequest": {
         "additionalProperties": false,
@@ -634,6 +960,36 @@
         "title": "TemperatureUnit",
         "type": "string"
       },
+      "ToggleAutomaticAssistanceCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "const": "toggle_automatic_assistance",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ToggleAutomaticAssistanceCommand",
+        "type": "object"
+      },
+      "ToggleMaximumAssistanceCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "const": "toggle_maximum_assistance",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ToggleMaximumAssistanceCommand",
+        "type": "object"
+      },
       "UpdateApplicationSettingsRequest": {
         "additionalProperties": false,
         "properties": {
@@ -730,6 +1086,32 @@
         "title": "UpdateApplicationSettingsRequest",
         "type": "object"
       },
+      "UpdateButtonProfileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/ButtonProfileDefinitionRequest"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "expected_revision",
+          "definition"
+        ],
+        "title": "UpdateButtonProfileRequest",
+        "type": "object"
+      },
       "UpdateProfileRequest": {
         "additionalProperties": false,
         "properties": {
@@ -798,6 +1180,440 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/button-pad/activate-profile": {
+      "post": {
+        "operationId": "activateButtonProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateButtonProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAcknowledgement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Activate Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      }
+    },
+    "/api/button-pad/profile": {
+      "get": {
+        "operationId": "getSavedButtonProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ButtonProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Saved Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      }
+    },
+    "/api/button-pad/profiles": {
+      "get": {
+        "operationId": "listButtonProfiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ButtonProfileResponse"
+                  },
+                  "title": "Response Listbuttonprofiles",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Button Profiles",
+        "tags": [
+          "button-pad"
+        ]
+      },
+      "post": {
+        "operationId": "createButtonProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateButtonProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ButtonProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Create Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      }
+    },
+    "/api/button-pad/profiles/{profile_id}": {
+      "delete": {
+        "operationId": "deleteButtonProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "title": "Profile Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Revision",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Delete Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      },
+      "get": {
+        "operationId": "getButtonProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ButtonProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      },
+      "put": {
+        "operationId": "updateButtonProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateButtonProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ButtonProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Update Button Profile",
+        "tags": [
+          "button-pad"
+        ]
+      }
+    },
     "/api/dev/simulation/devices/button-pad/buttons/{button_index}/tap": {
       "post": {
         "operationId": "tapSimulationButton",

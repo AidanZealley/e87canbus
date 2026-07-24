@@ -14,6 +14,7 @@ from e87canbus.adapters.sqlite_database import (
 )
 from e87canbus.domain.button_profile_repository import (
     ButtonProfileNameConflictError,
+    ButtonProfileProtectedError,
     ButtonProfileRevisionConflictError,
     StoredButtonProfileDataError,
 )
@@ -65,6 +66,24 @@ def test_migration_seeds_editable_current_mapping_and_is_idempotent(tmp_path: Pa
         )
 
 
+def test_v6_upgrade_selects_first_profile_when_builtin_is_absent(tmp_path: Path) -> None:
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    created = repo.create_profile("Only remaining")
+    with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("DROP TABLE selected_button_profile")
+        connection.execute("DELETE FROM schema_migrations WHERE version=7")
+        connection.execute(
+            "DELETE FROM button_profiles WHERE profile_id=?",
+            (BUILT_IN_BUTTON_PROFILE_ID,),
+        )
+    repo.initialize()
+
+    assert repo.get_selected_profile() == created
+
+
 def test_create_defaults_to_explicit_complete_inert_pad_and_crud(tmp_path: Path) -> None:
     repo = repository(tmp_path / "app.sqlite")
     repo.initialize()
@@ -76,6 +95,19 @@ def test_create_defaults_to_explicit_complete_inert_pad_and_crud(tmp_path: Path)
     assert updated.revision == 2 and repo.get_profile(created.profile_id) == updated
     repo.delete_profile(created.profile_id, 2)
     assert repo.get_profile(created.profile_id) is None
+
+
+def test_selected_profile_is_durable_and_cannot_be_deleted(tmp_path: Path) -> None:
+    repo = repository(tmp_path / "app.sqlite")
+    repo.initialize()
+    created = repo.create_profile("Selected")
+    assert repo.get_selected_profile().profile_id == BUILT_IN_BUTTON_PROFILE_ID
+    assert repo.select_profile(created.profile_id, created.revision) == created
+    assert repo.get_selected_profile() == created
+    with pytest.raises(ButtonProfileProtectedError, match="selected"):
+        repo.delete_profile(created.profile_id, created.revision)
+    with pytest.raises(ButtonProfileProtectedError, match="built-in"):
+        repo.delete_profile(BUILT_IN_BUTTON_PROFILE_ID, 1)
 
 
 def test_optimistic_revision_and_case_insensitive_names(tmp_path: Path) -> None:
@@ -109,7 +141,7 @@ def test_codec_round_trips_every_user_command_and_rejects_dev_command() -> None:
     with pytest.raises(ValueError, match="unsupported"):
         decode_button_profile(raw)
     with pytest.raises(ValueError, match="must be an integer"):
-        ButtonProfileDefinition(True, (None,) * 16)  # type: ignore[arg-type]
+        ButtonProfileDefinition(True, (None,) * 16)
 
 
 def test_corrupt_noncanonical_storage_is_rejected(tmp_path: Path) -> None:

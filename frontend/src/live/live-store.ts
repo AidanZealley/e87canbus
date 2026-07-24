@@ -98,6 +98,8 @@ const emptySlices = (): LiveSlices => ({
   },
   steering: null,
   buttons: {
+    active_profile_id: "built-in",
+    active_profile_revision: null,
     program: {
       encoding: "e87-button-pad-v2",
       generation: 0,

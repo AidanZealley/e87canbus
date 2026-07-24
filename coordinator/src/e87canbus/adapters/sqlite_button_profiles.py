@@ -9,10 +9,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from e87canbus.adapters.sqlite_database import ApplicationDatabaseError, SqliteApplicationDatabase
+from e87canbus.adapters.sqlite_database import (
+    BUILT_IN_BUTTON_PROFILE_ID,
+    ApplicationDatabaseError,
+    SqliteApplicationDatabase,
+)
 from e87canbus.domain.button_profile_repository import (
     ButtonProfileNameConflictError,
     ButtonProfileNotFoundError,
+    ButtonProfileProtectedError,
     ButtonProfileRepositoryError,
     ButtonProfileRevisionConflictError,
     ButtonProfileStorageError,
@@ -85,6 +90,74 @@ class SqliteButtonProfileRepository:
             except sqlite3.Error as error:
                 raise ButtonProfileStorageError(
                     f"could not read button profile {profile_id}"
+                ) from error
+
+    def get_selected_profile(self) -> StoredButtonProfile:
+        """Return the selected row, repairing a missing singleton deterministically."""
+
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    """SELECT p.* FROM selected_button_profile s
+                    JOIN button_profiles p ON p.profile_id=s.profile_id
+                    WHERE s.singleton_id=1"""
+                ).fetchone()
+                if row is None:
+                    row = connection.execute(
+                        """SELECT * FROM button_profiles
+                        ORDER BY CASE WHEN profile_id=? THEN 0 ELSE 1 END,
+                                 name COLLATE NOCASE, profile_id
+                        LIMIT 1""",
+                        (BUILT_IN_BUTTON_PROFILE_ID,),
+                    ).fetchone()
+                    if row is None:
+                        raise ButtonProfileStorageError("button profile catalog is empty")
+                    connection.execute(
+                        """INSERT INTO selected_button_profile (singleton_id, profile_id)
+                        VALUES (1, ?) ON CONFLICT(singleton_id)
+                        DO UPDATE SET profile_id=excluded.profile_id""",
+                        (row["profile_id"],),
+                    )
+                connection.commit()
+                return self._from_row(row)
+            except ButtonProfileRepositoryError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as error:
+                connection.rollback()
+                raise ButtonProfileStorageError("could not read selected button profile") from error
+
+    def select_profile(self, profile_id: str, expected_revision: int) -> StoredButtonProfile:
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise ValueError("expected_revision must be a positive integer")
+        with self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM button_profiles WHERE profile_id=?", (profile_id,)
+                ).fetchone()
+                if row is None:
+                    raise ButtonProfileNotFoundError(profile_id)
+                if row["revision"] != expected_revision:
+                    raise ButtonProfileRevisionConflictError(
+                        profile_id, expected_revision, row["revision"]
+                    )
+                connection.execute(
+                    """INSERT INTO selected_button_profile (singleton_id, profile_id)
+                    VALUES (1, ?) ON CONFLICT(singleton_id)
+                    DO UPDATE SET profile_id=excluded.profile_id""",
+                    (profile_id,),
+                )
+                connection.commit()
+                return self._from_row(row)
+            except ButtonProfileRepositoryError:
+                connection.rollback()
+                raise
+            except sqlite3.Error as error:
+                connection.rollback()
+                raise ButtonProfileStorageError(
+                    f"could not select button profile {profile_id}"
                 ) from error
 
     def create_profile(
@@ -183,6 +256,17 @@ class SqliteButtonProfileRepository:
         with self._connect() as connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
+                if profile_id == BUILT_IN_BUTTON_PROFILE_ID:
+                    raise ButtonProfileProtectedError(
+                        "the built-in button profile cannot be deleted"
+                    )
+                selected = connection.execute(
+                    "SELECT profile_id FROM selected_button_profile WHERE singleton_id=1"
+                ).fetchone()
+                if selected is not None and selected["profile_id"] == profile_id:
+                    raise ButtonProfileProtectedError(
+                        "the selected button profile cannot be deleted"
+                    )
                 cursor = connection.execute(
                     "DELETE FROM button_profiles WHERE profile_id=? AND revision=?",
                     (profile_id, expected_revision),

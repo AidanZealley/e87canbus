@@ -10,7 +10,7 @@ from e87canbus.api.models.resources import ResourceChangedEvent
 async def publish_resource_change(
     app: FastAPI,
     *,
-    resource: Literal["settings", "steering_profile"],
+    resource: Literal["settings", "steering_profile", "button_profile"],
     resource_id: str | None,
     revision: int,
 ) -> None:

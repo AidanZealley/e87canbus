@@ -21,6 +21,10 @@ class ButtonProfileNameConflictError(ButtonProfileRepositoryError):
     pass
 
 
+class ButtonProfileProtectedError(ButtonProfileRepositoryError):
+    pass
+
+
 class ButtonProfileRevisionConflictError(ButtonProfileRepositoryError):
     def __init__(self, profile_id: str, expected_revision: int, actual_revision: int) -> None:
         self.profile_id, self.expected_revision, self.actual_revision = (
@@ -41,6 +45,8 @@ class StoredButtonProfileDataError(ButtonProfileStorageError):
 class ButtonProfileRepository(Protocol):
     def list_profiles(self) -> tuple[StoredButtonProfile, ...]: ...
     def get_profile(self, profile_id: str) -> StoredButtonProfile | None: ...
+    def get_selected_profile(self) -> StoredButtonProfile: ...
+    def select_profile(self, profile_id: str, expected_revision: int) -> StoredButtonProfile: ...
     def create_profile(
         self, name: str, definition: ButtonProfileDefinition | None = None
     ) -> StoredButtonProfile: ...
