@@ -65,16 +65,12 @@ def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
 
 
 RESTING_LEDS = (
-    (
-        RGB_OFF,
-        SOFT_WHITE,
-        SOFT_WHITE,
-        SOFT_WHITE,
-        SOFT_WHITE,
-    )
-    + (RGB_OFF,) * 10
-    + (SOFT_WHITE,)
-)
+    RGB_OFF,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+) + (RGB_OFF,) * 11
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
 MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, SOFT_WHITE, SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:])

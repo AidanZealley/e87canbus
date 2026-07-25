@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from e87canbus.config import CanNetwork
 from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_profiles import validate_saved_profile_revision
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
@@ -104,10 +105,7 @@ class ActivateButtonProfile:
     def __post_init__(self) -> None:
         if not isinstance(self.profile, ButtonBindingProfile):
             raise TypeError("profile must be a ButtonBindingProfile")
-        if self.saved_profile_revision is not None and (
-            type(self.saved_profile_revision) is not int or self.saved_profile_revision < 1
-        ):
-            raise ValueError("saved_profile_revision must be a positive integer")
+        validate_saved_profile_revision(self.saved_profile_revision)
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,12 +12,7 @@ from e87canbus.adapters.sqlite_database import (
     BUILT_IN_BUTTON_PROFILE_ID,
     BUILT_IN_BUTTON_PROFILE_NAME,
     CURRENT_MIGRATION_VERSION,
-)
-from e87canbus.domain.button_profile_repository import (
-    ButtonProfileNameConflictError,
-    ButtonProfileProtectedError,
-    ButtonProfileRevisionConflictError,
-    StoredButtonProfileDataError,
+    SqliteApplicationDatabase,
 )
 from e87canbus.domain.button_profiles import (
     BUILT_IN_BUTTON_PROFILE,
@@ -32,8 +28,13 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
-    ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
+)
+from e87canbus.domain.revisioned_profiles import (
+    ProfileNameConflictError,
+    ProfileProtectedError,
+    ProfileRevisionConflictError,
+    StoredProfileDataError,
 )
 from e87canbus.domain.state import SteeringMode
 
@@ -104,9 +105,9 @@ def test_selected_profile_is_durable_and_cannot_be_deleted(tmp_path: Path) -> No
     assert repo.get_selected_profile().profile_id == BUILT_IN_BUTTON_PROFILE_ID
     assert repo.select_profile(created.profile_id, created.revision) == created
     assert repo.get_selected_profile() == created
-    with pytest.raises(ButtonProfileProtectedError, match="selected"):
+    with pytest.raises(ProfileProtectedError, match="selected"):
         repo.delete_profile(created.profile_id, created.revision)
-    with pytest.raises(ButtonProfileProtectedError, match="built-in"):
+    with pytest.raises(ProfileProtectedError, match="built-in"):
         repo.delete_profile(BUILT_IN_BUTTON_PROFILE_ID, 1)
 
 
@@ -115,13 +116,13 @@ def test_optimistic_revision_and_case_insensitive_names(tmp_path: Path) -> None:
     repo.initialize()
     created = repo.create_profile("Track")
     repo.update_profile(created.profile_id, 1, "Track", created.definition)
-    with pytest.raises(ButtonProfileRevisionConflictError):
+    with pytest.raises(ProfileRevisionConflictError):
         repo.update_profile(created.profile_id, 1, "Track", created.definition)
-    with pytest.raises(ButtonProfileNameConflictError):
+    with pytest.raises(ProfileNameConflictError):
         repo.create_profile("track")
 
 
-def test_codec_round_trips_every_user_command_and_rejects_dev_command() -> None:
+def test_codec_round_trips_every_user_command_and_rejects_foreign_command() -> None:
     commands = (
         SelectSteeringMode(SteeringMode.AUTO),
         ToggleAutomaticAssistance(),
@@ -136,8 +137,8 @@ def test_codec_round_trips_every_user_command_and_rejects_dev_command() -> None:
         decode_button_profile(json.loads(canonical_button_profile_bytes(definition))) == definition
     )
     with pytest.raises(ValueError, match="not user-bindable"):
-        ButtonProfileDefinition(1, (ToggleButtonPadDemoBreathe(),) + (None,) * 15)  # type: ignore[arg-type]
-    raw = {"schema_version": 1, "slots": [{"type": "toggle_button_pad_demo_breathe"}] + [None] * 15}
+        ButtonProfileDefinition(1, ("toggle_automatic_assistance",) + (None,) * 15)  # type: ignore[arg-type]
+    raw = {"schema_version": 1, "slots": [{"type": "toggle_button_pad_lamp_test"}] + [None] * 15}
     with pytest.raises(ValueError, match="unsupported"):
         decode_button_profile(raw)
     with pytest.raises(ValueError, match="must be an integer"):
@@ -153,5 +154,56 @@ def test_corrupt_noncanonical_storage_is_rejected(tmp_path: Path) -> None:
             "UPDATE button_profiles SET definition_json=? WHERE profile_id=?",
             ('{"slots":[],"schema_version":1}', BUILT_IN_BUTTON_PROFILE_ID),
         )
-    with pytest.raises(StoredButtonProfileDataError):
+    with pytest.raises(StoredProfileDataError):
         repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+
+
+def _is_closed(connection: sqlite3.Connection) -> bool:
+    try:
+        connection.execute("SELECT 1")
+    except sqlite3.ProgrammingError:
+        return True
+    return False
+
+
+def test_every_operation_closes_its_connection_even_when_it_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed call must not leave a WAL reader alive for as long as its traceback does.
+
+    ``sqlite3``'s connection context manager only ends the transaction, so this is the
+    regression guard for the adapter closing in ``finally`` instead.
+    """
+
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    other = repo.create_profile("Track")
+
+    opened: list[sqlite3.Connection] = []
+    connect = SqliteApplicationDatabase.connect
+
+    def tracked(self: SqliteApplicationDatabase) -> sqlite3.Connection:
+        connection = connect(self)
+        opened.append(connection)
+        return connection
+
+    monkeypatch.setattr(SqliteApplicationDatabase, "connect", tracked)
+    with sqlite3.connect(path) as raw:
+        raw.execute("UPDATE button_profiles SET definition_fingerprint=?", ("0" * 64,))
+
+    failures: list[Callable[[], object]] = [
+        lambda: repo.list_profiles(),
+        lambda: repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID),
+        lambda: repo.get_selected_profile(),
+        lambda: repo.select_profile(BUILT_IN_BUTTON_PROFILE_ID, 99),
+        lambda: repo.create_profile("Track"),
+        lambda: repo.update_profile(other.profile_id, 99, "Rally", other.definition),
+        lambda: repo.delete_profile(BUILT_IN_BUTTON_PROFILE_ID, 1),
+    ]
+    for failing in failures:
+        with pytest.raises(Exception):  # noqa: B017 - the failure kind differs per call
+            failing()
+
+    assert len(opened) == len(failures)
+    assert all(_is_closed(connection) for connection in opened)

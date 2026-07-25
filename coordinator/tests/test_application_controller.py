@@ -8,6 +8,7 @@ from e87canbus.config import (
     SteeringConfig,
 )
 from e87canbus.domain import controller
+from e87canbus.domain.button_bindings import built_in_button_binding_profile
 from e87canbus.domain.button_pad import static_button_pad_program
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
@@ -57,19 +58,16 @@ from e87canbus.domain.steering import (
 
 CONFIG = SteeringConfig()
 ENGINE_CONFIG = EngineTelemetryConfig()
+BUILT_IN_LEDS = controller.ButtonLedProjection(built_in_button_binding_profile())
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
 RESTING_LEDS = (
-    (
-        RGB_OFF,
-        controller.SOFT_WHITE,
-        controller.SOFT_WHITE,
-        controller.SOFT_WHITE,
-        controller.SOFT_WHITE,
-    )
-    + (RGB_OFF,) * 10
-    + (controller.SOFT_WHITE,)
-)
+    RGB_OFF,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+    controller.SOFT_WHITE,
+) + (RGB_OFF,) * 11
 AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
 MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
 MANUAL_MAXIMUM_LEDS = ButtonLedState(
@@ -88,6 +86,8 @@ def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnap
         ENGINE_CONFIG,
         ACTIVE_CURVE,
         SteeringCurveActivationStatus.ACTIVE,
+        BUILT_IN_LEDS,
+        None,
     )
 
 
@@ -103,7 +103,7 @@ def initial_effects(
     state: ApplicationState,
     config: SteeringConfig,
 ) -> tuple[ApplicationEffect, ...]:
-    return controller.initial_effects(state, config, CURVE_DEFINITION)
+    return controller.initial_effects(state, config, CURVE_DEFINITION, BUILT_IN_LEDS)
 
 
 def application_state(
@@ -151,6 +151,8 @@ def test_initial_snapshot_and_effects() -> None:
         high_beam_strobe_active=False,
         high_beam_strobe_cycles_remaining=0,
         high_beam_next_transition_at=None,
+        active_button_profile_id="built-in",
+        active_button_profile_revision=None,
     )
     assert initial_effects(state, CONFIG) == (
         static_effect(AUTO_LEDS),
@@ -166,6 +168,7 @@ def test_high_beam_strobe_advances_on_its_own_deadlines_and_completes_deasserted
         ApplicationState(),
         StartHighBeamStrobe(),
         CONFIG,
+        BUILT_IN_LEDS,
         OperatorIntentContext(observed_at=12.0),
         high_beam_strobe_config=config,
     ).state

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.api.models.steering import CANONICAL_UUID_PATTERN, StrictRequest
 from e87canbus.domain.button_profiles import BUTTON_PROFILE_NAME_MAX_LENGTH
+from e87canbus.domain.events import BUTTON_LED_COUNT
 
 
 class SelectSteeringModeCommand(StrictRequest):
@@ -54,7 +55,9 @@ ButtonProfileCommand = Annotated[
 
 class ButtonProfileDefinitionRequest(StrictRequest):
     schema_version: Literal[1]
-    slots: list[ButtonProfileCommand | None] = Field(min_length=16, max_length=16)
+    slots: list[ButtonProfileCommand | None] = Field(
+        min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
+    )
 
 
 class CreateButtonProfileRequest(StrictRequest):
@@ -77,7 +80,9 @@ class ButtonProfileDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal[1]
-    slots: tuple[ButtonProfileCommand | None, ...] = Field(min_length=16, max_length=16)
+    slots: tuple[ButtonProfileCommand | None, ...] = Field(
+        min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
+    )
 
 
 class ButtonProfileResponse(BaseModel):

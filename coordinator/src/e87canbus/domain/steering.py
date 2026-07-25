@@ -192,6 +192,35 @@ def canonical_steering_curve_bytes(definition: SteeringCurveDefinition) -> bytes
     )
 
 
+def decode_steering_curve(value: object) -> SteeringCurveDefinition:
+    """Rebuild a definition from parsed JSON, rejecting anything this codec never wrote.
+
+    The inverse of :func:`canonical_steering_curve_bytes`: unexpected or missing fields
+    are refused here rather than being silently dropped, so storage can only round-trip
+    definitions the domain still understands.
+    """
+
+    if not isinstance(value, dict) or set(value) != {"schema_version", "points"}:
+        raise ValueError("definition_json has unexpected fields")
+    raw_points = value["points"]
+    if not isinstance(raw_points, list):
+        raise ValueError("definition points must be a list")
+    points: list[SteeringCurvePoint] = []
+    for raw_point in raw_points:
+        if not isinstance(raw_point, dict) or set(raw_point) != {
+            "speed_deci_kph",
+            "assistance_per_mille",
+        }:
+            raise ValueError("definition point has unexpected fields")
+        points.append(
+            SteeringCurvePoint(
+                speed_deci_kph=raw_point["speed_deci_kph"],
+                assistance_per_mille=raw_point["assistance_per_mille"],
+            )
+        )
+    return SteeringCurveDefinition(schema_version=value["schema_version"], points=tuple(points))
+
+
 def steering_curve_fingerprint(definition: SteeringCurveDefinition) -> str:
     """Return the lowercase SHA-256 identity of a definition's canonical bytes."""
 

@@ -2,43 +2,113 @@ import { describe, expect, it } from "vitest"
 
 import {
   buttonProfileStatusLabel,
-  synchronizeButtonProfileDraft,
-  type ButtonProfileDraft,
+  isButtonProfileDraftDirty,
+  pristineButtonProfileDraft,
+  resolveButtonProfileDraft,
 } from "./draft-state"
-import type { ButtonCommand } from "./types"
+import { toButtonCommandSlots, type ButtonCommand } from "./types"
 
-const blankSlots: ButtonCommand[] = Array.from({ length: 16 }, () => null)
+const blankSlots = toButtonCommandSlots(
+  Array.from({ length: 16 }, () => null as ButtonCommand)
+)
+const withSlot = (index: number, command: ButtonCommand) => {
+  const slots = [...blankSlots]
+  slots[index] = command
+  return toButtonCommandSlots(slots)
+}
 
-describe("button profile draft synchronization", () => {
-  it("adopts a newer server revision when the local draft is pristine", () => {
-    const current: ButtonProfileDraft = {
-      sourceRevision: 1,
-      baseSlots: blankSlots,
-      slots: blankSlots,
-    }
-    const newer = [...blankSlots]
-    newer[0] = { type: "start_high_beam_strobe" }
+describe("button profile draft resolution", () => {
+  it("adopts a newer server revision when there is no pending edit", () => {
+    const newer = withSlot(0, { type: "start_high_beam_strobe" })
 
-    const result = synchronizeButtonProfileDraft(current, 2, newer)
+    const draft = resolveButtonProfileDraft(
+      pristineButtonProfileDraft(1, blankSlots),
+      2,
+      newer
+    )
 
-    expect(result.serverChanged).toBe(false)
-    expect(result.draft.sourceRevision).toBe(2)
-    expect(result.draft.slots[0]).toEqual({ type: "start_high_beam_strobe" })
+    expect(draft.sourceRevision).toBe(2)
+    expect(draft.slots[0]).toEqual({ type: "start_high_beam_strobe" })
+    expect(isButtonProfileDraftDirty(draft)).toBe(false)
   })
 
-  it("preserves dirty local edits and surfaces a server change", () => {
-    const edited = [...blankSlots]
-    edited[1] = { type: "toggle_maximum_assistance" }
-    const current: ButtonProfileDraft = {
-      sourceRevision: 1,
-      baseSlots: blankSlots,
-      slots: edited,
+  it("adopts the server revision when nothing has been edited yet", () => {
+    const draft = resolveButtonProfileDraft(null, 3, blankSlots)
+
+    expect(draft.sourceRevision).toBe(3)
+    expect(isButtonProfileDraftDirty(draft)).toBe(false)
+  })
+
+  it("preserves dirty local edits against a newer server revision", () => {
+    const pendingEdit = {
+      ...pristineButtonProfileDraft(1, blankSlots),
+      slots: withSlot(1, { type: "toggle_maximum_assistance" }),
     }
 
-    const result = synchronizeButtonProfileDraft(current, 2, blankSlots)
+    const draft = resolveButtonProfileDraft(pendingEdit, 2, blankSlots)
 
-    expect(result).toEqual({ draft: current, serverChanged: true })
+    expect(draft).toBe(pendingEdit)
+    // The stale source revision is what surfaces the "Saved profile changed" alert.
+    expect(draft.sourceRevision).toBe(1)
   })
+
+  it("falls back to the saved profile once an edit is undone", () => {
+    const pendingEdit = pristineButtonProfileDraft(1, blankSlots)
+
+    const draft = resolveButtonProfileDraft(pendingEdit, 2, blankSlots)
+
+    expect(draft.sourceRevision).toBe(2)
+  })
+})
+
+describe("button profile draft dirtiness", () => {
+  it("compares slots structurally rather than by key order", () => {
+    const base = pristineButtonProfileDraft(
+      1,
+      withSlot(0, { type: "select_steering_mode", mode: "auto" })
+    )
+
+    expect(isButtonProfileDraftDirty(base)).toBe(false)
+    expect(
+      isButtonProfileDraftDirty({
+        ...base,
+        slots: withSlot(0, {
+          mode: "auto",
+          type: "select_steering_mode",
+        } as ButtonCommand),
+      })
+    ).toBe(false)
+    expect(
+      isButtonProfileDraftDirty({
+        ...base,
+        slots: withSlot(0, { type: "select_steering_mode", mode: "manual" }),
+      })
+    ).toBe(true)
+  })
+
+  it("detects assignment and clearing of a slot", () => {
+    const base = pristineButtonProfileDraft(1, blankSlots)
+
+    expect(
+      isButtonProfileDraftDirty({
+        ...base,
+        slots: withSlot(4, { type: "set_manual_assistance_level", level: 3 }),
+      })
+    ).toBe(true)
+    expect(
+      isButtonProfileDraftDirty({
+        ...base,
+        baseSlots: withSlot(4, {
+          type: "set_manual_assistance_level",
+          level: 3,
+        }),
+      })
+    ).toBe(true)
+  })
+})
+
+it("rejects a command list that is not a full slot set", () => {
+  expect(() => toButtonCommandSlots([null, null])).toThrow(RangeError)
 })
 
 it("never reports a profile active while live state is unsynchronized", () => {

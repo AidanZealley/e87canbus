@@ -1,7 +1,26 @@
 import { describe, expect, it } from "vitest"
 
 import type { SteeringState } from "@/api/live-contract.gen"
-import { deriveButtonProfileLedPreview } from "./button-led-presentation"
+import {
+  BUTTON_LED_RGB,
+  deriveButtonProfileLedPreview,
+} from "./button-led-presentation"
+
+describe("backend colour constants", () => {
+  // Pinned against coordinator/src/e87canbus/domain/events.py (RGB_*) and
+  // domain/controller/button_leds.py (SOFT_*). Changing a colour there must
+  // break this test rather than silently leave the draft preview wrong.
+  it("matches the values named in the coordinator LED modules", () => {
+    expect(BUTTON_LED_RGB).toEqual({
+      RGB_OFF: [0, 0, 0],
+      RGB_BLUE: [0, 0, 255],
+      RGB_AMBER: [255, 191, 0],
+      RGB_WHITE: [255, 255, 255],
+      SOFT_WHITE: [8, 8, 8],
+      SOFT_AMBER: [8, 6, 0],
+    })
+  })
+})
 
 const steering = {
   mode: "auto",

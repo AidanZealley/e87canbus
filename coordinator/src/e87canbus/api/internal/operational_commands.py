@@ -6,9 +6,9 @@ from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.commands import submit_command
+from e87canbus.api.internal.profiles import repository_operation
 from e87canbus.api.internal.steering import (
     definition_from_request,
-    repository_operation,
     validate_profile_id,
 )
 from e87canbus.api.models.commands import (
@@ -82,27 +82,30 @@ async def activate_steering_profile(
     request: ActivateSteeringProfileRequest,
 ) -> CommandAcknowledgement:
     validate_profile_id(request.profile_id)
-    profile = await repository_operation(lambda: repository.get_profile(request.profile_id))
-    if profile is None:
-        raise ApiProblem(
-            404,
-            "profile_not_found",
-            f"steering profile not found: {request.profile_id}",
+    # The read, the revision check and the activation are one unit: an edit that lands
+    # between them would activate a curve under a revision storage has already moved past.
+    async with app.state.steering_profile_mutation_lock:
+        profile = await repository_operation(lambda: repository.get_profile(request.profile_id))
+        if profile is None:
+            raise ApiProblem(
+                404,
+                "profile_not_found",
+                f"steering profile not found: {request.profile_id}",
+            )
+        if profile.revision != request.expected_revision:
+            raise ApiProblem(
+                409,
+                "profile_revision_conflict",
+                f"steering profile {profile.profile_id} is at revision {profile.revision}, "
+                f"not {request.expected_revision}",
+                current_revision=profile.revision,
+            )
+        return await _activate(
+            app,
+            definition=profile.definition,
+            profile_id=profile.profile_id,
+            profile_revision=profile.revision,
         )
-    if profile.revision != request.expected_revision:
-        raise ApiProblem(
-            409,
-            "profile_revision_conflict",
-            f"steering profile {profile.profile_id} is at revision {profile.revision}, "
-            f"not {request.expected_revision}",
-            current_revision=profile.revision,
-        )
-    return await _activate(
-        app,
-        definition=profile.definition,
-        profile_id=profile.profile_id,
-        profile_revision=profile.revision,
-    )
 
 
 async def activate_steering_curve(

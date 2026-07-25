@@ -12,7 +12,6 @@ from e87canbus.domain.intents import (
     OperatorIntent,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
-    ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
     is_operator_intent,
 )
@@ -92,7 +91,6 @@ _BUILT_IN_FIXED_BINDINGS: tuple[ButtonBinding, ...] = (
     ButtonBinding(1, AdjustManualAssistance(-1)),
     ButtonBinding(2, AdjustManualAssistance(1)),
     ButtonBinding(3, ToggleMaximumAssistance()),
-    ButtonBinding(15, ToggleButtonPadDemoBreathe()),
 )
 
 if (

@@ -165,7 +165,11 @@ def create_app(
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository
     app.state.monotonic_clock = clock
+    # Read-check-write profile sequences must not interleave: without these, a concurrent
+    # edit can land between reading a profile and activating it, leaving the runtime
+    # running one revision while storage records another.
     app.state.button_profile_mutation_lock = asyncio.Lock()
+    app.state.steering_profile_mutation_lock = asyncio.Lock()
 
     app.include_router(health.router)
     app.include_router(settings.router)

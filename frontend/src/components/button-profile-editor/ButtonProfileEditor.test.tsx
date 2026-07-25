@@ -81,6 +81,34 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+it("adopts a newer saved revision silently while the draft is pristine", async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  mocks.profile = profile(1, 2)
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <ButtonProfileEditor profile={mocks.profile!} />
+    </QueryClientProvider>
+  )
+  expect(
+    await screen.findByRole("button", { name: "Edit button 0: Assist 2" })
+  ).toBeTruthy()
+
+  act(() => {
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ButtonProfileEditor profile={profile(2, 7)} />
+      </QueryClientProvider>
+    )
+  })
+
+  expect(
+    await screen.findByRole("button", { name: "Edit button 0: Assist 7" })
+  ).toBeTruthy()
+  expect(screen.queryByText("Saved profile changed")).toBeNull()
+})
+
 it("blocks saving a dirty draft when a newer saved revision arrives", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },

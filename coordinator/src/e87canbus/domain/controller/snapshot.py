@@ -10,9 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.config import EngineTelemetryConfig, HighBeamStrobeConfig, SteeringConfig
+from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.domain.button_pad import ButtonPadProgram
-from e87canbus.domain.controller.button_leds import button_led_effect, button_pad_program
+from e87canbus.domain.controller.button_leds import ButtonLedProjection
 from e87canbus.domain.controller.steering import speed_is_valid, steering_command
 from e87canbus.domain.events import ApplicationEffect
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
@@ -59,8 +59,8 @@ class ApplicationSnapshot:
     high_beam_strobe_active: bool
     high_beam_strobe_cycles_remaining: int
     high_beam_next_transition_at: float | None
-    active_button_profile_id: str = "built-in"
-    active_button_profile_revision: int | None = None
+    active_button_profile_id: str
+    active_button_profile_revision: int | None
 
 
 def snapshot(
@@ -69,10 +69,12 @@ def snapshot(
     engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
-    servotronic_usable: bool = True,
-    high_beam_button_index: int = HighBeamStrobeConfig().button_index,
+    leds: ButtonLedProjection,
+    saved_button_profile_revision: int | None,
     curve_activation_available: bool = False,
 ) -> ApplicationSnapshot:
+    """Project read-only state, including the program the pad is being driven with."""
+
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
     return ApplicationSnapshot(
@@ -113,9 +115,9 @@ def snapshot(
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
         curve_activation_available=curve_activation_available,
-        button_pad_program=button_pad_program(state, servotronic_usable, high_beam_button_index),
-        active_button_profile_id="built-in",
-        active_button_profile_revision=None,
+        button_pad_program=leds.effect(state).program,
+        active_button_profile_id=leds.profile.profile_id,
+        active_button_profile_revision=saved_button_profile_revision,
         high_beam_enabled=state.high_beam_enabled,
         high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
         high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
@@ -127,11 +129,12 @@ def initial_effects(
     state: ApplicationState,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
+    leds: ButtonLedProjection,
 ) -> tuple[ApplicationEffect, ...]:
     """Return the complete output projection for synchronization."""
 
     return (
-        button_led_effect(state),
+        leds.effect(state),
         steering_command(state, config, active_definition),
     )
 

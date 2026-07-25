@@ -2,12 +2,18 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
-from typing import Any, cast
+from typing import Any, cast, get_args
 
 import pytest
+from e87canbus.api.internal.button_profiles import definition_from_request
 from e87canbus.api.main import create_app
+from e87canbus.api.models.button_profiles import (
+    ButtonProfileCommand,
+    ButtonProfileDefinitionRequest,
+)
 from e87canbus.config import simulator_config
-from e87canbus.domain.button_profile_repository import ButtonProfileStorageError
+from e87canbus.domain.button_profiles import UserButtonIntent, encode_button_intent
+from e87canbus.domain.revisioned_profiles import ProfileStorageError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -146,7 +152,7 @@ def test_activation_storage_failure_keeps_runtime_and_marks_persistence_unhealth
     created = client.post("/api/button-pad/profiles", json={"name": "Runtime only"}).json()
 
     def fail_selection(_profile_id: str, _revision: int) -> None:
-        raise ButtonProfileStorageError("selection write failed")
+        raise ProfileStorageError("selection write failed")
 
     app.state.button_profile_repository.select_profile = fail_selection
     response = client.post(
@@ -384,3 +390,30 @@ def test_button_profile_revision_conflicts_are_authoritative(client: TestClient)
     assert first.status_code == 200
     assert stale.status_code == 409
     assert stale.json()["error"]["current_revision"] == first.json()["revision"]
+
+
+def test_one_command_vocabulary_is_shared_by_http_and_storage() -> None:
+    """Adding an eighth button command must break here rather than silently half-land.
+
+    The HTTP request models, the domain codec and the response encoder must agree on the
+    same tag set, so this pins the three together instead of trusting them to drift apart.
+    """
+
+    http_tags = {
+        get_args(member.model_fields["type"].annotation)[0]
+        for member in get_args(get_args(ButtonProfileCommand)[0])
+    }
+    samples = [slot for slot in definition_json()["slots"] if slot is not None]
+
+    assert http_tags == {sample["type"] for sample in samples}
+    assert len(http_tags) == len(get_args(UserButtonIntent))
+    # Every tag survives the round trip HTTP model -> domain intent -> stored JSON.
+    definition = definition_from_request(
+        ButtonProfileDefinitionRequest.model_validate(definition_json())
+    )
+    assert [
+        encode_button_intent(intent) for intent in definition.slots if intent is not None
+    ] == samples
+    assert {type(intent) for intent in definition.slots if intent is not None} == set(
+        get_args(UserButtonIntent)
+    )

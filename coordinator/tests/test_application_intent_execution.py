@@ -1,16 +1,19 @@
 import pytest
 from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
-from e87canbus.domain.controller import DEMO_BREATHE_BUTTON_INDEX, execute_operator_intent
-from e87canbus.domain.events import SetButtonPadBreathe, SetHighBeam
+from e87canbus.domain import controller
+from e87canbus.domain.button_bindings import built_in_button_binding_profile
+from e87canbus.domain.controller import ButtonLedProjection, Transition
+from e87canbus.domain.events import SetHighBeam
 from e87canbus.domain.intents import (
+    DEFAULT_OPERATOR_INTENT_CONTEXT,
     AdjustManualAssistance,
+    OperatorIntent,
     OperatorIntentContext,
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
-    ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
 )
 from e87canbus.domain.state import (
@@ -21,6 +24,28 @@ from e87canbus.domain.state import (
 )
 
 CONFIG = SteeringConfig(manual_level_count=11)
+BUILT_IN_LEDS = ButtonLedProjection(built_in_button_binding_profile())
+
+
+def execute_operator_intent(
+    state: ApplicationState,
+    intent: OperatorIntent,
+    config: SteeringConfig,
+    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
+    *,
+    leds: ButtonLedProjection = BUILT_IN_LEDS,
+    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
+) -> Transition:
+    """Exercise the intent surface against the built-in bindings by default."""
+
+    return controller.execute_operator_intent(
+        state,
+        intent,
+        config,
+        leds,
+        context,
+        high_beam_strobe_config=high_beam_strobe_config,
+    )
 
 
 def steering(state: ApplicationState) -> NormalSteering:
@@ -118,9 +143,7 @@ def test_toggle_automatic_assistance_truth_table(
     initial: NormalSteering | MaximumAssistance,
     expected: NormalSteering,
 ) -> None:
-    result = execute_operator_intent(
-        ApplicationState(initial), ToggleAutomaticAssistance(), CONFIG
-    )
+    result = execute_operator_intent(ApplicationState(initial), ToggleAutomaticAssistance(), CONFIG)
 
     assert result.state.steering == expected
 
@@ -169,13 +192,3 @@ def test_start_high_beam_strobe_starts_plan_and_asserts_output() -> None:
     assert result.state.high_beam_strobe_cycles_remaining == 3
     assert result.state.high_beam_next_transition_at == pytest.approx(12.15)
     assert result.effects == (SetHighBeam(True),)
-
-
-def test_toggle_button_pad_demo_breathe_updates_state_and_projection() -> None:
-    enabled = execute_operator_intent(ApplicationState(), ToggleButtonPadDemoBreathe(), CONFIG)
-    disabled = execute_operator_intent(enabled.state, ToggleButtonPadDemoBreathe(), CONFIG)
-
-    assert enabled.state.button_pad_demo_breathe_enabled is True
-    assert enabled.effects == (SetButtonPadBreathe(DEMO_BREATHE_BUTTON_INDEX, True),)
-    assert disabled.state.button_pad_demo_breathe_enabled is False
-    assert disabled.effects == (SetButtonPadBreathe(DEMO_BREATHE_BUTTON_INDEX, False),)

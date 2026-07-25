@@ -20,6 +20,7 @@ from e87canbus.api.models.live_contract import (
 )
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.domain import controller
+from e87canbus.domain.button_bindings import built_in_button_binding_profile
 from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
@@ -93,9 +94,9 @@ def test_live_steering_curve_schema_requires_the_domain_point_count() -> None:
 
 
 def test_live_steering_schema_publishes_manual_assistance_level_count() -> None:
-    level_count = GENERATOR.contract_schema()["definitions"][SteeringState.__name__][
-        "properties"
-    ]["manual_assistance_level_count"]
+    level_count = GENERATOR.contract_schema()["definitions"][SteeringState.__name__]["properties"][
+        "manual_assistance_level_count"
+    ]
 
     assert level_count["exclusiveMinimum"] == 0
 
@@ -107,6 +108,8 @@ def test_live_steering_projects_configured_manual_assistance_level_count() -> No
         EngineTelemetryConfig(),
         initial_active_steering_curve(),
         SteeringCurveActivationStatus.ACTIVE,
+        controller.ButtonLedProjection(built_in_button_binding_profile()),
+        None,
     )
     service_snapshot = SimpleNamespace(
         application=application,
@@ -114,8 +117,9 @@ def test_live_steering_projects_configured_manual_assistance_level_count() -> No
     )
 
     assert (
-        steering_state(cast(ControllerServiceSnapshot, service_snapshot))
-        .manual_assistance_level_count
+        steering_state(
+            cast(ControllerServiceSnapshot, service_snapshot)
+        ).manual_assistance_level_count
         == 3
     )
 
@@ -123,14 +127,14 @@ def test_live_steering_projects_configured_manual_assistance_level_count() -> No
 def test_live_steering_projects_remembered_level_while_maximum_is_active() -> None:
     application = controller.snapshot(
         ApplicationState(
-            steering=MaximumAssistance(
-                previous=NormalSteering(SteeringMode.MANUAL, 4)
-            )
+            steering=MaximumAssistance(previous=NormalSteering(SteeringMode.MANUAL, 4))
         ),
         SteeringConfig(manual_level_count=11),
         EngineTelemetryConfig(),
         initial_active_steering_curve(),
         SteeringCurveActivationStatus.ACTIVE,
+        controller.ButtonLedProjection(built_in_button_binding_profile()),
+        None,
     )
     service_snapshot = SimpleNamespace(
         application=application,
