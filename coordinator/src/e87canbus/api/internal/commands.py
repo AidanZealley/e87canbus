@@ -9,10 +9,10 @@ from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.models.commands import CommandAcknowledgement
-from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.service import (
     ControllerInboxFull,
-    ControllerServiceNotRunning,
+    ControllerLoopNotRunning,
     ControllerWorkUnavailable,
     SimulationDeviceUnavailable,
 )
@@ -21,12 +21,12 @@ from e87canbus.service import (
 async def submit_runtime_work(app: FastAPI, work: object) -> int:
     """Submit once and await finitely through the service ownership seam."""
 
-    service = app.state.controller_service
+    service = app.state.controller_loop
     try:
         future: Future[int] = service.submit(work)
     except ControllerInboxFull as exc:
         raise ApiProblem(503, "runtime_queue_full", "controller runtime inbox is full") from exc
-    except ControllerServiceNotRunning as exc:
+    except ControllerLoopNotRunning as exc:
         raise ApiProblem(503, "controller_unavailable", str(exc)) from exc
 
     try:
@@ -62,7 +62,7 @@ async def submit_command(app: FastAPI, command: object) -> CommandAcknowledgemen
     """Submit semantic intent and acknowledge the resulting boot/revision."""
 
     revision = await submit_runtime_work(app, command)
-    service = app.state.controller_service
+    service = app.state.controller_loop
     return CommandAcknowledgement(
         boot_id=service.boot_id,
         revision=revision,

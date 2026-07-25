@@ -13,13 +13,13 @@ from e87canbus.api.models.steering import (
     SteeringCurveDefinitionRequest,
     UpdateProfileRequest,
 )
-from e87canbus.domain.profile_repository import SteeringProfileRepository
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
     validate_steering_profile_id,
 )
+from e87canbus.domain.steering.repository import SteeringProfileRepository
 
 
 def definition_from_request(

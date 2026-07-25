@@ -11,12 +11,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
-from e87canbus.domain.button_pad import ButtonPadProgram
+from e87canbus.domain.buttons.pad import ButtonPadProgram
 from e87canbus.domain.controller.button_leds import ButtonLedProjection
 from e87canbus.domain.controller.steering import speed_is_valid, steering_command
 from e87canbus.domain.events import ApplicationEffect
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,

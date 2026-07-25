@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 from e87canbus.config import HighBeamStrobeConfig
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.profiles import (
     BUTTON_PROFILE_SCHEMA_VERSION,
     ActiveButtonProfile,
     ButtonProfileDefinition,

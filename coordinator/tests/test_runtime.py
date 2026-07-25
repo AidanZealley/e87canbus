@@ -3,14 +3,14 @@ import logging
 import pytest
 from e87canbus.adapters.output import EffectRequest
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.button_pad import static_button_pad_program
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.pad import static_button_pad_program
+from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     button_profile_definition_with,
 )
 from e87canbus.domain.controller import SOFT_WHITE
-from e87canbus.domain.device import DeviceRole
-from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.devices.catalogue import DeviceRole
+from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
     RGB_AMBER,
     RGB_BLUE,

@@ -24,8 +24,7 @@ from e87canbus.adapters.sqlite_revisioned_profiles import (
     SqliteRevisionedProfileRepository,
     utc_now,
 )
-from e87canbus.domain.profile_repository import STEERING_PROFILE_KIND
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     SteeringCurveDefinition,
     StoredSteeringProfile,
     canonical_steering_curve_bytes,
@@ -33,6 +32,7 @@ from e87canbus.domain.steering import (
     steering_curve_fingerprint,
     validate_steering_profile_name,
 )
+from e87canbus.domain.steering.repository import STEERING_PROFILE_KIND
 
 STEERING_PROFILE_SPEC = RevisionedProfileSpec[SteeringCurveDefinition, StoredSteeringProfile](
     kind=STEERING_PROFILE_KIND,

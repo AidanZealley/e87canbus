@@ -10,7 +10,8 @@ from e87canbus.api.models.button_profiles import (
     ButtonProfileDefinitionRequest,
 )
 from e87canbus.config import simulator_config
-from e87canbus.domain.button_commands import ButtonCommand, encode_button_command
+from e87canbus.domain.buttons.catalogue import ButtonCommand
+from e87canbus.domain.buttons.commands import encode_button_command
 from e87canbus.domain.revisioned_profiles import ProfileStorageError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -108,7 +109,7 @@ def test_update_installs_saved_revision_and_projects_live_identity(
         },
     )
     app = cast(FastAPI, client.app)
-    snapshot = app.state.controller_service.snapshot()
+    snapshot = app.state.controller_loop.snapshot()
 
     assert updated.status_code == 200
     assert updated.json()["revision"] == 2
@@ -163,7 +164,7 @@ def test_update_selection_failure_keeps_runtime_and_marks_persistence_unhealthy(
             "definition": definition_json(),
         },
     )
-    snapshot = app.state.controller_service.snapshot()
+    snapshot = app.state.controller_loop.snapshot()
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "profile_storage_error"
@@ -195,7 +196,7 @@ def test_updated_selection_survives_restart(tmp_path: Path) -> None:
 
     second_app = create_app(config=simulator_config(), profile_database_path=database_path)
     with TestClient(second_app) as second:
-        snapshot = cast(FastAPI, second.app).state.controller_service.snapshot()
+        snapshot = cast(FastAPI, second.app).state.controller_loop.snapshot()
         assert second.get("/api/button-pad/profile").json() == updated.json()
         assert snapshot.application.active_button_profile_id == created["profile_id"]
         assert snapshot.application.active_button_profile_revision == 2

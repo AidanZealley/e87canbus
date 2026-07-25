@@ -7,7 +7,7 @@ import zlib
 from dataclasses import dataclass
 from enum import IntEnum
 
-from e87canbus.domain.steering import STEERING_CURVE_SCHEMA_VERSION, SteeringCurveDefinition
+from e87canbus.domain.steering.curves import STEERING_CURVE_SCHEMA_VERSION, SteeringCurveDefinition
 
 PROTOCOL_VERSION = 1
 INTERPOLATION_MONOTONE_CUBIC_V1 = 1
@@ -120,6 +120,14 @@ def unpack_status(payload: bytes) -> ServotronicStatus:
     if version != PROTOCOL_VERSION or opcode != STATUS_OPCODE:
         raise ValueError("unsupported Servotronic status protocol")
     return ServotronicStatus(
-        CurveResult(result), CurveSource(source), revision, crc, speed, assistance, duty,
-        bool(flags & 1), inhibit, ControlMode((flags >> 1) & 0x03),
+        CurveResult(result),
+        CurveSource(source),
+        revision,
+        crc,
+        speed,
+        assistance,
+        duty,
+        bool(flags & 1),
+        inhibit,
+        ControlMode((flags >> 1) & 0x03),
     )

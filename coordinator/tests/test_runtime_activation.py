@@ -11,7 +11,7 @@ from e87canbus.domain.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveActivationStatus,
     SteeringCurveDefinition,

@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 from e87canbus.adapters.output import EffectRequest
 from e87canbus.config import CanNetwork, CustomCanIds, SteeringConfig
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     ButtonCommand,
     built_in_active_button_profile,
@@ -14,7 +14,7 @@ from e87canbus.domain.controller import (
     ButtonLedProjection,
     derived_button_led_state,
 )
-from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import (
     RGB_BLUE,
     RGB_OFF,

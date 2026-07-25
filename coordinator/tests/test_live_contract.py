@@ -20,18 +20,18 @@ from e87canbus.api.models.live_contract import (
 )
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.domain import controller
-from e87canbus.domain.button_profiles import built_in_active_button_profile
+from e87canbus.domain.buttons.profiles import built_in_active_button_profile
 from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
     NormalSteering,
     SteeringMode,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     SteeringCurveActivationStatus,
     initial_active_steering_curve,
 )
-from e87canbus.service import ControllerServiceSnapshot
+from e87canbus.service import ControllerLoopSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -117,9 +117,7 @@ def test_live_steering_projects_configured_manual_assistance_level_count() -> No
     )
 
     assert (
-        steering_state(
-            cast(ControllerServiceSnapshot, service_snapshot)
-        ).manual_assistance_level_count
+        steering_state(cast(ControllerLoopSnapshot, service_snapshot)).manual_assistance_level_count
         == 3
     )
 
@@ -141,6 +139,6 @@ def test_live_steering_projects_remembered_level_while_maximum_is_active() -> No
         adapter=SimpleNamespace(servotronic=None),
     )
 
-    projected = steering_state(cast(ControllerServiceSnapshot, service_snapshot))
+    projected = steering_state(cast(ControllerLoopSnapshot, service_snapshot))
     assert projected.manual_assistance_level == 4
     assert projected.maximum_assistance_active is True

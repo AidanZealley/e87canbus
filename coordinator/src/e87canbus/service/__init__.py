@@ -6,7 +6,7 @@ between the service lifecycle and its diagnostics DTOs is an internal layout.
 
 from e87canbus.service.diagnostics import (
     ControllerAdapterSnapshot,
-    ControllerServiceSnapshot,
+    ControllerLoopSnapshot,
     InboxDiagnostics,
     ObservedLightingSnapshot,
     ObservedNetworkSnapshot,
@@ -17,13 +17,13 @@ from e87canbus.service.diagnostics import (
     ServiceDiagnostics,
     observed_servotronic_snapshot,
 )
-from e87canbus.service.service import (
+from e87canbus.service.loop import (
     ControllerInboxFull,
-    ControllerRuntimeAdapter,
-    ControllerService,
-    ControllerServiceError,
-    ControllerServiceLifecycle,
-    ControllerServiceNotRunning,
+    ControllerLoop,
+    ControllerLoopError,
+    ControllerLoopLifecycle,
+    ControllerLoopNotRunning,
+    ControllerRuntime,
     ControllerWorkUnavailable,
     RuntimeInputSink,
     RuntimeNotification,
@@ -33,12 +33,12 @@ from e87canbus.service.service import (
 __all__ = [
     "ControllerAdapterSnapshot",
     "ControllerInboxFull",
-    "ControllerRuntimeAdapter",
-    "ControllerService",
-    "ControllerServiceError",
-    "ControllerServiceLifecycle",
-    "ControllerServiceNotRunning",
-    "ControllerServiceSnapshot",
+    "ControllerRuntime",
+    "ControllerLoop",
+    "ControllerLoopError",
+    "ControllerLoopLifecycle",
+    "ControllerLoopNotRunning",
+    "ControllerLoopSnapshot",
     "ControllerWorkUnavailable",
     "InboxDiagnostics",
     "ObservedLightingSnapshot",

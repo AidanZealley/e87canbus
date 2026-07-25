@@ -15,15 +15,15 @@ from e87canbus.api.models.button_profiles import (
     UpdateButtonProfileRequest,
 )
 from e87canbus.config import SteeringConfig
-from e87canbus.domain.button_commands import encode_button_command
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.commands import encode_button_command
+from e87canbus.domain.buttons.profiles import (
     ButtonProfileDefinition,
-    ButtonProfileRepository,
     StoredButtonProfile,
     decode_button_profile,
     validate_button_profile_for,
     validate_button_profile_id,
 )
+from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.kernel import ActivateButtonProfile
 
 
@@ -161,7 +161,7 @@ async def _install_updated_profile(
         )
     except ApiProblem as exc:
         if exc.code == "profile_storage_error":
-            app.state.controller_service.mark_persistence_fault(exc.message)
+            app.state.controller_loop.mark_persistence_fault(exc.message)
         raise
 
 
@@ -175,7 +175,7 @@ async def _publish(app: FastAPI, profile: StoredButtonProfile) -> None:
 
 
 def _steering_config(app: FastAPI) -> SteeringConfig:
-    config: SteeringConfig = app.state.controller_service.config.steering
+    config: SteeringConfig = app.state.controller_loop.config.steering
     return config
 
 

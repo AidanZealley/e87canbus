@@ -10,7 +10,7 @@ from e87canbus.adapters.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.events import (
     RGB_BLUE,
     RGB_OFF,
@@ -25,7 +25,7 @@ from e87canbus.domain.events import (
     SteeringCommandReason,
     TriggerButtonPadBlink,
 )
-from e87canbus.domain.steering import initial_active_steering_curve
+from e87canbus.domain.steering.curves import initial_active_steering_curve
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.servotronic_protocol import (
     CurveResult,

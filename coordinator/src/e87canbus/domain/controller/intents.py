@@ -42,7 +42,7 @@ from e87canbus.domain.state import (
     SteeringMode,
     SteeringState,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     clamp_manual_level,

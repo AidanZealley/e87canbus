@@ -10,8 +10,8 @@ from e87canbus.api.main import create_app
 from e87canbus.config import CanNetwork, default_config, simulator_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.device import DeviceSource
-from e87canbus.domain.steering import ActiveSteeringCurve
+from e87canbus.domain.devices.catalogue import DeviceSource
+from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     CoordinatorKernel,
     DiagnosticSnapshot,
@@ -19,14 +19,14 @@ from e87canbus.kernel import (
     ShutdownRequested,
 )
 from e87canbus.runners.composition import (
-    build_live_controller_service,
-    build_simulated_controller_service,
+    build_live_controller_loop,
+    build_simulated_controller_loop,
 )
 from e87canbus.service import (
     ControllerAdapterSnapshot,
-    ControllerService,
-    ControllerServiceError,
-    ControllerServiceLifecycle,
+    ControllerLoop,
+    ControllerLoopError,
+    ControllerLoopLifecycle,
     RuntimeExecution,
     RuntimeInputSink,
 )
@@ -157,7 +157,7 @@ class DeadlineOrderingRuntime(RecordingRuntime):
 def test_service_dispatches_coincident_deadline_before_periodic_tick() -> None:
     clock = MutableClock()
     runtime = DeadlineOrderingRuntime()
-    service = ControllerService(
+    service = ControllerLoop(
         runtime,
         deployment=deployment_spec(DeploymentProfile.CAR),
         clock=clock,
@@ -179,9 +179,9 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = RecordingRuntime()
-    service = ControllerService(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
+    service = ControllerLoop(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
     app = create_app(
-        controller_service=service,
+        controller_loop=service,
         profile_database_path=tmp_path / "app.sqlite3",
     )
     publisher = app.state.live_publisher
@@ -196,20 +196,18 @@ def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
     with TestClient(app) as client:
         assert client.get("/health/live").json() == {"status": "live"}
         assert client.get("/health/ready").json()["status"] == "ready"
-        assert service.lifecycle is ControllerServiceLifecycle.RUNNING
+        assert service.lifecycle is ControllerLoopLifecycle.RUNNING
         assert app.state.live_publisher.running is True
 
     assert (runtime.starts, runtime.stops, runtime.closes) == (1, 1, 1)
     assert runtime.lifecycle_events == ["start", "shutdown", "publisher", "close"]
-    assert service.lifecycle is ControllerServiceLifecycle.STOPPED
+    assert service.lifecycle is ControllerLoopLifecycle.STOPPED
     assert app.state.live_publisher.running is False
 
 
 def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
-    first = ControllerService(RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR))
-    second = ControllerService(
-        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
-    )
+    first = ControllerLoop(RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR))
+    second = ControllerLoop(RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR))
 
     first.start()
     second.start()
@@ -225,14 +223,14 @@ def test_each_controller_service_lifecycle_has_a_fresh_opaque_boot_id() -> None:
 
 def test_unexpected_post_start_owner_failure_requires_fatal_process_exit() -> None:
     runtime = FailingTimerRuntime()
-    service = ControllerService(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
+    service = ControllerLoop(runtime, deployment=deployment_spec(DeploymentProfile.CAR))
 
     service.start()
 
     assert service.stopped_event.wait(timeout=1.0)
     assert service.fatal_exit_required is True
     assert service.ready is False
-    with pytest.raises(ControllerServiceError, match="timer failed"):
+    with pytest.raises(ControllerLoopError, match="timer failed"):
         service.stop()
     assert runtime.closes == 1
 
@@ -245,7 +243,7 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
         can_networks=tuple(replace(item, enabled=False) for item in default_config().can_networks),
     )
     app = create_app(
-        controller_service=build_live_controller_service(config=config),
+        controller_loop=build_live_controller_loop(config=config),
         profile_database_path=tmp_path / "app.sqlite3",
     )
 
@@ -255,7 +253,7 @@ def test_live_api_can_start_with_all_can_adapters_disabled_and_has_no_dev_routes
         assert (
             client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404
         )
-        assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
+        assert app.state.controller_loop.snapshot().diagnostics.health.fatal is False
 
 
 def test_app_construction_does_not_open_or_create_the_database(tmp_path: Path) -> None:
@@ -273,7 +271,7 @@ def test_lifespan_loads_persisted_curve_before_live_controller_start(tmp_path: P
         can_networks=tuple(replace(item, enabled=False) for item in default_config().can_networks),
     )
     app = create_app(
-        controller_service=build_live_controller_service(
+        controller_loop=build_live_controller_loop(
             config=config,
             profile_database_path=database,
         ),
@@ -282,7 +280,7 @@ def test_lifespan_loads_persisted_curve_before_live_controller_start(tmp_path: P
 
     assert not database.exists()
     with TestClient(app):
-        active = app.state.controller_service.snapshot().application.active_steering_curve
+        active = app.state.controller_loop.snapshot().application.active_steering_curve
 
     assert database.exists()
     assert active.saved_profile_id == BUILT_IN_PROFILE_ID
@@ -294,38 +292,36 @@ def test_simulation_reset_changes_session_without_changing_service_boot(
     app = create_app(profile_database_path=tmp_path / "app.sqlite3")
 
     with TestClient(app) as client:
-        boot_id = app.state.controller_service.boot_id
-        before = app.state.controller_service.snapshot()
+        boot_id = app.state.controller_loop.boot_id
+        before = app.state.controller_loop.snapshot()
         reset = client.post("/api/dev/simulation/reset").json()
 
         assert before.adapter.simulation_session_id == 1
         assert reset == {"accepted": True, "boot_id": boot_id}
-        assert app.state.controller_service.snapshot().adapter.simulation_session_id == 2
-        assert app.state.controller_service.boot_id == boot_id
+        assert app.state.controller_loop.snapshot().adapter.simulation_session_id == 2
+        assert app.state.controller_loop.boot_id == boot_id
 
 
 def test_fastapi_rejects_profile_configuration_with_an_injected_service() -> None:
-    service = ControllerService(
-        RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR)
-    )
+    service = ControllerLoop(RecordingRuntime(), deployment=deployment_spec(DeploymentProfile.CAR))
 
-    with pytest.raises(ValueError, match="inject either controller_service"):
+    with pytest.raises(ValueError, match="inject either controller_loop"):
         create_app(
-            controller_service=service,
+            controller_loop=service,
             profile=DeploymentProfile.SIMULATOR,
         )
 
-    assert service.lifecycle is ControllerServiceLifecycle.CREATED
+    assert service.lifecycle is ControllerLoopLifecycle.CREATED
 
 
 def test_live_transmitter_requires_separate_explicit_network_grant() -> None:
     with pytest.raises(ValueError, match="explicit network grant"):
-        build_live_controller_service(config=simulator_config())
+        build_live_controller_loop(config=simulator_config())
 
 
 def test_explicit_constructors_reject_invalid_device_authority_and_output() -> None:
     with pytest.raises(ValueError, match="emulated ingress authority"):
-        build_live_controller_service(button_pad_source=DeviceSource.EMULATED)
+        build_live_controller_loop(button_pad_source=DeviceSource.EMULATED)
 
     config = simulator_config()
     config = replace(
@@ -336,7 +332,7 @@ def test_explicit_constructors_reject_invalid_device_authority_and_output() -> N
         ),
     )
     with pytest.raises(ValueError, match="authorized simulated K-CAN output"):
-        build_simulated_controller_service(config=config)
+        build_simulated_controller_loop(config=config)
 
 
 def test_repeated_app_construction_does_not_leak_controller_owner_threads(
@@ -349,7 +345,7 @@ def test_repeated_app_construction_does_not_leak_controller_owner_threads(
     for index in range(3):
         runtime = RecordingRuntime()
         app = create_app(
-            controller_service=ControllerService(
+            controller_loop=ControllerLoop(
                 runtime,
                 deployment=deployment_spec(DeploymentProfile.CAR),
             ),

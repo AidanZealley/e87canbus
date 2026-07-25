@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from e87canbus.config import CanNetwork
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.device_registry import DeviceRegistryEntry
+from e87canbus.domain.devices.registry import DeviceRegistryEntry
 from e87canbus.kernel import DiagnosticSnapshot, StateTopic
 from e87canbus.protocol.servotronic_protocol import (
     CONTROL_MODE_WIRE,
@@ -127,7 +127,7 @@ class ServiceDiagnostics:
 
 
 @dataclass(frozen=True)
-class ControllerServiceSnapshot:
+class ControllerLoopSnapshot:
     """Immutable service-owned projection scoped to one opaque process boot."""
 
     boot_id: str

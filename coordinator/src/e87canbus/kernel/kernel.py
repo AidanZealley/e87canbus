@@ -13,8 +13,8 @@ from e87canbus.config import (
     HighBeamStrobeConfig,
     SteeringConfig,
 )
-from e87canbus.domain.button_commands import button_command_configuration_error
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.commands import button_command_configuration_error
+from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     built_in_active_button_profile,
     validate_saved_profile_revision,
@@ -35,8 +35,8 @@ from e87canbus.domain.controller import (
     steering_command_for_current_state,
     transition,
 )
-from e87canbus.domain.device import DeviceLifecycleStatus, DeviceRole, DeviceSource
-from e87canbus.domain.device_registry import (
+from e87canbus.domain.devices.catalogue import DeviceLifecycleStatus, DeviceRole, DeviceSource
+from e87canbus.domain.devices.registry import (
     DeviceRegistryEntry,
     FeatureUnavailable,
     RegistryHeartbeatObserved,
@@ -72,7 +72,7 @@ from e87canbus.domain.intents import (
     intent_requires_servotronic,
 )
 from e87canbus.domain.state import ApplicationState
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
     initial_active_steering_curve,

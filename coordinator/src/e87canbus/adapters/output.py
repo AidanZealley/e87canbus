@@ -13,7 +13,7 @@ from typing import Protocol, assert_never
 
 from e87canbus.adapters.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.domain.button_pad import pack_button_pad_transfers
+from e87canbus.domain.buttons.pad import pack_button_pad_transfers
 from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,

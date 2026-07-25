@@ -11,16 +11,16 @@ from fastapi import FastAPI
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.settings import UpdateApplicationSettingsRequest
-from e87canbus.domain.application_settings import (
+from e87canbus.domain.settings.repository import (
+    ApplicationSettingsRepository,
+    SettingsRevisionConflictError,
+    SettingsStorageError,
+)
+from e87canbus.domain.settings.values import (
     ApplicationSettings,
     ApplicationSettingsUpdate,
     SpeedUnit,
     TemperatureUnit,
-)
-from e87canbus.domain.settings_repository import (
-    ApplicationSettingsRepository,
-    SettingsRevisionConflictError,
-    SettingsStorageError,
 )
 
 T = TypeVar("T")

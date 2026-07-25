@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     STEERING_CURVE_CONFORMANCE_TOLERANCE,
     SteeringCurveDefinition,

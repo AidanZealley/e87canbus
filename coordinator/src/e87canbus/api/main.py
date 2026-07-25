@@ -27,12 +27,12 @@ from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import button_profiles, health, settings, steering
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
-from e87canbus.domain.button_profiles import ButtonProfileRepository
-from e87canbus.domain.profile_repository import SteeringProfileRepository
-from e87canbus.domain.settings_repository import ApplicationSettingsRepository
-from e87canbus.runners.composition import build_controller_service
+from e87canbus.domain.buttons.repository import ButtonProfileRepository
+from e87canbus.domain.settings.repository import ApplicationSettingsRepository
+from e87canbus.domain.steering.repository import SteeringProfileRepository
+from e87canbus.runners.composition import build_controller_loop
 from e87canbus.runners.simulation.api import install_simulation_api
-from e87canbus.service import ControllerService
+from e87canbus.service import ControllerLoop
 
 PROFILE_DATABASE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE_DATABASE"
 DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE"
@@ -87,7 +87,7 @@ def socket_origin_policy(
 
 def create_app(
     *,
-    controller_service: ControllerService | None = None,
+    controller_loop: ControllerLoop | None = None,
     profile: DeploymentProfile | None = None,
     config: AppConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
@@ -98,9 +98,9 @@ def create_app(
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
 ) -> FastAPI:
-    if controller_service is not None and (profile is not None or config is not None):
-        raise ValueError("inject either controller_service or composition configuration, not both")
-    service = controller_service or build_controller_service(
+    if controller_loop is not None and (profile is not None or config is not None):
+        raise ValueError("inject either controller_loop or composition configuration, not both")
+    service = controller_loop or build_controller_loop(
         profile or DeploymentProfile.SIMULATOR,
         config=config,
         clock=clock,
@@ -156,7 +156,7 @@ def create_app(
         allow_headers=["Content-Type"],
     )
 
-    app.state.controller_service = service
+    app.state.controller_loop = service
     app.state.deployment_profile = service.deployment.profile
     app.state.deployment = service.deployment
     app.state.socketio = sio

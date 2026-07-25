@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.device import DeviceRole
-from e87canbus.domain.device_registry import RegistryHeartbeatObserved, RegistryHelloObserved
+from e87canbus.domain.devices.catalogue import DeviceRole
+from e87canbus.domain.devices.registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.domain.events import (
     ApplicationEvent,
     ButtonPressed,

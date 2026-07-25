@@ -6,11 +6,11 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.device import DeviceRole, DeviceSource
-from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
+from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import ConfigureServotronicCurve
 from e87canbus.domain.intents import SetMaximumAssistance
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     SteeringCurveActivationStatus,
     initial_active_steering_curve,
 )

@@ -11,16 +11,16 @@ import pytest
 from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
-from e87canbus.domain.button_pad import resolve_button_pad_tracks
+from e87canbus.domain.buttons.pad import resolve_button_pad_tracks
 from e87canbus.domain.controller import SOFT_WHITE
-from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     RGB_BLUE,
     RGB_OFF,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.runners.composition import build_simulated_controller_service
+from e87canbus.runners.composition import build_simulated_controller_loop
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
@@ -44,13 +44,13 @@ def make_app_for_config(
     button_pad_source=None,
 ):
     profile_directory = TemporaryDirectory()
-    service = build_simulated_controller_service(
+    service = build_simulated_controller_loop(
         config=config,
         button_pad_source=button_pad_source,
         servotronic_factory=servotronic_factory,
     )
     app = create_app(
-        controller_service=service,
+        controller_loop=service,
         profile_database_path=Path(profile_directory.name) / "profiles.sqlite3",
     )
     app.state.test_profile_directory = profile_directory
@@ -60,7 +60,7 @@ def make_app_for_config(
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     with TestClient(make_app()) as test_client:
-        activate_simulation_devices(test_client.app.state.controller_service)
+        activate_simulation_devices(test_client.app.state.controller_loop)
         yield test_client
 
 
@@ -217,8 +217,8 @@ def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason
     )
 
     with TestClient(app):
-        activate_simulation_devices(app.state.controller_service)
-        snapshot = app.state.controller_service.snapshot()
+        activate_simulation_devices(app.state.controller_loop)
+        snapshot = app.state.controller_loop.snapshot()
 
     assert snapshot.diagnostics.health.fatal is False
     assert snapshot.diagnostics.health.steering_actuator_fault is not None
@@ -246,7 +246,7 @@ def test_button_commands_return_acknowledgements(
         "boot_id",
     }
     assert response.json()["accepted"] is True
-    assert client.app.state.controller_service.snapshot().application.steering_mode.value == (
+    assert client.app.state.controller_loop.snapshot().application.steering_mode.value == (
         expected_mode
     )
 
@@ -257,7 +257,7 @@ def test_disabled_composition_rejects_emulator_controls() -> None:
 
     with TestClient(app) as client:
         response = client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap")
-        snapshot = app.state.controller_service.snapshot()
+        snapshot = app.state.controller_loop.snapshot()
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "controller_failed"
@@ -274,7 +274,7 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     response = client.post("/api/dev/simulation/reset")
 
     assert response.status_code == 200
-    snapshot = client.app.state.controller_service.snapshot()
+    snapshot = client.app.state.controller_loop.snapshot()
     assert response.json() == {"accepted": True, "boot_id": snapshot.boot_id}
     assert snapshot.adapter.simulation_session_id == 2
     assert snapshot.application.steering_mode.value == "auto"
@@ -301,14 +301,14 @@ def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
     )
 
     with caplog.at_level("ERROR"), TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_service)
+        activate_simulation_devices(app.state.controller_loop)
         response = client.post("/api/dev/simulation/reset")
-        fatal = app.state.controller_service.snapshot().diagnostics.health.fatal
+        fatal = app.state.controller_loop.snapshot().diagnostics.health.fatal
 
     assert response.status_code == 200
     assert response.json() == {
         "accepted": True,
-        "boot_id": app.state.controller_service.boot_id,
+        "boot_id": app.state.controller_loop.boot_id,
     }
     assert fatal is False
     assert "fatal diagnostics" not in caplog.text
@@ -330,7 +330,7 @@ def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
 
     assert response.status_code == 200
-    snapshot = client.app.state.controller_service.snapshot()
+    snapshot = client.app.state.controller_loop.snapshot()
     assert snapshot.application.vehicle_speed_kph == 42.5
     assert snapshot.application.speed_valid is True
 
@@ -451,7 +451,7 @@ def test_engine_commands_update_the_canonical_service_projection(
     response = client.put(path, json=body)
 
     assert response.status_code == 200
-    engine = client.app.state.controller_service.snapshot().application.engine
+    engine = client.app.state.controller_loop.snapshot().application.engine
     observed = getattr(engine, field)
     assert observed.value == expected
     assert observed.status.value == "valid"
@@ -467,9 +467,9 @@ def test_engine_commands_update_the_canonical_service_projection(
 )
 def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
     first = client.post(path)
-    first_engine = client.app.state.controller_service.snapshot().application.engine
+    first_engine = client.app.state.controller_loop.snapshot().application.engine
     second = client.post(path)
-    second_engine = client.app.state.controller_service.snapshot().application.engine
+    second_engine = client.app.state.controller_loop.snapshot().application.engine
 
     assert first.status_code == second.status_code == 200
     assert second.json() == first.json()
@@ -497,12 +497,12 @@ def test_invalid_engine_request_returns_422_without_changing_state(
     path: str,
     body: dict[str, bool | float | int | str],
 ) -> None:
-    before = client.app.state.controller_service.snapshot()
+    before = client.app.state.controller_loop.snapshot()
 
     response = client.put(path, json=body)
 
     assert response.status_code == 422
-    after = client.app.state.controller_service.snapshot()
+    after = client.app.state.controller_loop.snapshot()
     assert after.revision == before.revision
     assert after.application.engine == before.application.engine
 
@@ -525,10 +525,10 @@ def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -
             == reset_response.json()
             == {
                 "accepted": True,
-                "boot_id": app.state.controller_service.boot_id,
+                "boot_id": app.state.controller_loop.boot_id,
             }
         )
-        assert app.state.controller_service.snapshot().adapter.simulation_session_id == 2
+        assert app.state.controller_loop.snapshot().adapter.simulation_session_id == 2
 
 
 def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() -> None:
@@ -556,7 +556,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
     app = make_app_for_config(config, servotronic_factory=build_controller)
 
     with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_service)
+        activate_simulation_devices(app.state.controller_loop)
         with ThreadPoolExecutor(max_workers=3) as pool:
             first = pool.submit(
                 client.post,
@@ -569,7 +569,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
                 "/api/dev/simulation/devices/button-pad/buttons/0/tap",
             )
             deadline = time.monotonic() + 1.0
-            while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
+            while app.state.controller_loop.inbox_depth != 1 and time.monotonic() < deadline:
                 pass
 
             overloaded = pool.submit(
@@ -586,9 +586,9 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             assert first.result().status_code == 200
             assert second.result().status_code == 503
             deadline = time.monotonic() + 1.0
-            while app.state.controller_service.ready and time.monotonic() < deadline:
+            while app.state.controller_loop.ready and time.monotonic() < deadline:
                 pass
-            service = app.state.controller_service
+            service = app.state.controller_loop
             assert service.stopped_event.wait(timeout=1.0)
             snapshot = service.snapshot()
             projected_health = health_state(snapshot)
@@ -631,31 +631,30 @@ def test_nonfatal_actuator_timer_fault_is_published_and_scheduling_continues() -
     )
 
     with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_service)
+        activate_simulation_devices(app.state.controller_loop)
         deadline = time.monotonic() + 1.0
         while (
-            app.state.controller_service.snapshot().diagnostics.health.steering_actuator_fault
-            is None
+            app.state.controller_loop.snapshot().diagnostics.health.steering_actuator_fault is None
         ):
             assert time.monotonic() < deadline
 
-        faulted = app.state.controller_service.snapshot()
+        faulted = app.state.controller_loop.snapshot()
         assert faulted.diagnostics.health.fatal is False
         assert faulted.service.ready is True
         initial_revision = faulted.revision
         deadline = time.monotonic() + 1.0
-        while app.state.controller_service.snapshot().revision == initial_revision:
+        while app.state.controller_loop.snapshot().revision == initial_revision:
             assert time.monotonic() < deadline
 
         reset = client.post("/api/dev/simulation/reset")
         assert reset.status_code == 200
         assert reset.json() == {
             "accepted": True,
-            "boot_id": app.state.controller_service.boot_id,
+            "boot_id": app.state.controller_loop.boot_id,
         }
-        assert app.state.controller_service.snapshot().diagnostics.health.fatal is False
+        assert app.state.controller_loop.snapshot().diagnostics.health.fatal is False
 
-        initial_revision = app.state.controller_service.snapshot().revision
+        initial_revision = app.state.controller_loop.snapshot().revision
         deadline = time.monotonic() + 1.0
-        while app.state.controller_service.snapshot().revision == initial_revision:
+        while app.state.controller_loop.snapshot().revision == initial_revision:
             assert time.monotonic() < deadline

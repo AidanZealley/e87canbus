@@ -7,10 +7,10 @@ from pathlib import Path
 
 from e87canbus.api.main import create_app
 from e87canbus.config import CanNetwork, default_config
-from e87canbus.domain.settings_repository import SettingsStorageError
+from e87canbus.domain.settings.repository import SettingsStorageError
 from e87canbus.kernel import CanReaderFailed, StateTopic
-from e87canbus.runners.composition import build_live_controller_service
-from e87canbus.service import ControllerServiceLifecycle
+from e87canbus.runners.composition import build_live_controller_loop
+from e87canbus.service import ControllerLoopLifecycle
 from fastapi.testclient import TestClient
 
 
@@ -52,7 +52,7 @@ def disabled_live_config():
 
 def test_sqlite_outage_rejects_resource_and_leaves_live_controller_responsive() -> None:
     app = create_app(
-        controller_service=build_live_controller_service(config=disabled_live_config()),
+        controller_loop=build_live_controller_loop(config=disabled_live_config()),
         profile_repository=EmptyProfileRepository(),
         settings_repository=FailingSettingsRepository(),
     )
@@ -64,22 +64,22 @@ def test_sqlite_outage_rejects_resource_and_leaves_live_controller_responsive() 
         assert failed.json()["error"]["code"] == "settings_storage_error"
         assert client.get("/health/live").status_code == 200
         assert client.get("/health/ready").status_code == 503
-        snapshot = app.state.controller_service.snapshot()
+        snapshot = app.state.controller_loop.snapshot()
         assert snapshot.service.persistence.available is False
         assert snapshot.diagnostics.health.fatal is False
 
 
 def test_reader_fatal_makes_service_unready_and_stops_owner(tmp_path: Path) -> None:
     app = create_app(
-        controller_service=build_live_controller_service(config=disabled_live_config()),
+        controller_loop=build_live_controller_loop(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
     )
 
     with TestClient(app) as client:
-        service = app.state.controller_service
+        service = app.state.controller_loop
         service.submit(CanReaderFailed(CanNetwork.KCAN, 1.0, "reader"))
         deadline = time.monotonic() + 1.0
-        while service.lifecycle is not ControllerServiceLifecycle.STOPPED:
+        while service.lifecycle is not ControllerLoopLifecycle.STOPPED:
             assert time.monotonic() < deadline
         assert client.get("/health/live").status_code == 200
         assert client.get("/health/ready").status_code == 503
@@ -89,7 +89,7 @@ def test_reader_fatal_makes_service_unready_and_stops_owner(tmp_path: Path) -> N
 
 def test_live_composition_has_no_dev_routes_or_development_cors(tmp_path: Path) -> None:
     app = create_app(
-        controller_service=build_live_controller_service(config=disabled_live_config()),
+        controller_loop=build_live_controller_loop(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
     )
     with TestClient(app) as client:
@@ -103,7 +103,7 @@ def test_live_composition_has_no_dev_routes_or_development_cors(tmp_path: Path) 
         )
         assert response.status_code == 400
         assert "access-control-allow-origin" not in response.headers
-        assert not any(item.tx_enabled for item in app.state.controller_service.config.can_networks)
+        assert not any(item.tx_enabled for item in app.state.controller_loop.config.can_networks)
 
 
 def test_built_frontend_is_served_same_origin(tmp_path: Path) -> None:
@@ -112,7 +112,7 @@ def test_built_frontend_is_served_same_origin(tmp_path: Path) -> None:
     (frontend / "index.html").write_text("<h1>controller</h1>")
     (frontend / "assets" / "app.js").write_text("console.log('controller')")
     app = create_app(
-        controller_service=build_live_controller_service(config=disabled_live_config()),
+        controller_loop=build_live_controller_loop(config=disabled_live_config()),
         profile_database_path=tmp_path / "application.sqlite3",
         frontend_directory=frontend,
     )
@@ -136,12 +136,12 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 
     for _ in range(5):
         app = create_app(
-            controller_service=build_live_controller_service(config=disabled_live_config()),
+            controller_loop=build_live_controller_loop(config=disabled_live_config()),
             profile_database_path=database,
         )
         with TestClient(app) as client:
             assert client.get("/health/ready").status_code == 200
-            boot_ids.append(app.state.controller_service.boot_id)
+            boot_ids.append(app.state.controller_loop.boot_id)
 
     remaining = {
         thread.ident

@@ -7,11 +7,11 @@ from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.domain.button_pad import BUTTON_PAD_PROGRAM_ENCODING
-from e87canbus.domain.device import DeviceRole
-from e87canbus.domain.steering import STEERING_CURVE_V1_SPEEDS_DECI_KPH
+from e87canbus.domain.buttons.pad import BUTTON_PAD_PROGRAM_ENCODING
+from e87canbus.domain.devices.catalogue import DeviceRole
+from e87canbus.domain.steering.curves import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.kernel import StateTopic
-from e87canbus.service import ControllerServiceSnapshot
+from e87canbus.service import ControllerLoopSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
 STEERING_CURVE_POINT_COUNT = len(STEERING_CURVE_V1_SPEEDS_DECI_KPH)
@@ -278,7 +278,7 @@ class LiveEnvelope(LiveModel, Generic[LivePayload]):
     data: LivePayload
 
 
-def snapshot_data(snapshot: ControllerServiceSnapshot) -> ControllerSnapshotData:
+def snapshot_data(snapshot: ControllerLoopSnapshot) -> ControllerSnapshotData:
     return ControllerSnapshotData(
         topic_revisions=TopicRevisions(**dict(snapshot.topic_revisions)),
         simulation_session_id=snapshot.adapter.simulation_session_id,
@@ -292,18 +292,18 @@ def snapshot_data(snapshot: ControllerServiceSnapshot) -> ControllerSnapshotData
     )
 
 
-def vehicle_state(snapshot: ControllerServiceSnapshot) -> VehicleState:
+def vehicle_state(snapshot: ControllerLoopSnapshot) -> VehicleState:
     return VehicleState(
         speed_kph=snapshot.application.vehicle_speed_kph,
         speed_valid=snapshot.application.speed_valid,
     )
 
 
-def engine_state(snapshot: ControllerServiceSnapshot) -> EngineState:
+def engine_state(snapshot: ControllerLoopSnapshot) -> EngineState:
     return EngineState.model_validate(snapshot.application.engine, from_attributes=True)
 
 
-def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
+def steering_state(snapshot: ControllerLoopSnapshot) -> SteeringState:
     application = snapshot.application
     active = application.active_steering_curve
     return SteeringState(
@@ -334,7 +334,7 @@ def steering_state(snapshot: ControllerServiceSnapshot) -> SteeringState:
     )
 
 
-def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
+def buttons_state(snapshot: ControllerLoopSnapshot) -> ButtonsState:
     return ButtonsState(
         program=ButtonPadProgramState(
             generation=dict(snapshot.topic_revisions)[StateTopic.BUTTONS],
@@ -347,7 +347,7 @@ def buttons_state(snapshot: ControllerServiceSnapshot) -> ButtonsState:
     )
 
 
-def lighting_state(snapshot: ControllerServiceSnapshot) -> LightingState:
+def lighting_state(snapshot: ControllerLoopSnapshot) -> LightingState:
     application = snapshot.application
     lighting = snapshot.adapter.lighting
     return LightingState(
@@ -358,7 +358,7 @@ def lighting_state(snapshot: ControllerServiceSnapshot) -> LightingState:
     )
 
 
-def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
+def devices_state(snapshot: ControllerLoopSnapshot) -> DevicesState:
     registry = {
         entry.role.value: DeviceRegistryEntryState.model_validate(
             entry,
@@ -385,7 +385,7 @@ def devices_state(snapshot: ControllerServiceSnapshot) -> DevicesState:
     )
 
 
-def health_state(snapshot: ControllerServiceSnapshot) -> ControllerHealthState:
+def health_state(snapshot: ControllerLoopSnapshot) -> ControllerHealthState:
     health = snapshot.diagnostics.health
     device_faults = {item.role: item.fault for item in health.devices}
     return ControllerHealthState(

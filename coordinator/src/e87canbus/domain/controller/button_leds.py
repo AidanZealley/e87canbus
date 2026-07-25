@@ -10,16 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from e87canbus.domain.button_commands import (
-    ButtonCommandPresentation,
-    button_command_presentation,
-)
-from e87canbus.domain.button_pad import (
+from e87canbus.domain.buttons.catalogue import ButtonCommandPresentation
+from e87canbus.domain.buttons.commands import button_command_presentation
+from e87canbus.domain.buttons.pad import (
     blink_track,
     resolved_button_pad_program,
     solid_track,
 )
-from e87canbus.domain.button_profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
@@ -86,11 +84,11 @@ def derived_button_led_state(
 
 @dataclass(frozen=True)
 class ButtonLedProjection:
-    """The bindings and presentation seam every LED derivation is computed against.
+    """The profile and presentation seam every LED derivation is computed against.
 
     Carrying the profile in one value keeps it a required argument on every path, so
-    a decision can never be computed against the compiled-in bindings while the pad
-    is running a user profile.
+    a decision can never be computed against the compiled-in default while the pad is
+    running a user profile.
     """
 
     profile: ActiveButtonProfile
@@ -99,7 +97,7 @@ class ButtonLedProjection:
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile, ActiveButtonProfile):
-            raise TypeError("profile must be a ActiveButtonProfile")
+            raise TypeError("profile must be an ActiveButtonProfile")
         if type(self.servotronic_usable) is not bool:
             raise ValueError("servotronic_usable must be a boolean")
 

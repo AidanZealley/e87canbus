@@ -104,13 +104,9 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
                 f"{field_name} must be between {MIN_TEMPERATURE_C:g} and {MAX_TEMPERATURE_C:g} C"
             )
     if not candidate.oil_operating_c < candidate.oil_warning_c < candidate.oil_critical_c:
-        raise ValueError(
-            "oil_operating_c must be below oil_warning_c and oil_critical_c"
-        )
+        raise ValueError("oil_operating_c must be below oil_warning_c and oil_critical_c")
     if not (
-        candidate.coolant_operating_c
-        < candidate.coolant_warning_c
-        < candidate.coolant_critical_c
+        candidate.coolant_operating_c < candidate.coolant_warning_c < candidate.coolant_critical_c
     ):
         raise ValueError(
             "coolant_operating_c must be below coolant_warning_c and coolant_critical_c"

@@ -8,7 +8,7 @@ import pytest
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.commands import submit_runtime_work
 from e87canbus.config import default_config
-from e87canbus.service import ControllerInboxFull, ControllerServiceNotRunning
+from e87canbus.service import ControllerInboxFull, ControllerLoopNotRunning
 
 
 class FakeService:
@@ -25,7 +25,7 @@ class FakeService:
 
 
 def app_with(service: FakeService) -> Any:
-    return SimpleNamespace(state=SimpleNamespace(controller_service=service))
+    return SimpleNamespace(state=SimpleNamespace(controller_loop=service))
 
 
 def completed(value: int = 1) -> Future[int]:
@@ -54,7 +54,7 @@ def test_gateway_submits_exactly_once_and_returns_the_runtime_result() -> None:
     ("failure", "code"),
     [
         (ControllerInboxFull("full"), "runtime_queue_full"),
-        (ControllerServiceNotRunning("stopped"), "controller_unavailable"),
+        (ControllerLoopNotRunning("stopped"), "controller_unavailable"),
     ],
 )
 def test_gateway_maps_rejected_submission_to_stable_503(

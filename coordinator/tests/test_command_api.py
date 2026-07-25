@@ -15,7 +15,7 @@ from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
 )
-from e87canbus.runners.composition import build_live_controller_service
+from e87canbus.runners.composition import build_live_controller_loop
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
 
@@ -43,7 +43,7 @@ def definition_json() -> dict[str, Any]:
 
 def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_service)
+        activate_simulation_devices(client.app.state.controller_loop)
         first = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         repeated = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         mode = client.put(
@@ -55,7 +55,7 @@ def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
             json={"level": 4},
         )
         disabled = client.put("/api/steering/maximum-assistance", json={"enabled": False})
-        snapshot = client.app.state.controller_service.snapshot()
+        snapshot = client.app.state.controller_loop.snapshot()
 
     assert first.json()["accepted"] is True
     assert set(first.json()) == {"accepted", "boot_id", "revision"}
@@ -79,7 +79,7 @@ def test_manual_level_validation_uses_the_server_steering_configuration(
     app = create_app(config=config, profile_database_path=tmp_path / "app.sqlite3")
 
     with TestClient(app) as client:
-        activate_simulation_devices(client.app.state.controller_service)
+        activate_simulation_devices(client.app.state.controller_loop)
         accepted = client.put(
             "/api/steering/manual-assistance-level",
             json={"level": 2},
@@ -101,7 +101,7 @@ def test_relative_adjustment_from_max_restores_remembered_level_before_adjusting
     tmp_path: Path,
 ) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_service)
+        activate_simulation_devices(client.app.state.controller_loop)
         client.put("/api/steering/manual-assistance-level", json={"level": 4})
         client.put("/api/steering/maximum-assistance", json={"enabled": True})
 
@@ -109,12 +109,12 @@ def test_relative_adjustment_from_max_restores_remembered_level_before_adjusting
             "/api/steering/manual-assistance-adjustment",
             json={"delta": -1},
         )
-        first_snapshot = client.app.state.controller_service.snapshot().application
+        first_snapshot = client.app.state.controller_loop.snapshot().application
         adjusted = client.post(
             "/api/steering/manual-assistance-adjustment",
             json={"delta": -1},
         )
-        second_snapshot = client.app.state.controller_service.snapshot().application
+        second_snapshot = client.app.state.controller_loop.snapshot().application
 
     assert restored.status_code == adjusted.status_code == 200
     assert first_snapshot.maximum_assistance_active is False
@@ -139,7 +139,7 @@ def test_relative_adjustment_rejects_more_than_one_stage(
 
 def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_service)
+        activate_simulation_devices(client.app.state.controller_loop)
         created = client.post(
             "/api/steering/profiles",
             json={"name": "Dry", "definition": definition_json()},
@@ -158,14 +158,14 @@ def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -
                 "expected_revision": created["revision"],
             },
         )
-        saved_state = client.app.state.controller_service.snapshot().application
+        saved_state = client.app.state.controller_loop.snapshot().application
         unsaved_definition = definition_json()
         unsaved_definition["points"][1]["assistance_per_mille"] = 870
         unsaved = client.put(
             "/api/steering/curve",
             json={"definition": unsaved_definition},
         )
-        unsaved_state = client.app.state.controller_service.snapshot().application
+        unsaved_state = client.app.state.controller_loop.snapshot().application
 
     assert saved.status_code == repeated_saved.status_code == unsaved.status_code == 200
     assert repeated_saved.json()["revision"] > saved.json()["revision"]
@@ -212,7 +212,7 @@ def test_each_semantic_http_use_case_submits_one_correct_typed_input(
             future.set_result(10 + len(submissions))
             return future
 
-        app.state.controller_service.submit = record
+        app.state.controller_loop.submit = record
         maximum = client.put(
             "/api/steering/maximum-assistance",
             json={"enabled": True},
@@ -257,7 +257,7 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
         tick_interval_s=60.0,
     )
     app = create_app(
-        controller_service=build_live_controller_service(config=disabled),
+        controller_loop=build_live_controller_loop(config=disabled),
         profile_database_path=tmp_path / "app.sqlite3",
     )
 
@@ -280,7 +280,7 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
             },
         )
         dev_action = client.post("/api/dev/simulation/reset")
-        application = app.state.controller_service.snapshot().application
+        application = app.state.controller_loop.snapshot().application
 
     for response in (maximum, mode, normal, activated):
         assert response.status_code == 409

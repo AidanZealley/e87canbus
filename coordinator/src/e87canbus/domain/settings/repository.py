@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from e87canbus.domain.application_settings import (
+from e87canbus.domain.settings.values import (
     ApplicationSettings,
     ApplicationSettingsUpdate,
 )

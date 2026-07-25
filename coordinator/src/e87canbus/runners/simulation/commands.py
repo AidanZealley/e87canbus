@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.runners.simulation.signals import VehicleSignal
 
 

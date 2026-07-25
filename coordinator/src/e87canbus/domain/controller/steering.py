@@ -10,7 +10,7 @@ from __future__ import annotations
 from e87canbus.config import SteeringConfig
 from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     SteeringCurveDefinition,
     interpolate_steering_curve_definition,
 )

@@ -1,13 +1,17 @@
-"""Domain-facing persistence boundary for named steering profiles."""
+"""Durable storage boundary for named, revisioned steering curves."""
 
 from typing import Protocol
 
-from e87canbus.domain.steering import SteeringCurveDefinition, StoredSteeringProfile
+from e87canbus.domain.steering.curves import SteeringCurveDefinition, StoredSteeringProfile
 
 STEERING_PROFILE_KIND = "steering profile"
 
 
 class SteeringProfileRepository(Protocol):
+    """Durable storage for named, revisioned steering curves."""
+
+    """Durable storage for named, revisioned steering curves."""
+
     def list_profiles(self) -> tuple[StoredSteeringProfile, ...]: ...
 
     def get_profile(self, profile_id: str) -> StoredSteeringProfile | None: ...
