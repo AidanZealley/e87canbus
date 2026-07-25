@@ -81,7 +81,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it("adopts a newer saved revision silently while the draft is pristine", async () => {
+it("renders a newer saved revision when the profile changes", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -109,12 +109,13 @@ it("adopts a newer saved revision silently while the draft is pristine", async (
   expect(screen.queryByText("Saved profile changed")).toBeNull()
 })
 
-it("blocks saving a dirty draft when a newer saved revision arrives", async () => {
+it("commits a binding as soon as it is applied", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   mocks.profile = profile(1, 2)
-  const view = render(
+  mocks.update.mockResolvedValue(profile(2, 5))
+  render(
     <QueryClientProvider client={queryClient}>
       <ButtonProfileEditor profile={mocks.profile!} />
     </QueryClientProvider>
@@ -128,28 +129,36 @@ it("blocks saving a dirty draft when a newer saved revision arrives", async () =
   })
   fireEvent.click(screen.getByRole("button", { name: "Apply binding" }))
 
-  const save = await screen.findByRole("button", { name: "Save profile" })
-  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false))
-
-  const newerProfile = profile(2, 7)
-  act(() => {
-    view.rerender(
-      <QueryClientProvider client={queryClient}>
-        <ButtonProfileEditor profile={newerProfile} />
-      </QueryClientProvider>
-    )
-  })
-
-  expect(await screen.findByText("Saved profile changed")).toBeTruthy()
-  expect((save as HTMLButtonElement).disabled).toBe(true)
-  expect(mocks.update).not.toHaveBeenCalled()
-
-  fireEvent.click(screen.getByRole("button", { name: "Reload and discard" }))
-
   await waitFor(() => {
-    expect(screen.queryByText("Saved profile changed")).toBeNull()
-    expect(
-      screen.getByRole("button", { name: "Edit button 0: Assist 7" })
-    ).toBeTruthy()
+    expect(mocks.update.mock.calls[0]?.[0]).toEqual({
+      path: { profile_id: "profile-1" },
+      body: {
+        name: "My buttons",
+        expected_revision: 1,
+        definition: {
+          schema_version: 1,
+          slots: [
+            { type: "set_manual_assistance_level", level: 5 },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+          ],
+        },
+      },
+    })
   })
+  expect(screen.queryByRole("button", { name: "Save profile" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull()
 })

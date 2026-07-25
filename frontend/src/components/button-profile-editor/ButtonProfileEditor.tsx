@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -8,31 +7,18 @@ import {
   getSavedButtonProfileQueryKey,
   updateButtonProfileMutation,
 } from "@/api/http/@tanstack/react-query.gen"
-import type { ApiProblemResponse, ButtonProfileResponse } from "@/api/http"
+import type { ButtonProfileResponse } from "@/api/http"
 import { useLiveStore } from "@/live/live-store"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Spinner } from "@/components/ui/spinner"
-import { ButtonBindingDialog } from "./ButtonBindingDialog"
-import { ButtonProfileGrid } from "./ButtonProfileGrid"
+import { ButtonProfileError } from "./ButtonProfileError"
+import { ButtonProfileLoading } from "./ButtonProfileLoading"
+import { ButtonProfilePad } from "./ButtonProfilePad"
+import { buttonProfileErrorDetail } from "./error-detail"
 import { toButtonCommandSlots, type ButtonCommand } from "./types"
 import { deriveButtonProfileLedPreview } from "./button-led-presentation"
-import {
-  buttonProfileStatusLabel,
-  isButtonProfileDraftDirty,
-  resolveButtonProfileDraft,
-  type ButtonProfileDraft,
-} from "./draft-state"
-
-const errorDetail = (error: unknown): string => {
-  if (typeof error === "object" && error !== null) {
-    const body = (error as { body?: ApiProblemResponse }).body
-    if (body?.error.message) return body.error.message
-  }
-  return error instanceof Error ? error.message : "The request failed."
-}
+import { buttonProfileStatusLabel } from "./profile-status"
 
 type ButtonProfileEditorProps = {
   profile?: ButtonProfileResponse
@@ -57,27 +43,7 @@ export const ButtonProfileEditor = ({
         (device) => device.role === "servotronic_controller"
       )?.fault ?? null
   )
-  // Unsaved edits are the only state kept here; the pristine draft is derived
-  // from the query result, so a refetch never has to be written back.
-  const [pendingEdit, setPendingEdit] = useState<ButtonProfileDraft | null>(
-    null
-  )
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-
-  const draft =
-    savedProfile === undefined
-      ? null
-      : resolveButtonProfileDraft(
-          pendingEdit,
-          savedProfile.revision,
-          savedProfile.definition.slots
-        )
-  const dirty = isButtonProfileDraftDirty(draft)
-  const serverChanged =
-    savedProfile !== undefined &&
-    draft !== null &&
-    savedProfile.revision !== draft.sourceRevision
-  const slots = draft?.slots ?? null
+  const slots = savedProfile?.definition.slots
   const displayRgb = deriveButtonProfileLedPreview(slots ?? [], {
     synchronized,
     steering,
@@ -93,38 +59,29 @@ export const ButtonProfileEditor = ({
     ...updateButtonProfileMutation(),
     onSuccess: (profile) => {
       queryClient.setQueryData(getSavedButtonProfileQueryKey(), profile)
-      setPendingEdit(null)
-      toast.success("Button profile saved")
+      toast.success("Button binding saved")
     },
-    onError: (error) => toast.error(errorDetail(error)),
+    onError: (error) => toast.error(buttonProfileErrorDetail(error)),
   })
   const activate = useMutation({
     ...activateButtonProfileMutation(),
     onSuccess: () => toast.success("Button profile activation requested"),
-    onError: (error) => toast.error(errorDetail(error)),
+    onError: (error) => toast.error(buttonProfileErrorDetail(error)),
   })
 
   if (!profileOverride && profileQuery.isError) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Could not load button profile</AlertTitle>
-        <AlertDescription className="flex items-center justify-between gap-3">
-          <span>{errorDetail(profileQuery.error)}</span>
-          <Button variant="outline" onClick={() => profileQuery.refetch()}>
-            Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <ButtonProfileError
+        title="Could not load button profile"
+        error={profileQuery.error}
+        actionLabel="Retry"
+        onAction={() => profileQuery.refetch()}
+      />
     )
   }
 
-  if (savedProfile === undefined || draft === null || slots === null) {
-    return (
-      <div className="grid min-h-64 place-items-center" role="status">
-        <Spinner />
-        <span className="sr-only">Loading button profile</span>
-      </div>
-    )
+  if (savedProfile === undefined || slots === undefined) {
+    return <ButtonProfileLoading />
   }
 
   const profile = savedProfile
@@ -136,11 +93,20 @@ export const ButtonProfileEditor = ({
     synchronized &&
     liveButtons.active_profile_id === profile.profile_id &&
     !isActive
-  const applyBinding = (command: ButtonCommand) => {
-    if (editingIndex === null) return
+  const commitBinding = (index: number, command: ButtonCommand) => {
     const next = [...slots]
-    next[editingIndex] = command
-    setPendingEdit({ ...draft, slots: toButtonCommandSlots(next) })
+    next[index] = command
+    save.mutate({
+      path: { profile_id: profile.profile_id },
+      body: {
+        name: profile.name,
+        expected_revision: profile.revision,
+        definition: {
+          schema_version: 1,
+          slots: toButtonCommandSlots(next),
+        },
+      },
+    })
   }
 
   return (
@@ -161,37 +127,16 @@ export const ButtonProfileEditor = ({
         </Badge>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <ButtonProfileGrid
+        <ButtonProfilePad
           slots={slots}
           rgb={displayRgb}
-          onEdit={setEditingIndex}
+          disabled={save.isPending}
+          onChange={commitBinding}
         />
         <div className="flex flex-wrap justify-end gap-2">
           <Button
-            variant="outline"
-            disabled={!dirty || serverChanged || save.isPending}
-            onClick={() => setPendingEdit(null)}
-          >
-            Discard changes
-          </Button>
-          <Button
-            disabled={!dirty || serverChanged || save.isPending}
-            onClick={() =>
-              save.mutate({
-                path: { profile_id: profile.profile_id },
-                body: {
-                  name: profile.name,
-                  expected_revision: draft.sourceRevision,
-                  definition: { schema_version: 1, slots },
-                },
-              })
-            }
-          >
-            {save.isPending ? "Saving…" : "Save profile"}
-          </Button>
-          <Button
             variant="secondary"
-            disabled={dirty || serverChanged || isActive || activate.isPending}
+            disabled={save.isPending || isActive || activate.isPending}
             onClick={() =>
               activate.mutate({
                 body: {
@@ -205,46 +150,14 @@ export const ButtonProfileEditor = ({
           </Button>
         </div>
         {save.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Profile was not saved</AlertTitle>
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span>
-                {errorDetail(save.error)} Reload the latest saved profile and
-                try again.
-              </span>
-              <Button variant="outline" onClick={() => profileQuery.refetch()}>
-                Reload
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {serverChanged && dirty ? (
-          <Alert>
-            <AlertTitle>Saved profile changed</AlertTitle>
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span>
-                A newer revision is available. Reloading will discard your
-                unsaved button changes.
-              </span>
-              <Button variant="outline" onClick={() => setPendingEdit(null)}>
-                Reload and discard
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <ButtonProfileError
+            title="Button binding was not saved"
+            error={save.error}
+            actionLabel="Reload"
+            onAction={() => profileQuery.refetch()}
+          />
         ) : null}
       </CardContent>
-      {editingIndex !== null ? (
-        <ButtonBindingDialog
-          key={editingIndex}
-          buttonIndex={editingIndex}
-          command={slots[editingIndex] ?? null}
-          open
-          onOpenChange={(open) => {
-            if (!open) setEditingIndex(null)
-          }}
-          onApply={applyBinding}
-        />
-      ) : null}
     </Card>
   )
 }
