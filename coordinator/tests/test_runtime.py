@@ -3,8 +3,11 @@ import logging
 import pytest
 from e87canbus.adapters.output import EffectRequest
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.button_bindings import ButtonBinding, ButtonBindingProfile
 from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.button_profiles import (
+    ActiveButtonProfile,
+    button_profile_definition_with,
+)
 from e87canbus.domain.controller import SOFT_WHITE
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.device_registry import FeatureUnavailable
@@ -202,11 +205,11 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
 
 
 def test_decoded_physical_button_press_uses_the_injected_profile() -> None:
-    profile = ButtonBindingProfile(
+    profile = ActiveButtonProfile(
         "test-remap",
-        (ButtonBinding(8, ToggleAutomaticAssistance()),),
+        button_profile_definition_with({8: ToggleAutomaticAssistance()}),
     )
-    kernel = CoordinatorKernel(button_binding_profile=profile)
+    kernel = CoordinatorKernel(button_profile=profile)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 

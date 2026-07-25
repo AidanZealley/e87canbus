@@ -1,56 +1,43 @@
 """Strict HTTP models for durable button-pad profiles."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from e87canbus.api.models.steering import CANONICAL_UUID_PATTERN, StrictRequest
+from e87canbus.domain.button_commands import BUTTON_COMMAND_CATALOGUE, ButtonCommandSpec
 from e87canbus.domain.button_profiles import BUTTON_PROFILE_NAME_MAX_LENGTH
 from e87canbus.domain.events import BUTTON_LED_COUNT
 
 
-class SelectSteeringModeCommand(StrictRequest):
-    type: Literal["select_steering_mode"]
-    mode: Literal["auto", "manual"]
+def _command_model(spec: ButtonCommandSpec) -> type[StrictRequest]:
+    """Build one request model from a catalogue entry.
+
+    The models are generated rather than hand-written so the tag, the field names and
+    their shapes are stated once, in the catalogue. Names follow the previous
+    hand-written classes ("SelectSteeringModeCommand"), because they are the schema
+    names in the published OpenAPI document and in the generated frontend types.
+    """
+
+    fields: dict[str, Any] = {"type": (Literal[spec.tag], ...)}
+    for field in spec.fields:
+        annotation = field.annotation
+        constraint = Field() if field.minimum is None else Field(ge=field.minimum)
+        fields[field.name] = (annotation, constraint)
+    name = "".join(part.title() for part in spec.tag.split("_")) + "Command"
+    return create_model(name, __base__=StrictRequest, __module__=__name__, **fields)
 
 
-class ToggleAutomaticAssistanceCommand(StrictRequest):
-    type: Literal["toggle_automatic_assistance"]
+_COMMAND_MODELS = tuple(_command_model(spec) for spec in BUTTON_COMMAND_CATALOGUE)
 
-
-class AdjustManualAssistanceCommand(StrictRequest):
-    type: Literal["adjust_manual_assistance"]
-    delta: Literal[-1, 1]
-
-
-class SetManualAssistanceLevelCommand(StrictRequest):
-    type: Literal["set_manual_assistance_level"]
-    level: int = Field(ge=0)
-
-
-class SetMaximumAssistanceCommand(StrictRequest):
-    type: Literal["set_maximum_assistance"]
-    enabled: bool
-
-
-class ToggleMaximumAssistanceCommand(StrictRequest):
-    type: Literal["toggle_maximum_assistance"]
-
-
-class StartHighBeamStrobeCommand(StrictRequest):
-    type: Literal["start_high_beam_strobe"]
-
-
+# A discriminated union over every generated model, so an added catalogue entry becomes
+# an accepted request body without a second list to keep in step.
 ButtonProfileCommand = Annotated[
-    SelectSteeringModeCommand
-    | ToggleAutomaticAssistanceCommand
-    | AdjustManualAssistanceCommand
-    | SetManualAssistanceLevelCommand
-    | SetMaximumAssistanceCommand
-    | ToggleMaximumAssistanceCommand
-    | StartHighBeamStrobeCommand,
+    Union[_COMMAND_MODELS],  # type: ignore[valid-type]  # noqa: UP007
     Field(discriminator="type"),
 ]
+
+globals().update({model.__name__: model for model in _COMMAND_MODELS})
 
 
 class ButtonProfileDefinitionRequest(StrictRequest):

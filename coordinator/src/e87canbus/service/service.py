@@ -15,7 +15,7 @@ from typing import Protocol
 
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentSpec
-from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.steering import ActiveSteeringCurve
@@ -78,7 +78,7 @@ class ControllerRuntimeAdapter(Protocol):
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None: ...
     def configure_initial_button_profile(
-        self, profile: ButtonBindingProfile, saved_profile_revision: int | None = None
+        self, profile: ActiveButtonProfile, saved_profile_revision: int | None = None
     ) -> None: ...
 
     def start(self, submit_input: RuntimeInputSink) -> RuntimeExecution: ...
@@ -230,7 +230,7 @@ class ControllerService:
 
     def configure_initial_button_profile(
         self,
-        profile: ButtonBindingProfile,
+        profile: ActiveButtonProfile,
         saved_profile_revision: int | None = None,
     ) -> None:
         with self._lock:

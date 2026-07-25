@@ -1,6 +1,6 @@
 """The button-pad LED projection derived from application state.
 
-Given application state and the active binding profile, this produces the complete
+Given application state and the active button profile, this produces the complete
 desired button-pad program: the steady per-button colours plus any active
 feedback-blink tracks. It reads state and never mutates it.
 """
@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from e87canbus.domain.button_bindings import ButtonBindingProfile
 from e87canbus.domain.button_commands import (
     ButtonCommandPresentation,
     button_command_presentation,
@@ -20,6 +19,7 @@ from e87canbus.domain.button_pad import (
     resolved_button_pad_program,
     solid_track,
 )
+from e87canbus.domain.button_profiles import ActiveButtonProfile
 from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
@@ -33,43 +33,36 @@ from e87canbus.domain.events import (
     ButtonLedState,
     SetButtonPadProgram,
 )
-from e87canbus.domain.intents import (
-    SetMaximumAssistance,
-    ToggleMaximumAssistance,
-)
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 
-STEERING_MODE_BUTTON_INDEX = 0
-SERVOTRONIC_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
 SOFT_WHITE: tuple[int, int, int] = (8, 8, 8)
 SOFT_AMBER: tuple[int, int, int] = (8, 6, 0)
 
 
 class ButtonLedPresenter(Protocol):
-    """Replaceable seam for deriving LED presentation from a binding profile."""
+    """Replaceable seam for deriving LED presentation from a button profile."""
 
     def __call__(
         self,
         state: ApplicationState,
-        profile: ButtonBindingProfile,
+        profile: ActiveButtonProfile,
         servotronic_usable: bool,
     ) -> ButtonLedState: ...
 
 
 def derived_button_led_state(
     state: ApplicationState,
-    profile: ButtonBindingProfile,
+    profile: ActiveButtonProfile,
     servotronic_usable: bool = True,
 ) -> ButtonLedState:
-    """Derive default colours from intent semantics, independent of button indexes."""
+    """Derive colours from each slot's catalogue presentation, never from its index."""
 
     steering = state.steering
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
+    maximum_active = isinstance(steering, MaximumAssistance)
     colours = [RGB_OFF] * BUTTON_LED_COUNT
-    for binding in profile.bindings:
-        intent = binding.press_intent
-        colour = SOFT_WHITE
-        presentation = button_command_presentation(intent)
+    for index, command in profile.assigned():
+        presentation = button_command_presentation(command)
         if presentation is ButtonCommandPresentation.STEERING_MODE:
             colour = (
                 RGB_BLUE
@@ -78,21 +71,16 @@ def derived_button_led_state(
                 if servotronic_usable
                 else SOFT_AMBER
             )
+        elif presentation is ButtonCommandPresentation.MAXIMUM_ASSISTANCE and maximum_active:
+            colour = RGB_WHITE
         elif presentation in (
             ButtonCommandPresentation.STEERING_ADJUSTMENT,
             ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
         ):
-            colour = (
-                RGB_WHITE
-                if isinstance(intent, (SetMaximumAssistance, ToggleMaximumAssistance))
-                and isinstance(state.steering, MaximumAssistance)
-                else SOFT_AMBER
-                if not servotronic_usable
-                else SOFT_WHITE
-            )
-        elif presentation is ButtonCommandPresentation.MOMENTARY:
+            colour = SOFT_WHITE if servotronic_usable else SOFT_AMBER
+        else:
             colour = SOFT_WHITE
-        colours[binding.button_index] = colour
+        colours[index] = colour
     return ButtonLedState(tuple(colours))
 
 
@@ -105,13 +93,13 @@ class ButtonLedProjection:
     is running a user profile.
     """
 
-    profile: ButtonBindingProfile
+    profile: ActiveButtonProfile
     servotronic_usable: bool = True
     presenter: ButtonLedPresenter = derived_button_led_state
 
     def __post_init__(self) -> None:
-        if not isinstance(self.profile, ButtonBindingProfile):
-            raise TypeError("profile must be a ButtonBindingProfile")
+        if not isinstance(self.profile, ActiveButtonProfile):
+            raise TypeError("profile must be a ActiveButtonProfile")
         if type(self.servotronic_usable) is not bool:
             raise ValueError("servotronic_usable must be a boolean")
 
@@ -153,7 +141,7 @@ class ButtonLedProjection:
         """
 
         return tuple(
-            binding.button_index
-            for binding in self.profile.bindings
-            if isinstance(binding.press_intent, (SetMaximumAssistance, ToggleMaximumAssistance))
+            index
+            for index, command in self.profile.assigned()
+            if button_command_presentation(command) is ButtonCommandPresentation.MAXIMUM_ASSISTANCE
         )

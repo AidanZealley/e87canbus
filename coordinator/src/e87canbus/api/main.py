@@ -27,7 +27,7 @@ from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import button_profiles, health, settings, steering
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
-from e87canbus.domain.button_profile_repository import ButtonProfileRepository
+from e87canbus.domain.button_profiles import ButtonProfileRepository
 from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.settings_repository import ApplicationSettingsRepository
 from e87canbus.runners.composition import build_controller_service

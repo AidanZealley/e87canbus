@@ -10,8 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from e87canbus.config import CanNetwork
-from e87canbus.domain.button_bindings import ButtonBindingProfile
-from e87canbus.domain.button_profiles import validate_saved_profile_revision
+from e87canbus.domain.button_profiles import ActiveButtonProfile, validate_saved_profile_revision
 from e87canbus.domain.device import DeviceRole
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
@@ -98,13 +97,13 @@ class ActivateSteeringCurve:
 
 @dataclass(frozen=True)
 class ActivateButtonProfile:
-    profile: ButtonBindingProfile
+    profile: ActiveButtonProfile
     saved_profile_revision: int | None = None
     requested_at: float = field(kw_only=True)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.profile, ButtonBindingProfile):
-            raise TypeError("profile must be a ButtonBindingProfile")
+        if not isinstance(self.profile, ActiveButtonProfile):
+            raise TypeError("profile must be a ActiveButtonProfile")
         validate_saved_profile_revision(self.saved_profile_revision)
 
 

@@ -11,8 +11,7 @@ from fastapi import FastAPI
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
-from e87canbus.domain.button_bindings import button_binding_profile_from_definition
-from e87canbus.domain.button_profile_repository import ButtonProfileRepository
+from e87canbus.domain.button_profiles import ButtonProfileRepository
 from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.steering import initial_active_steering_curve
 from e87canbus.service import ControllerService, RuntimeExecution
@@ -58,10 +57,7 @@ def create_lifespan(
             )
             if saved_buttons is not None:
                 service.configure_initial_button_profile(
-                    button_binding_profile_from_definition(
-                        saved_buttons.definition, saved_buttons.profile_id
-                    ),
-                    saved_buttons.revision,
+                    saved_buttons.as_active(), saved_buttons.revision
                 )
             service.mark_persistence_available()
         except BaseException as exc:

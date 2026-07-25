@@ -2,10 +2,13 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 from e87canbus.config import HighBeamStrobeConfig
-from e87canbus.domain.button_bindings import (
-    ButtonBinding,
-    ButtonBindingProfile,
-    built_in_button_binding_profile,
+from e87canbus.domain.button_profiles import (
+    BUTTON_PROFILE_SCHEMA_VERSION,
+    ActiveButtonProfile,
+    ButtonProfileDefinition,
+    built_in_active_button_profile,
+    button_profile_definition_with,
+    empty_button_profile_definition,
 )
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
@@ -76,7 +79,7 @@ def test_non_steering_intents_do_not_require_servotronic(intent: object) -> None
 
 
 def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
-    profile = built_in_button_binding_profile()
+    profile = built_in_active_button_profile()
 
     assert profile.intent_for_press(0) == ToggleAutomaticAssistance()
     assert profile.intent_for_press(1) == AdjustManualAssistance(-1)
@@ -88,38 +91,37 @@ def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
 
 
 def test_built_in_profile_uses_the_configured_high_beam_button() -> None:
-    profile = built_in_button_binding_profile(HighBeamStrobeConfig(button_index=7))
+    profile = built_in_active_button_profile(HighBeamStrobeConfig(button_index=7))
 
     assert profile.intent_for_press(7) == StartHighBeamStrobe()
     assert profile.intent_for_press(4) is None
 
 
-def test_profile_rejects_duplicate_or_out_of_range_buttons() -> None:
-    binding = ButtonBinding(0, ToggleAutomaticAssistance())
-
-    with pytest.raises(ValueError, match="same button"):
-        ButtonBindingProfile("duplicate", (binding, binding))
+def test_profile_rejects_out_of_range_or_unassignable_slots() -> None:
     with pytest.raises(ValueError, match="between 0 and 15"):
-        ButtonBinding(16, ToggleAutomaticAssistance())
-    with pytest.raises(TypeError, match="supported operator intent"):
-        ButtonBinding(1, object())  # type: ignore[arg-type]
+        button_profile_definition_with({16: ToggleAutomaticAssistance()})
+    with pytest.raises(ValueError, match="not user-bindable"):
+        button_profile_definition_with({1: object()})  # type: ignore[dict-item]
 
 
-def test_profile_rejects_mutable_or_malformed_bindings() -> None:
-    binding = ButtonBinding(0, ToggleAutomaticAssistance())
+def test_profile_rejects_a_definition_that_is_not_a_full_slot_set() -> None:
+    with pytest.raises(ValueError, match="16-entry tuple"):
+        ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, (None, None))
+    with pytest.raises(ValueError, match="16-entry tuple"):
+        ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, [None] * 16)  # type: ignore[arg-type]
 
-    with pytest.raises(TypeError, match="immutable tuple"):
-        ButtonBindingProfile("mutable", [binding])  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match="only ButtonBinding"):
-        ButtonBindingProfile("malformed", (object(),))  # type: ignore[arg-type]
+
+def test_profile_rejects_a_definition_of_the_wrong_type() -> None:
+    with pytest.raises(TypeError, match="must be a ButtonProfileDefinition"):
+        ActiveButtonProfile("malformed", object())  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("profile_id", ["", " padded "])
 def test_profile_requires_a_stable_trimmed_identifier(profile_id: str) -> None:
     with pytest.raises(ValueError, match="non-empty trimmed"):
-        ButtonBindingProfile(profile_id, ())
+        ActiveButtonProfile(profile_id, empty_button_profile_definition())
 
 
 def test_profile_identifier_must_be_a_string() -> None:
     with pytest.raises(TypeError, match="profile_id must be a string"):
-        ButtonBindingProfile(1, ())  # type: ignore[arg-type]
+        ActiveButtonProfile(1, empty_button_profile_definition())  # type: ignore[arg-type]
