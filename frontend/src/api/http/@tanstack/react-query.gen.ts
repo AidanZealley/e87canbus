@@ -8,7 +8,6 @@ import {
 
 import { client } from "../client.gen"
 import {
-  activateButtonProfile,
   activateSteeringCurve,
   activateSteeringProfile,
   adjustManualAssistance,
@@ -50,9 +49,6 @@ import {
   updateSteeringProfile,
 } from "../sdk.gen"
 import type {
-  ActivateButtonProfileData,
-  ActivateButtonProfileError,
-  ActivateButtonProfileResponse,
   ActivateSteeringCurveData,
   ActivateSteeringCurveError,
   ActivateSteeringCurveResponse,
@@ -166,31 +162,6 @@ import type {
   UpdateSteeringProfileError,
   UpdateSteeringProfileResponse,
 } from "../types.gen"
-
-/**
- * Activate Button Profile
- */
-export const activateButtonProfileMutation = (
-  options?: Partial<Options<ActivateButtonProfileData>>
-): UseMutationOptions<
-  ActivateButtonProfileResponse,
-  ActivateButtonProfileError,
-  Options<ActivateButtonProfileData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ActivateButtonProfileResponse,
-    ActivateButtonProfileError,
-    Options<ActivateButtonProfileData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await activateButtonProfile({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
 
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, "baseUrl" | "body" | "headers" | "path" | "query"> & {

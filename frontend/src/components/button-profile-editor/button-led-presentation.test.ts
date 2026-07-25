@@ -9,7 +9,7 @@ import {
 describe("backend colour constants", () => {
   // Pinned against coordinator/src/e87canbus/domain/events.py (RGB_*) and
   // domain/controller/button_leds.py (SOFT_*). Changing a colour there must
-  // break this test rather than silently leave the draft preview wrong.
+  // break this test rather than silently leave the editor preview wrong.
   it("matches the values named in the coordinator LED modules", () => {
     expect(BUTTON_LED_RGB).toEqual({
       RGB_OFF: [0, 0, 0],
@@ -27,8 +27,8 @@ const steering = {
   maximum_assistance_active: false,
 } as SteeringState
 
-describe("draft LED presentation", () => {
-  it("derives colors from draft command positions rather than an active program", () => {
+describe("button profile LED presentation", () => {
+  it("derives colors from edited command positions rather than an active program", () => {
     const result = deriveButtonProfileLedPreview(
       [
         null,

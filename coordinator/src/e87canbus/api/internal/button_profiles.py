@@ -1,4 +1,4 @@
-"""Button-profile persistence, translation, and activation use cases."""
+"""Button-profile persistence, translation, and runtime installation use cases."""
 
 from __future__ import annotations
 
@@ -9,20 +9,18 @@ from e87canbus.api.internal.commands import submit_command
 from e87canbus.api.internal.profiles import repository_operation
 from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.button_profiles import (
-    ActivateButtonProfileRequest,
     ButtonProfileDefinitionRequest,
     ButtonProfileResponse,
     CreateButtonProfileRequest,
     UpdateButtonProfileRequest,
 )
-from e87canbus.api.models.commands import CommandAcknowledgement
 from e87canbus.domain.button_bindings import button_binding_profile_from_definition
+from e87canbus.domain.button_commands import encode_button_command
 from e87canbus.domain.button_profile_repository import ButtonProfileRepository
 from e87canbus.domain.button_profiles import (
     ButtonProfileDefinition,
     StoredButtonProfile,
     decode_button_profile,
-    encode_button_intent,
     validate_button_profile_id,
 )
 from e87canbus.kernel import ActivateButtonProfile
@@ -51,8 +49,8 @@ def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
             "definition": {
                 "schema_version": profile.definition.schema_version,
                 "slots": [
-                    None if intent is None else encode_button_intent(intent)
-                    for intent in profile.definition.slots
+                    None if command is None else encode_button_command(command)
+                    for command in profile.definition.slots
                 ],
             },
             "created_at": profile.created_at,
@@ -108,6 +106,7 @@ async def update_profile(
                 definition,
             )
         )
+        await _install_updated_profile(app, repository, profile)
         await _publish(app, profile)
         return response(profile)
 
@@ -126,54 +125,33 @@ async def delete_profile(
         )
 
 
-async def activate_profile(
+async def _install_updated_profile(
     app: FastAPI,
     repository: ButtonProfileRepository,
-    request: ActivateButtonProfileRequest,
-) -> CommandAcknowledgement:
-    _validate_id(request.profile_id)
-    # The runtime submit stays inside the lock deliberately. It is the ordering point:
-    # runtime activation and the stored selection must agree on which activation won, and
-    # releasing the lock around the controller round-trip lets two activations interleave
-    # so the pad runs profile A while storage records profile B. The wait is bounded by
-    # runtime_command_timeout_s, and everything that does not need exclusion - request
-    # validation and definition decoding - is done before the lock is taken.
-    async with app.state.button_profile_mutation_lock:
-        profile = await repository_operation(lambda: repository.get_profile(request.profile_id))
-        if profile is None:
-            raise ApiProblem(
-                404, "profile_not_found", f"button profile not found: {request.profile_id}"
-            )
-        if profile.revision != request.expected_revision:
-            raise ApiProblem(
-                409,
-                "profile_revision_conflict",
-                f"button profile {profile.profile_id} is at revision {profile.revision}, "
-                f"not {request.expected_revision}",
-                current_revision=profile.revision,
-            )
-        compiled = button_binding_profile_from_definition(profile.definition, profile.profile_id)
-        acknowledgement = await submit_command(
-            app,
-            ActivateButtonProfile(
-                compiled,
-                saved_profile_revision=profile.revision,
-                requested_at=app.state.monotonic_clock(),
-            ),
+    profile: StoredButtonProfile,
+) -> None:
+    """Make a successful edit the runtime and startup profile immediately."""
+
+    compiled = button_binding_profile_from_definition(profile.definition, profile.profile_id)
+    await submit_command(
+        app,
+        ActivateButtonProfile(
+            compiled,
+            saved_profile_revision=profile.revision,
+            requested_at=app.state.monotonic_clock(),
+        ),
+    )
+    # Runtime installation cannot share SQLite's transaction. If selection persistence
+    # fails, retain the safely installed runtime, report failure, and mark persistence
+    # unhealthy; startup will continue to use the prior selection.
+    try:
+        await repository_operation(
+            lambda: repository.select_profile(profile.profile_id, profile.revision)
         )
-        # Runtime activation cannot share SQLite's transaction. If persistence fails,
-        # retain the safely activated runtime, report failure, and explicitly mark
-        # persistence unhealthy; startup will continue to use the prior selection.
-        try:
-            await repository_operation(
-                lambda: repository.select_profile(profile.profile_id, profile.revision)
-            )
-        except ApiProblem as exc:
-            if exc.code == "profile_storage_error":
-                app.state.controller_service.mark_persistence_fault(exc.message)
-            raise
-        await _publish(app, profile)
-        return acknowledgement
+    except ApiProblem as exc:
+        if exc.code == "profile_storage_error":
+            app.state.controller_service.mark_persistence_fault(exc.message)
+        raise
 
 
 async def _publish(app: FastAPI, profile: StoredButtonProfile) -> None:

@@ -1,32 +1,17 @@
-"""Button-pad profile CRUD and live activation routes."""
+"""Button-pad profile CRUD routes."""
 
 from fastapi import APIRouter, Path, Query, Request
 
 from e87canbus.api.errors import api_problem_responses
 from e87canbus.api.internal import button_profiles
 from e87canbus.api.models.button_profiles import (
-    ActivateButtonProfileRequest,
     ButtonProfileResponse,
     CreateButtonProfileRequest,
     UpdateButtonProfileRequest,
 )
-from e87canbus.api.models.commands import CommandAcknowledgement
 from e87canbus.api.models.steering import CANONICAL_UUID_PATTERN
 
 router = APIRouter(prefix="/api/button-pad", tags=["button-pad"])
-
-
-@router.post(
-    "/activate-profile",
-    operation_id="activateButtonProfile",
-    responses=api_problem_responses(404, 409, 422, 503),
-)
-async def activate_button_profile(
-    request: Request, body: ActivateButtonProfileRequest
-) -> CommandAcknowledgement:
-    return await button_profiles.activate_profile(
-        request.app, request.app.state.button_profile_repository, body
-    )
 
 
 @router.get(

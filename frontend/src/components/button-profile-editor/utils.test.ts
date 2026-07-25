@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { commandLabel, commandToDraft, draftToCommand } from "./utils"
+import {
+  commandLabel,
+  commandToFormValue,
+  formValueToCommand,
+} from "./utils"
 
 describe("button profile command conversion", () => {
   it("round-trips every parameterized command", () => {
@@ -12,14 +16,18 @@ describe("button profile command conversion", () => {
     ] as const
 
     expect(
-      commands.map((command) => draftToCommand(commandToDraft(command)))
+      commands.map((command) =>
+        formValueToCommand(commandToFormValue(command))
+      )
     ).toEqual(commands)
   })
 
   it("converts unassigned and parameterless commands", () => {
-    expect(draftToCommand(commandToDraft(null))).toBeNull()
+    expect(formValueToCommand(commandToFormValue(null))).toBeNull()
     expect(
-      draftToCommand(commandToDraft({ type: "start_high_beam_strobe" }))
+      formValueToCommand(
+        commandToFormValue({ type: "start_high_beam_strobe" })
+      )
     ).toEqual({ type: "start_high_beam_strobe" })
   })
 
