@@ -171,18 +171,14 @@ def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:
     assert active.changed_topics == {StateTopic.DEVICES}
     assert active.effects[0].effect.routed.frame.arbitration_id == IDS.button_pad_welcome_ack
     assert active.effects[1].effect == SetButtonPadProgram(
-        static_button_pad_program(
-            (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
-        )
+        static_button_pad_program((SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 11)
     )
 
     receive(kernel, hello(DeviceRole.SERVOTRONIC_CONTROLLER), 2.0)
     servotronic_active = receive(kernel, heartbeat(kernel, DeviceRole.SERVOTRONIC_CONTROLLER), 2.1)
     assert servotronic_active.effects[-1].effect == SetButtonPadProgram(
         static_button_pad_program(
-            (RGB_BLUE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE)
-            + (RGB_OFF,) * 10
-            + (SOFT_WHITE,)
+            (RGB_BLUE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE) + (RGB_OFF,) * 11
         )
     )
 
@@ -315,7 +311,7 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     assert kernel.state.button_feedback_deadlines[0] is None
     assert expired.effects == ()
     assert expired.snapshot.button_pad_program == static_button_pad_program(
-        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 11
     )
 
 

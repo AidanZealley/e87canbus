@@ -85,11 +85,6 @@ class StartHighBeamStrobe:
     """Start the configured bounded high-beam strobe action."""
 
 
-@dataclass(frozen=True)
-class ToggleButtonPadDemoBreathe:
-    """Toggle the development-only button-pad breathe demonstration."""
-
-
 OperatorIntent = (
     SelectSteeringMode
     | ToggleAutomaticAssistance
@@ -98,7 +93,6 @@ OperatorIntent = (
     | SetMaximumAssistance
     | ToggleMaximumAssistance
     | StartHighBeamStrobe
-    | ToggleButtonPadDemoBreathe
 )
 
 _OPERATOR_INTENT_TYPES = (
@@ -109,7 +103,6 @@ _OPERATOR_INTENT_TYPES = (
     SetMaximumAssistance,
     ToggleMaximumAssistance,
     StartHighBeamStrobe,
-    ToggleButtonPadDemoBreathe,
 )
 
 
@@ -136,7 +129,7 @@ def intent_requires_servotronic(intent: OperatorIntent) -> bool:
             | ToggleMaximumAssistance()
         ):
             return True
-        case StartHighBeamStrobe() | ToggleButtonPadDemoBreathe():
+        case StartHighBeamStrobe():
             return False
         case _:
             assert_never(intent)

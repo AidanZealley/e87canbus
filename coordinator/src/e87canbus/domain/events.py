@@ -179,6 +179,13 @@ class TriggerButtonPadBlink:
 
 @dataclass(frozen=True)
 class SetButtonPadBreathe:
+    """The single-frame breathe command implemented by the pad firmware.
+
+    Nothing in the coordinator emits this today; it is retained because opcode
+    ``0x02`` on ``0x701`` is a shipped firmware contract, and because breathing is
+    coming back as an assignable per-button-state effect.
+    """
+
     button_index: int
     enabled: bool
 

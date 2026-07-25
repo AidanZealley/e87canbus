@@ -124,7 +124,7 @@ BUTTON_PAD_BUTTON_COUNT = 16
 # This is the single source of truth for "which pad buttons are already reserved":
 # application.button_bindings imports this constant and builds those fixed bindings
 # from it, so the profile and this reservation set cannot silently drift apart.
-BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3, 15})
+BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
 
 
 @dataclass(frozen=True)

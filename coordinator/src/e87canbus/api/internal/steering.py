@@ -2,35 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable
-from typing import TypeVar
-
 from fastapi import FastAPI
 
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.errors import ApiProblem
+from e87canbus.api.internal.profiles import repository_operation
 from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.steering import (
     CreateProfileRequest,
     SteeringCurveDefinitionRequest,
     UpdateProfileRequest,
 )
-from e87canbus.domain.profile_repository import (
-    ProfileNameConflictError,
-    ProfileNotFoundError,
-    ProfileRevisionConflictError,
-    SteeringProfileRepository,
-    SteeringProfileStorageError,
-)
+from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.steering import (
     SteeringCurveDefinition,
     SteeringCurvePoint,
     StoredSteeringProfile,
     validate_steering_profile_id,
 )
-
-T = TypeVar("T")
 
 
 def definition_from_request(
@@ -72,9 +61,10 @@ async def create_profile(
     request: CreateProfileRequest,
 ) -> StoredSteeringProfile:
     definition = definition_from_request(request.definition)
-    profile = await repository_operation(
-        lambda: repository.create_profile(request.name, definition)
-    )
+    async with app.state.steering_profile_mutation_lock:
+        profile = await repository_operation(
+            lambda: repository.create_profile(request.name, definition)
+        )
     await publish_resource_change(
         app,
         resource="steering_profile",
@@ -103,14 +93,15 @@ async def update_profile(
 ) -> StoredSteeringProfile:
     validate_profile_id(profile_id)
     definition = definition_from_request(request.definition)
-    profile = await repository_operation(
-        lambda: repository.update_profile(
-            profile_id,
-            request.expected_revision,
-            request.name,
-            definition,
+    async with app.state.steering_profile_mutation_lock:
+        profile = await repository_operation(
+            lambda: repository.update_profile(
+                profile_id,
+                request.expected_revision,
+                request.name,
+                definition,
+            )
         )
-    )
     await publish_resource_change(
         app,
         resource="steering_profile",
@@ -127,33 +118,14 @@ async def delete_profile(
     expected_revision: int,
 ) -> None:
     validate_profile_id(profile_id)
-    await repository_operation(lambda: repository.delete_profile(profile_id, expected_revision))
+    async with app.state.steering_profile_mutation_lock:
+        await repository_operation(lambda: repository.delete_profile(profile_id, expected_revision))
     await publish_resource_change(
         app,
         resource="steering_profile",
         resource_id=profile_id,
         revision=expected_revision,
     )
-
-
-async def repository_operation(operation: Callable[[], T]) -> T:
-    try:
-        return await asyncio.to_thread(operation)
-    except ProfileRevisionConflictError as exc:
-        raise ApiProblem(
-            409,
-            "profile_revision_conflict",
-            str(exc),
-            current_revision=exc.actual_revision,
-        ) from exc
-    except ProfileNameConflictError as exc:
-        raise ApiProblem(409, "profile_name_conflict", str(exc)) from exc
-    except ProfileNotFoundError as exc:
-        raise ApiProblem(404, "profile_not_found", str(exc)) from exc
-    except SteeringProfileStorageError as exc:
-        raise ApiProblem(503, "profile_storage_error", str(exc)) from exc
-    except ValueError as exc:
-        raise ApiProblem(422, "validation_error", str(exc)) from exc
 
 
 def validate_profile_id(profile_id: str, *, field_name: str = "profile_id") -> None:

@@ -7,15 +7,11 @@ Import the public surface from this package; the split is an internal layout.
 """
 
 from e87canbus.domain.controller.button_leds import (
-    DEMO_BREATHE_BUTTON_INDEX,
-    MAXIMUM_ASSISTANCE_BUTTON_INDEX,
     SOFT_AMBER,
     SOFT_WHITE,
     STEERING_MODE_BUTTON_INDEX,
     ButtonLedPresenter,
-    button_led_effect,
-    button_led_state,
-    button_pad_program,
+    ButtonLedProjection,
     derived_button_led_state,
 )
 from e87canbus.domain.controller.intents import (
@@ -42,20 +38,16 @@ from e87canbus.domain.controller.steering import (
 )
 
 __all__ = [
-    "DEMO_BREATHE_BUTTON_INDEX",
-    "MAXIMUM_ASSISTANCE_BUTTON_INDEX",
     "SOFT_AMBER",
     "SOFT_WHITE",
     "STEERING_MODE_BUTTON_INDEX",
     "ApplicationSnapshot",
     "ButtonLedPresenter",
+    "ButtonLedProjection",
     "EngineTelemetrySnapshot",
     "EngineTelemetryStatus",
     "EngineTelemetryValue",
     "Transition",
-    "button_led_effect",
-    "button_led_state",
-    "button_pad_program",
     "derived_button_led_state",
     "clear_maximum_assistance",
     "execute_operator_intent",

@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { ButtonCommand } from "./types"
+import type { ButtonCommandSlots } from "./types"
 import { commandLabel } from "./utils"
 
 type ButtonProfileGridProps = {
-  slots: readonly ButtonCommand[]
+  slots: ButtonCommandSlots
   rgb: ReadonlyArray<readonly [number, number, number]>
   onEdit: (index: number) => void
 }

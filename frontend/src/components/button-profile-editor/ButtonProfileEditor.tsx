@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -8,11 +8,7 @@ import {
   getSavedButtonProfileQueryKey,
   updateButtonProfileMutation,
 } from "@/api/http/@tanstack/react-query.gen"
-import type {
-  ApiProblemResponse,
-  ButtonProfileDefinitionRequest,
-  ButtonProfileResponse,
-} from "@/api/http"
+import type { ApiProblemResponse, ButtonProfileResponse } from "@/api/http"
 import { useLiveStore } from "@/live/live-store"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -21,12 +17,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import { ButtonBindingDialog } from "./ButtonBindingDialog"
 import { ButtonProfileGrid } from "./ButtonProfileGrid"
-import type { ButtonCommand } from "./types"
+import { toButtonCommandSlots, type ButtonCommand } from "./types"
 import { deriveButtonProfileLedPreview } from "./button-led-presentation"
 import {
   buttonProfileStatusLabel,
   isButtonProfileDraftDirty,
-  synchronizeButtonProfileDraft,
+  resolveButtonProfileDraft,
   type ButtonProfileDraft,
 } from "./draft-state"
 
@@ -61,28 +57,26 @@ export const ButtonProfileEditor = ({
         (device) => device.role === "servotronic_controller"
       )?.fault ?? null
   )
-  const [draft, setDraft] = useState<ButtonProfileDraft | null>(null)
+  // Unsaved edits are the only state kept here; the pristine draft is derived
+  // from the query result, so a refetch never has to be written back.
+  const [pendingEdit, setPendingEdit] = useState<ButtonProfileDraft | null>(
+    null
+  )
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
+  const draft =
+    savedProfile === undefined
+      ? null
+      : resolveButtonProfileDraft(
+          pendingEdit,
+          savedProfile.revision,
+          savedProfile.definition.slots
+        )
   const dirty = isButtonProfileDraftDirty(draft)
   const serverChanged =
     savedProfile !== undefined &&
     draft !== null &&
     savedProfile.revision !== draft.sourceRevision
-
-  useEffect(() => {
-    const profile = savedProfile
-    if (!profile) return
-    const synchronizedDraft = synchronizeButtonProfileDraft(
-      draft,
-      profile.revision,
-      profile.definition.slots
-    )
-    if (synchronizedDraft.draft === draft) return
-    // The query result is external state; synchronize only a pristine draft.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(synchronizedDraft.draft)
-  }, [draft, savedProfile])
   const slots = draft?.slots ?? null
   const displayRgb = deriveButtonProfileLedPreview(slots ?? [], {
     synchronized,
@@ -99,12 +93,7 @@ export const ButtonProfileEditor = ({
     ...updateButtonProfileMutation(),
     onSuccess: (profile) => {
       queryClient.setQueryData(getSavedButtonProfileQueryKey(), profile)
-      const savedSlots = [...profile.definition.slots]
-      setDraft({
-        sourceRevision: profile.revision,
-        baseSlots: savedSlots,
-        slots: savedSlots,
-      })
+      setPendingEdit(null)
       toast.success("Button profile saved")
     },
     onError: (error) => toast.error(errorDetail(error)),
@@ -129,7 +118,7 @@ export const ButtonProfileEditor = ({
     )
   }
 
-  if (savedProfile === undefined || slots === null) {
+  if (savedProfile === undefined || draft === null || slots === null) {
     return (
       <div className="grid min-h-64 place-items-center" role="status">
         <Spinner />
@@ -149,12 +138,9 @@ export const ButtonProfileEditor = ({
     !isActive
   const applyBinding = (command: ButtonCommand) => {
     if (editingIndex === null) return
-    setDraft((current) => {
-      if (current === null) return current
-      const next = [...current.slots]
-      next[editingIndex] = command
-      return { ...current, slots: next }
-    })
+    const next = [...slots]
+    next[editingIndex] = command
+    setPendingEdit({ ...draft, slots: toButtonCommandSlots(next) })
   }
 
   return (
@@ -184,13 +170,7 @@ export const ButtonProfileEditor = ({
           <Button
             variant="outline"
             disabled={!dirty || serverChanged || save.isPending}
-            onClick={() =>
-              setDraft({
-                sourceRevision: profile.revision,
-                baseSlots: [...profile.definition.slots],
-                slots: [...profile.definition.slots],
-              })
-            }
+            onClick={() => setPendingEdit(null)}
           >
             Discard changes
           </Button>
@@ -201,11 +181,8 @@ export const ButtonProfileEditor = ({
                 path: { profile_id: profile.profile_id },
                 body: {
                   name: profile.name,
-                  expected_revision: draft?.sourceRevision ?? profile.revision,
-                  definition: {
-                    schema_version: 1,
-                    slots: slots as ButtonProfileDefinitionRequest["slots"],
-                  },
+                  expected_revision: draft.sourceRevision,
+                  definition: { schema_version: 1, slots },
                 },
               })
             }
@@ -249,17 +226,7 @@ export const ButtonProfileEditor = ({
                 A newer revision is available. Reloading will discard your
                 unsaved button changes.
               </span>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const latestSlots = [...profile.definition.slots]
-                  setDraft({
-                    sourceRevision: profile.revision,
-                    baseSlots: latestSlots,
-                    slots: latestSlots,
-                  })
-                }}
-              >
+              <Button variant="outline" onClick={() => setPendingEdit(null)}>
                 Reload and discard
               </Button>
             </AlertDescription>
@@ -268,7 +235,7 @@ export const ButtonProfileEditor = ({
       </CardContent>
       {editingIndex !== null ? (
         <ButtonBindingDialog
-          key={`${editingIndex}-${JSON.stringify(slots[editingIndex])}`}
+          key={editingIndex}
           buttonIndex={editingIndex}
           command={slots[editingIndex] ?? null}
           open

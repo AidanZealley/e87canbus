@@ -3,17 +3,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
 import { ButtonProfileGrid } from "./ButtonProfileGrid"
+import { toButtonCommandSlots, type ButtonCommand } from "./types"
 
 afterEach(cleanup)
 
 it("renders all sixteen labelled bindings and selects a button for editing", () => {
   const onEdit = vi.fn()
-  const slots = Array.from({ length: 16 }, () => null)
-  slots[2] = { type: "adjust_manual_assistance", delta: 1 } as never
+  const slots: ButtonCommand[] = Array.from({ length: 16 }, () => null)
+  slots[2] = { type: "adjust_manual_assistance", delta: 1 }
 
   render(
     <ButtonProfileGrid
-      slots={slots}
+      slots={toButtonCommandSlots(slots)}
       rgb={Array.from({ length: 16 }, () => [0, 0, 0] as const)}
       onEdit={onEdit}
     />

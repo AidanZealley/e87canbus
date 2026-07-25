@@ -287,9 +287,7 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
             track.rgb
             for track in resolve_button_pad_tracks(snapshot.application.button_pad_program)
         )
-        == (RGB_BLUE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE)
-        + (RGB_OFF,) * 10
-        + (SOFT_WHITE,)
+        == (RGB_BLUE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE, SOFT_WHITE) + (RGB_OFF,) * 11
     )
 
 

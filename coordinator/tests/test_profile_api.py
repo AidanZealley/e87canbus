@@ -549,3 +549,53 @@ def test_runtime_snapshot_and_profile_resource_remain_authoritative(
         == applied_definition
     )
     assert created.status_code == 201
+
+
+def test_update_wins_race_before_activation_cannot_activate_stale_revision(
+    client: TestClient,
+) -> None:
+    """Steering activation is serialised against edits, exactly like button activation.
+
+    Without the shared mutation lock an edit can land between reading a profile and
+    activating it, so the runtime would activate a curve under a revision that storage
+    has already replaced. The activation must not even be able to read mid-edit.
+    """
+
+    app = client.app
+    repository = app.state.profile_repository
+    created = create_profile(client, "Update race")
+    update_entered, release_update, read_entered = Event(), Event(), Event()
+    original_update, original_get = repository.update_profile, repository.get_profile
+
+    def paused_update(*args: Any, **kwargs: Any) -> Any:
+        update_entered.set()
+        assert release_update.wait(2)
+        return original_update(*args, **kwargs)
+
+    def watched_get(*args: Any, **kwargs: Any) -> Any:
+        read_entered.set()
+        return original_get(*args, **kwargs)
+
+    repository.update_profile, repository.get_profile = paused_update, watched_get
+    update_body = {**profile_payload("Updated first"), "expected_revision": 1}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        update_future = pool.submit(
+            client.put,
+            f"/api/steering/profiles/{created['profile_id']}",
+            json=update_body,
+        )
+        assert update_entered.wait(2)
+        activation_future = pool.submit(
+            client.post,
+            "/api/steering/activate-profile",
+            json={"profile_id": created["profile_id"], "expected_revision": 1},
+        )
+        stale_read = read_entered.wait(0.5)
+        release_update.set()
+        update = update_future.result()
+        activation = activation_future.result()
+
+    assert not stale_read  # the activation waited for the in-flight edit
+    assert update.status_code == 200
+    assert activation.status_code == 409
+    assert activation.json()["error"]["current_revision"] == 2

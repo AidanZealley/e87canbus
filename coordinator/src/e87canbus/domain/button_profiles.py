@@ -18,6 +18,9 @@ from e87canbus.domain.intents import (
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
+from e87canbus.domain.revisioned_profiles import (
+    validate_saved_profile_revision as validate_saved_profile_revision,
+)
 from e87canbus.domain.state import SteeringMode
 from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
@@ -62,8 +65,9 @@ class StoredButtonProfile:
     def __post_init__(self) -> None:
         validate_button_profile_id(self.profile_id)
         validate_button_profile_name(self.name)
-        if type(self.revision) is not int or self.revision < 1:
+        if self.revision is None:
             raise ValueError("profile revision must be a positive integer")
+        validate_saved_profile_revision(self.revision, "profile revision")
         if not isinstance(self.definition, ButtonProfileDefinition):
             raise ValueError("definition must be a ButtonProfileDefinition")
         validate_canonical_utc_timestamp(self.created_at, "created_at")
@@ -132,7 +136,13 @@ def validate_button_profile_id(profile_id: str) -> None:
         raise ValueError("profile_id must use canonical UUID text")
 
 
-def _encode_intent(intent: UserButtonIntent) -> dict[str, Any]:
+def encode_button_intent(intent: UserButtonIntent) -> dict[str, Any]:
+    """Tag one bindable intent for the wire and for storage.
+
+    This is the only encoder: the HTTP layer serialises responses through it too, so a
+    new command can never be persisted in one shape and published in another.
+    """
+
     match intent:
         case SelectSteeringMode(mode=mode):
             return {"type": "select_steering_mode", "mode": mode.value}
@@ -156,7 +166,7 @@ def canonical_button_profile_bytes(definition: ButtonProfileDefinition) -> bytes
     value = {
         "schema_version": definition.schema_version,
         "slots": [
-            None if intent is None else _encode_intent(intent) for intent in definition.slots
+            None if intent is None else encode_button_intent(intent) for intent in definition.slots
         ],
     }
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -170,11 +180,17 @@ def decode_button_profile(value: object) -> ButtonProfileDefinition:
         raise ValueError("slots must be a list")
     return ButtonProfileDefinition(
         value["schema_version"],
-        tuple(None if command is None else _decode_intent(command) for command in slots),
+        tuple(None if command is None else decode_button_intent(command) for command in slots),
     )
 
 
-def _decode_intent(value: object) -> UserButtonIntent:
+def decode_button_intent(value: object) -> UserButtonIntent:
+    """Rebuild one bindable intent from parsed JSON, refusing unknown or extra fields.
+
+    HTTP request bodies are decoded through here as well (after Pydantic has shape-checked
+    them), so the tag vocabulary lives in exactly one place.
+    """
+
     if not isinstance(value, dict) or not isinstance(value.get("type"), str):
         raise ValueError("command must be a tagged object")
     tag = value["type"]

@@ -15,7 +15,6 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
-    ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
     intent_requires_servotronic,
 )
@@ -70,7 +69,7 @@ def test_steering_intents_require_servotronic(intent: object) -> None:
 
 @pytest.mark.parametrize(
     "intent",
-    [StartHighBeamStrobe(), ToggleButtonPadDemoBreathe()],
+    [StartHighBeamStrobe()],
 )
 def test_non_steering_intents_do_not_require_servotronic(intent: object) -> None:
     assert intent_requires_servotronic(intent) is False  # type: ignore[arg-type]
@@ -84,8 +83,8 @@ def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
     assert profile.intent_for_press(2) == AdjustManualAssistance(1)
     assert profile.intent_for_press(3) == ToggleMaximumAssistance()
     assert profile.intent_for_press(4) == StartHighBeamStrobe()
-    assert profile.intent_for_press(15) == ToggleButtonPadDemoBreathe()
     assert profile.intent_for_press(5) is None
+    assert profile.intent_for_press(15) is None
 
 
 def test_built_in_profile_uses_the_configured_high_beam_button() -> None:

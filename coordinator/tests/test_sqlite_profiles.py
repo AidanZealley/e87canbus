@@ -6,18 +6,18 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from e87canbus.adapters.sqlite_database import UnsupportedDatabaseVersionError
 from e87canbus.adapters.sqlite_profiles import (
     BUILT_IN_PROFILE_ID,
     BUILT_IN_PROFILE_NAME,
     CURRENT_MIGRATION_VERSION,
     SqliteSteeringProfileRepository,
-    UnsupportedDatabaseVersionError,
 )
-from e87canbus.domain.profile_repository import (
+from e87canbus.domain.revisioned_profiles import (
     ProfileNameConflictError,
     ProfileNotFoundError,
     ProfileRevisionConflictError,
-    SteeringProfileStorageError,
+    ProfileStorageError,
     StoredProfileDataError,
 )
 from e87canbus.domain.steering import (
@@ -301,7 +301,7 @@ def test_failed_update_rolls_back_the_transaction(tmp_path: Path) -> None:
             """
         )
 
-    with pytest.raises(SteeringProfileStorageError):
+    with pytest.raises(ProfileStorageError):
         repository.update_profile(
             created.profile_id, created.revision, created.name, _changed_definition()
         )
@@ -345,7 +345,7 @@ def test_reopening_repository_retains_profiles(tmp_path: Path) -> None:
 def test_sqlite_exceptions_are_wrapped_at_adapter_boundary(tmp_path: Path) -> None:
     repository = _repository(tmp_path / "missing-parent" / "profiles.sqlite3")
 
-    with pytest.raises(SteeringProfileStorageError) as caught:
+    with pytest.raises(ProfileStorageError) as caught:
         repository.initialize()
 
     assert not isinstance(caught.value, sqlite3.Error)

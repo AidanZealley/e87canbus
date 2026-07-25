@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable
-from typing import Any, TypeVar, assert_never
-
 from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
 from e87canbus.api.internal.commands import submit_command
+from e87canbus.api.internal.profiles import repository_operation
 from e87canbus.api.internal.resources import publish_resource_change
 from e87canbus.api.models.button_profiles import (
     ActivateButtonProfileRequest,
-    ButtonProfileCommand,
     ButtonProfileDefinitionRequest,
     ButtonProfileResponse,
     CreateButtonProfileRequest,
@@ -21,83 +17,29 @@ from e87canbus.api.models.button_profiles import (
 )
 from e87canbus.api.models.commands import CommandAcknowledgement
 from e87canbus.domain.button_bindings import button_binding_profile_from_definition
-from e87canbus.domain.button_profile_repository import (
-    ButtonProfileNameConflictError,
-    ButtonProfileNotFoundError,
-    ButtonProfileProtectedError,
-    ButtonProfileRepository,
-    ButtonProfileRevisionConflictError,
-    ButtonProfileStorageError,
-)
+from e87canbus.domain.button_profile_repository import ButtonProfileRepository
 from e87canbus.domain.button_profiles import (
     ButtonProfileDefinition,
     StoredButtonProfile,
-    UserButtonIntent,
+    decode_button_profile,
+    encode_button_intent,
     validate_button_profile_id,
 )
-from e87canbus.domain.intents import (
-    AdjustManualAssistance,
-    SelectSteeringMode,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
-    StartHighBeamStrobe,
-    ToggleAutomaticAssistance,
-    ToggleMaximumAssistance,
-)
-from e87canbus.domain.state import SteeringMode
 from e87canbus.kernel import ActivateButtonProfile
-
-T = TypeVar("T")
-
-
-def _intent(command: ButtonProfileCommand) -> UserButtonIntent:
-    match command.type:
-        case "select_steering_mode":
-            return SelectSteeringMode(SteeringMode(command.mode))
-        case "toggle_automatic_assistance":
-            return ToggleAutomaticAssistance()
-        case "adjust_manual_assistance":
-            return AdjustManualAssistance(command.delta)
-        case "set_manual_assistance_level":
-            return SetManualAssistanceLevel(command.level)
-        case "set_maximum_assistance":
-            return SetMaximumAssistance(command.enabled)
-        case "toggle_maximum_assistance":
-            return ToggleMaximumAssistance()
-        case "start_high_beam_strobe":
-            return StartHighBeamStrobe()
-        case _:
-            assert_never(command.type)
 
 
 def definition_from_request(request: ButtonProfileDefinitionRequest) -> ButtonProfileDefinition:
+    """Hand the shape-checked request body to the single domain decoder.
+
+    Pydantic has already rejected unknown tags and stray fields; dumping the model back
+    to plain JSON keeps the tag vocabulary itself defined in exactly one place, so an
+    eighth button command cannot be accepted here and then be undecodable from storage.
+    """
+
     try:
-        return ButtonProfileDefinition(
-            request.schema_version,
-            tuple(None if command is None else _intent(command) for command in request.slots),
-        )
+        return decode_button_profile(request.model_dump(mode="json"))
     except (TypeError, ValueError) as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
-
-
-def _command(intent: UserButtonIntent) -> dict[str, Any]:
-    match intent:
-        case SelectSteeringMode(mode=mode):
-            return {"type": "select_steering_mode", "mode": mode.value}
-        case ToggleAutomaticAssistance():
-            return {"type": "toggle_automatic_assistance"}
-        case AdjustManualAssistance(delta=delta):
-            return {"type": "adjust_manual_assistance", "delta": delta}
-        case SetManualAssistanceLevel(level=level):
-            return {"type": "set_manual_assistance_level", "level": level}
-        case SetMaximumAssistance(enabled=enabled):
-            return {"type": "set_maximum_assistance", "enabled": enabled}
-        case ToggleMaximumAssistance():
-            return {"type": "toggle_maximum_assistance"}
-        case StartHighBeamStrobe():
-            return {"type": "start_high_beam_strobe"}
-        case _:
-            assert_never(intent)
 
 
 def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
@@ -109,7 +51,7 @@ def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
             "definition": {
                 "schema_version": profile.definition.schema_version,
                 "slots": [
-                    None if intent is None else _command(intent)
+                    None if intent is None else encode_button_intent(intent)
                     for intent in profile.definition.slots
                 ],
             },
@@ -120,18 +62,18 @@ def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
 
 
 async def list_profiles(repository: ButtonProfileRepository) -> list[ButtonProfileResponse]:
-    return [response(profile) for profile in await _repository(repository.list_profiles)]
+    return [response(profile) for profile in await repository_operation(repository.list_profiles)]
 
 
 async def get_saved_profile(repository: ButtonProfileRepository) -> ButtonProfileResponse:
-    return response(await _repository(repository.get_selected_profile))
+    return response(await repository_operation(repository.get_selected_profile))
 
 
 async def get_profile(
     repository: ButtonProfileRepository, profile_id: str
 ) -> ButtonProfileResponse:
     _validate_id(profile_id)
-    profile = await _repository(lambda: repository.get_profile(profile_id))
+    profile = await repository_operation(lambda: repository.get_profile(profile_id))
     if profile is None:
         raise ApiProblem(404, "profile_not_found", f"button profile not found: {profile_id}")
     return response(profile)
@@ -140,11 +82,11 @@ async def get_profile(
 async def create_profile(
     app: FastAPI, repository: ButtonProfileRepository, request: CreateButtonProfileRequest
 ) -> ButtonProfileResponse:
+    definition = None if request.definition is None else definition_from_request(request.definition)
     async with app.state.button_profile_mutation_lock:
-        definition = (
-            None if request.definition is None else definition_from_request(request.definition)
+        profile = await repository_operation(
+            lambda: repository.create_profile(request.name, definition)
         )
-        profile = await _repository(lambda: repository.create_profile(request.name, definition))
         await _publish(app, profile)
         return response(profile)
 
@@ -155,14 +97,15 @@ async def update_profile(
     profile_id: str,
     request: UpdateButtonProfileRequest,
 ) -> ButtonProfileResponse:
+    _validate_id(profile_id)
+    definition = definition_from_request(request.definition)
     async with app.state.button_profile_mutation_lock:
-        _validate_id(profile_id)
-        profile = await _repository(
+        profile = await repository_operation(
             lambda: repository.update_profile(
                 profile_id,
                 request.expected_revision,
                 request.name,
-                definition_from_request(request.definition),
+                definition,
             )
         )
         await _publish(app, profile)
@@ -175,9 +118,9 @@ async def delete_profile(
     profile_id: str,
     expected_revision: int,
 ) -> None:
+    _validate_id(profile_id)
     async with app.state.button_profile_mutation_lock:
-        _validate_id(profile_id)
-        await _repository(lambda: repository.delete_profile(profile_id, expected_revision))
+        await repository_operation(lambda: repository.delete_profile(profile_id, expected_revision))
         await publish_resource_change(
             app, resource="button_profile", resource_id=profile_id, revision=expected_revision
         )
@@ -188,9 +131,15 @@ async def activate_profile(
     repository: ButtonProfileRepository,
     request: ActivateButtonProfileRequest,
 ) -> CommandAcknowledgement:
+    _validate_id(request.profile_id)
+    # The runtime submit stays inside the lock deliberately. It is the ordering point:
+    # runtime activation and the stored selection must agree on which activation won, and
+    # releasing the lock around the controller round-trip lets two activations interleave
+    # so the pad runs profile A while storage records profile B. The wait is bounded by
+    # runtime_command_timeout_s, and everything that does not need exclusion - request
+    # validation and definition decoding - is done before the lock is taken.
     async with app.state.button_profile_mutation_lock:
-        _validate_id(request.profile_id)
-        profile = await _repository(lambda: repository.get_profile(request.profile_id))
+        profile = await repository_operation(lambda: repository.get_profile(request.profile_id))
         if profile is None:
             raise ApiProblem(
                 404, "profile_not_found", f"button profile not found: {request.profile_id}"
@@ -216,7 +165,7 @@ async def activate_profile(
         # retain the safely activated runtime, report failure, and explicitly mark
         # persistence unhealthy; startup will continue to use the prior selection.
         try:
-            await _repository(
+            await repository_operation(
                 lambda: repository.select_profile(profile.profile_id, profile.revision)
             )
         except ApiProblem as exc:
@@ -234,25 +183,6 @@ async def _publish(app: FastAPI, profile: StoredButtonProfile) -> None:
         resource_id=profile.profile_id,
         revision=profile.revision,
     )
-
-
-async def _repository(operation: Callable[[], T]) -> T:
-    try:
-        return await asyncio.to_thread(operation)
-    except ButtonProfileRevisionConflictError as exc:
-        raise ApiProblem(
-            409, "profile_revision_conflict", str(exc), current_revision=exc.actual_revision
-        ) from exc
-    except ButtonProfileNameConflictError as exc:
-        raise ApiProblem(409, "profile_name_conflict", str(exc)) from exc
-    except ButtonProfileProtectedError as exc:
-        raise ApiProblem(409, "profile_protected", str(exc)) from exc
-    except ButtonProfileNotFoundError as exc:
-        raise ApiProblem(404, "profile_not_found", str(exc)) from exc
-    except ButtonProfileStorageError as exc:
-        raise ApiProblem(503, "profile_storage_error", str(exc)) from exc
-    except (TypeError, ValueError) as exc:
-        raise ApiProblem(422, "validation_error", str(exc)) from exc
 
 
 def _validate_id(profile_id: str) -> None:

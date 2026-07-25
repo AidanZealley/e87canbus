@@ -11,19 +11,13 @@ from dataclasses import dataclass, replace
 from typing import assert_never
 
 from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
-from e87canbus.domain.controller.button_leds import (
-    DEMO_BREATHE_BUTTON_INDEX,
-    MAXIMUM_ASSISTANCE_BUTTON_INDEX,
-    button_led_effect,
-    button_led_state,
-)
+from e87canbus.domain.controller.button_leds import ButtonLedProjection
 from e87canbus.domain.controller.reducer import Transition, transition
 from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
     ApplicationEffect,
     ButtonCommandFailed,
     ButtonFeedbackColour,
-    SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
@@ -37,7 +31,6 @@ from e87canbus.domain.intents import (
     SetManualAssistanceLevel,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
-    ToggleButtonPadDemoBreathe,
     ToggleMaximumAssistance,
 )
 from e87canbus.domain.intents import (
@@ -60,6 +53,7 @@ def execute_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
+    leds: ButtonLedProjection,
     context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
     *,
     active_definition: SteeringCurveDefinition = BUILT_IN_STEERING_CURVE,
@@ -80,6 +74,7 @@ def execute_operator_intent(
         intent,
         config,
         context,
+        leds,
         high_beam_strobe_config=high_beam_strobe_config,
     )
     return _complete_operator_effects(state, result, config, active_definition)
@@ -93,47 +88,36 @@ def finish_button_intent(
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
     high_beam_strobe_config: HighBeamStrobeConfig,
+    leds: ButtonLedProjection,
 ) -> Transition:
     """Layer button-origin presentation onto an already-complete intent result.
 
     ``intent_result`` is the self-contained output of ``execute_operator_intent``;
     this only substitutes the button-LED program for the pressing origin and adds a
     white confirmation blink when nothing the operator can see actually changed.
+    Every comparison is made against the active profile, because whether a press is
+    visible at all depends on what that profile binds to the pressed button.
     """
-    high_beam_button_index = high_beam_strobe_config.button_index
     new_state = intent_result.state
-    previous_leds = button_led_effect(state, high_beam_button_index=high_beam_button_index)
-    new_leds = button_led_effect(new_state, high_beam_button_index=high_beam_button_index)
+    previous_leds = leds.effect(state)
+    new_leds = leds.effect(new_state)
     effects = tuple(
         new_leds if isinstance(effect, SetButtonPadProgram) else effect
         for effect in intent_result.effects
     )
-    demo_breathe_changed = (
-        new_state.button_pad_demo_breathe_enabled != state.button_pad_demo_breathe_enabled
-    )
     if new_leds != previous_leds and not any(
-        isinstance(effect, (SetButtonPadProgram, SetButtonPadBreathe)) for effect in effects
+        isinstance(effect, SetButtonPadProgram) for effect in effects
     ):
-        effects += (
-            (
-                SetButtonPadBreathe(
-                    DEMO_BREATHE_BUTTON_INDEX,
-                    new_state.button_pad_demo_breathe_enabled,
-                ),
-            )
-            if demo_breathe_changed
-            else (new_leds,)
-        )
-    previous_led_state = button_led_state(state, high_beam_button_index=high_beam_button_index)
-    new_led_state = button_led_state(new_state, high_beam_button_index=high_beam_button_index)
-    button_visual_changed = new_led_state.rgb[button_index] != previous_led_state.rgb[
-        button_index
-    ] or (button_index == DEMO_BREATHE_BUTTON_INDEX and demo_breathe_changed)
-    # A manual-assistance press can cancel the maximum-assistance override. In
-    # that case the persistent program replaces button 3 without a racing blink.
-    maximum_indicator_changed = (
-        new_led_state.rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
-        != previous_led_state.rgb[MAXIMUM_ASSISTANCE_BUTTON_INDEX]
+        effects += (new_leds,)
+    previous_led_state = leds.led_state(state)
+    new_led_state = leds.led_state(new_state)
+    button_visual_changed = new_led_state.rgb[button_index] != previous_led_state.rgb[button_index]
+    # A manual-assistance press can cancel the maximum-assistance override. In that
+    # case the persistent program replaces the indicator without a racing blink,
+    # wherever (and however often) the active profile happens to show it.
+    maximum_indicator_changed = any(
+        new_led_state.rgb[index] != previous_led_state.rgb[index]
+        for index in leds.maximum_assistance_indexes()
     )
     if not button_visual_changed and not maximum_indicator_changed:
         feedback = transition(
@@ -148,13 +132,16 @@ def finish_button_intent(
     return Transition(new_state, effects)
 
 
-def clear_maximum_assistance(state: ApplicationState) -> Transition:
+def clear_maximum_assistance(
+    state: ApplicationState,
+    leds: ButtonLedProjection,
+) -> Transition:
     """Remove only the temporary maximum override when its device is lost."""
 
     if not isinstance(state.steering, MaximumAssistance):
         return Transition(state)
     next_state = replace(state, steering=state.steering.previous)
-    return Transition(next_state, _steering_state_effects(state, next_state))
+    return Transition(next_state, _steering_state_effects(state, next_state, leds))
 
 
 def _apply_operator_intent(
@@ -162,6 +149,7 @@ def _apply_operator_intent(
     intent: OperatorIntent,
     config: SteeringConfig,
     context: OperatorIntentContext,
+    leds: ButtonLedProjection,
     *,
     high_beam_strobe_config: HighBeamStrobeConfig | None,
 ) -> Transition:
@@ -169,23 +157,25 @@ def _apply_operator_intent(
 
     match intent:
         case SelectSteeringMode(mode):
-            return _select_steering_mode(state, mode, config)
+            return _select_steering_mode(state, mode, config, leds)
         case ToggleAutomaticAssistance():
-            return _finish_steering_intent(state, _toggled_automatic_assistance(state))
+            return _finish_steering_intent(state, _toggled_automatic_assistance(state), leds)
         case AdjustManualAssistance(delta):
             return _finish_steering_intent(
                 state,
                 _establish_manual_assistance(state, _AdjustLevel(delta), config),
+                leds,
             )
         case SetManualAssistanceLevel(level):
             return _finish_steering_intent(
                 state,
                 _establish_manual_assistance(state, _SelectLevel(level), config),
+                leds,
             )
         case SetMaximumAssistanceIntent(enabled):
-            return _set_maximum_assistance(state, enabled)
+            return _set_maximum_assistance(state, enabled, leds)
         case ToggleMaximumAssistance():
-            return _finish_steering_intent(state, _toggled_maximum_assistance(state))
+            return _finish_steering_intent(state, _toggled_maximum_assistance(state), leds)
         case StartHighBeamStrobe():
             if context.observed_at is None:
                 raise ValueError("observed_at is required to start the high-beam strobe")
@@ -195,20 +185,6 @@ def _apply_operator_intent(
             if next_state.high_beam_enabled != state.high_beam_enabled:
                 effects = (SetHighBeam(next_state.high_beam_enabled),)
             return Transition(next_state, effects)
-        case ToggleButtonPadDemoBreathe():
-            next_state = replace(
-                state,
-                button_pad_demo_breathe_enabled=not state.button_pad_demo_breathe_enabled,
-            )
-            return Transition(
-                next_state,
-                (
-                    SetButtonPadBreathe(
-                        DEMO_BREATHE_BUTTON_INDEX,
-                        next_state.button_pad_demo_breathe_enabled,
-                    ),
-                ),
-            )
         case _:
             assert_never(intent)
 
@@ -335,6 +311,7 @@ def _toggled_maximum_assistance(
 def _set_maximum_assistance(
     state: ApplicationState,
     enabled: bool,
+    leds: ButtonLedProjection,
 ) -> Transition:
     steering = state.steering
     next_steering: SteeringState
@@ -347,39 +324,42 @@ def _set_maximum_assistance(
     else:
         next_steering = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_state = replace(state, steering=next_steering)
-    return Transition(next_state, _steering_state_effects(state, next_state))
+    return Transition(next_state, _steering_state_effects(state, next_state, leds))
 
 
 def _select_steering_mode(
     state: ApplicationState,
     mode: SteeringMode,
     config: SteeringConfig,
+    leds: ButtonLedProjection,
 ) -> Transition:
     if not isinstance(mode, SteeringMode):
         raise ValueError("mode must be a supported SteeringMode value")
     if mode is SteeringMode.MANUAL:
         next_state = _establish_manual_assistance(state, _RestoreLevel(), config)
-        return Transition(next_state, _steering_state_effects(state, next_state))
+        return Transition(next_state, _steering_state_effects(state, next_state, leds))
     steering = state.steering
     normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_normal = replace(normal, mode=mode)
     # An explicit mode selection is a normal steering command, so it also
     # cancels the temporary maximum-assistance override.
     next_state = replace(state, steering=next_normal)
-    return Transition(next_state, _steering_state_effects(state, next_state))
+    return Transition(next_state, _steering_state_effects(state, next_state, leds))
 
 
 def _finish_steering_intent(
     previous: ApplicationState,
     current: ApplicationState,
+    leds: ButtonLedProjection,
 ) -> Transition:
-    return Transition(current, _steering_state_effects(previous, current))
+    return Transition(current, _steering_state_effects(previous, current, leds))
 
 
 def _steering_state_effects(
     previous: ApplicationState,
     current: ApplicationState,
+    leds: ButtonLedProjection,
 ) -> tuple[ApplicationEffect, ...]:
-    previous_effect = button_led_effect(previous)
-    current_effect = button_led_effect(current)
+    previous_effect = leds.effect(previous)
+    current_effect = leds.effect(current)
     return () if previous_effect == current_effect else (current_effect,)

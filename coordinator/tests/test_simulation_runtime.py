@@ -77,16 +77,12 @@ TEST_SIMULATOR_CONFIG = replace(
     ),
 )
 RESTING_LEDS = (
-    (
-        RGB_OFF,
-        SOFT_WHITE,
-        SOFT_WHITE,
-        SOFT_WHITE,
-        SOFT_WHITE,
-    )
-    + (RGB_OFF,) * 10
-    + (SOFT_WHITE,)
-)
+    RGB_OFF,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+) + (RGB_OFF,) * 11
 AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
 MANUAL_LEDS = (RGB_AMBER,) + RESTING_LEDS[1:]
 MAXIMUM_LEDS = (
@@ -596,7 +592,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
     assert button_led_rgb(current_application) == (
-        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 10 + (SOFT_WHITE,)
+        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 11
     )
     assert controller.topology.trace() == ()
 

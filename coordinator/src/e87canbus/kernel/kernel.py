@@ -17,11 +17,12 @@ from e87canbus.domain.button_bindings import (
     ButtonBindingProfile,
     built_in_button_binding_profile,
 )
+from e87canbus.domain.button_profiles import validate_saved_profile_revision
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
     ButtonLedPresenter,
+    ButtonLedProjection,
     Transition,
-    button_led_effect,
     clear_maximum_assistance,
     derived_button_led_state,
     execute_operator_intent,
@@ -216,31 +217,29 @@ class CoordinatorKernel:
         return min(deadlines) if deadlines else None
 
     def snapshot(self) -> ApplicationSnapshot:
-        return replace(
-            snapshot(
-                self._state,
-                self._steering_config,
-                self._engine_telemetry_config,
-                self._active_steering_curve,
-                self._steering_curve_activation_status,
-                self._servotronic_usable,
-                self._high_beam_strobe_config.button_index,
-                # ``curve_activation_available`` gates curve ACTIVATION in the UI.
-                self._servotronic_config_available or self._servotronic_output_available,
-            ),
-            button_pad_program=self._button_led_effect().program,
-            active_button_profile_id=self._button_binding_profile.profile_id,
-            active_button_profile_revision=self._button_profile_saved_revision,
+        return snapshot(
+            self._state,
+            self._steering_config,
+            self._engine_telemetry_config,
+            self._active_steering_curve,
+            self._steering_curve_activation_status,
+            self._button_leds(),
+            self._button_profile_saved_revision,
+            # ``curve_activation_available`` gates curve ACTIVATION in the UI.
+            self._servotronic_config_available or self._servotronic_output_available,
+        )
+
+    def _button_leds(self) -> ButtonLedProjection:
+        """The active bindings every LED derivation in this kernel is computed against."""
+
+        return ButtonLedProjection(
+            self._button_binding_profile,
+            self._servotronic_usable,
+            self._button_led_presenter,
         )
 
     def _button_led_effect(self) -> SetButtonPadProgram:
-        return button_led_effect(
-            self._state,
-            self._servotronic_usable,
-            self._high_beam_strobe_config.button_index,
-            self._button_binding_profile,
-            self._button_led_presenter,
-        )
+        return self._button_leds().effect(self._state)
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         """Install persisted state before the kernel begins processing inputs."""
@@ -261,10 +260,7 @@ class CoordinatorKernel:
             raise RuntimeError("initial button profile must be configured before startup")
         if not isinstance(profile, ButtonBindingProfile):
             raise TypeError("profile must be a ButtonBindingProfile")
-        if saved_profile_revision is not None and (
-            type(saved_profile_revision) is not int or saved_profile_revision < 1
-        ):
-            raise ValueError("saved_profile_revision must be a positive integer")
+        validate_saved_profile_revision(saved_profile_revision)
         self._button_binding_profile = profile
         self._button_profile_saved_revision = saved_profile_revision
 
@@ -481,6 +477,7 @@ class CoordinatorKernel:
             self._state,
             intent,
             self._steering_config,
+            self._button_leds(),
             context,
             active_definition=self._active_steering_curve.definition,
             high_beam_strobe_config=self._high_beam_strobe_config,
@@ -505,6 +502,7 @@ class CoordinatorKernel:
             self._steering_config,
             self._active_steering_curve.definition,
             self._high_beam_strobe_config,
+            self._button_leds(),
         )
         return self._commit_application_result(
             result,
@@ -622,16 +620,12 @@ class CoordinatorKernel:
             self._state,
             self._steering_config,
             self._active_steering_curve.definition,
+            self._button_leds(),
         )
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=self._gate_effects(
-                tuple(
-                    EffectRequest(effect)
-                    for effect in (self._button_led_effect(), *startup_effects[1:])
-                )
-            ),
+            effects=self._gate_effects(tuple(EffectRequest(effect) for effect in startup_effects)),
             changed_topics=INITIAL_KERNEL_TOPICS,
             state_changed=True,
         )
@@ -711,7 +705,9 @@ class CoordinatorKernel:
         return Commit(
             revision=self._revision,
             snapshot=self.snapshot(),
-            effects=self._gate_effects((EffectRequest(current_button_leds),)),
+            # Re-activating the profile already in force must not retransmit the pad
+            # program; only a real routing or identity change reaches the bus.
+            effects=self._gate_effects((EffectRequest(current_button_leds),) if changed else ()),
             changed_topics=frozenset({StateTopic.BUTTONS}) if changed else frozenset(),
             state_changed=changed,
         )
@@ -761,7 +757,7 @@ class CoordinatorKernel:
         """
 
         self._servotronic_reported_status = None
-        cleared = clear_maximum_assistance(self._state)
+        cleared = clear_maximum_assistance(self._state, self._button_leds())
         self._state = cleared.state
         return cleared.effects
 

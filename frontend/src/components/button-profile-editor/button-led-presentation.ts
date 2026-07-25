@@ -1,3 +1,12 @@
+/**
+ * Mirror of `coordinator/src/e87canbus/domain/controller/button_leds.py`
+ * (`derived_button_led_state`), duplicated here rather than served because the
+ * editor must preview a DRAFT profile that is not active and no endpoint can
+ * derive colours for one. The two implementations must be changed together;
+ * `button-led-presentation.test.ts` pins the RGB constants so a backend colour
+ * change fails here loudly. The upcoming authored-LED-presentation work is
+ * expected to remove the duplication.
+ */
 import type { SteeringState } from "@/api/live-contract.gen"
 import type { ButtonCommand } from "./types"
 
@@ -14,12 +23,24 @@ export type ButtonLedPresentationAdapter = (
   context: ButtonLedPresentationContext
 ) => ButtonLedRgb
 
-const OFF = [0, 0, 0] as const
-const BLUE = [0, 0, 255] as const
-const AMBER = [255, 191, 0] as const
-const WHITE = [255, 255, 255] as const
-const SOFT_WHITE = [8, 8, 8] as const
-const SOFT_AMBER = [8, 6, 0] as const
+/** Keyed by the backend constant name each colour is copied from. */
+export const BUTTON_LED_RGB = {
+  RGB_OFF: [0, 0, 0],
+  RGB_BLUE: [0, 0, 255],
+  RGB_AMBER: [255, 191, 0],
+  RGB_WHITE: [255, 255, 255],
+  SOFT_WHITE: [8, 8, 8],
+  SOFT_AMBER: [8, 6, 0],
+} as const satisfies Record<string, ButtonLedRgb>
+
+const {
+  RGB_OFF: OFF,
+  RGB_BLUE: BLUE,
+  RGB_AMBER: AMBER,
+  RGB_WHITE: WHITE,
+  SOFT_WHITE,
+  SOFT_AMBER,
+} = BUTTON_LED_RGB
 
 /**
  * Frontend counterpart of the default domain presenter.

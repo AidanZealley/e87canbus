@@ -296,7 +296,10 @@ class SqliteApplicationDatabase:
         timestamp = canonical_utc_timestamp(self.clock())
         definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
         connection.execute(
-            "INSERT INTO button_profiles VALUES (?, ?, 1, ?, ?, ?, ?, ?)",
+            """INSERT INTO button_profiles (
+                profile_id, name, revision, schema_version,
+                definition_json, definition_fingerprint, created_at_utc, updated_at_utc
+            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
             (
                 BUILT_IN_BUTTON_PROFILE_ID,
                 BUILT_IN_BUTTON_PROFILE_NAME,
@@ -316,7 +319,10 @@ class SqliteApplicationDatabase:
             timestamp = canonical_utc_timestamp(self.clock())
             definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
             connection.execute(
-                "INSERT INTO button_profiles VALUES (?, ?, 1, ?, ?, ?, ?, ?)",
+                """INSERT INTO button_profiles (
+                profile_id, name, revision, schema_version,
+                definition_json, definition_fingerprint, created_at_utc, updated_at_utc
+            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
                 (
                     BUILT_IN_BUTTON_PROFILE_ID,
                     BUILT_IN_BUTTON_PROFILE_NAME,
