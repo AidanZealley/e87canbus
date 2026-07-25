@@ -6,17 +6,17 @@ from typing import Any, cast
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.domain.application_settings import (
-    DEFAULT_APPLICATION_SETTINGS,
-    ApplicationSettings,
-    ApplicationSettingsUpdate,
-)
-from e87canbus.domain.profile_repository import SteeringProfileRepository
-from e87canbus.domain.settings_repository import (
+from e87canbus.domain.settings.repository import (
     ApplicationSettingsRepository,
     SettingsRevisionConflictError,
     SettingsStorageError,
 )
+from e87canbus.domain.settings.values import (
+    DEFAULT_APPLICATION_SETTINGS,
+    ApplicationSettings,
+    ApplicationSettingsUpdate,
+)
+from e87canbus.domain.steering.repository import SteeringProfileRepository
 from fastapi.testclient import TestClient
 
 

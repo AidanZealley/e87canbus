@@ -11,19 +11,19 @@ from e87canbus.adapters.sqlite_database import (
     ApplicationDatabaseError,
     SqliteApplicationDatabase,
 )
-from e87canbus.domain.application_settings import (
+from e87canbus.domain.settings.repository import (
+    ApplicationSettingsRepositoryError,
+    SettingsRevisionConflictError,
+    SettingsStorageError,
+    StoredSettingsDataError,
+)
+from e87canbus.domain.settings.values import (
     ApplicationSettings,
     ApplicationSettingsUpdate,
     SpeedUnit,
     TemperatureUnit,
     validate_application_settings_update,
     validate_expected_revision,
-)
-from e87canbus.domain.settings_repository import (
-    ApplicationSettingsRepositoryError,
-    SettingsRevisionConflictError,
-    SettingsStorageError,
-    StoredSettingsDataError,
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 

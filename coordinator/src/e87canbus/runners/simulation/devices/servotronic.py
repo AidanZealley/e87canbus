@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CustomCanIds
-from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
 from e87canbus.runners.simulation.devices.peer import SimulatedRegistryPeer
 

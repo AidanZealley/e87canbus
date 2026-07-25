@@ -19,14 +19,14 @@ from e87canbus.adapters.output import (
 )
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.domain.button_profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
-from e87canbus.domain.steering import ActiveSteeringCurve
+from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
     ActivateSteeringCurve,
@@ -194,7 +194,7 @@ def _effect_failure_input(
 
 
 class LiveControllerRuntime:
-    """SocketCAN reader/effect adapter selected behind ``ControllerService``."""
+    """SocketCAN reader/effect adapter selected behind ``ControllerLoop``."""
 
     def __init__(
         self,

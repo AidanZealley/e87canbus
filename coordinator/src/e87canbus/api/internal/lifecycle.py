@@ -11,14 +11,16 @@ from fastapi import FastAPI
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.live import LiveStatePublisher
-from e87canbus.domain.button_profiles import ButtonProfileRepository
-from e87canbus.domain.profile_repository import SteeringProfileRepository
-from e87canbus.domain.steering import initial_active_steering_curve
-from e87canbus.service import ControllerService, RuntimeExecution
+from e87canbus.domain.buttons.repository import ButtonProfileRepository
+from e87canbus.domain.steering.curves import (
+    initial_active_steering_curve,
+)
+from e87canbus.domain.steering.repository import SteeringProfileRepository
+from e87canbus.service import ControllerLoop, RuntimeExecution
 
 
 def create_lifespan(
-    service: ControllerService,
+    service: ControllerLoop,
     database: SqliteApplicationDatabase | None,
     profiles: SteeringProfileRepository,
     button_profiles: ButtonProfileRepository,

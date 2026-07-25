@@ -22,15 +22,15 @@ from e87canbus.deployment import (
     VehicleSource,
     deployment_spec,
 )
-from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.runners.live import LiveControllerRuntime
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
-from e87canbus.service import ControllerService
+from e87canbus.service import ControllerLoop
 
 
-def build_live_controller_service(
+def build_live_controller_loop(
     *,
     config: AppConfig | None = None,
     button_pad_source: DeviceSource | None = None,
@@ -40,7 +40,7 @@ def build_live_controller_service(
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
     deployment: DeploymentSpec | None = None,
     profile_database_path: str | Path | None = None,
-) -> ControllerService:
+) -> ControllerLoop:
     selected_deployment = deployment or deployment_spec(DeploymentProfile.CAR)
     if selected_deployment.transport is not CanTransport.SOCKETCAN:
         raise ValueError("live controller requires a SocketCAN deployment profile")
@@ -63,7 +63,7 @@ def build_live_controller_service(
         unused = ", ".join(sorted(network.value for network in unused_grants))
         raise ValueError(f"live CAN TX grant has no enabled transmitter: {unused}")
 
-    return ControllerService(
+    return ControllerLoop(
         LiveControllerRuntime(
             selected_config,
             button_pad_source=selected_button_pad,
@@ -84,7 +84,7 @@ def build_live_controller_service(
     )
 
 
-def build_simulated_controller_service(
+def build_simulated_controller_loop(
     *,
     config: AppConfig | None = None,
     button_pad_source: DeviceSource | None = None,
@@ -94,7 +94,7 @@ def build_simulated_controller_service(
     ] = SimulatedServotronicPeer,
     deployment: DeploymentSpec | None = None,
     profile_database_path: str | Path | None = None,
-) -> ControllerService:
+) -> ControllerLoop:
     selected_deployment = deployment or deployment_spec(DeploymentProfile.SIMULATOR)
     if selected_deployment.transport is not CanTransport.IN_MEMORY:
         raise ValueError("simulated controller requires an in-memory deployment profile")
@@ -115,7 +115,7 @@ def build_simulated_controller_service(
     if selected_button_pad is DeviceSource.EMULATED and not kcan_tx_enabled:
         raise ValueError("emulated button pad requires authorized simulated K-CAN output")
 
-    return ControllerService(
+    return ControllerLoop(
         SimulatedControllerRuntime(
             config=selected_config,
             button_pad_source=selected_button_pad,
@@ -128,14 +128,14 @@ def build_simulated_controller_service(
     )
 
 
-def build_controller_service(
+def build_controller_loop(
     profile: DeploymentProfile,
     *,
     config: AppConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
     profile_database_path: str | Path | None = None,
-) -> ControllerService:
+) -> ControllerLoop:
     """Build one of the closed operator-facing deployment profiles."""
 
     spec = deployment_spec(profile)
@@ -154,7 +154,7 @@ def build_controller_service(
             enabled_networks=frozenset(CanNetwork),
             tx_networks=spec.tx_grants,
         )
-        return build_simulated_controller_service(
+        return build_simulated_controller_loop(
             config=selected_config,
             button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
             clock=clock,
@@ -167,7 +167,7 @@ def build_controller_service(
         enabled_networks=spec.physical_networks,
         tx_networks=spec.tx_grants,
     )
-    return build_live_controller_service(
+    return build_live_controller_loop(
         config=selected_config,
         button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
         servotronic_source=spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER),

@@ -98,7 +98,7 @@ def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
             pass
 
         def run(self) -> None:
-            service = api_main.app.state.controller_service
+            service = api_main.app.state.controller_loop
             assert service is fatal_service
             service.fatal_exit_required = True
             service.stopped_event.set()
@@ -111,7 +111,7 @@ def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
 
     def create_app_with_fatal_service(**kwargs):
         app = original_create_app(**kwargs)
-        app.state.controller_service = fatal_service
+        app.state.controller_loop = fatal_service
         return app
 
     monkeypatch.setattr(cli, "create_app", create_app_with_fatal_service)

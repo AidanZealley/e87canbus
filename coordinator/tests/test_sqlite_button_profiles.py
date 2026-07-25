@@ -14,7 +14,7 @@ from e87canbus.adapters.sqlite_database import (
     CURRENT_MIGRATION_VERSION,
     SqliteApplicationDatabase,
 )
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.profiles import (
     BUILT_IN_BUTTON_PROFILE,
     ButtonProfileDefinition,
     canonical_button_profile_bytes,

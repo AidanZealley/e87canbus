@@ -32,8 +32,8 @@ from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import AppConfig
 from e87canbus.kernel import StateTopic
 from e87canbus.service import (
-    ControllerService,
-    ControllerServiceSnapshot,
+    ControllerLoop,
+    ControllerLoopSnapshot,
     PublisherDiagnostics,
     RuntimeExecution,
 )
@@ -59,7 +59,7 @@ class LiveStatePublisher:
     def __init__(
         self,
         sio: socketio.AsyncServer,
-        service: ControllerService,
+        service: ControllerLoop,
         config: AppConfig,
     ) -> None:
         self._sio = sio
@@ -73,7 +73,7 @@ class LiveStatePublisher:
         self._resource_capacity = config.live_publication.resource_capacity
         self._shutdown_timeout_s = config.live_publication.shutdown_timeout_s
         self._lock = threading.Lock()
-        self._pending_topics: dict[StateTopic, ControllerServiceSnapshot] = {}
+        self._pending_topics: dict[StateTopic, ControllerLoopSnapshot] = {}
         self._trace: deque[dict[str, object]] = deque(maxlen=self._trace_capacity)
         self._trace_session_id: int | None = None
         self._resources: deque[ResourceChangedEvent] = deque(maxlen=self._resource_capacity)
@@ -337,7 +337,7 @@ class LiveStatePublisher:
 
     @staticmethod
     def _envelope(
-        snapshot: ControllerServiceSnapshot,
+        snapshot: ControllerLoopSnapshot,
         data: EnvelopePayload,
     ) -> LiveEnvelope[EnvelopePayload]:
         return LiveEnvelope(
@@ -378,7 +378,7 @@ def install_socket_handlers(
         await publisher.unsubscribe_trace(sid)
 
 
-def _topic_data(topic: StateTopic, snapshot: ControllerServiceSnapshot) -> LiveData:
+def _topic_data(topic: StateTopic, snapshot: ControllerLoopSnapshot) -> LiveData:
     if topic is StateTopic.VEHICLE:
         return vehicle_state(snapshot)
     if topic is StateTopic.ENGINE:

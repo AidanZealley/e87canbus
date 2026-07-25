@@ -13,16 +13,16 @@ from e87canbus.adapters.sqlite_database import (
 )
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
-from e87canbus.domain.application_settings import (
-    DEFAULT_APPLICATION_SETTINGS,
-    SpeedUnit,
-)
-from e87canbus.domain.settings_repository import (
+from e87canbus.domain.settings.repository import (
     SettingsRevisionConflictError,
     SettingsStorageError,
     StoredSettingsDataError,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.settings.values import (
+    DEFAULT_APPLICATION_SETTINGS,
+    SpeedUnit,
+)
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     canonical_steering_curve_bytes,
 )
@@ -113,9 +113,7 @@ def test_version_1_upgrade_converts_legacy_profile_to_smooth(tmp_path: Path) -> 
     with sqlite3.connect(path) as connection:
         assert connection.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
-        ).fetchall() == [
-            (version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)
-        ]
+        ).fetchall() == [(version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)]
         columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
         stored_json = connection.execute(
             "SELECT definition_json FROM steering_profiles WHERE profile_id = ?",

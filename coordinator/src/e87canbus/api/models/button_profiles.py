@@ -5,8 +5,8 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from e87canbus.api.models.steering import CANONICAL_UUID_PATTERN, StrictRequest
-from e87canbus.domain.button_commands import BUTTON_COMMAND_CATALOGUE, ButtonCommandSpec
-from e87canbus.domain.button_profiles import BUTTON_PROFILE_NAME_MAX_LENGTH
+from e87canbus.domain.buttons.catalogue import BUTTON_COMMAND_CATALOGUE, ButtonCommandSpec
+from e87canbus.domain.buttons.profiles import BUTTON_PROFILE_NAME_MAX_LENGTH
 from e87canbus.domain.events import BUTTON_LED_COUNT
 
 

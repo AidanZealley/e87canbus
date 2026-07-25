@@ -22,7 +22,7 @@ from e87canbus.api.main import (
     create_app,
 )
 from e87canbus.deployment import CanTransport, DeploymentProfile
-from e87canbus.runners.composition import build_controller_service
+from e87canbus.runners.composition import build_controller_loop
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     selected_profile = DeploymentProfile(args.profile)
-    service = build_controller_service(
+    service = build_controller_loop(
         selected_profile,
         profile_database_path=args.profile_database,
     )
@@ -109,7 +109,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ[PROFILE_DATABASE_ENVIRONMENT_VARIABLE] = str(args.profile_database)
     os.environ[DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE] = selected_profile.value
     api_main.app = create_app(
-        controller_service=service,
+        controller_loop=service,
         profile_database_path=args.profile_database,
         cors_origins=args.cors_origins,
         frontend_directory=args.frontend_directory,
@@ -138,10 +138,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     def monitor_controller() -> None:
         while (
             not monitor_cancel.wait(0.05)
-            and not api_main.app.state.controller_service.stopped_event.is_set()
+            and not api_main.app.state.controller_loop.stopped_event.is_set()
         ):
             pass
-        if api_main.app.state.controller_service.fatal_exit_required:
+        if api_main.app.state.controller_loop.fatal_exit_required:
             server.should_exit = True
 
     monitor = threading.Thread(
@@ -158,9 +158,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if monitor.is_alive():
             raise RuntimeError("controller fatal monitor did not stop cleanly")
     return (
-        1
-        if (not server.started or api_main.app.state.controller_service.fatal_exit_required)
-        else 0
+        1 if (not server.started or api_main.app.state.controller_loop.fatal_exit_required) else 0
     )
 
 

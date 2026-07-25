@@ -10,8 +10,8 @@ import pytest
 from e87canbus.api.main import create_app
 from e87canbus.config import SimulationConfig, simulator_config
 from e87canbus.domain.events import SetSteeringAssistance, SteeringCommandReason
-from e87canbus.domain.steering import BUILT_IN_STEERING_CURVE
-from e87canbus.runners.composition import build_simulated_controller_service
+from e87canbus.domain.steering.curves import BUILT_IN_STEERING_CURVE
+from e87canbus.runners.composition import build_simulated_controller_loop
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
@@ -59,12 +59,12 @@ def make_app(
     servotronic_factory=SimulatedServotronicPeer,
 ):
     config = config or replace(simulator_config(), tick_interval_s=60.0)
-    service = build_simulated_controller_service(
+    service = build_simulated_controller_loop(
         config=config,
         servotronic_factory=servotronic_factory,
     )
     return create_app(
-        controller_service=service,
+        controller_loop=service,
         profile_database_path=path,
     )
 
@@ -154,7 +154,7 @@ def test_saved_profile_endpoint_returns_an_editable_builtin_profile(
 def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
     client: TestClient,
 ) -> None:
-    activate_simulation_devices(client.app.state.controller_service)
+    activate_simulation_devices(client.app.state.controller_loop)
     smooth = definition_json()
 
     saved = client.post(
@@ -165,7 +165,7 @@ def test_api_saves_and_activates_monotone_cubic_profiles_explicitly(
         "/api/steering/curve",
         json={"definition": smooth},
     )
-    active = client.app.state.controller_service.snapshot().application
+    active = client.app.state.controller_loop.snapshot().application
 
     assert saved.status_code == 201
     assert saved.json()["definition"] == smooth
@@ -298,18 +298,18 @@ def test_stale_delete_preserves_the_newer_profile(client: TestClient) -> None:
 
 
 def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
-    activate_simulation_devices(client.app.state.controller_service)
-    initial_curve = client.app.state.controller_service.snapshot().application.active_steering_curve
+    activate_simulation_devices(client.app.state.controller_loop)
+    initial_curve = client.app.state.controller_loop.snapshot().application.active_steering_curve
     applied_definition = definition_json(second_assistance=850)
 
     applied = client.put(
         "/api/steering/curve",
         json={"definition": applied_definition},
     )
-    active_after_apply = client.app.state.controller_service.snapshot().application
+    active_after_apply = client.app.state.controller_loop.snapshot().application
     catalog_after_apply = client.get("/api/steering/profiles").json()
     saved = create_profile(client, "Saved only")
-    curve_after_save = client.app.state.controller_service.snapshot().application
+    curve_after_save = client.app.state.controller_loop.snapshot().application
 
     assert applied.status_code == 200
     assert applied.json()["accepted"] is True
@@ -329,7 +329,7 @@ def test_apply_and_save_have_distinct_state_owners(client: TestClient) -> None:
 
 def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     saved = create_profile(client)
-    before = client.app.state.controller_service.snapshot().application
+    before = client.app.state.controller_loop.snapshot().application
 
     response = client.post(
         "/api/steering/activate-profile",
@@ -339,11 +339,11 @@ def test_stale_saved_profile_activation_is_rejected(client: TestClient) -> None:
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "profile_revision_conflict"
     assert response.json()["error"]["current_revision"] == 1
-    assert client.app.state.controller_service.snapshot().application == before
+    assert client.app.state.controller_loop.snapshot().application == before
 
 
 def test_matching_saved_profile_is_activated(client: TestClient) -> None:
-    activate_simulation_devices(client.app.state.controller_service)
+    activate_simulation_devices(client.app.state.controller_loop)
     saved = create_profile(client)
 
     response = client.post(
@@ -353,7 +353,7 @@ def test_matching_saved_profile_is_activated(client: TestClient) -> None:
             "expected_revision": saved["revision"],
         },
     )
-    active = client.app.state.controller_service.snapshot().application.active_steering_curve
+    active = client.app.state.controller_loop.snapshot().application.active_steering_curve
 
     assert response.status_code == 200
     assert response.json()["accepted"] is True
@@ -446,7 +446,7 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
     )
 
     with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_service)
+        activate_simulation_devices(app.state.controller_loop)
         with ThreadPoolExecutor(max_workers=3) as pool:
             first = pool.submit(
                 client.post,
@@ -459,9 +459,9 @@ def test_activation_queue_overload_is_bounded(tmp_path: Path) -> None:
                 "/api/dev/simulation/devices/button-pad/buttons/0/tap",
             )
             deadline = time.monotonic() + 1.0
-            while app.state.controller_service.inbox_depth != 1 and time.monotonic() < deadline:
+            while app.state.controller_loop.inbox_depth != 1 and time.monotonic() < deadline:
                 pass
-            assert app.state.controller_service.inbox_depth == 1
+            assert app.state.controller_loop.inbox_depth == 1
             overloaded = pool.submit(
                 client.put,
                 "/api/steering/curve",
@@ -500,11 +500,11 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
     )
 
     with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_service)
+        activate_simulation_devices(app.state.controller_loop)
         saved = create_profile(client)
         speed = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 10.0})
         assert speed.status_code == 200
-        before = app.state.controller_service.snapshot()
+        before = app.state.controller_loop.snapshot()
         activation = client.post(
             "/api/steering/activate-profile",
             json={
@@ -513,7 +513,7 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
             },
         )
         fetched = client.get(f"/api/steering/profiles/{saved['profile_id']}")
-        runtime_snapshot = app.state.controller_service.snapshot()
+        runtime_snapshot = app.state.controller_loop.snapshot()
 
     assert before.diagnostics.health.fatal is False
     assert activation.status_code == 200
@@ -533,7 +533,7 @@ def test_save_then_failed_activation_records_nonfatal_adapter_fault(tmp_path: Pa
 def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     client: TestClient,
 ) -> None:
-    activate_simulation_devices(client.app.state.controller_service)
+    activate_simulation_devices(client.app.state.controller_loop)
     applied_definition = definition_json(second_assistance=850)
     applied = client.put(
         "/api/steering/curve",
@@ -541,7 +541,7 @@ def test_runtime_snapshot_and_profile_resource_remain_authoritative(
     )
     assert applied.status_code == 200
 
-    snapshot = client.app.state.controller_service.snapshot()
+    snapshot = client.app.state.controller_loop.snapshot()
     created = client.post("/api/steering/profiles", json=profile_payload())
 
     assert (

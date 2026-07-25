@@ -30,7 +30,7 @@ async def live() -> LivenessResponse:
     responses={503: {"model": ReadinessResponse}},
 )
 async def ready(request: Request) -> JSONResponse:
-    service = request.app.state.controller_service
+    service = request.app.state.controller_loop
     payload = ReadinessResponse(
         status="ready" if service.ready else "not_ready",
         boot_id=service.boot_id,

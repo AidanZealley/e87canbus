@@ -1,283 +1,214 @@
 # Coordinator
 
-The coordinator is the central Python application deployed to the Raspberry Pi. It owns
-authoritative application state and coordinates vehicle inputs, project devices, and the frontend.
+The Python application that runs on a Raspberry Pi in an E87 BMW. It reads the car's CAN
+networks, drives a custom button pad and a Servotronic steering controller, and serves the
+web UI. It owns the authoritative application state: everything else asks it or watches it.
 
-## Source map
+The code layout is explained in the `e87canbus.domain` package docstring, which is the
+best starting point for how the system is put together. This file covers what it does,
+how to run it, and the boundaries that matter.
 
-Every top-level folder is one architectural layer. Dependencies point inward:
-`api`/`cli` and the runners → `service` → `kernel` → `domain`. The layering is
-enforced in CI by `uv run lint-imports` (contracts in `pyproject.toml`).
+## The one idea worth knowing
 
-- `src/e87canbus/domain/` — the pure core: state, events, operator intents, steering
-  math, the device catalogue/registry and the button-pad program model. No I/O, no
-  framework, no async. Start here when changing what the system does.
-- `src/e87canbus/kernel/` — the single-owner state machine: ordered `ControllerInput`
-  values, `Commit`s, projection topics and runtime health.
-- `src/e87canbus/service/` — bounded controller inbox, owner thread, timer, lifecycle
-  and the published service snapshot/diagnostics.
-- `src/e87canbus/protocol/` — CAN frame types and wire codecs (encoding/decoding).
-- `src/e87canbus/transport/` — ISO-TP framing.
-- `src/e87canbus/adapters/` — driven adapters: effect execution, CAN I/O, SocketCAN,
-  and SQLite persistence.
-- `src/e87canbus/api/` — the HTTP + Socket.IO driving adapter (`routes` → `internal`
-  use-cases → `models` DTOs).
-- `src/e87canbus/cli/` — executable entry points and bench utilities.
-- `src/e87canbus/runners/` — the compositions that wire the layers above for a live
-  or simulated deployment: `composition` (service factory), `live` (SocketCAN runtime
-  adapter) and the in-memory `simulation/` engine.
-- `config.py`, `deployment.py` — foundational descriptors read across layers: app-wide
-  configuration and the deployment/adapter spec that `runners` compose from.
-- `tests/` — tests arranged to mirror the source responsibilities.
+Everything flows through a single mutation path, and nothing mutates state concurrently.
 
-The outer `coordinator/` directory names the deployable component. The inner `src/e87canbus/`
-directory is the project-specific import namespace, following Python's conventional `src` layout.
-This is why code imports `e87canbus.domain` even though it is deployed as the coordinator.
-
-## Steering curve profile contract
-
-`domain/steering.py` owns the immutable steering-curve definition and stored-profile metadata
-values. Schema version 1 contains exactly eight explicit speed points at `0, 10, 20, 30, 60, 100,
-160, and 250 km/h`. Authoritative values use integer tenths of km/h (`speed_deci_kph`) and integer
-per-mille assistance (`assistance_per_mille`, `0..1000`) and requires assistance to be
-non-increasing as speed rises. Curve definitions contain points only; the smooth evaluator uses
-the checked-in Steffen/Hermite contract in the shared
-[golden conformance vectors](../test-fixtures/steering/monotone-cubic-v1-vectors.json), including
-endpoint hold, exact control-point values, binary64 tolerance and final `0..1` clamping. Python
-and TypeScript load the same fixture.
-
-Definition identity is the lowercase SHA-256 digest of compact, key-sorted UTF-8 JSON containing
-only `schema_version`, `interpolation`, and the ordered integer point fields. Profile IDs, names,
-revisions, and timestamps are excluded. Stored timestamps use UTC ISO 8601 with six fractional
-digits and a trailing `Z` (for example, `2026-07-14T10:30:00.000000Z`). Profile validation and
-fingerprinting are pure coordinator functions with no FastAPI or persistence dependency.
-
-The active curve is an immutable kernel-owned runtime value, not part of `SteeringConfig`.
-`ActiveSteeringCurve` carries the complete validated definition, fingerprint, runtime-local
-activation revision and optional matching saved profile ID/revision. Startup composition selects
-the built-in or a previously loaded saved definition before constructing the kernel; a new runtime
-starts at activation revision 1, so an unsaved activation does not survive reconstruction.
-`ActivateSteeringCurve` is the only ordered mutation path. A changed definition increments both the
-kernel commit revision and activation revision and immediately recalculates output only when Auto
-mode has a fresh speed sample. Identical definitions emit no steering command and retain the
-activation revision, while a changed saved-profile association is still published as metadata.
-Current in-process activation completes with status `active`; snapshots reserve `activating` and
-`activation_failed` for a future asynchronous consumer without implementing controller transport.
-The kernel activation boundary also carries the consumer's explicit supported-interpolation set.
-An unsupported definition is rejected before state or revision changes, and the API reports
-`unsupported_interpolation` with the supported versions rather than substituting a linear curve.
-
-`features/profile_repository.py` defines the persistence boundary and typed not-found, revision,
-name-conflict and storage failures. `adapters/sqlite_profiles.py` implements it with the standard
-library SQLite driver. `adapters/sqlite_database.py` owns the shared connection policy and ordered
-schema migrations; composition initializes it once during API lifespan startup. Migration 1 retains
-the steering catalog and stable profile seed exactly, while migration 2 adds the singleton
-application-settings document. Initialization uses an exclusive transaction, enables WAL journaling
-with `FULL` synchronous durability and fails closed on unsupported future versions. Operations use
-short-lived connections and each mutation is one transaction. Lists are ordered by
-case-insensitive name and profile ID, updates/deletes require an expected revision, and reads fail
-closed unless redundant columns, canonical definition JSON and the stored fingerprint agree.
-
-The unified API composes the profile and settings repositories over that shared database. Its
-default path is `steering-profiles.sqlite3` in the process working directory;
-`e87canbus run --profile simulator --profile-database PATH` (or
-`E87CANBUS_PROFILE_DATABASE` for import-string deployment) selects a different file.
-Startup applies migrations and seeding before accepting requests. Tests and other compositions can
-inject the repositories independently.
-
-The API accepts browser requests from the loopback Vite server on port 5173 by default. When an
-isolated development frontend uses another port, pass its exact origin with repeatable
-`--cors-origin`, for example `--cors-origin http://127.0.0.1:15173`. This remains an explicit
-development allowlist; it does not broaden the deployment or authentication boundary.
-
-`features/application_settings.py` owns the immutable speed/temperature unit preferences, canonical
-Celsius thresholds and integer RPM shift thresholds. `/api/settings` returns the complete revisioned
-document and replaces all editable fields with an expected-revision `PUT`. Successful commits
-increment once, receive one canonical UTC timestamp and publish a precise `resources.changed`
-event for `settings`; stale writers receive a typed `409`, while corrupt or unavailable
-storage is a typed `503`. Theme remains browser-local and is absent from this contract.
-
-`/api/steering/profiles` exposes list/create plus get/update/delete by profile ID. Create and update
-accept one complete integer-unit definition; update and delete require `expected_revision`, with
-delete carrying it as a query parameter. Responses contain the complete committed profile.
-Saved profiles are activated by identity and expected revision through
-`POST /api/commands/activate-steering-profile`; an unsaved editor draft uses the explicit
-idempotent `PUT /api/commands/steering-curve` command. Maximum assistance and steering mode use
-their corresponding `PUT /api/commands/*` set commands. Every command enters the bounded
-controller service and returns only `accepted`, `boot_id` and the matched commit `revision`;
-handlers never dispatch the kernel directly. The active curve is live operational state and is
-published only in `controller.snapshot` and `steering.state`, not through an overlapping HTTP read
-facade. Save and activation remain separate operations.
-
-API failures use `{ "error": { "code", "message", ... } }`. Validation is `422`, missing profiles
-are `404`, name/revision conflicts are `409`, and storage, timeout, unavailable adapter or
-bounded-owner overload is `503`. Revision conflicts also return
-`current_revision`. Successful saved CRUD publishes an exact `resources.changed` event
-with resource ID and revision. Reconnecting clients receive the full
-active curve in the normal authoritative snapshot and refetch the profile list, so no draft edits
-or missed-event replay are required.
-
-Socket.IO is mounted with FastAPI at `/socket.io` and uses one namespace. Every connection receives
-`controller.snapshot`, containing protocol version 1, the opaque service `boot_id`, a monotonic
-boot-scoped revision, fixed per-topic revisions and every current projection. Incremental server
-events are `vehicle.state`, `engine.state`, `steering.state`, `buttons.state`, `devices.state`,
-`controller.health`, `resources.changed`, and opt-in `trace.batch`. Only
-`controller.resync`, `trace.subscribe`, and `trace.unsubscribe` are accepted from sockets; business
-commands remain HTTP-only. Vehicle and engine values coalesce to 25 Hz, topic handoff retains one
-latest unsent value, trace storage/batches and resource changes are bounded, and each Engine.IO
-client has a finite 64-packet outbound queue. A client that fills that queue is disconnected and
-counted as a transport saturation instead of blocking publication or losing arbitrary protocol
-packets. No network client can block the controller owner or effect execution. Publisher and socket
-shutdown share one two-second deadline and cancel all remaining publication tasks if it expires.
-The generated contract is documented in
-`protocol/README.md`. The repository frontend owns one Socket.IO connection outside the React tree.
-There is no raw WebSocket or HTTP live-snapshot compatibility path.
-
-Health publication is framework-independent and process-local. It reports readiness and fatal truth;
-explicit network, device and steering faults; bounded inbox depth, capacity, current latency, warning
-and overflow truth; persistence availability; and publisher running/fault state, failures,
-trace/resource drops and slow-client queue saturations. Network availability and selected device
-evidence remain in `devices.state` rather than being copied into health. Only the fixed trace ring
-retains per-frame detail. Controller health is coalesced to one publication per second, while urgent
-state topics keep their existing delivery behavior. A failed publisher records transport health
-without notifying itself recursively. Persistence, readiness and decision-useful publisher changes
-advance the service and health-topic revisions even when controller input is idle, so synchronized
-clients do not discard them as stale.
-
-The failure policy is explicit: a fatal reader, inbox overflow, CAN output or steering-actuator fault
-enters the ordered safe shutdown path once; unknown output outcomes are never retried. Queue overflow
-latches, rejects new commands and stops normal ingestion. Queue timestamps are retained and a
-warning is logged when latency crosses into the configured warning state. Storage failure rejects
-only the affected resource operation and does not rewrite already-loaded controller state. Emulator
-failure becomes typed adapter health and
-does not claim physical device behavior. Shutdown marks not-ready, stops ingress, commits the safe
-request, drains only bounded work, stops publication, then closes adapters and short-lived database
-resources. The complete owner/behavior table and recorded soak metrics are in
-[`docs/reliability.md`](../docs/reliability.md).
-
-The simulator server defaults to loopback and permits the two local Vite development origins. It is
-unauthenticated and is not an authorization boundary for an in-car writable deployment. Do not use
-`--host` to expose it beyond loopback until authentication, origin policy, and editing-while-moving
-policy have been defined separately from curve validation.
-
-The kernel's `dispatch` method is the only application-state mutation path. Startup, received frames,
-periodic timers, curve activations, reader and effect faults, inbox overflow, and shutdown enter that
-ordered path. Timed inputs carry explicit observation times. Each decoded event runs through a pure
-transition; the kernel commits the returned state and revision before the calling composition
-executes the commit's ordered effects. Unknown CAN traffic creates no application commit. Reader,
-CAN-effect, inbox-overflow, and steering-actuator faults update typed immutable diagnostics; the live
-runner consumes fatal health and exits non-zero. Speed evaluation time cannot regress, so an older
-timer or delayed frame cannot make stale data fresh. The simulator adds a synthetic speed decoder
-that is not imported or enabled by live composition; no verified BMW speed decoder is configured.
-
-The coordinator does not automatically forward frames between networks. Transmission is denied by
-the absence of a safe transmitter capability and explicitly granted per network with `tx_enabled`.
-Every granted write passes the holistic per-network window in `tx_policy`. Its default maximum of
-20 frames in any rolling second is one coordinator-wide flood budget on each network, shared across
-all arbitration IDs. Using a conservative upper bound of 135 wire bits for a standard-ID DLC-8
-Classic CAN frame, that ceiling allocates at most 2,700 bit/s: 2.7% of 100 kbit/s K-CAN and 0.54% of
-a 500 kbit/s network before errors or retransmissions. This is a safety ceiling rather than an
-intended send cadence; it is not derived from LED count, startup output, or human timing. A dropped
-frame is logged and discarded, not queued, so a later complete state converges without replaying an
-intermediate output. Live reader threads only receive, timestamp, and enqueue into the configured
-bounded inbox; the controller owner thread alone dispatches kernel inputs and executes effects.
-Queue latency is
-logged without changing observation time.
-Overflow, a repeatedly failing reader, or an effect I/O failure becomes visible kernel health and
-ends the controller lifecycle. SocketCAN interfaces are closed independently so one shutdown error
-cannot prevent later interfaces from closing.
-
-The controller service owns one bounded inbox and dedicated owner thread in live and simulated
-composition. It serializes button-device commands, persistent synthetic vehicle-speed selection and
-silence, control timers, resets, kernel commits and ordered effects. Before each control timer, a
-selected speed is re-emitted by the external vehicle and decoded through the kernel. The canonical
-service projection supplies Socket.IO topic values including simulation session identity and the
-ideal simulated controller's dimensionless assistance, optional last accepted command reason and
-watchdog state. The service revision remains monotonic across simulation reset while the session
-identity and trace sequence restart. An output fault terminates the session after one committed
-shutdown attempt; normal
-commands are rejected until reset creates a fresh kernel at revision one. A reset-time shutdown
-fault is recorded on the stopped session and retained in logs while the canonical service and
-Socket.IO projection report the new session. Socket.IO sends have a finite timeout, and every
-Engine.IO client has a separate
-finite packet capacity. The bounded publisher
-is detached from the controller owner, so a stalled peer can delay only browser publication while
-latest topic values replace older pending values; a saturated peer is then disconnected. Incremental
-trace frames use the session ID with their reset-local sequence number.
-
-The high-beam strobe is a separately scheduled simulator feature, not a BMW protocol claim.
-Button `4` starts one bounded five-cycle flash-to-pass plan: 80 ms asserted and 80 ms deasserted
-per cycle. Each transition produces a private synthetic extended K-CAN command to the virtual
-vehicle, which exposes its observed high-beam state; those Pi-to-vehicle commands remain in the
-normal simulated trace. The live composition has no high-beam actuator and the live
-`ProtocolRouter` has no encoding or decoding for this frame, so enabling live K-CAN TX alone cannot
-enable or transmit this output.
-
-Every development action returns only `accepted` and the process `boot_id`. It does not report a
-revision or session because later queued work may complete before the HTTP coroutine resumes. It
-never returns or owns a parallel live snapshot; clients converge from Socket.IO state.
-
-The same simulated vehicle can independently select or silence RPM, oil temperature and coolant
-temperature. Each value uses its own unmistakably simulation-only extended PT-CAN frame adjacent
-to the synthetic speed identifier, then follows normal ingress, routing, transition and live-state
-publication. These identifiers are not BMW candidates and remain absent from `ProtocolRouter`.
-RPM is canonical integer RPM; temperatures are canonical tenths of a degree Celsius. The
-application retains observations internally but projects `null` with `never_observed` or `stale`
-when no current value is usable. A separate `EngineTelemetryConfig` owns the one-second timeout,
-and every active signal is re-emitted before each ordered control-timer evaluation.
-
-Composition selects the repository-owned button pad as `physical`, `emulated`, or `disabled`, with
-exactly one source per role. Physical input is accepted only by live SocketCAN; emulated input is
-accepted only from the virtual K-CAN device; disabled omits the capability. The projection separates
-controller-desired LEDs from
-device-observed LEDs. The emulator may report connection and observation because it decodes the
-actual output frame. A physical pad has no acknowledgement, so its connection and observed LEDs
-remain unknown. No heartbeat or manually selected presentation-health state exists.
-
-The provisional custom protocol is defined in `protocol/custom.toml`. Its generator owns the Python
-wire constants, firmware header, and marked Markdown tables; `--check` and the test suite reject
-single-artifact drift in IDs, lengths, byte positions, state values, or colour codes.
-The coordinator resolves exactly one effect track per button and emits one canonical
-`SetButtonPadProgram`. Its ordered 16-byte ISO-TP commands begin with replace-all and commit on the
-final command, atomically starting all 16 tracks. The simulator and physical NeoTrellis decode the
-same v2 wire representation; invalid or incomplete programs do not expose a partial scene.
-
-## Running the unified controller
-
-Bring up every SocketCAN interface required by the selected profile at its configured bitrate,
-then run:
-
-```bash
-uv run e87canbus run --profile car
+```
+CAN frame ─┐
+HTTP req  ─┼─▶ bounded inbox ─▶ ControllerLoop ─▶ kernel.dispatch(one input)
+timer     ─┘   (one thread)                            │
+                                                       ▼
+                                       pure domain decides: next state + effects
+                                                       │
+                                                       ▼
+                                     Commit ─▶ effects executed ─▶ CAN out
+                                            └▶ snapshot published ─▶ Socket.IO
 ```
 
-The `car` profile opens all three networks with application transmission disabled and exposes
-the API after startup synchronization. It does
-not claim SocketCAN kernel or hardware listen-only mode; configure that separately as an additional
-deployment defense. K-CAN transmission is granted only by the isolated simulator and bench
-compositions. Custom IDs `0x700`, `0x708`, and `0x709` still require collision validation before any future
-in-car transmission grant; see [the custom CAN ID registry](../protocol/custom_ids.md).
+- The **domain** is pure. No I/O, no clock, no threads. Time is passed in as an argument.
+- The **kernel** owns the state and is the only thing that changes it, one input at a time,
+  in order. Unknown CAN traffic produces no commit at all.
+- The **ControllerLoop** is the single thread allowed to call the kernel. That is why the
+  kernel needs no locks. Web requests and CAN readers queue work; they never dispatch.
+- **Effects are described, then performed.** The domain returns "send this frame" as a
+  value; adapters carry it out after the commit lands. A failed effect is health, not a
+  half-applied state change.
 
-The simulated high-beam frame is not in that custom registry and is not a BMW candidate. Any future
-live high-beam work requires named captures of stalk pull and release, verified counter/checksum and
-message-cadence behavior, then controlled vehicle validation and a newly explicit live actuator
-capability. It must not be enabled by changing a generic K-CAN transmit grant.
+Practical consequence: to change behaviour, change a pure function and test it without a
+car. To change *when* things happen, look at the loop and the runners.
 
-Run the development simulator with `uv run e87canbus run --profile simulator`. The `bench`
-profile installs only synthetic vehicle routes, the `simulator` profile installs the complete
-development API, and the `car` profile returns `404` for every simulation-owned path. All profiles
-use the same HTTP/Socket.IO application composition. Device sources, network enablement, transmit
-grants and simulation API scope are fixed by the selected profile and cannot be recombined through
-CLI flags. Use `--log-level` to change logging verbosity.
-`uv run e87canbus run --profile car --dry-run` prints the selection without opening CAN interfaces.
+## Deployment profiles
 
-SocketCAN profiles default to loopback, serve an optional built `frontend/dist` with
-`--frontend-directory`, registers no development mutation routes and enables no development CORS
-origins. A non-loopback live bind is rejected because this API is unauthenticated. `/health/live`
-proves the event loop responds and `/health/ready` proves the database and non-fatal controller are
-ready. The canonical CLI observes a fatal owner stop and returns non-zero for supervised restart.
-Install and operate it with the checked-in [systemd template](../deploy/README.md).
+One flag picks the entire composition. Device sources, network access, transmit grants and
+which API routes exist are fixed by the profile and cannot be recombined with other flags.
 
-Software tests have proved the controller failure paths only against simulation and injected
-adapters. Real steering failsafe work remains blocked until speed frames and the actuator boundary
-are backed by named captures and hardware evidence. Placeholder candidate IDs remain non-executable.
+| | `car` | `bench` | `simulator` |
+|---|---|---|---|
+| CAN transport | SocketCAN | SocketCAN | in-memory |
+| Button pad / Servotronic | physical | physical | emulated |
+| Vehicle | physical | emulated | emulated |
+| Networks opened | all three | K-CAN only | none |
+| **Transmit granted** | **none** | K-CAN | K-CAN |
+| Simulation API | absent (404) | vehicle only | full |
+
+All three run the same HTTP and Socket.IO application. `car` transmits nothing: in-vehicle
+CAN transmission stays denied until it is separately validated.
+
+## Running it
+
+```bash
+uv run e87canbus run --profile simulator        # development, no hardware
+uv run e87canbus run --profile car              # on the Pi
+uv run e87canbus run --profile car --dry-run    # print the selection, open nothing
+```
+
+Bring up the SocketCAN interfaces the profile needs, at their configured bitrates, before
+starting a SocketCAN profile. For the Pi, use the checked-in
+[systemd template](../deploy/README.md).
+
+Useful flags: `--profile-database PATH` (defaults to `steering-profiles.sqlite3` in the
+working directory, or `E87CANBUS_PROFILE_DATABASE`), `--frontend-directory` to serve a
+built frontend, `--cors-origin` to allow an extra dev origin, `--log-level`, `--host`,
+`--port`.
+
+`/health/live` proves the event loop responds. `/health/ready` proves the database is
+migrated and the controller is not fatally faulted. A fatal controller stop exits non-zero
+so a supervisor restarts it.
+
+## Live state versus commands
+
+The split is deliberate and absolute:
+
+- **Socket.IO carries state, one namespace at `/socket.io`.** On connect a client gets
+  `controller.snapshot` — the complete current projection, a boot ID and per-topic
+  revisions. After that it gets incremental `vehicle.state`, `engine.state`,
+  `steering.state`, `buttons.state`, `lighting.state`, `devices.state`,
+  `controller.health`, `resources.changed` and opt-in `trace.batch`. Only resync and trace
+  subscription are accepted *from* a socket.
+- **HTTP carries commands.** Every command enters the bounded inbox and returns just
+  `accepted`, `boot_id` and the commit `revision`. Handlers never touch the kernel directly.
+
+No client can slow the controller. Publication is coalesced on a timer — telemetry at 25 Hz,
+health at 1 Hz, trace at 10 Hz by default — each topic keeps only its latest unsent value,
+and every client has a finite outbound queue. Fill it and you are disconnected and counted,
+rather than blocking anyone else. Reconnecting clients get a full snapshot, so there is no
+missed-event replay to reason about.
+
+The wire contract is generated, not hand-written; see [`protocol/README.md`](../protocol/README.md).
+
+## Durable state
+
+SQLite, one file, standard-library driver. Ordered migrations run once inside an exclusive
+transaction at startup, WAL journaling with `FULL` synchronous durability, and it fails
+closed on a database newer than the code.
+
+Everything user-editable — steering profiles, button profiles, application settings — is
+**revisioned**. Writes carry the revision you expect to replace; if it moved, you get a
+`409` with the current revision rather than silently clobbering. Rows are read back
+defensively: redundant columns, canonical JSON and the stored fingerprint must agree or the
+read fails.
+
+Errors are typed and consistent: `422` validation, `404` missing, `409` conflict (name or
+revision), `503` storage or overload. Successful writes publish a precise
+`resources.changed` event carrying the resource ID and new revision.
+
+## Steering curves
+
+A curve is eight explicit speed points at 0, 10, 20, 30, 60, 100, 160 and 250 km/h. Values
+are integers throughout — tenths of km/h and per-mille assistance (0–1000) — and assistance
+must not increase with speed. Between points, a Steffen/Hermite evaluator is pinned by
+[golden vectors](../test-fixtures/steering/monotone-cubic-v1-vectors.json) that Python and
+TypeScript both load, so the browser preview and the car agree exactly.
+
+A curve's identity is the SHA-256 of its canonical JSON — points and schema version only,
+never its name or timestamps. The active curve is kernel-owned runtime state, not
+configuration. Saving and activating are separate operations: activating a saved profile
+goes by ID and expected revision, while an unsaved editor draft is pushed as an explicit
+idempotent command.
+
+## Button profiles
+
+The pad has sixteen buttons. A profile says what each one does, as sixteen slots holding an
+assignable command or nothing. Profiles are stored, revisioned and editable from the UI, and
+the selected one survives restarts.
+
+The set of assignable commands lives in exactly one place — `domain/buttons/catalogue.py`.
+The storage codec, the HTTP schema and each button's idle LED colour are all derived from
+it, so adding a command means adding a catalogue entry and an intent, then answering the
+questions type-checking asks. LED colour follows what a button *does*, never which button
+it is, so moving a command moves its colour with it.
+
+Values whose legal range depends on the car — an assistance stage that this configuration
+does not have — are rejected when the profile is saved, and degrade to a red feedback blink
+if a profile stored before a configuration change is pressed.
+
+## Safety boundaries
+
+These are the constraints that stop a bug becoming a car problem. Treat them as load-bearing.
+
+**Transmission is denied by absence, not by a flag.** There is no safe transmitter unless a
+network is explicitly granted `tx_enabled`. The `car` profile grants none.
+
+**Every granted write passes a rate ceiling.** By default 200 frames per rolling second per
+network, shared across all arbitration IDs — a coordinator-wide flood budget, not a send
+cadence. At a conservative 135 bits for a standard-ID DLC-8 frame that caps us at about
+27 kbit/s: roughly 27% of a 100 kbit/s K-CAN and 5% of a 500 kbit/s network. A frame over
+budget is dropped and logged, never queued, so state converges from the next complete
+output instead of replaying a stale intermediate one.
+
+**Nothing is bridged between networks automatically.** Any cross-network forwarding would
+have to be written deliberately.
+
+**The API is unauthenticated and binds to loopback.** A non-loopback bind is rejected for
+SocketCAN profiles. Do not expose it until authentication, origin policy and an
+editing-while-moving policy exist. The simulator is a development tool, not an
+authorization boundary.
+
+**The high-beam strobe is simulator-only.** It is a synthetic frame to a virtual car, not a
+BMW protocol claim. The live router cannot encode or decode it, so granting live K-CAN
+transmission cannot enable it. Making it real needs captures of stalk pull and release,
+verified counter and checksum behaviour, vehicle validation, and a new explicit actuator
+capability — never a widened generic grant.
+
+**There is no verified speed decoder.** The simulator uses a synthetic one that live
+composition never imports. Custom IDs `0x700`, `0x708` and `0x709` still need collision
+validation before any in-car transmit grant; see the
+[custom CAN ID registry](../protocol/custom_ids.md).
+
+Failure paths have been proved against simulation and injected adapters only. Real steering
+failsafe work stays blocked until speed frames and the actuator boundary have hardware
+evidence behind them.
+
+## When things go wrong
+
+A fatal reader fault, inbox overflow, CAN output failure or steering-actuator fault enters
+the ordered safe-shutdown path exactly once. Unknown output outcomes are never retried.
+Overflow latches: new commands are rejected rather than queued indefinitely.
+
+Failures are scoped to what actually failed. A storage error rejects that one operation and
+leaves loaded controller state alone. An emulator failure is reported as emulator health and
+never claims physical device behaviour.
+
+Shutdown is ordered: mark not-ready, stop ingress, commit the safe request, drain only
+bounded work, stop publishing, then close adapters and database handles. CAN interfaces
+close independently so one failure cannot strand the others.
+
+The full owner/behaviour table and soak metrics are in
+[`docs/reliability.md`](../docs/reliability.md).
+
+## Working on it
+
+```bash
+uv run pytest -q         # tests
+uv run mypy              # types
+uv run ruff check .      # lint
+uv run lint-imports      # layering contracts — see pyproject.toml
+```
+
+The layering is enforced, not merely documented: `lint-imports` fails if the domain reaches
+outward or the controller flow inverts.
+
+Two contracts are generated and checked rather than maintained by hand — the CAN protocol
+from `protocol/custom.toml`, and the OpenAPI and live-event schemas from the API models.
+Both have a `--check` mode that CI runs, so a single-artifact drift in IDs, byte positions,
+colour codes or request shapes fails the build. Regenerate rather than editing generated
+files.

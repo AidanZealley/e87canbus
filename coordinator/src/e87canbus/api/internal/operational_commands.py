@@ -26,9 +26,9 @@ from e87canbus.domain.intents import (
     SetManualAssistanceLevel,
     SetMaximumAssistance,
 )
-from e87canbus.domain.profile_repository import SteeringProfileRepository
 from e87canbus.domain.state import SteeringMode
-from e87canbus.domain.steering import SteeringCurveDefinition
+from e87canbus.domain.steering.curves import SteeringCurveDefinition
+from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.kernel import (
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
@@ -63,7 +63,7 @@ async def set_manual_assistance_level(
     request: SetManualAssistanceLevelRequest,
 ) -> CommandAcknowledgement:
     manual_level = request.level
-    manual_level_count = app.state.controller_service.config.steering.manual_level_count
+    manual_level_count = app.state.controller_loop.config.steering.manual_level_count
     if manual_level >= manual_level_count:
         raise ApiProblem(
             422,

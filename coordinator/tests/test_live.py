@@ -13,7 +13,7 @@ from e87canbus.config import (
     default_config,
     simulator_config,
 )
-from e87canbus.domain.device import DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceSource
 from e87canbus.kernel import (
     CanReaderFailed,
     ControllerInput,
@@ -21,11 +21,11 @@ from e87canbus.kernel import (
 )
 from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
 from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
-from e87canbus.runners.composition import build_live_controller_service
+from e87canbus.runners.composition import build_live_controller_loop
 from e87canbus.runners.live import read_frames_into_queue
 from e87canbus.service import (
-    ControllerServiceError,
-    ControllerServiceLifecycle,
+    ControllerLoopError,
+    ControllerLoopLifecycle,
 )
 
 
@@ -205,7 +205,7 @@ def test_canonical_live_service_reports_queue_latency_without_rewriting_ingress_
         tick_interval_s=10.0,
         runtime_queue_latency_warning_s=1.0,
     )
-    service = build_live_controller_service(config=config, clock=clock)
+    service = build_live_controller_loop(config=config, clock=clock)
 
     with caplog.at_level(logging.WARNING):
         service.start()
@@ -219,7 +219,7 @@ def test_canonical_live_service_reports_queue_latency_without_rewriting_ingress_
 
 def test_default_live_composition_emits_no_startup_frames() -> None:
     FakeSocketCanBus.instances = []
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         socketcan_factory=FakeSocketCanBus,
     )
 
@@ -231,7 +231,7 @@ def test_default_live_composition_emits_no_startup_frames() -> None:
 
 def test_physical_button_pad_observation_is_unknown_without_acknowledgement() -> None:
     FakeSocketCanBus.instances = []
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         socketcan_factory=FakeSocketCanBus,
     )
 
@@ -255,7 +255,7 @@ def test_physical_button_pad_observation_is_unknown_without_acknowledgement() ->
 def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
     FakeSocketCanBus.instances = []
     config = default_config()
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         config=config,
         button_pad_source=DeviceSource.DISABLED,
         socketcan_factory=FakeSocketCanBus,
@@ -280,7 +280,7 @@ def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() ->
 def test_explicit_kcan_tx_composition_waits_for_registry_contact() -> None:
     FakeSocketCanBus.instances = []
     config = simulator_config()
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         config=config,
         tx_grants=frozenset({CanNetwork.KCAN}),
         socketcan_factory=FakeSocketCanBus,
@@ -298,7 +298,7 @@ def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(
 ) -> None:
     FakeSocketCanBus.instances = []
     config = replace(default_config(), runtime_inbox_capacity=1, tick_interval_s=0.01)
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         config=config,
         socketcan_factory=OverflowingSocketCanBus,
     )
@@ -306,7 +306,7 @@ def test_live_inbox_overflow_stops_once_cleans_up_and_returns_nonzero(
     with caplog.at_level(logging.ERROR):
         service.start()
         deadline = time.monotonic() + 1.0
-        while service.lifecycle is not ControllerServiceLifecycle.STOPPED:
+        while service.lifecycle is not ControllerLoopLifecycle.STOPPED:
             assert time.monotonic() < deadline
         service.stop()
 
@@ -326,7 +326,7 @@ def test_partial_open_cleanup_keeps_original_failure_when_shutdown_also_fails(
     CleanupFailingSocketCanBus.shutdown_interfaces = []
     CleanupFailingSocketCanBus.fail_open_interface = "can1"
     CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
 
@@ -344,7 +344,7 @@ def test_final_cleanup_isolates_each_interface_and_reports_close_failure(
     CleanupFailingSocketCanBus.shutdown_interfaces = []
     CleanupFailingSocketCanBus.fail_open_interface = None
     CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
 
@@ -361,14 +361,14 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
 ) -> None:
     StubbornSocketCanBus.instances = []
     monkeypatch.setattr(live, "READER_JOIN_TIMEOUT_S", 0.01)
-    service = build_live_controller_service(
+    service = build_live_controller_loop(
         socketcan_factory=StubbornSocketCanBus,
     )
     service.start()
 
     try:
         with pytest.raises(
-            ControllerServiceError,
+            ControllerLoopError,
             match="live CAN readers did not stop before adapter close",
         ):
             service.stop()
@@ -391,7 +391,7 @@ class TestConfigurableNetworkEnablement:
             enabled_networks=frozenset({CanNetwork.KCAN}),
             tx_networks=frozenset({CanNetwork.KCAN}),
         )
-        service = build_live_controller_service(
+        service = build_live_controller_loop(
             config=config,
             tx_grants=frozenset({CanNetwork.KCAN}),
             socketcan_factory=FakeSocketCanBus,
@@ -410,7 +410,7 @@ class TestConfigurableNetworkEnablement:
             enabled_networks=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN}),
             tx_networks=frozenset({CanNetwork.KCAN}),
         )
-        service = build_live_controller_service(
+        service = build_live_controller_loop(
             config=config,
             tx_grants=frozenset({CanNetwork.KCAN}),
             socketcan_factory=FakeSocketCanBus,
@@ -429,7 +429,7 @@ class TestConfigurableNetworkEnablement:
             enabled_networks=frozenset({CanNetwork.KCAN}),
             tx_networks=frozenset({CanNetwork.KCAN}),
         )
-        service = build_live_controller_service(
+        service = build_live_controller_loop(
             config=config,
             tx_grants=frozenset({CanNetwork.KCAN}),
             socketcan_factory=FakeSocketCanBus,
@@ -448,7 +448,7 @@ class TestConfigurableNetworkEnablement:
             enabled_networks=frozenset({CanNetwork.KCAN}),
             tx_networks=frozenset(),
         )
-        service = build_live_controller_service(
+        service = build_live_controller_loop(
             config=config,
             button_pad_source=DeviceSource.DISABLED,
             tx_grants=frozenset(),
@@ -476,7 +476,7 @@ class TestConfigurableNetworkEnablement:
         )
 
         with pytest.raises(ValueError, match="live CAN TX grant has no enabled transmitter"):
-            build_live_controller_service(
+            build_live_controller_loop(
                 config=config,
                 tx_grants=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN}),
                 socketcan_factory=FakeSocketCanBus,

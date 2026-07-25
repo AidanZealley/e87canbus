@@ -15,10 +15,10 @@ from typing import Protocol
 
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentSpec
-from e87canbus.domain.button_profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.device import DeviceRole
-from e87canbus.domain.steering import ActiveSteeringCurve
+from e87canbus.domain.devices.catalogue import DeviceRole
+from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     DiagnosticSnapshot,
     InboxOverflowed,
@@ -27,7 +27,7 @@ from e87canbus.kernel import (
 )
 from e87canbus.service.diagnostics import (
     ControllerAdapterSnapshot,
-    ControllerServiceSnapshot,
+    ControllerLoopSnapshot,
     InboxDiagnostics,
     PersistenceDiagnostics,
     PublisherDiagnostics,
@@ -38,19 +38,19 @@ from e87canbus.service.diagnostics import (
 LOGGER = logging.getLogger(__name__)
 
 
-class ControllerServiceError(RuntimeError):
+class ControllerLoopError(RuntimeError):
     """Base error for controller-service lifecycle and submission failures."""
 
 
-class ControllerServiceNotRunning(ControllerServiceError):
+class ControllerLoopNotRunning(ControllerLoopError):
     """Raised when work is submitted outside the running lifecycle."""
 
 
-class ControllerInboxFull(ControllerServiceError):
+class ControllerInboxFull(ControllerLoopError):
     """Raised when bounded runtime work cannot be accepted."""
 
 
-class ControllerWorkUnavailable(ControllerServiceError):
+class ControllerWorkUnavailable(ControllerLoopError):
     """Raised when selected runtime state cannot process otherwise valid work."""
 
 
@@ -62,7 +62,7 @@ class SimulationDeviceUnavailable(ControllerWorkUnavailable):
         super().__init__(f"simulated {role.value} is unavailable")
 
 
-class ControllerServiceLifecycle(StrEnum):
+class ControllerLoopLifecycle(StrEnum):
     CREATED = "created"
     RUNNING = "running"
     STOPPED = "stopped"
@@ -72,7 +72,20 @@ RuntimeNotification = Callable[[RuntimeExecution], None]
 RuntimeInputSink = Callable[[object], bool]
 
 
-class ControllerRuntimeAdapter(Protocol):
+class ControllerRuntime(Protocol):
+    """What :class:`ControllerLoop` drives: a kernel wired to some world.
+
+    Two implementations exist, and choosing between them is the difference between
+    running in a car and running on a laptop:
+
+    - ``runners.live.LiveControllerRuntime`` - a kernel wired to real CAN sockets.
+    - ``runners.simulation.SimulatedControllerRuntime`` - a kernel wired to in-memory
+      simulated devices and a virtual car.
+
+    The service knows only this interface, so the lifecycle, threading and inbox code
+    is identical in both cases and neither runner can grow its own idea of them.
+    """
+
     @property
     def config(self) -> AppConfig: ...
 
@@ -110,8 +123,22 @@ class _QueuedWork:
     enqueued_at: float
 
 
-class ControllerService:
-    """Own one runtime, bounded inbox, timer schedule and mutation thread."""
+class ControllerLoop:
+    """The one thread allowed to touch the kernel, and the queue everything enters by.
+
+    The kernel is deliberately single-owner: it has no locks, because exactly one thread
+    ever calls it. This class is that thread. Web requests, CAN reader callbacks and
+    timers all hand work to :meth:`submit`, which puts it on a bounded inbox; the run
+    loop takes one item at a time, calls the runtime, and publishes the resulting
+    Commit. That is the whole reason this class exists - it converts a concurrent
+    outside world into the strictly serial one the kernel assumes.
+
+    It also owns what "running" means: a CREATED -> RUNNING -> STOPPED lifecycle, the
+    timer schedule driven by the kernel's next deadline, and back-pressure when the
+    inbox is full (rejecting work rather than growing without bound). It holds no
+    application rules of its own - it decides *when* the kernel runs, never *what* it
+    decides.
+    """
 
     _POLL_INTERVAL_S = 0.05
     _START_TIMEOUT_S = 5.0
@@ -119,7 +146,7 @@ class ControllerService:
 
     def __init__(
         self,
-        runtime: ControllerRuntimeAdapter,
+        runtime: ControllerRuntime,
         *,
         deployment: DeploymentSpec,
         clock: Callable[[], float] = time.monotonic,
@@ -136,12 +163,12 @@ class ControllerService:
         )
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._lifecycle = ControllerServiceLifecycle.CREATED
+        self._lifecycle = ControllerLoopLifecycle.CREATED
         self._accepting = False
         self._thread: threading.Thread | None = None
         self._notification: RuntimeNotification | None = None
         self._boot_id: str | None = None
-        self._latest_snapshot: ControllerServiceSnapshot | None = None
+        self._latest_snapshot: ControllerLoopSnapshot | None = None
         self._revision = 0
         self._topic_revisions = {topic: 0 for topic in StateTopic}
         self._failure: BaseException | None = None
@@ -179,7 +206,7 @@ class ControllerService:
         return self._load_persisted_button_profile
 
     @property
-    def lifecycle(self) -> ControllerServiceLifecycle:
+    def lifecycle(self) -> ControllerLoopLifecycle:
         with self._lock:
             return self._lifecycle
 
@@ -187,7 +214,7 @@ class ControllerService:
     def boot_id(self) -> str:
         with self._lock:
             if self._boot_id is None:
-                raise ControllerServiceNotRunning("controller service has not started")
+                raise ControllerLoopNotRunning("controller service has not started")
             return self._boot_id
 
     @property
@@ -211,10 +238,10 @@ class ControllerService:
     def fatal_exit_required(self) -> bool:
         return self._fatal_exit.is_set()
 
-    def snapshot(self) -> ControllerServiceSnapshot:
+    def snapshot(self) -> ControllerLoopSnapshot:
         with self._lock:
             if self._latest_snapshot is None:
-                raise ControllerServiceNotRunning("controller service has not started")
+                raise ControllerLoopNotRunning("controller service has not started")
             return replace(self._latest_snapshot, service=self._service_diagnostics_locked())
 
     def mark_persistence_available(self) -> None:
@@ -222,8 +249,8 @@ class ControllerService:
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         with self._lock:
-            if self._lifecycle is not ControllerServiceLifecycle.CREATED:
-                raise ControllerServiceError(
+            if self._lifecycle is not ControllerLoopLifecycle.CREATED:
+                raise ControllerLoopError(
                     "initial steering curve must be configured before service startup"
                 )
             self._runtime.configure_initial_steering_curve(curve)
@@ -234,8 +261,8 @@ class ControllerService:
         saved_profile_revision: int | None = None,
     ) -> None:
         with self._lock:
-            if self._lifecycle is not ControllerServiceLifecycle.CREATED:
-                raise ControllerServiceError(
+            if self._lifecycle is not ControllerLoopLifecycle.CREATED:
+                raise ControllerLoopError(
                     "initial button profile must be configured before service startup"
                 )
             self._runtime.configure_initial_button_profile(profile, saved_profile_revision)
@@ -245,8 +272,8 @@ class ControllerService:
 
     def mark_ready(self) -> None:
         with self._lock:
-            if self._lifecycle is not ControllerServiceLifecycle.RUNNING:
-                raise ControllerServiceNotRunning("controller service is not running")
+            if self._lifecycle is not ControllerLoopLifecycle.RUNNING:
+                raise ControllerLoopNotRunning("controller service is not running")
             self._ready = True
         self._refresh_external_health()
 
@@ -263,8 +290,8 @@ class ControllerService:
 
     def start(self, notification: RuntimeNotification | None = None) -> None:
         with self._lock:
-            if self._lifecycle is not ControllerServiceLifecycle.CREATED:
-                raise ControllerServiceError("controller service may be started exactly once")
+            if self._lifecycle is not ControllerLoopLifecycle.CREATED:
+                raise ControllerLoopError("controller service may be started exactly once")
             self._boot_id = uuid.uuid4().hex
             self._notification = notification
             startup: Future[None] = Future()
@@ -281,7 +308,7 @@ class ControllerService:
         future: Future[int] = Future()
         with self._lock:
             if not self._accepting:
-                raise ControllerServiceNotRunning("controller service is not accepting work")
+                raise ControllerLoopNotRunning("controller service is not accepting work")
             try:
                 self._inbox.put_nowait(_QueuedWork(work, future, self._clock()))
             except queue.Full as exc:
@@ -293,7 +320,7 @@ class ControllerService:
         """Submit adapter-originated input without exposing a completion future."""
 
         with self._lock:
-            if self._stop.is_set() or self._lifecycle is ControllerServiceLifecycle.STOPPED:
+            if self._stop.is_set() or self._lifecycle is ControllerLoopLifecycle.STOPPED:
                 return False
             try:
                 self._inbox.put_nowait(_QueuedWork(work, None, self._clock()))
@@ -304,10 +331,10 @@ class ControllerService:
 
     def stop(self, close_adapter: bool = True) -> None:
         with self._lock:
-            if self._lifecycle is ControllerServiceLifecycle.CREATED:
-                self._lifecycle = ControllerServiceLifecycle.STOPPED
+            if self._lifecycle is ControllerLoopLifecycle.CREATED:
+                self._lifecycle = ControllerLoopLifecycle.STOPPED
                 return
-            if self._lifecycle is ControllerServiceLifecycle.STOPPED:
+            if self._lifecycle is ControllerLoopLifecycle.STOPPED:
                 failure = self._failure
                 thread = None
             else:
@@ -319,13 +346,13 @@ class ControllerService:
         if thread is not None:
             thread.join(timeout=self._STOP_TIMEOUT_S)
             if thread.is_alive():
-                raise ControllerServiceError("controller owner did not stop cleanly")
+                raise ControllerLoopError("controller owner did not stop cleanly")
             with self._lock:
                 failure = self._failure
         if close_adapter:
             self.close_adapter()
         if failure is not None:
-            raise ControllerServiceError(
+            raise ControllerLoopError(
                 f"controller service stopped with failure: {failure}"
             ) from failure
 
@@ -342,7 +369,7 @@ class ControllerService:
             self._record(initial)
             with self._lock:
                 self._accepting = True
-                self._lifecycle = ControllerServiceLifecycle.RUNNING
+                self._lifecycle = ControllerLoopLifecycle.RUNNING
             startup.set_result(None)
             next_tick = self._clock() + self.config.tick_interval_s
 
@@ -429,7 +456,7 @@ class ControllerService:
             finally:
                 self._fail_pending()
                 with self._lock:
-                    self._lifecycle = ControllerServiceLifecycle.STOPPED
+                    self._lifecycle = ControllerLoopLifecycle.STOPPED
                 self._stopped.set()
 
     def _record_failure(self, failure: BaseException) -> None:
@@ -456,7 +483,7 @@ class ControllerService:
             for topic in execution.changed_topics:
                 self._topic_revisions[topic] = self._revision
             assert self._boot_id is not None
-            self._latest_snapshot = ControllerServiceSnapshot(
+            self._latest_snapshot = ControllerLoopSnapshot(
                 boot_id=self._boot_id,
                 revision=self._revision,
                 topic_revisions=tuple(self._topic_revisions.items()),
@@ -479,7 +506,7 @@ class ControllerService:
                 return
             if queued.future is not None:
                 queued.future.set_exception(
-                    ControllerServiceNotRunning("controller service stopped before processing work")
+                    ControllerLoopNotRunning("controller service stopped before processing work")
                 )
             self._inbox.task_done()
 
@@ -535,7 +562,7 @@ class ControllerService:
     def _is_ready_locked(self) -> bool:
         return (
             self._ready
-            and self._lifecycle is ControllerServiceLifecycle.RUNNING
+            and self._lifecycle is ControllerLoopLifecycle.RUNNING
             and self._persistence.available
             and (
                 self._latest_snapshot is None or not self._latest_snapshot.diagnostics.health.fatal

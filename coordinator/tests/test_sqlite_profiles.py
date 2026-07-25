@@ -20,7 +20,7 @@ from e87canbus.domain.revisioned_profiles import (
     ProfileStorageError,
     StoredProfileDataError,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     SteeringCurvePoint,
@@ -63,9 +63,7 @@ def test_fresh_migration_and_repeat_initialization(tmp_path: Path) -> None:
         ).fetchall()
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
         columns = {row[1] for row in connection.execute("PRAGMA table_info(steering_profiles)")}
-    assert versions == [
-        (version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)
-    ]
+    assert versions == [(version,) for version in range(1, CURRENT_MIGRATION_VERSION + 1)]
     assert journal_mode == "wal"
     assert "interpolation" not in columns
     assert repository.list_profiles() == (repository.get_profile(BUILT_IN_PROFILE_ID),)

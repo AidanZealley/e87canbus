@@ -17,8 +17,7 @@ from e87canbus.adapters.sqlite_revisioned_profiles import (
     SqliteRevisionedProfileRepository,
     utc_now,
 )
-from e87canbus.domain.button_profiles import (
-    BUTTON_PROFILE_KIND,
+from e87canbus.domain.buttons.profiles import (
     ButtonProfileDefinition,
     StoredButtonProfile,
     button_profile_fingerprint,
@@ -27,6 +26,7 @@ from e87canbus.domain.button_profiles import (
     empty_button_profile_definition,
     validate_button_profile_name,
 )
+from e87canbus.domain.buttons.repository import BUTTON_PROFILE_KIND
 from e87canbus.domain.revisioned_profiles import (
     ProfileNotFoundError,
     ProfileProtectedError,

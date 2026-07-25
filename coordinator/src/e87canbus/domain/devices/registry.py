@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from e87canbus.domain.device import (
+from e87canbus.domain.devices.catalogue import (
     DEFAULT_DEVICE_CATALOGUE,
     DeviceCatalogueEntry,
     DeviceLifecycleStatus,

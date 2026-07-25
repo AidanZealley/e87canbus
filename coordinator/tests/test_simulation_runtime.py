@@ -11,8 +11,8 @@ from e87canbus.config import (
     default_config,
     simulator_config,
 )
-from e87canbus.domain.button_pad import resolve_button_pad_tracks
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.pad import resolve_button_pad_tracks
+from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     button_profile_definition_with,
 )
@@ -23,7 +23,7 @@ from e87canbus.domain.controller import (
     EngineTelemetryStatus,
     EngineTelemetryValue,
 )
-from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     RGB_AMBER,
@@ -36,7 +36,7 @@ from e87canbus.domain.events import (
 )
 from e87canbus.domain.intents import SetMaximumAssistance, ToggleMaximumAssistance
 from e87canbus.domain.state import ApplicationState, SteeringMode
-from e87canbus.domain.steering import ASSISTANCE_QUANTIZATION_TOLERANCE
+from e87canbus.domain.steering.curves import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.kernel import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.protocol.can import (
     CanFrame,

@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from e87canbus.adapters.output import EffectRequest, SendRegistryFrame
 from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.controller import SOFT_AMBER, SOFT_WHITE
-from e87canbus.domain.device import DeviceLifecycleStatus, DeviceRole
-from e87canbus.domain.device_registry import FeatureUnavailable
+from e87canbus.domain.devices.catalogue import DeviceLifecycleStatus, DeviceRole
+from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
     RGB_BLUE,
     RGB_OFF,

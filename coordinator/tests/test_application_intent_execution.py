@@ -1,7 +1,7 @@
 import pytest
 from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
 from e87canbus.domain import controller
-from e87canbus.domain.button_profiles import built_in_active_button_profile
+from e87canbus.domain.buttons.profiles import built_in_active_button_profile
 from e87canbus.domain.controller import ButtonLedProjection, Transition
 from e87canbus.domain.events import SetHighBeam
 from e87canbus.domain.intents import (

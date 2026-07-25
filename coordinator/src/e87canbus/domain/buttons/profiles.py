@@ -5,7 +5,7 @@ or ``None``. The stored row, the JSON on disk, the HTTP body and the profile the
 routes presses through all use that same dense tuple, so nothing has to be converted
 between representations and no index can mean different things in different layers.
 
-Which commands may occupy a slot is defined once in :mod:`e87canbus.domain.button_commands`.
+Which commands may occupy a slot is listed once in :mod:`e87canbus.domain.buttons.catalogue`.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Protocol
 from uuid import UUID
 
 from e87canbus.config import (
@@ -22,8 +21,8 @@ from e87canbus.config import (
     HighBeamStrobeConfig,
     SteeringConfig,
 )
-from e87canbus.domain.button_commands import (
-    ButtonCommand,
+from e87canbus.domain.buttons.catalogue import ButtonCommand
+from e87canbus.domain.buttons.commands import (
     button_command_configuration_error,
     decode_button_command,
     encode_button_command,
@@ -43,7 +42,6 @@ from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
 BUTTON_PROFILE_SCHEMA_VERSION = 1
 BUTTON_PROFILE_NAME_MAX_LENGTH = 100
-BUTTON_PROFILE_KIND = "button profile"
 BUILT_IN_PROFILE_ID = "built-in"
 
 
@@ -249,23 +247,3 @@ def validate_button_profile_for(
         reason = button_command_configuration_error(command, steering_config)
         if reason is not None:
             raise ValueError(f"button {index}: {reason}")
-
-
-class ButtonProfileRepository(Protocol):
-    """Durable button-profile storage, including which profile is selected."""
-
-    def list_profiles(self) -> tuple[StoredButtonProfile, ...]: ...
-    def get_profile(self, profile_id: str) -> StoredButtonProfile | None: ...
-    def get_selected_profile(self) -> StoredButtonProfile: ...
-    def select_profile(self, profile_id: str, expected_revision: int) -> StoredButtonProfile: ...
-    def create_profile(
-        self, name: str, definition: ButtonProfileDefinition | None = None
-    ) -> StoredButtonProfile: ...
-    def update_profile(
-        self,
-        profile_id: str,
-        expected_revision: int,
-        name: str,
-        definition: ButtonProfileDefinition,
-    ) -> StoredButtonProfile: ...
-    def delete_profile(self, profile_id: str, expected_revision: int) -> None: ...

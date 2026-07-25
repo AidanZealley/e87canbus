@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from e87canbus.config import CanNetwork
-from e87canbus.domain.button_profiles import ActiveButtonProfile, validate_saved_profile_revision
-from e87canbus.domain.device import DeviceRole
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile, validate_saved_profile_revision
+from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
@@ -22,7 +22,7 @@ from e87canbus.domain.intents import (
     OperatorIntentContext,
     is_operator_intent,
 )
-from e87canbus.domain.steering import SteeringCurveDefinition
+from e87canbus.domain.steering.curves import SteeringCurveDefinition
 from e87canbus.protocol.can import CanFrame
 from e87canbus.protocol.servotronic_protocol import ServotronicStatus
 

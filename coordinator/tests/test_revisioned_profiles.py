@@ -10,7 +10,7 @@ from e87canbus.adapters.sqlite_revisioned_profiles import (
     RevisionedProfileSpec,
     SqliteRevisionedProfileRepository,
 )
-from e87canbus.domain.button_profiles import empty_button_profile_definition
+from e87canbus.domain.buttons.profiles import empty_button_profile_definition
 from e87canbus.domain.revisioned_profiles import (
     ProfileNameConflictError,
     ProfileNotFoundError,
@@ -18,7 +18,7 @@ from e87canbus.domain.revisioned_profiles import (
     validate_expected_revision,
     validate_saved_profile_revision,
 )
-from e87canbus.domain.steering import BUILT_IN_STEERING_CURVE
+from e87canbus.domain.steering.curves import BUILT_IN_STEERING_CURVE
 
 MISSING_ID = "00000000-0000-4000-8000-000000000000"
 

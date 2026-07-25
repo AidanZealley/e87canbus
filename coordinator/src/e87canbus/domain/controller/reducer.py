@@ -36,7 +36,7 @@ from e87canbus.domain.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
-from e87canbus.domain.steering import SteeringCurveDefinition, clamp_manual_level
+from e87canbus.domain.steering.curves import SteeringCurveDefinition, clamp_manual_level
 
 
 @dataclass(frozen=True)

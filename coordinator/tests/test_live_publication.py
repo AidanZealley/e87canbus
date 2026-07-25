@@ -12,14 +12,14 @@ from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.domain.intents import SetMaximumAssistance
 from e87canbus.kernel import ExecuteOperatorIntent, StateTopic
-from e87canbus.runners.composition import build_simulated_controller_service
+from e87canbus.runners.composition import build_simulated_controller_loop
 from e87canbus.runners.simulation.runtime import (
     ResetSimulation,
     SetVehicleSignal,
     TapButton,
 )
 from e87canbus.runners.simulation.signals import VehicleSignal
-from e87canbus.service import ControllerService, RuntimeExecution
+from e87canbus.service import ControllerLoop, RuntimeExecution
 from registry_test_support import activate_simulation_devices
 
 
@@ -75,12 +75,12 @@ INITIAL_PUBLICATION_EVENTS = frozenset(
 )
 
 
-def controller_service(
+def controller_loop(
     *,
     trace_batch_size: int = 4,
     shutdown_timeout_s: float = 2.0,
     health_hz: float = 1.0,
-) -> ControllerService:
+) -> ControllerLoop:
     config = replace(
         simulator_config(),
         tick_interval_s=60.0,
@@ -93,11 +93,11 @@ def controller_service(
             shutdown_timeout_s=shutdown_timeout_s,
         ),
     )
-    return build_simulated_controller_service(config=config)
+    return build_simulated_controller_loop(config=config)
 
 
 def publisher_for(
-    service: ControllerService,
+    service: ControllerLoop,
     socket_server: RecordingSocketServer,
 ) -> LiveStatePublisher:
     return LiveStatePublisher(
@@ -123,8 +123,8 @@ async def wait_for_initial_publication(socket_server: RecordingSocketServer) -> 
 
 @pytest.mark.asyncio
 async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
-    first = controller_service()
-    second = controller_service()
+    first = controller_loop()
+    second = controller_loop()
     first.start()
     second.start()
     first_socket = RecordingSocketServer()
@@ -179,7 +179,7 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
 
 @pytest.mark.asyncio
 async def test_only_changed_topic_publishes_and_service_revision_survives_reset() -> None:
-    service = controller_service()
+    service = controller_loop()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
     await asyncio.to_thread(service.start, publisher.offer)
@@ -215,7 +215,7 @@ async def test_only_changed_topic_publishes_and_service_revision_survives_reset(
 
 @pytest.mark.asyncio
 async def test_lighting_topic_publishes_requested_and_observed_high_beam_state() -> None:
-    service = controller_service()
+    service = controller_loop()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
     await asyncio.to_thread(service.start, publisher.offer)
@@ -245,7 +245,7 @@ async def test_lighting_topic_publishes_requested_and_observed_high_beam_state()
 
 @pytest.mark.asyncio
 async def test_persistence_only_change_advances_and_publishes_health_revision() -> None:
-    service = controller_service(health_hz=100.0)
+    service = controller_loop(health_hz=100.0)
     service.mark_persistence_available()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
@@ -279,7 +279,7 @@ async def test_persistence_only_change_advances_and_publishes_health_revision() 
 
 @pytest.mark.asyncio
 async def test_publisher_failure_publishes_once_without_recursion() -> None:
-    service = controller_service(health_hz=100.0)
+    service = controller_loop(health_hz=100.0)
     service.mark_persistence_available()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
@@ -311,7 +311,7 @@ async def test_publisher_failure_publishes_once_without_recursion() -> None:
 
 @pytest.mark.asyncio
 async def test_stalled_emitter_retains_one_latest_value_per_topic() -> None:
-    service = controller_service()
+    service = controller_loop()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
     await asyncio.to_thread(service.start, publisher.offer)
@@ -358,7 +358,7 @@ def frame(sequence: int) -> dict[str, object]:
 
 @pytest.mark.asyncio
 async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
-    service = controller_service(trace_batch_size=3)
+    service = controller_loop(trace_batch_size=3)
     service.start()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
@@ -393,7 +393,7 @@ async def test_trace_is_opt_in_batched_and_drops_old_rows() -> None:
 
 @pytest.mark.asyncio
 async def test_multiple_clients_receive_independent_current_snapshots() -> None:
-    service = controller_service()
+    service = controller_loop()
     service.start()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
@@ -414,7 +414,7 @@ async def test_multiple_clients_receive_independent_current_snapshots() -> None:
 
 @pytest.mark.asyncio
 async def test_resource_change_is_exact_and_retention_is_bounded() -> None:
-    service = controller_service()
+    service = controller_loop()
     service.start()
     socket_server = RecordingSocketServer()
     publisher = publisher_for(service, socket_server)
@@ -450,7 +450,7 @@ async def test_resource_change_is_exact_and_retention_is_bounded() -> None:
 
 @pytest.mark.asyncio
 async def test_socket_failure_is_transport_diagnostic_only() -> None:
-    service = controller_service()
+    service = controller_loop()
     service.start()
     socket_server = RecordingSocketServer()
     socket_server.error = OSError("socket failed")
@@ -469,7 +469,7 @@ async def test_socket_failure_is_transport_diagnostic_only() -> None:
 
 @pytest.mark.asyncio
 async def test_stalled_shutdown_has_one_deadline_and_leaves_no_tasks() -> None:
-    service = controller_service(shutdown_timeout_s=0.05)
+    service = controller_loop(shutdown_timeout_s=0.05)
     service.start()
     socket_server = RecordingSocketServer()
     socket_server.block = True

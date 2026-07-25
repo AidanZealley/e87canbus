@@ -9,13 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from e87canbus.domain.application_settings import DEFAULT_APPLICATION_SETTINGS
-from e87canbus.domain.button_profiles import (
+from e87canbus.domain.buttons.profiles import (
     BUILT_IN_BUTTON_PROFILE,
     button_profile_fingerprint,
     canonical_button_profile_bytes,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.settings.values import DEFAULT_APPLICATION_SETTINGS
+from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
     SteeringCurvePoint,

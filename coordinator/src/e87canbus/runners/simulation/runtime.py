@@ -11,14 +11,14 @@ from typing import Any
 from e87canbus.adapters.can_io import CanReceiver
 from e87canbus.adapters.output import EffectExecutor
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
-from e87canbus.domain.button_profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.device import DeviceRole, DeviceSource
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
     HighBeamStrobeDeadlineReached,
 )
-from e87canbus.domain.steering import ActiveSteeringCurve
+from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
     ActivateSteeringCurve,
@@ -91,7 +91,7 @@ def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict
 
 
 class SimulatedControllerRuntime:
-    """Selected simulated adapters and devices; owned by ``ControllerService``."""
+    """Selected simulated adapters and devices; owned by ``ControllerLoop``."""
 
     def __init__(
         self,

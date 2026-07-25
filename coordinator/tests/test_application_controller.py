@@ -8,8 +8,8 @@ from e87canbus.config import (
     SteeringConfig,
 )
 from e87canbus.domain import controller
-from e87canbus.domain.button_pad import static_button_pad_program
-from e87canbus.domain.button_profiles import built_in_active_button_profile
+from e87canbus.domain.buttons.pad import static_button_pad_program
+from e87canbus.domain.buttons.profiles import built_in_active_button_profile
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
     EngineTelemetrySnapshot,
@@ -49,7 +49,7 @@ from e87canbus.domain.state import (
     SpeedSample,
     SteeringMode,
 )
-from e87canbus.domain.steering import (
+from e87canbus.domain.steering.curves import (
     ASSISTANCE_QUANTIZATION_TOLERANCE,
     SteeringCurveActivationStatus,
     default_steering_curve_definition,

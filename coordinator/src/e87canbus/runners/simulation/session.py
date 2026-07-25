@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from e87canbus.adapters.can_io import CanReceiver
 from e87canbus.adapters.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.domain.button_profiles import ActiveButtonProfile
-from e87canbus.domain.device import DeviceRole, DeviceSource
-from e87canbus.domain.steering import ActiveSteeringCurve
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
+from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
+from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.runners.simulation.devices import (
