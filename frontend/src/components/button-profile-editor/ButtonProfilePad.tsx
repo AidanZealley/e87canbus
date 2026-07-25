@@ -8,7 +8,7 @@ type ButtonProfilePadProps = {
   slots: ButtonCommandSlots
   rgb: ReadonlyArray<readonly [number, number, number]>
   disabled?: boolean
-  onChange: (index: number, command: ButtonCommand) => void
+  onChange: (index: number, command: ButtonCommand) => Promise<void>
 }
 
 export const ButtonProfilePad = ({

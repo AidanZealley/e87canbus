@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form"
 
+import { LoadingButton } from "@/components/loading-button"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,14 +20,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { ButtonCommand } from "./types"
-import { commandToDraft, commandTypeOptions, draftToCommand } from "./utils"
+import {
+  commandToFormValue,
+  commandTypeOptions,
+  formValueToCommand,
+} from "./utils"
 
 type ButtonBindingDialogProps = {
   buttonIndex: number
   command: ButtonCommand
   open: boolean
   onOpenChange: (open: boolean) => void
-  onApply: (command: ButtonCommand) => void
+  onApply: (command: ButtonCommand) => Promise<void>
 }
 
 const steeringModeOptions = [
@@ -52,9 +57,13 @@ export const ButtonBindingDialog = ({
   onApply,
 }: ButtonBindingDialogProps) => {
   const form = useForm({
-    defaultValues: commandToDraft(command),
-    onSubmit: ({ value }) => {
-      onApply(draftToCommand(value))
+    defaultValues: commandToFormValue(command),
+    onSubmit: async ({ value }) => {
+      try {
+        await onApply(formValueToCommand(value))
+      } catch {
+        return
+      }
       onOpenChange(false)
     },
   })
@@ -213,7 +222,13 @@ export const ButtonBindingDialog = ({
             >
               Cancel
             </Button>
-            <Button type="submit">Apply binding</Button>
+            <form.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
+                <LoadingButton type="submit" isLoading={isSubmitting}>
+                  Apply binding
+                </LoadingButton>
+              )}
+            </form.Subscribe>
           </DialogFooter>
         </form>
       </DialogContent>

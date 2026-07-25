@@ -9,9 +9,6 @@ import type {
 } from "./client"
 import { client } from "./client.gen"
 import type {
-  ActivateButtonProfileData,
-  ActivateButtonProfileErrors,
-  ActivateButtonProfileResponses,
   ActivateSteeringCurveData,
   ActivateSteeringCurveErrors,
   ActivateSteeringCurveResponses,
@@ -126,7 +123,6 @@ import type {
   UpdateSteeringProfileResponses,
 } from "./types.gen"
 import {
-  zActivateButtonProfileResponse,
   zActivateSteeringCurveResponse,
   zActivateSteeringProfileResponse,
   zAdjustManualAssistanceResponse,
@@ -184,34 +180,6 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta
 }
-
-/**
- * Activate Button Profile
- */
-export const activateButtonProfile = <ThrowOnError extends boolean = true>(
-  options: Options<ActivateButtonProfileData, ThrowOnError>
-): RequestResult<
-  ActivateButtonProfileResponses,
-  ActivateButtonProfileErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    ActivateButtonProfileResponses,
-    ActivateButtonProfileErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zActivateButtonProfileResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/button-pad/activate-profile",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
 
 /**
  * Get Saved Button Profile

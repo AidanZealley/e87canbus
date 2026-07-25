@@ -3,16 +3,6 @@
 import * as z from "zod"
 
 /**
- * ActivateButtonProfileRequest
- */
-export const zActivateButtonProfileRequest = z.object({
-  expected_revision: z.int().gte(1),
-  profile_id: z
-    .string()
-    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
-})
-
-/**
  * ActivateSteeringProfileRequest
  */
 export const zActivateSteeringProfileRequest = z.object({
@@ -773,13 +763,6 @@ export const zApiProblemDetail = z.object({
 export const zApiProblemResponse = z.object({
   error: zApiProblemDetail,
 })
-
-export const zActivateButtonProfileBody = zActivateButtonProfileRequest
-
-/**
- * Successful Response
- */
-export const zActivateButtonProfileResponse = zCommandAcknowledgement
 
 /**
  * Successful Response

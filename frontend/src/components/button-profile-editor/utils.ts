@@ -1,6 +1,6 @@
 import type {
   ButtonCommand,
-  ButtonCommandDraft,
+  ButtonCommandFormValue,
   ButtonCommandType,
 } from "./types"
 
@@ -47,7 +47,9 @@ export const commandLabel = (command: ButtonCommand): string => {
   }
 }
 
-export const commandToDraft = (command: ButtonCommand): ButtonCommandDraft => ({
+export const commandToFormValue = (
+  command: ButtonCommand
+): ButtonCommandFormValue => ({
   type: command?.type ?? "unassigned",
   mode: command?.type === "select_steering_mode" ? command.mode : "auto",
   delta:
@@ -68,21 +70,23 @@ export const commandToDraft = (command: ButtonCommand): ButtonCommandDraft => ({
       : "true",
 })
 
-export const draftToCommand = (draft: ButtonCommandDraft): ButtonCommand => {
-  switch (draft.type) {
+export const formValueToCommand = (
+  value: ButtonCommandFormValue
+): ButtonCommand => {
+  switch (value.type) {
     case "unassigned":
       return null
     case "select_steering_mode":
-      return { type: draft.type, mode: draft.mode }
+      return { type: value.type, mode: value.mode }
     case "toggle_automatic_assistance":
     case "toggle_maximum_assistance":
     case "start_high_beam_strobe":
-      return { type: draft.type }
+      return { type: value.type }
     case "adjust_manual_assistance":
-      return { type: draft.type, delta: Number(draft.delta) as -1 | 1 }
+      return { type: value.type, delta: Number(value.delta) as -1 | 1 }
     case "set_manual_assistance_level":
-      return { type: draft.type, level: Number(draft.level) }
+      return { type: value.type, level: Number(value.level) }
     case "set_maximum_assistance":
-      return { type: draft.type, enabled: draft.enabled === "true" }
+      return { type: value.type, enabled: value.enabled === "true" }
   }
 }

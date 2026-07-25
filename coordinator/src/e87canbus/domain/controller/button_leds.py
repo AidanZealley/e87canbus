@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_commands import (
+    ButtonCommandPresentation,
+    button_command_presentation,
+)
 from e87canbus.domain.button_pad import (
     blink_track,
     resolved_button_pad_program,
@@ -30,12 +34,7 @@ from e87canbus.domain.events import (
     SetButtonPadProgram,
 )
 from e87canbus.domain.intents import (
-    AdjustManualAssistance,
-    SelectSteeringMode,
-    SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
-    ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
@@ -70,7 +69,8 @@ def derived_button_led_state(
     for binding in profile.bindings:
         intent = binding.press_intent
         colour = SOFT_WHITE
-        if isinstance(intent, (ToggleAutomaticAssistance, SelectSteeringMode)):
+        presentation = button_command_presentation(intent)
+        if presentation is ButtonCommandPresentation.STEERING_MODE:
             colour = (
                 RGB_BLUE
                 if servotronic_usable and mode is SteeringMode.AUTO
@@ -78,14 +78,9 @@ def derived_button_led_state(
                 if servotronic_usable
                 else SOFT_AMBER
             )
-        elif isinstance(
-            intent,
-            (
-                AdjustManualAssistance,
-                SetManualAssistanceLevel,
-                SetMaximumAssistance,
-                ToggleMaximumAssistance,
-            ),
+        elif presentation in (
+            ButtonCommandPresentation.STEERING_ADJUSTMENT,
+            ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
         ):
             colour = (
                 RGB_WHITE
@@ -95,7 +90,7 @@ def derived_button_led_state(
                 if not servotronic_usable
                 else SOFT_WHITE
             )
-        elif isinstance(intent, StartHighBeamStrobe):
+        elif presentation is ButtonCommandPresentation.MOMENTARY:
             colour = SOFT_WHITE
         colours[binding.button_index] = colour
     return ButtonLedState(tuple(colours))

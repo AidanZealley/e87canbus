@@ -71,11 +71,6 @@ class UpdateButtonProfileRequest(StrictRequest):
     definition: ButtonProfileDefinitionRequest
 
 
-class ActivateButtonProfileRequest(StrictRequest):
-    profile_id: str = Field(pattern=CANONICAL_UUID_PATTERN)
-    expected_revision: int = Field(ge=1)
-
-
 class ButtonProfileDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

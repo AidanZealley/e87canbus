@@ -1,27 +1,6 @@
 {
   "components": {
     "schemas": {
-      "ActivateButtonProfileRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "expected_revision": {
-            "minimum": 1.0,
-            "title": "Expected Revision",
-            "type": "integer"
-          },
-          "profile_id": {
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-            "title": "Profile Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "profile_id",
-          "expected_revision"
-        ],
-        "title": "ActivateButtonProfileRequest",
-        "type": "object"
-      },
       "ActivateSteeringCurveRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1180,77 +1159,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/button-pad/activate-profile": {
-      "post": {
-        "operationId": "activateButtonProfile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ActivateButtonProfileRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Activate Button Profile",
-        "tags": [
-          "button-pad"
-        ]
-      }
-    },
     "/api/button-pad/profile": {
       "get": {
         "operationId": "getSavedButtonProfile",

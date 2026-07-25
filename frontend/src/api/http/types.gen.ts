@@ -5,20 +5,6 @@ export type ClientOptions = {
 }
 
 /**
- * ActivateButtonProfileRequest
- */
-export type ActivateButtonProfileRequest = {
-  /**
-   * Expected Revision
-   */
-  expected_revision: number
-  /**
-   * Profile Id
-   */
-  profile_id: string
-}
-
-/**
  * ActivateSteeringCurveRequest
  */
 export type ActivateSteeringCurveRequest = {
@@ -1458,45 +1444,6 @@ export type ValidationIssue = {
    */
   type: string
 }
-
-export type ActivateButtonProfileData = {
-  body: ActivateButtonProfileRequest
-  path?: never
-  query?: never
-  url: "/api/button-pad/activate-profile"
-}
-
-export type ActivateButtonProfileErrors = {
-  /**
-   * Not Found
-   */
-  404: ApiProblemResponse
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type ActivateButtonProfileError =
-  ActivateButtonProfileErrors[keyof ActivateButtonProfileErrors]
-
-export type ActivateButtonProfileResponses = {
-  /**
-   * Successful Response
-   */
-  200: CommandAcknowledgement
-}
-
-export type ActivateButtonProfileResponse =
-  ActivateButtonProfileResponses[keyof ActivateButtonProfileResponses]
 
 export type GetSavedButtonProfileData = {
   body?: never

@@ -14,7 +14,6 @@ import type { ButtonProfileResponse } from "@/api/http"
 
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
-  activate: vi.fn(),
   profile: null as ButtonProfileResponse | null,
 }))
 
@@ -41,7 +40,6 @@ vi.mock("@/api/http/@tanstack/react-query.gen", () => ({
     staleTime: Number.POSITIVE_INFINITY,
   }),
   updateButtonProfileMutation: () => ({ mutationFn: mocks.update }),
-  activateButtonProfileMutation: () => ({ mutationFn: mocks.activate }),
 }))
 
 import { ButtonProfileEditor } from "./ButtonProfileEditor"

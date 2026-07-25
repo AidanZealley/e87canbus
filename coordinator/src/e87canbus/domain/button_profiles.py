@@ -5,15 +5,17 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any, assert_never
 from uuid import UUID
 
+from e87canbus.domain.button_commands import (
+    ButtonCommand,
+    decode_button_command,
+    encode_button_command,
+    is_button_command,
+)
 from e87canbus.domain.events import BUTTON_LED_COUNT
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
-    SelectSteeringMode,
-    SetManualAssistanceLevel,
-    SetMaximumAssistance,
     StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
@@ -21,26 +23,16 @@ from e87canbus.domain.intents import (
 from e87canbus.domain.revisioned_profiles import (
     validate_saved_profile_revision as validate_saved_profile_revision,
 )
-from e87canbus.domain.state import SteeringMode
 from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
 BUTTON_PROFILE_SCHEMA_VERSION = 1
 BUTTON_PROFILE_NAME_MAX_LENGTH = 100
-UserButtonIntent = (
-    SelectSteeringMode
-    | ToggleAutomaticAssistance
-    | AdjustManualAssistance
-    | SetManualAssistanceLevel
-    | SetMaximumAssistance
-    | ToggleMaximumAssistance
-    | StartHighBeamStrobe
-)
 
 
 @dataclass(frozen=True)
 class ButtonProfileDefinition:
     schema_version: int
-    slots: tuple[UserButtonIntent | None, ...]
+    slots: tuple[ButtonCommand | None, ...]
 
     def __post_init__(self) -> None:
         if type(self.schema_version) is not int:
@@ -49,7 +41,7 @@ class ButtonProfileDefinition:
             raise ValueError(f"unsupported button profile schema_version: {self.schema_version}")
         if not isinstance(self.slots, tuple) or len(self.slots) != BUTTON_LED_COUNT:
             raise ValueError(f"slots must be an immutable {BUTTON_LED_COUNT}-entry tuple")
-        if any(value is not None and not is_user_button_intent(value) for value in self.slots):
+        if any(value is not None and not is_button_command(value) for value in self.slots):
             raise ValueError("slots contain an intent that is not user-bindable")
 
 
@@ -72,21 +64,6 @@ class StoredButtonProfile:
             raise ValueError("definition must be a ButtonProfileDefinition")
         validate_canonical_utc_timestamp(self.created_at, "created_at")
         validate_canonical_utc_timestamp(self.updated_at, "updated_at")
-
-
-def is_user_button_intent(value: object) -> bool:
-    return isinstance(
-        value,
-        (
-            SelectSteeringMode,
-            ToggleAutomaticAssistance,
-            AdjustManualAssistance,
-            SetManualAssistanceLevel,
-            SetMaximumAssistance,
-            ToggleMaximumAssistance,
-            StartHighBeamStrobe,
-        ),
-    )
 
 
 def empty_button_profile_definition() -> ButtonProfileDefinition:
@@ -136,37 +113,12 @@ def validate_button_profile_id(profile_id: str) -> None:
         raise ValueError("profile_id must use canonical UUID text")
 
 
-def encode_button_intent(intent: UserButtonIntent) -> dict[str, Any]:
-    """Tag one bindable intent for the wire and for storage.
-
-    This is the only encoder: the HTTP layer serialises responses through it too, so a
-    new command can never be persisted in one shape and published in another.
-    """
-
-    match intent:
-        case SelectSteeringMode(mode=mode):
-            return {"type": "select_steering_mode", "mode": mode.value}
-        case ToggleAutomaticAssistance():
-            return {"type": "toggle_automatic_assistance"}
-        case AdjustManualAssistance(delta=delta):
-            return {"type": "adjust_manual_assistance", "delta": delta}
-        case SetManualAssistanceLevel(level=level):
-            return {"type": "set_manual_assistance_level", "level": level}
-        case SetMaximumAssistance(enabled=enabled):
-            return {"type": "set_maximum_assistance", "enabled": enabled}
-        case ToggleMaximumAssistance():
-            return {"type": "toggle_maximum_assistance"}
-        case StartHighBeamStrobe():
-            return {"type": "start_high_beam_strobe"}
-        case _:
-            assert_never(intent)
-
-
 def canonical_button_profile_bytes(definition: ButtonProfileDefinition) -> bytes:
     value = {
         "schema_version": definition.schema_version,
         "slots": [
-            None if intent is None else encode_button_intent(intent) for intent in definition.slots
+            None if command is None else encode_button_command(command)
+            for command in definition.slots
         ],
     }
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -180,36 +132,8 @@ def decode_button_profile(value: object) -> ButtonProfileDefinition:
         raise ValueError("slots must be a list")
     return ButtonProfileDefinition(
         value["schema_version"],
-        tuple(None if command is None else decode_button_intent(command) for command in slots),
+        tuple(None if command is None else decode_button_command(command) for command in slots),
     )
-
-
-def decode_button_intent(value: object) -> UserButtonIntent:
-    """Rebuild one bindable intent from parsed JSON, refusing unknown or extra fields.
-
-    HTTP request bodies are decoded through here as well (after Pydantic has shape-checked
-    them), so the tag vocabulary lives in exactly one place.
-    """
-
-    if not isinstance(value, dict) or not isinstance(value.get("type"), str):
-        raise ValueError("command must be a tagged object")
-    tag = value["type"]
-    fields = set(value)
-    if tag == "select_steering_mode" and fields == {"type", "mode"}:
-        return SelectSteeringMode(SteeringMode(value["mode"]))
-    if tag == "toggle_automatic_assistance" and fields == {"type"}:
-        return ToggleAutomaticAssistance()
-    if tag == "adjust_manual_assistance" and fields == {"type", "delta"}:
-        return AdjustManualAssistance(value["delta"])
-    if tag == "set_manual_assistance_level" and fields == {"type", "level"}:
-        return SetManualAssistanceLevel(value["level"])
-    if tag == "set_maximum_assistance" and fields == {"type", "enabled"}:
-        return SetMaximumAssistance(value["enabled"])
-    if tag == "toggle_maximum_assistance" and fields == {"type"}:
-        return ToggleMaximumAssistance()
-    if tag == "start_high_beam_strobe" and fields == {"type"}:
-        return StartHighBeamStrobe()
-    raise ValueError(f"unsupported or malformed button command: {tag}")
 
 
 def button_profile_fingerprint(definition: ButtonProfileDefinition) -> str:

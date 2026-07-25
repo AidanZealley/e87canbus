@@ -32,7 +32,8 @@ export const toButtonCommandSlots = (
 export type ButtonCommandType =
   NonNullable<ButtonCommand>["type"] | "unassigned"
 
-export type ButtonCommandDraft = {
+/** Transient values used only while the binding dialog is open. */
+export type ButtonCommandFormValue = {
   type: ButtonCommandType
   mode: "auto" | "manual"
   delta: "-1" | "1"
