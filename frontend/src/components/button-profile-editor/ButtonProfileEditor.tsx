@@ -91,23 +91,11 @@ export const ButtonProfileEditor = ({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div>
-          <CardTitle>{profile.name}</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Click a button to change its command.
-          </p>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <ButtonProfilePad
+    <ButtonProfilePad
           slots={slots}
           rgb={displayRgb}
           disabled={save.isPending}
           onChange={commitBinding}
         />
-      </CardContent>
-    </Card>
   )
 }
