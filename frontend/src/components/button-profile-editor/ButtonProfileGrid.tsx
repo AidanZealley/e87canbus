@@ -6,12 +6,14 @@ import { commandLabel } from "./utils"
 type ButtonProfileGridProps = {
   slots: ButtonCommandSlots
   rgb: ReadonlyArray<readonly [number, number, number]>
+  disabled?: boolean
   onEdit: (index: number) => void
 }
 
 export const ButtonProfileGrid = ({
   slots,
   rgb,
+  disabled = false,
   onEdit,
 }: ButtonProfileGridProps) => (
   <div className="grid grid-cols-4 gap-2" aria-label="Editable button pad">
@@ -31,6 +33,7 @@ export const ButtonProfileGrid = ({
             boxShadow: `inset 0 0 12px rgb(${color.join(" ")} / 0.22)`,
           }}
           aria-label={`Edit button ${index}: ${commandLabel(command)}`}
+          disabled={disabled}
           onClick={() => onEdit(index)}
         >
           <span className="font-heading text-lg">{index}</span>
