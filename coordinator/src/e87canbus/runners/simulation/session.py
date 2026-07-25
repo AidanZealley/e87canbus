@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from e87canbus.adapters.can_io import CanReceiver
 from e87canbus.adapters.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_profiles import ActiveButtonProfile
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.domain.steering import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
@@ -48,7 +48,7 @@ def build_session(
     *,
     button_pad_source: DeviceSource,
     servotronic_factory: Callable[[float, Callable[[], float]], SimulatedServotronicPeer],
-    button_binding_profile: ButtonBindingProfile | None,
+    button_profile: ActiveButtonProfile | None,
     initial_steering_curve: ActiveSteeringCurve | None,
     button_profile_saved_revision: int | None = None,
 ) -> SimulationSession:
@@ -118,10 +118,8 @@ def build_session(
         servotronic_output_available=kcan_enabled,
         active_steering_curve=initial_steering_curve,
     )
-    if button_binding_profile is not None:
-        kernel.configure_initial_button_profile(
-            button_binding_profile, button_profile_saved_revision
-        )
+    if button_profile is not None:
+        kernel.configure_initial_button_profile(button_profile, button_profile_saved_revision)
     executor = EffectExecutor(
         transmitters,
         router,

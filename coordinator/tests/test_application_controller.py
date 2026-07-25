@@ -8,8 +8,8 @@ from e87canbus.config import (
     SteeringConfig,
 )
 from e87canbus.domain import controller
-from e87canbus.domain.button_bindings import built_in_button_binding_profile
 from e87canbus.domain.button_pad import static_button_pad_program
+from e87canbus.domain.button_profiles import built_in_active_button_profile
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
     EngineTelemetrySnapshot,
@@ -58,7 +58,7 @@ from e87canbus.domain.steering import (
 
 CONFIG = SteeringConfig()
 ENGINE_CONFIG = EngineTelemetryConfig()
-BUILT_IN_LEDS = controller.ButtonLedProjection(built_in_button_binding_profile())
+BUILT_IN_LEDS = controller.ButtonLedProjection(built_in_active_button_profile())
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
 RESTING_LEDS = (

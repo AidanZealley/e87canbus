@@ -20,7 +20,7 @@ from e87canbus.api.models.live_contract import (
 )
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
 from e87canbus.domain import controller
-from e87canbus.domain.button_bindings import built_in_button_binding_profile
+from e87canbus.domain.button_profiles import built_in_active_button_profile
 from e87canbus.domain.state import (
     ApplicationState,
     MaximumAssistance,
@@ -108,7 +108,7 @@ def test_live_steering_projects_configured_manual_assistance_level_count() -> No
         EngineTelemetryConfig(),
         initial_active_steering_curve(),
         SteeringCurveActivationStatus.ACTIVE,
-        controller.ButtonLedProjection(built_in_button_binding_profile()),
+        controller.ButtonLedProjection(built_in_active_button_profile()),
         None,
     )
     service_snapshot = SimpleNamespace(
@@ -133,7 +133,7 @@ def test_live_steering_projects_remembered_level_while_maximum_is_active() -> No
         EngineTelemetryConfig(),
         initial_active_steering_curve(),
         SteeringCurveActivationStatus.ACTIVE,
-        controller.ButtonLedProjection(built_in_button_binding_profile()),
+        controller.ButtonLedProjection(built_in_active_button_profile()),
         None,
     )
     service_snapshot = SimpleNamespace(

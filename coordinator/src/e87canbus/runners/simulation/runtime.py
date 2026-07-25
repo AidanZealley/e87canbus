@@ -11,7 +11,7 @@ from typing import Any
 from e87canbus.adapters.can_io import CanReceiver
 from e87canbus.adapters.output import EffectExecutor
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
-from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
@@ -103,7 +103,7 @@ class SimulatedControllerRuntime:
         servotronic_factory: Callable[
             [float, Callable[[], float]], SimulatedServotronicPeer
         ] = SimulatedServotronicPeer,
-        button_binding_profile: ButtonBindingProfile | None = None,
+        button_profile: ActiveButtonProfile | None = None,
     ) -> None:
         self.config = config or simulator_config()
         if ids is not None:
@@ -113,7 +113,7 @@ class SimulatedControllerRuntime:
         self.button_pad_source = button_pad_source
         self._clock = clock
         self._servotronic_factory = servotronic_factory
-        self._button_binding_profile = button_binding_profile
+        self._button_profile = button_profile
         self._session_id = 0
         self._started = False
         self._initial_steering_curve: ActiveSteeringCurve | None = None
@@ -136,12 +136,12 @@ class SimulatedControllerRuntime:
 
     def configure_initial_button_profile(
         self,
-        profile: ButtonBindingProfile,
+        profile: ActiveButtonProfile,
         saved_profile_revision: int | None = None,
     ) -> None:
         if self._started:
             raise RuntimeError("initial button profile must be configured before startup")
-        self._button_binding_profile = profile
+        self._button_profile = profile
         self._initial_button_profile_revision = saved_profile_revision
 
     def start(self, submit_input: RuntimeInputSink | None = None) -> RuntimeExecution:
@@ -276,7 +276,7 @@ class SimulatedControllerRuntime:
             self._clock,
             button_pad_source=self.button_pad_source,
             servotronic_factory=self._servotronic_factory,
-            button_binding_profile=self._button_binding_profile,
+            button_profile=self._button_profile,
             button_profile_saved_revision=self._initial_button_profile_revision,
             initial_steering_curve=self._initial_steering_curve,
         )

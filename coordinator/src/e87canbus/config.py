@@ -120,9 +120,9 @@ class EngineTelemetryConfig:
 # without a cycle).
 BUTTON_PAD_BUTTON_COUNT = 16
 
-# The fixed button indexes bound by the built-in profile's non-high-beam intents.
+# The fixed button indexes filled by the built-in profile's non-high-beam commands.
 # This is the single source of truth for "which pad buttons are already reserved":
-# application.button_bindings imports this constant and builds those fixed bindings
+# domain.button_profiles imports this constant and builds those fixed slots
 # from it, so the profile and this reservation set cannot silently drift apart.
 BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
 

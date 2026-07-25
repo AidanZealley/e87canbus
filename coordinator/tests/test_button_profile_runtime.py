@@ -2,11 +2,12 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.adapters.output import EffectRequest
-from e87canbus.config import CanNetwork, CustomCanIds
-from e87canbus.domain.button_bindings import (
-    ButtonBinding,
-    ButtonBindingProfile,
-    built_in_button_binding_profile,
+from e87canbus.config import CanNetwork, CustomCanIds, SteeringConfig
+from e87canbus.domain.button_profiles import (
+    ActiveButtonProfile,
+    ButtonCommand,
+    built_in_active_button_profile,
+    button_profile_definition_with,
 )
 from e87canbus.domain.controller import (
     SOFT_WHITE,
@@ -23,6 +24,7 @@ from e87canbus.domain.events import (
 )
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
+    SetManualAssistanceLevel,
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
 )
@@ -44,13 +46,13 @@ from e87canbus.protocol.can import (
 from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 
 
-def profile(*bindings: ButtonBinding, profile_id: str = "user") -> ButtonBindingProfile:
-    return ButtonBindingProfile(profile_id, bindings)
+def profile(assignments: dict[int, ButtonCommand], profile_id: str = "user") -> ActiveButtonProfile:
+    return ActiveButtonProfile(profile_id, button_profile_definition_with(assignments))
 
 
 def led_effect(
     state: ApplicationState,
-    selected: ButtonBindingProfile,
+    selected: ActiveButtonProfile,
     servotronic_usable: bool = True,
 ) -> SetButtonPadProgram:
     return ButtonLedProjection(selected, servotronic_usable).effect(state)
@@ -93,10 +95,7 @@ def press_button(kernel: CoordinatorKernel, button_index: int) -> None:
 
 
 def test_derived_led_presentation_follows_binding_intents_not_fixed_indexes() -> None:
-    selected = profile(
-        ButtonBinding(7, ToggleAutomaticAssistance()),
-        ButtonBinding(12, SetMaximumAssistance(True)),
-    )
+    selected = profile({7: ToggleAutomaticAssistance(), 12: SetMaximumAssistance(True)})
 
     normal = derived_button_led_state(ApplicationState(), selected)
     maximum = derived_button_led_state(
@@ -135,7 +134,7 @@ def test_activation_replaces_profile_and_emits_complete_led_program() -> None:
             0.2,
         )
     )
-    selected = profile(ButtonBinding(9, ToggleAutomaticAssistance()))
+    selected = profile({9: ToggleAutomaticAssistance()})
 
     commit = kernel.dispatch(
         ActivateButtonProfile(selected, saved_profile_revision=3, requested_at=1.0)
@@ -162,7 +161,7 @@ def test_activation_replaces_profile_and_emits_complete_led_program() -> None:
 
 
 def test_activation_rolls_back_routing_when_led_presentation_fails() -> None:
-    original = built_in_button_binding_profile()
+    original = built_in_active_button_profile()
 
     def presenter(state, selected, servotronic_usable):
         if selected.profile_id == "broken":
@@ -175,10 +174,7 @@ def test_activation_rolls_back_routing_when_led_presentation_fails() -> None:
     with pytest.raises(RuntimeError, match="presentation failed"):
         kernel.dispatch(
             ActivateButtonProfile(
-                profile(
-                    ButtonBinding(9, ToggleAutomaticAssistance()),
-                    profile_id="broken",
-                ),
+                profile({9: ToggleAutomaticAssistance()}, profile_id="broken"),
                 requested_at=1.0,
             )
         )
@@ -192,9 +188,7 @@ def test_activation_rolls_back_routing_when_led_presentation_fails() -> None:
 def test_visible_press_on_a_user_bound_button_is_not_confirmed_by_a_blink() -> None:
     # The built-in profile binds nothing to button 7, so a profile-blind comparison
     # sees RGB_OFF on both sides and adds a confirmation blink over a real change.
-    kernel = CoordinatorKernel(
-        button_binding_profile=profile(ButtonBinding(7, ToggleAutomaticAssistance()))
-    )
+    kernel = CoordinatorKernel(button_profile=profile({7: ToggleAutomaticAssistance()}))
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -207,9 +201,7 @@ def test_visible_press_on_a_user_bound_button_is_not_confirmed_by_a_blink() -> N
 def test_invisible_press_is_confirmed_even_where_the_built_in_profile_would_change() -> None:
     # Button 0 is ToggleAutomaticAssistance built in, so a profile-blind comparison
     # reads the steering-mode change as visible and swallows the confirmation.
-    kernel = CoordinatorKernel(
-        button_binding_profile=profile(ButtonBinding(0, AdjustManualAssistance(1)))
-    )
+    kernel = CoordinatorKernel(button_profile=profile({0: AdjustManualAssistance(1)}))
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -220,7 +212,7 @@ def test_invisible_press_is_confirmed_even_where_the_built_in_profile_would_chan
 
 
 def test_initial_profile_drives_startup_snapshot_and_device_sync_effect() -> None:
-    selected = profile(ButtonBinding(11, ToggleAutomaticAssistance()))
+    selected = profile({11: ToggleAutomaticAssistance()})
     kernel = CoordinatorKernel()
     kernel.configure_initial_button_profile(selected, 4)
 
@@ -229,7 +221,7 @@ def test_initial_profile_drives_startup_snapshot_and_device_sync_effect() -> Non
     assert commit is not None
     expected = led_effect(ApplicationState(), selected, servotronic_usable=False)
     assert commit.snapshot.button_pad_program == expected.program
-    assert kernel.button_binding_profile == selected
+    assert kernel.button_profile == selected
     assert kernel.button_profile_saved_revision == 4
 
     ids = CustomCanIds()
@@ -255,11 +247,29 @@ def test_initial_profile_drives_startup_snapshot_and_device_sync_effect() -> Non
 
 
 def test_simulation_preserves_initial_saved_profile_revision() -> None:
-    selected = profile(ButtonBinding(6, ToggleAutomaticAssistance()))
+    selected = profile({6: ToggleAutomaticAssistance()})
     runtime = SimulatedControllerRuntime()
     runtime.configure_initial_button_profile(selected, 7)
 
     runtime.start()
 
-    assert runtime.kernel.button_binding_profile == selected
+    assert runtime.kernel.button_profile == selected
     assert runtime.kernel.button_profile_saved_revision == 7
+
+
+def test_press_of_a_command_the_configuration_rejects_fails_as_feedback() -> None:
+    """A profile stored before a configuration change must not raise out of the kernel."""
+
+    stage_count = SteeringConfig().manual_level_count
+    kernel = CoordinatorKernel(
+        button_profile=profile({5: SetManualAssistanceLevel(stage_count)}),
+    )
+    kernel.dispatch(KernelStarted(0.0))
+    activate_devices(kernel)
+
+    commit = kernel.dispatch(
+        ReceivedCanFrame(CanNetwork.KCAN, CanFrame(CustomCanIds().button_event, bytes((5, 1))), 2.0)
+    )
+
+    assert commit is not None
+    assert kernel.state.button_feedback_colours[5] is ButtonFeedbackColour.RED

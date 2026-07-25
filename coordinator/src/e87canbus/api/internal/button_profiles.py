@@ -14,30 +14,38 @@ from e87canbus.api.models.button_profiles import (
     CreateButtonProfileRequest,
     UpdateButtonProfileRequest,
 )
-from e87canbus.domain.button_bindings import button_binding_profile_from_definition
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.button_commands import encode_button_command
-from e87canbus.domain.button_profile_repository import ButtonProfileRepository
 from e87canbus.domain.button_profiles import (
     ButtonProfileDefinition,
+    ButtonProfileRepository,
     StoredButtonProfile,
     decode_button_profile,
+    validate_button_profile_for,
     validate_button_profile_id,
 )
 from e87canbus.kernel import ActivateButtonProfile
 
 
-def definition_from_request(request: ButtonProfileDefinitionRequest) -> ButtonProfileDefinition:
+def definition_from_request(
+    request: ButtonProfileDefinitionRequest,
+    steering_config: SteeringConfig,
+) -> ButtonProfileDefinition:
     """Hand the shape-checked request body to the single domain decoder.
 
     Pydantic has already rejected unknown tags and stray fields; dumping the model back
     to plain JSON keeps the tag vocabulary itself defined in exactly one place, so an
     eighth button command cannot be accepted here and then be undecodable from storage.
+    The configuration check that follows rejects values this vehicle cannot run, which
+    no static schema can express - without it they would only fail on the first press.
     """
 
     try:
-        return decode_button_profile(request.model_dump(mode="json"))
+        definition = decode_button_profile(request.model_dump(mode="json"))
+        validate_button_profile_for(definition, steering_config)
     except (TypeError, ValueError) as exc:
         raise ApiProblem(422, "validation_error", str(exc)) from exc
+    return definition
 
 
 def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
@@ -80,7 +88,11 @@ async def get_profile(
 async def create_profile(
     app: FastAPI, repository: ButtonProfileRepository, request: CreateButtonProfileRequest
 ) -> ButtonProfileResponse:
-    definition = None if request.definition is None else definition_from_request(request.definition)
+    definition = (
+        None
+        if request.definition is None
+        else definition_from_request(request.definition, _steering_config(app))
+    )
     async with app.state.button_profile_mutation_lock:
         profile = await repository_operation(
             lambda: repository.create_profile(request.name, definition)
@@ -96,7 +108,7 @@ async def update_profile(
     request: UpdateButtonProfileRequest,
 ) -> ButtonProfileResponse:
     _validate_id(profile_id)
-    definition = definition_from_request(request.definition)
+    definition = definition_from_request(request.definition, _steering_config(app))
     async with app.state.button_profile_mutation_lock:
         profile = await repository_operation(
             lambda: repository.update_profile(
@@ -132,11 +144,10 @@ async def _install_updated_profile(
 ) -> None:
     """Make a successful edit the runtime and startup profile immediately."""
 
-    compiled = button_binding_profile_from_definition(profile.definition, profile.profile_id)
     await submit_command(
         app,
         ActivateButtonProfile(
-            compiled,
+            profile.as_active(),
             saved_profile_revision=profile.revision,
             requested_at=app.state.monotonic_clock(),
         ),
@@ -161,6 +172,11 @@ async def _publish(app: FastAPI, profile: StoredButtonProfile) -> None:
         resource_id=profile.profile_id,
         revision=profile.revision,
     )
+
+
+def _steering_config(app: FastAPI) -> SteeringConfig:
+    config: SteeringConfig = app.state.controller_service.config.steering
+    return config
 
 
 def _validate_id(profile_id: str) -> None:

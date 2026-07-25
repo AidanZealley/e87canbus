@@ -13,11 +13,12 @@ from e87canbus.config import (
     HighBeamStrobeConfig,
     SteeringConfig,
 )
-from e87canbus.domain.button_bindings import (
-    ButtonBindingProfile,
-    built_in_button_binding_profile,
+from e87canbus.domain.button_commands import button_command_configuration_error
+from e87canbus.domain.button_profiles import (
+    ActiveButtonProfile,
+    built_in_active_button_profile,
+    validate_saved_profile_revision,
 )
-from e87canbus.domain.button_profiles import validate_saved_profile_revision
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
     ButtonLedPresenter,
@@ -139,13 +140,13 @@ class CoordinatorKernel:
         device_sources: dict[DeviceRole, DeviceSource] | None = None,
         servotronic_output_available: bool = True,
         servotronic_config_available: bool = False,
-        button_binding_profile: ButtonBindingProfile | None = None,
+        button_profile: ActiveButtonProfile | None = None,
         button_led_presenter: ButtonLedPresenter = derived_button_led_state,
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
         self._high_beam_strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
-        self._button_binding_profile = button_binding_profile or built_in_button_binding_profile(
+        self._button_profile = button_profile or built_in_active_button_profile(
             self._high_beam_strobe_config
         )
         self._button_led_presenter = button_led_presenter
@@ -195,8 +196,8 @@ class CoordinatorKernel:
         return self._registry
 
     @property
-    def button_binding_profile(self) -> ButtonBindingProfile:
-        return self._button_binding_profile
+    def button_profile(self) -> ActiveButtonProfile:
+        return self._button_profile
 
     @property
     def button_profile_saved_revision(self) -> int | None:
@@ -233,7 +234,7 @@ class CoordinatorKernel:
         """The active bindings every LED derivation in this kernel is computed against."""
 
         return ButtonLedProjection(
-            self._button_binding_profile,
+            self._button_profile,
             self._servotronic_usable,
             self._button_led_presenter,
         )
@@ -251,17 +252,17 @@ class CoordinatorKernel:
 
     def configure_initial_button_profile(
         self,
-        profile: ButtonBindingProfile,
+        profile: ActiveButtonProfile,
         saved_profile_revision: int | None = None,
     ) -> None:
         """Install a persisted button profile before the kernel starts."""
 
         if self._lifecycle is not KernelLifecycle.CREATED or self._revision != 0:
             raise RuntimeError("initial button profile must be configured before startup")
-        if not isinstance(profile, ButtonBindingProfile):
-            raise TypeError("profile must be a ButtonBindingProfile")
+        if not isinstance(profile, ActiveButtonProfile):
+            raise TypeError("profile must be a ActiveButtonProfile")
         validate_saved_profile_revision(saved_profile_revision)
-        self._button_binding_profile = profile
+        self._button_profile = profile
         self._button_profile_saved_revision = saved_profile_revision
 
     def diagnostics(self) -> DiagnosticSnapshot:
@@ -453,7 +454,7 @@ class CoordinatorKernel:
         button_entry = self.registry_for(DeviceRole.BUTTON_PAD)
         if button_entry.status is not DeviceLifecycleStatus.ACTIVE:
             return None
-        intent = self._button_binding_profile.intent_for_press(event.button_index)
+        intent = self._button_profile.intent_for_press(event.button_index)
         if intent is None:
             return self._transition(
                 ButtonCommandFailed(
@@ -465,6 +466,21 @@ class CoordinatorKernel:
                 ButtonCommandFailed(
                     event.button_index, event.observed_at, ButtonFeedbackColour.AMBER
                 )
+            )
+        # A profile saved before a steering-configuration change can hold a value this
+        # vehicle no longer offers. Report it as a failed press rather than letting it
+        # raise out of the kernel; the API rejects the same profile at save time.
+        unusable = button_command_configuration_error(intent, self._steering_config)
+        if unusable is not None:
+            LOGGER.warning(
+                "ignored button press whose command the configuration rejects: "
+                "button=%d profile=%s error=%s",
+                event.button_index,
+                self._button_profile.profile_id,
+                unusable,
+            )
+            return self._transition(
+                ButtonCommandFailed(event.button_index, event.observed_at, ButtonFeedbackColour.RED)
             )
         return self._dispatch_button_intent(event, intent)
 
@@ -684,17 +700,17 @@ class CoordinatorKernel:
     def _activate_button_profile(self, request: ActivateButtonProfile) -> Commit:
         """Atomically replace routing and emit its complete derived LED program."""
 
-        # Constructing ActivateButtonProfile and ButtonBindingProfile performs all
+        # Constructing ActivateButtonProfile and ActiveButtonProfile performs all
         # validation before mutation; retain locals so a future presenter failure
         # cannot leave half-applied routing.
-        previous_profile = self._button_binding_profile
+        previous_profile = self._button_profile
         previous_revision = self._button_profile_saved_revision
-        self._button_binding_profile = request.profile
+        self._button_profile = request.profile
         self._button_profile_saved_revision = request.saved_profile_revision
         try:
             current_button_leds = self._button_led_effect()
         except BaseException:
-            self._button_binding_profile = previous_profile
+            self._button_profile = previous_profile
             self._button_profile_saved_revision = previous_revision
             raise
         changed = (

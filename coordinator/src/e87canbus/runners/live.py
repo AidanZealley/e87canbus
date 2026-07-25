@@ -19,7 +19,7 @@ from e87canbus.adapters.output import (
 )
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
-from e87canbus.domain.button_bindings import ButtonBindingProfile
+from e87canbus.domain.button_profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.device import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
@@ -273,7 +273,7 @@ class LiveControllerRuntime:
 
     def configure_initial_button_profile(
         self,
-        profile: ButtonBindingProfile,
+        profile: ActiveButtonProfile,
         saved_profile_revision: int | None = None,
     ) -> None:
         if self._started:

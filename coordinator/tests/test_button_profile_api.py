@@ -282,8 +282,11 @@ def test_button_profile_revision_conflicts_are_authoritative(client: TestClient)
 def test_one_command_vocabulary_is_shared_by_http_and_storage() -> None:
     """Adding an eighth button command must break here rather than silently half-land.
 
-    The HTTP request models, the domain codec and the response encoder must agree on the
-    same tag set, so this pins the three together instead of trusting them to drift apart.
+    The HTTP request models are generated from the catalogue, so their tags agree with
+    storage by construction. What this still pins is the hand-written sample payload
+    above: a new catalogue entry that nothing exercises over HTTP fails here, and the
+    round trip proves the generated model, the domain codec and the response encoder
+    all speak the same tag.
     """
 
     http_tags = {
@@ -296,11 +299,32 @@ def test_one_command_vocabulary_is_shared_by_http_and_storage() -> None:
     assert len(http_tags) == len(get_args(ButtonCommand))
     # Every tag survives the round trip HTTP model -> domain intent -> stored JSON.
     definition = definition_from_request(
-        ButtonProfileDefinitionRequest.model_validate(definition_json())
+        ButtonProfileDefinitionRequest.model_validate(definition_json()),
+        simulator_config().steering,
     )
     assert [
         encode_button_command(command) for command in definition.slots if command is not None
     ] == samples
     assert {type(intent) for intent in definition.slots if intent is not None} == set(
         get_args(ButtonCommand)
+    )
+
+
+def test_assistance_level_beyond_the_configured_stages_is_rejected(client: TestClient) -> None:
+    """A schema-valid level the vehicle cannot select must fail at save, not on press."""
+
+    definition = definition_json()
+    stage_count = simulator_config().steering.manual_level_count
+    definition["slots"][3] = {"type": "set_manual_assistance_level", "level": stage_count}
+
+    response = client.post(
+        "/api/button-pad/profiles",
+        json={"name": "Out of range", "definition": definition},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert (
+        f"button 3: manual assistance level must be between 0 and {stage_count - 1}"
+        in (response.json()["error"]["message"])
     )
