@@ -38,6 +38,9 @@ const commandRequiresServotronic = (
 const currentMode = (steering: SteeringState): "auto" | "manual" =>
   steering.maximum_assistance_active ? "manual" : steering.mode
 
+export type ButtonVisualState =
+  "unassigned" | "unavailable" | "active" | "inactive"
+
 const commandIsActive = (
   command: NonNullable<ButtonCommand>,
   steering: SteeringState | null
@@ -64,10 +67,23 @@ const commandIsActive = (
   }
 }
 
-const restingRgb = (rgb: ButtonLedRgb): ButtonLedRgb => {
+export const restingButtonLedRgb = (rgb: ButtonLedRgb): ButtonLedRgb => {
   const dim = (channel: number) =>
     Math.floor((channel * RESTING_BRIGHTNESS + 127) / 255)
   return [dim(rgb[0]), dim(rgb[1]), dim(rgb[2])]
+}
+
+export const deriveButtonVisualState = (
+  slot: ButtonCommandSlot,
+  context: ButtonLedPresentationContext
+): ButtonVisualState => {
+  if (slot === null) return "unassigned"
+  if (
+    !context.synchronized ||
+    (commandRequiresServotronic(slot.command) && !context.servotronicUsable)
+  )
+    return "unavailable"
+  return commandIsActive(slot.command, context.steering) ? "active" : "inactive"
 }
 
 /**
@@ -80,18 +96,18 @@ export const derivedButtonLedPresentation: ButtonLedPresentationAdapter = (
   slot,
   context
 ) => {
-  if (slot === null) return OFF
-  if (
-    !context.synchronized ||
-    (commandRequiresServotronic(slot.command) && !context.servotronicUsable)
-  )
-    return SOFT_AMBER
-  if (!commandIsActive(slot.command, context.steering))
-    return restingRgb(slot.colour)
-
-  // Animations deliberately preview as their steady full-brightness colour.
-  // Preview animation belongs with the workstream 2 animation controls.
-  return slot.active_colour ?? slot.colour
+  switch (deriveButtonVisualState(slot, context)) {
+    case "unassigned":
+      return OFF
+    case "unavailable":
+      return SOFT_AMBER
+    case "inactive":
+      return restingButtonLedRgb(slot!.colour)
+    case "active":
+      // Animations deliberately preview as their steady full-brightness colour.
+      // Preview animation belongs with the workstream 2 animation controls.
+      return slot!.active_colour ?? slot!.colour
+  }
 }
 
 export const deriveButtonProfileLedPreview = (

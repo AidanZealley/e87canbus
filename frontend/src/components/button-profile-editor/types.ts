@@ -1,7 +1,7 @@
-import type { ButtonProfileDefinitionRequest } from "@/api/http"
+import type { ButtonProfileDefinitionResponse } from "@/api/http"
 
-/** Every slot the pad exposes; the API contract accepts nothing shorter or longer. */
-export type ButtonCommandSlots = ButtonProfileDefinitionRequest["slots"]
+/** Every configurable slot; the API contract accepts nothing shorter or longer. */
+export type ButtonCommandSlots = ButtonProfileDefinitionResponse["slots"]
 export type ButtonCommandSlot = ButtonCommandSlots[number]
 export type ButtonCommand = NonNullable<ButtonCommandSlot>["command"] | null
 
@@ -32,12 +32,3 @@ export const toButtonCommandSlots = (
 
 export type ButtonCommandType =
   NonNullable<ButtonCommand>["type"] | "unassigned"
-
-/** Transient values used only while the binding dialog is open. */
-export type ButtonCommandFormValue = {
-  type: ButtonCommandType
-  mode: "auto" | "manual"
-  delta: "-1" | "1"
-  level: string
-  enabled: "true" | "false"
-}

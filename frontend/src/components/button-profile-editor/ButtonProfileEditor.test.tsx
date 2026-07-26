@@ -15,6 +15,8 @@ import type { ButtonProfileResponse } from "@/api/http"
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   profile: null as ButtonProfileResponse | null,
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
 }))
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -40,6 +42,13 @@ vi.mock("@/api/http/@tanstack/react-query.gen", () => ({
     staleTime: Number.POSITIVE_INFINITY,
   }),
   updateButtonProfileMutation: () => ({ mutationFn: mocks.update }),
+}))
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: mocks.toastError,
+    success: mocks.toastSuccess,
+  },
 }))
 
 import { ButtonProfileEditor } from "./ButtonProfileEditor"
@@ -100,7 +109,9 @@ it("renders a newer saved revision when the profile changes", async () => {
     </QueryClientProvider>
   )
   expect(
-    await screen.findByRole("button", { name: "Edit button 0: Assist 2" })
+    await screen.findByRole("button", {
+      name: "Configure button 0: Assist 2",
+    })
   ).toBeTruthy()
 
   act(() => {
@@ -112,7 +123,9 @@ it("renders a newer saved revision when the profile changes", async () => {
   })
 
   expect(
-    await screen.findByRole("button", { name: "Edit button 0: Assist 7" })
+    await screen.findByRole("button", {
+      name: "Configure button 0: Assist 7",
+    })
   ).toBeTruthy()
   expect(screen.queryByText("Saved profile changed")).toBeNull()
 })
@@ -130,12 +143,14 @@ it("commits a binding as soon as it is applied", async () => {
   )
 
   fireEvent.click(
-    await screen.findByRole("button", { name: "Edit button 0: Assist 2" })
+    await screen.findByRole("button", {
+      name: "Configure button 0: Assist 2",
+    })
   )
   fireEvent.change(screen.getByLabelText("Level"), {
     target: { value: "5" },
   })
-  fireEvent.click(screen.getByRole("button", { name: "Apply binding" }))
+  fireEvent.blur(screen.getByLabelText("Level"))
 
   await waitFor(() => {
     expect(mocks.update.mock.calls[0]?.[0]).toEqual({
@@ -182,4 +197,33 @@ it("commits a binding as soon as it is applied", async () => {
   })
   expect(screen.queryByRole("button", { name: "Save profile" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull()
+})
+
+it("surfaces revision conflicts through the existing error detail", async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  mocks.profile = profile(1, 2)
+  mocks.update.mockRejectedValue({
+    body: {
+      error: {
+        code: "button_profile_revision_conflict",
+        message: "Button profile is at revision 2, not 1",
+        current_revision: 2,
+      },
+    },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ButtonProfileEditor profile={mocks.profile!} />
+    </QueryClientProvider>
+  )
+
+  fireEvent.click(await screen.findByRole("button", { name: "Clear button 0" }))
+
+  await waitFor(() => {
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Button profile is at revision 2, not 1"
+    )
+  })
 })
