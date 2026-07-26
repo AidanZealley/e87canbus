@@ -22,16 +22,18 @@ from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
     BUTTON_LED_COUNT,
-    RGB_AMBER,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_RED,
-    RGB_WHITE,
-    ButtonFeedbackColour,
     ButtonLedState,
     SetButtonPadProgram,
 )
-from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
+from e87canbus.domain.state import (
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
+    ApplicationState,
+    MaximumAssistance,
+    SteeringMode,
+)
 
 SOFT_WHITE: tuple[int, int, int] = (8, 8, 8)
 SOFT_AMBER: tuple[int, int, int] = (8, 6, 0)
@@ -115,18 +117,13 @@ class ButtonLedProjection:
 
         displayed = self.led_state(state).rgb
         tracks = [solid_track(rgb) for rgb in displayed]
-        feedback_rgb = {
-            ButtonFeedbackColour.RED: RGB_RED,
-            ButtonFeedbackColour.AMBER: RGB_AMBER,
-            ButtonFeedbackColour.WHITE: RGB_WHITE,
-        }
-        for index, colour in enumerate(state.button_feedback_colours):
-            if colour is not None:
+        for index, feedback in enumerate(state.button_feedback):
+            if feedback is not None:
                 tracks[index] = blink_track(
-                    feedback_rgb[colour],
+                    feedback.rgb,
                     BUTTON_FEEDBACK_BLINK_ON_MS,
                     BUTTON_FEEDBACK_BLINK_OFF_MS,
-                    1 if colour is ButtonFeedbackColour.WHITE else 2,
+                    feedback.pulses,
                     displayed[index],
                 )
         return SetButtonPadProgram(resolved_button_pad_program(tuple(tracks)))

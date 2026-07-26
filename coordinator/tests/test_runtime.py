@@ -12,10 +12,6 @@ from e87canbus.domain.controller import SOFT_WHITE
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
-    RGB_AMBER,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
     ApplicationEvent,
     ButtonLedState,
     ButtonPressed,
@@ -32,7 +28,15 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
 )
-from e87canbus.domain.state import SpeedSample, SteeringMode
+from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_UNAVAILABLE,
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
+    SpeedSample,
+    SteeringMode,
+)
 from e87canbus.kernel import (
     INITIAL_KERNEL_TOPICS,
     CanEffectExecutionFailed,
@@ -429,7 +433,8 @@ def test_unavailable_servotronic_rejects_both_origins_with_button_only_feedback(
     assert rejected_button.snapshot.manual_assistance_level == before.manual_assistance_level
     assert steering_effects(rejected_button) == ()
     assert any(
-        isinstance(request.effect, TriggerButtonPadBlink) and request.effect.colour.value == "amber"
+        isinstance(request.effect, TriggerButtonPadBlink)
+        and request.effect.feedback == BUTTON_FEEDBACK_UNAVAILABLE
         for request in rejected_button.effects
     )
 

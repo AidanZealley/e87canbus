@@ -18,12 +18,9 @@ from e87canbus.domain.controller import (
     Transition,
 )
 from e87canbus.domain.events import (
-    RGB_AMBER,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
     ApplicationEffect,
     ApplicationEvent,
+    ButtonCommandFailed,
     ButtonLedState,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
@@ -37,10 +34,17 @@ from e87canbus.domain.events import (
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
+    button_feedback_duration_s,
 )
 from e87canbus.domain.intents import OperatorIntentContext, StartHighBeamStrobe
 from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_REJECTED,
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
     ApplicationState,
+    ButtonFeedback,
     CoolantTemperatureSample,
     EngineRpmSample,
     MaximumAssistance,
@@ -120,6 +124,26 @@ def projection(state: ApplicationState) -> tuple[SteeringMode, int, bool]:
         value.manual_assistance_level,
         value.maximum_assistance_active,
     )
+
+
+def test_feedback_deadline_is_keyed_on_pulse_count() -> None:
+    """A one-pulse acknowledgement clears in half the time a two-pulse refusal does.
+
+    This replaced a branch keyed on the feedback colour being white, so the shorter
+    deadline is now a property of the blink rather than of one system treatment.
+    """
+
+    state = ApplicationState()
+
+    single = transition(state, ButtonCommandFailed(2, 5.0, ButtonFeedback(RGB_WHITE, 1)), CONFIG)
+    double = transition(state, ButtonCommandFailed(2, 5.0, BUTTON_FEEDBACK_REJECTED), CONFIG)
+
+    assert single.state.button_feedback_deadlines[2] == pytest.approx(5.2)
+    assert double.state.button_feedback_deadlines[2] == pytest.approx(5.4)
+    assert single.state.button_feedback[2] == ButtonFeedback(RGB_WHITE, 1)
+    assert double.state.button_feedback[2] == BUTTON_FEEDBACK_REJECTED
+    assert button_feedback_duration_s(1) == pytest.approx(0.2)
+    assert button_feedback_duration_s(2) == pytest.approx(0.4)
 
 
 def test_initial_snapshot_and_effects() -> None:

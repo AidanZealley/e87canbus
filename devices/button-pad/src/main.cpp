@@ -6,6 +6,7 @@
 #include <mcp_can.h>
 
 #include "can_ids.h"
+#include "button_pad_effect.h"
 #include "button_pad_effects.h"
 #include "isotp_transport.h"
 #include "protocol_state.h"
@@ -29,7 +30,6 @@ const uint32_t CONTROLLER_TIMEOUT_MS = 3000;
 const int32_t CADENCE_JITTER_MS = 100;
 const uint8_t RESPONSE_ACCEPTED = 0;
 const uint8_t RESPONSE_UNSUPPORTED = 1;
-const uint8_t BUTTON_PAD_EFFECT_COMMAND_VERSION = 1;
 const uint8_t BUTTON_LED_COUNT = 16;
 const uint8_t TRELLIS_ADDR = 0x2E;
 const uint8_t TRELLIS_BRIGHTNESS = 20;
@@ -403,34 +403,25 @@ void handleWelcomeAck(const uint8_t *payload, uint8_t length, uint32_t now) {
 }
 
 void handleButtonPadEffect(const uint8_t *payload, uint8_t length, uint32_t now) {
-    if (state != DeviceState::OPERATIONAL || !freshControllerLease(now) ||
-        length != BUTTON_PAD_EFFECT_LENGTH ||
-        payload[BUTTON_PAD_EFFECT_VERSION_BYTE] != BUTTON_PAD_EFFECT_COMMAND_VERSION ||
-        payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE] >= BUTTON_LED_COUNT ||
-        payload[BUTTON_PAD_EFFECT_RESERVED_5_BYTE] != 0 ||
-        payload[BUTTON_PAD_EFFECT_RESERVED_6_BYTE] != 0 ||
-        payload[BUTTON_PAD_EFFECT_RESERVED_7_BYTE] != 0) {
+    if (state != DeviceState::OPERATIONAL || !freshControllerLease(now)) {
         return;
     }
-    const uint8_t opcode = payload[BUTTON_PAD_EFFECT_OPCODE_BYTE];
-    const uint8_t buttonIndex = payload[BUTTON_PAD_EFFECT_BUTTON_INDEX_BYTE];
+    // The frame carries its own colour; decoding is pure, so it is covered by the
+    // host tests rather than only by the fact that this translation unit builds.
+    const button_pad::EffectCommand command =
+        button_pad::decodeEffectCommand(payload, length, BUTTON_LED_COUNT);
     bool applied = false;
-    if ((opcode == BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE ||
-         opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ||
-         opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE) &&
-        payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1) {
-        const uint8_t red = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 255 :
-                            opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 255;
-        const uint8_t green = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 191 :
-                              opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 0;
-        const uint8_t blue = opcode == BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE ? 0 :
-                             opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE ? 255 : 0;
-        applied = opcode == BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE
-                      ? effects.triggerSingleBlink(buttonIndex, red, green, blue, now)
-                      : effects.triggerDoubleBlink(buttonIndex, red, green, blue, now);
-    } else if (opcode == BUTTON_PAD_EFFECT_BREATHE &&
-               payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] <= 1) {
-        applied = effects.setBreathe(buttonIndex, payload[BUTTON_PAD_EFFECT_ENABLED_BYTE] == 1);
+    switch (command.action) {
+        case button_pad::EffectAction::SINGLE_BLINK:
+            applied = effects.triggerSingleBlink(command.buttonIndex, command.red, command.green,
+                                                 command.blue, now);
+            break;
+        case button_pad::EffectAction::DOUBLE_BLINK:
+            applied = effects.triggerDoubleBlink(command.buttonIndex, command.red, command.green,
+                                                 command.blue, now);
+            break;
+        case button_pad::EffectAction::IGNORE:
+            break;
     }
     if (applied && displayMode == DisplayMode::NORMAL) {
         applyPixelDisplay(now);

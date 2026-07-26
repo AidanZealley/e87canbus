@@ -17,9 +17,7 @@ from e87canbus.domain.buttons.pad import pack_button_pad_transfers
 from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
     ApplicationEffect,
-    ButtonFeedbackColour,
     ConfigureServotronicCurve,
-    SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
@@ -28,10 +26,8 @@ from e87canbus.domain.events import (
 )
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
 from e87canbus.protocol.generated import (
-    BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-    BUTTON_PAD_EFFECT_BREATHE,
+    BUTTON_PAD_EFFECT_BLINK,
+    BUTTON_PAD_EFFECT_COMMAND_VERSION,
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.protocol.router import ProtocolRouter
@@ -70,7 +66,6 @@ class EffectRequest:
             (
                 SetButtonPadProgram,
                 TriggerButtonPadBlink,
-                SetButtonPadBreathe,
                 SetSteeringAssistance,
                 ConfigureServotronicCurve,
                 SetHighBeam,
@@ -233,7 +228,7 @@ class EffectExecutor:
                     can_failure = self._execute_can(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
-                case TriggerButtonPadBlink() | SetButtonPadBreathe():
+                case TriggerButtonPadBlink():
                     can_failure = self._execute_button_pad_effect(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
@@ -257,23 +252,28 @@ class EffectExecutor:
 
     def _execute_button_pad_effect(
         self,
-        effect: TriggerButtonPadBlink | SetButtonPadBreathe,
+        effect: TriggerButtonPadBlink,
         origin_button_index: int | None,
     ) -> CanEffectFailure | None:
-        opcode = (
-            {
-                ButtonFeedbackColour.RED: BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-                ButtonFeedbackColour.WHITE: BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-                ButtonFeedbackColour.AMBER: BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-            }[effect.colour]
-            if isinstance(effect, TriggerButtonPadBlink)
-            else BUTTON_PAD_EFFECT_BREATHE
-        )
-        enabled = 1 if isinstance(effect, TriggerButtonPadBlink) or effect.enabled else 0
+        """Encode the one generic blink opcode, colour and pulse count included."""
+
+        pulses = effect.feedback.pulses
+        red, green, blue = effect.feedback.rgb
         payload = bytes(
-            (1, opcode, effect.button_index, self._button_pad_effect_sequence, enabled, 0, 0, 0)
+            (
+                BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                BUTTON_PAD_EFFECT_BLINK,
+                effect.button_index,
+                self._button_pad_effect_sequence,
+                pulses,
+                red,
+                green,
+                blue,
+            )
         )
         assert len(payload) == BUTTON_PAD_EFFECT_LENGTH
+        # ButtonFeedback bounds the pulse count; the pad has no other entry point.
+        assert pulses in (1, 2)
         self._button_pad_effect_sequence = (self._button_pad_effect_sequence + 1) & 0xFF
         return self._execute_routed_can(
             SendRegistryFrame(

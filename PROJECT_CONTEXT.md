@@ -247,8 +247,9 @@ lib_deps =
 
 **Current button-pad milestone responsibilities:**
 - Emit bench-only synthetic press/release events on `0x700`.
-- Validate complete DLC-8 LED snapshots received on `0x701` and replace all 16 stored colours only
-  after every nibble is known.
+- Validate single-frame press-feedback blinks received on `0x701` and composite them over the base
+  scene without replacing it. The steady appearance of every button, animated or not, arrives as a
+  program over the ISO-TP link instead.
 - Report the stored values through one rendering boundary. Physical NeoTrellis scanning and pixel
   rendering remain unimplemented until the actual hardware topology and electrical limits are
   verified.
@@ -261,7 +262,7 @@ collision-free merely because they are in the high standard-ID range.
 | ID | Direction | Description |
 |---|---|---|
 | `0x700` | Button pad → coordinator | Button event (byte 0 = button index, byte 1 = press/release) |
-| `0x701` | Coordinator → button pad | Complete 16-colour LED snapshot (DLC 8; even index in low nibble, odd index in high nibble) |
+| `0x701` | Coordinator → button pad | Press-feedback blink (DLC 8; byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = pulse count of one or two, bytes 5-7 = RGB) |
 
 `protocol/custom.toml` is the source of truth. Its generator updates the Python constants, firmware
 header, and the marked table section in `protocol/custom_ids.md`; `--check` detects drift.

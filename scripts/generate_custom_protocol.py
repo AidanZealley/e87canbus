@@ -25,6 +25,7 @@ class MessageDefinition:
     byte_positions: tuple[tuple[str, int], ...]
     values: tuple[tuple[str, int], ...]
     values_title: str | None = None
+    command_version: int | None = None
     led_count: int | None = None
     even_index_shift: int | None = None
     odd_index_shift: int | None = None
@@ -152,6 +153,11 @@ def _parse_message(name: str, table: Mapping[str, Any]) -> MessageDefinition:
     values_title = table.get("values_title")
     if values_title is not None and not isinstance(values_title, str):
         raise ValueError(f"{name}.values_title must be a string")
+    command_version = table.get("command_version")
+    if command_version is not None and (
+        not isinstance(command_version, int) or not 0 <= command_version <= 0xFF
+    ):
+        raise ValueError(f"{name}.command_version must fit in one byte")
     return MessageDefinition(
         name=name,
         can_id=can_id,
@@ -162,6 +168,7 @@ def _parse_message(name: str, table: Mapping[str, Any]) -> MessageDefinition:
         byte_positions=byte_positions,
         values=values,
         values_title=values_title,
+        command_version=command_version,
         **led_metadata,
     )
 
@@ -244,6 +251,8 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
             for name, position in message.byte_positions
         )
         constants.append((f"{prefix}_LENGTH", message.length))
+        if message.command_version is not None:
+            constants.append((f"{prefix}_COMMAND_VERSION", message.command_version))
         if message.name == "button_event":
             constants.extend((f"BUTTON_{name.upper()}", value) for name, value in message.values)
         elif message.values and message.name != "led_snapshot":
@@ -291,7 +300,7 @@ def _constant_fragment(name: str) -> str:
 
 def _render_value(name: str, value: int) -> str:
     if name == "CUSTOM_DEVICE_PROTOCOL_VERSION" or name.endswith(
-        ("_BYTE", "_LENGTH", "_COUNT", "_SHIFT")
+        ("_BYTE", "_LENGTH", "_COUNT", "_SHIFT", "_COMMAND_VERSION")
     ):
         return str(value)
     width = 3 if name.startswith("CAN_ID_") else 2

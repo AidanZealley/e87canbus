@@ -27,12 +27,10 @@ class ButtonPadEffects {
     bool animated(uint32_t now_ms) const;
     uint16_t animationMask(uint32_t now_ms) const;
     bool committed() const;
-    bool triggerRedDoubleBlink(uint8_t button_index, uint32_t now_ms);
     bool triggerDoubleBlink(uint8_t button_index, uint8_t red, uint8_t green, uint8_t blue,
                             uint32_t now_ms);
     bool triggerSingleBlink(uint8_t button_index, uint8_t red, uint8_t green, uint8_t blue,
                             uint32_t now_ms);
-    bool setBreathe(uint8_t button_index, bool enabled);
 
    private:
     bool applyCommand(const uint8_t *command, uint32_t now_ms);
@@ -46,8 +44,6 @@ class ButtonPadEffects {
     uint8_t blink_rgb_[BUTTON_PAD_LED_COUNT][3] = {};
     uint16_t blink_mask_ = 0;
     uint16_t single_blink_mask_ = 0;
-    uint16_t breathe_control_mask_ = 0;
-    uint16_t breathe_mask_ = 0;
 };
 
 static_assert(sizeof(ButtonPadEffects) <= 384, "button-pad renderer RAM budget changed");

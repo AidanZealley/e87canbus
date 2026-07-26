@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CustomCanIds
 from e87canbus.domain.devices.catalogue import DeviceRole
-from e87canbus.domain.events import BUTTON_LED_COUNT, RGB_OFF
+from e87canbus.domain.events import BUTTON_LED_COUNT
+from e87canbus.domain.state import RGB_OFF
 from e87canbus.protocol.can import (
     ArduinoButtonEventPayload,
     ButtonPadProgramPayload,
@@ -18,16 +20,23 @@ from e87canbus.protocol.can import (
     encode_button_event,
 )
 from e87canbus.protocol.generated import (
-    BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-    BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-    BUTTON_PAD_EFFECT_BREATHE,
+    BUTTON_PAD_EFFECT_BLINK,
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.runners.simulation.devices.peer import SimulatedDeviceState, SimulatedRegistryPeer
 from e87canbus.transport.isotp import IsoTpEndpoint
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SimulatedBlinkCommand:
+    """One accepted ``0x701`` blink frame, decoded the way the firmware reads it."""
+
+    button_index: int
+    pulses: int
+    rgb: tuple[int, int, int]
+    sequence: int
 
 
 class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
@@ -50,7 +59,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
         self._pending_led_rgb: list[tuple[int, int, int]] | None = None
         self.button_pad_program: ButtonPadProgramPayload | None = None
         self.last_seen_monotonic_s: float | None = None
-        self.effect_commands: list[tuple[int, int, bool, int]] = []
+        self.effect_commands: list[SimulatedBlinkCommand] = []
         self.transport = IsoTpEndpoint(
             tx_id=ids.button_pad_transport_device_to_coordinator,
             rx_id=ids.button_pad_transport_coordinator_to_device,
@@ -101,19 +110,17 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
                     self._operational_with_fresh_lease(now)
                     and len(frame.data) == BUTTON_PAD_EFFECT_LENGTH
                     and frame.data[0] == 1
-                    and frame.data[1]
-                    in (
-                        BUTTON_PAD_EFFECT_BLINK_RED_DOUBLE,
-                        BUTTON_PAD_EFFECT_BLINK_WHITE_SINGLE,
-                        BUTTON_PAD_EFFECT_BLINK_AMBER_DOUBLE,
-                        BUTTON_PAD_EFFECT_BREATHE,
-                    )
+                    and frame.data[1] == BUTTON_PAD_EFFECT_BLINK
                     and frame.data[2] < BUTTON_LED_COUNT
-                    and frame.data[4] <= 1
-                    and frame.data[5:] == b"\x00\x00\x00"
+                    and frame.data[4] in (1, 2)
                 ):
                     self.effect_commands.append(
-                        (frame.data[1], frame.data[2], bool(frame.data[4]), frame.data[3])
+                        SimulatedBlinkCommand(
+                            frame.data[2],
+                            frame.data[4],
+                            (frame.data[5], frame.data[6], frame.data[7]),
+                            frame.data[3],
+                        )
                     )
                     self.last_seen_monotonic_s = now
                 continue

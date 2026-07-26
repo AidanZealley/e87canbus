@@ -16,10 +16,6 @@ from e87canbus.domain.controller import (
 )
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import (
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
-    ButtonFeedbackColour,
     SetButtonPadProgram,
 )
 from e87canbus.domain.intents import (
@@ -28,7 +24,16 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
 )
-from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
+from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_REJECTED,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
+    ApplicationState,
+    ButtonFeedback,
+    MaximumAssistance,
+    SteeringMode,
+)
 from e87canbus.kernel import (
     ActivateButtonProfile,
     CoordinatorKernel,
@@ -195,7 +200,7 @@ def test_visible_press_on_a_user_bound_button_is_not_confirmed_by_a_blink() -> N
     press_button(kernel, 7)
 
     assert kernel.snapshot().steering_mode is SteeringMode.MANUAL
-    assert kernel.state.button_feedback_colours[7] is None
+    assert kernel.state.button_feedback[7] is None
 
 
 def test_invisible_press_is_confirmed_even_where_the_built_in_profile_would_change() -> None:
@@ -208,7 +213,7 @@ def test_invisible_press_is_confirmed_even_where_the_built_in_profile_would_chan
     press_button(kernel, 0)
 
     assert kernel.snapshot().steering_mode is SteeringMode.MANUAL
-    assert kernel.state.button_feedback_colours[0] is ButtonFeedbackColour.WHITE
+    assert kernel.state.button_feedback[0] == ButtonFeedback(RGB_WHITE, 1)
 
 
 def test_initial_profile_drives_startup_snapshot_and_device_sync_effect() -> None:
@@ -272,4 +277,4 @@ def test_press_of_a_command_the_configuration_rejects_fails_as_feedback() -> Non
     )
 
     assert commit is not None
-    assert kernel.state.button_feedback_colours[5] is ButtonFeedbackColour.RED
+    assert kernel.state.button_feedback[5] == BUTTON_FEEDBACK_REJECTED

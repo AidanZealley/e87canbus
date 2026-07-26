@@ -20,6 +20,7 @@ from e87canbus.protocol.generated import (
 from e87canbus.runners.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
 from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
 from e87canbus.runners.simulation.devices import (
+    SimulatedBlinkCommand,
     SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
     SimulatedVehicleNode,
@@ -91,6 +92,50 @@ def test_neotrellis_sends_explicit_press_and_release_events() -> None:
     assert second == CanFrame(ids.button_event, bytes([3, BUTTON_RELEASED]))
     assert observer_bus.receive(timeout_s=0) == first
     assert observer_bus.receive(timeout_s=0) == second
+
+
+def test_neotrellis_decodes_one_and_two_pulse_blinks_of_an_arbitrary_colour() -> None:
+    ids = CustomCanIds()
+    network = InMemoryCanNetwork()
+    controller_bus = network.create_bus("controller")
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    activate_neotrellis(node, controller_bus, clock)
+
+    # The frame carries its colour, so the pad renders values no opcode ever named.
+    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x07\x01\x2a\x8c\x13"))
+    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x04\x08\x02\xff\xbf\x00"))
+    node.process_pending(clock())
+
+    assert node.effect_commands == [
+        SimulatedBlinkCommand(3, 1, (0x2A, 0x8C, 0x13), 7),
+        SimulatedBlinkCommand(4, 2, (0xFF, 0xBF, 0x00), 8),
+    ]
+
+
+def test_neotrellis_ignores_effect_frames_the_firmware_cannot_render() -> None:
+    ids = CustomCanIds()
+    network = InMemoryCanNetwork()
+    controller_bus = network.create_bus("controller")
+    clock = MutableClock()
+    node = SimulatedNeoTrellisNode(
+        bus=network.create_bus("neotrellis"),
+        ids=ids,
+        clock=clock,
+    )
+    activate_neotrellis(node, controller_bus, clock)
+
+    # A pulse count outside 1-2 has no firmware entry point, and 0x02 is retired.
+    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x07\x03\x2a\x8c\x13"))
+    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x08\x00\x2a\x8c\x13"))
+    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x02\x03\x09\x01\x2a\x8c\x13"))
+    node.process_pending(clock())
+
+    assert node.effect_commands == []
 
 
 def test_neotrellis_rejects_buttons_outside_generated_device_positions() -> None:

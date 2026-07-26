@@ -36,12 +36,23 @@ def test_definition_owns_ids_lengths_positions_and_values() -> None:
     effect = definition.message("button_pad_effect")
     assert effect.can_id == 0x701
     assert effect.length == 8
-    assert dict(effect.values) == {
-        "blink_red_double": 1,
-        "breathe": 2,
-        "blink_white_single": 3,
-        "blink_amber_double": 4,
+    # 0x701 carries exactly one opcode: the blink frame carries its own colour and
+    # pulse count, and steady appearance belongs to the button-pad program instead.
+    assert dict(effect.values) == {"blink": 1}
+    assert dict(effect.byte_positions) == {
+        "version": 0,
+        "opcode": 1,
+        "button_index": 2,
+        "sequence": 3,
+        "pulses": 4,
+        "red": 5,
+        "green": 6,
+        "blue": 7,
     }
+    # Version 1 read bytes 4-7 as an enabled flag plus reserved zeroes, so a v1
+    # sender must be rejected by v2 firmware rather than render a black blink.
+    assert effect.command_version == 2
+    assert definition.message("button_event").command_version is None
 
 
 def test_registry_messages_have_fixed_ids_and_layouts() -> None:
