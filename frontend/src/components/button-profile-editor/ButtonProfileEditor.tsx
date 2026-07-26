@@ -8,12 +8,12 @@ import {
 } from "@/api/http/@tanstack/react-query.gen"
 import type { ButtonProfileResponse } from "@/api/http"
 import { useLiveStore } from "@/live/live-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ButtonProfileError } from "./ButtonProfileError"
 import { ButtonProfileLoading } from "./ButtonProfileLoading"
 import { ButtonProfilePad } from "./ButtonProfilePad"
 import { buttonProfileErrorDetail } from "./error-detail"
 import { toButtonCommandSlots, type ButtonCommand } from "./types"
+import { defaultColourForCommand } from "./utils"
 import { deriveButtonProfileLedPreview } from "./button-led-presentation"
 
 type ButtonProfileEditorProps = {
@@ -76,14 +76,25 @@ export const ButtonProfileEditor = ({
   const profile = savedProfile
   const commitBinding = async (index: number, command: ButtonCommand) => {
     const next = [...slots]
-    next[index] = command
+    const currentSlot = slots[index]
+    next[index] =
+      command === null
+        ? null
+        : {
+            command,
+            colour: currentSlot?.colour ?? defaultColourForCommand(command),
+            // Presentation is not editable yet, so changing only the command must
+            // not discard authored values that arrived from another client.
+            active_colour: currentSlot?.active_colour ?? null,
+            animation: currentSlot?.animation ?? null,
+          }
     await save.mutateAsync({
       path: { profile_id: profile.profile_id },
       body: {
         name: profile.name,
         expected_revision: profile.revision,
         definition: {
-          schema_version: 1,
+          schema_version: 2,
           slots: toButtonCommandSlots(next),
         },
       },
@@ -92,10 +103,10 @@ export const ButtonProfileEditor = ({
 
   return (
     <ButtonProfilePad
-          slots={slots}
-          rgb={displayRgb}
-          disabled={save.isPending}
-          onChange={commitBinding}
-        />
+      slots={slots}
+      rgb={displayRgb}
+      disabled={save.isPending}
+      onChange={commitBinding}
+    />
   )
 }

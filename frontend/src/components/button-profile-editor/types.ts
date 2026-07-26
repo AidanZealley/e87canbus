@@ -2,7 +2,8 @@ import type { ButtonProfileDefinitionRequest } from "@/api/http"
 
 /** Every slot the pad exposes; the API contract accepts nothing shorter or longer. */
 export type ButtonCommandSlots = ButtonProfileDefinitionRequest["slots"]
-export type ButtonCommand = ButtonCommandSlots[number]
+export type ButtonCommandSlot = ButtonCommandSlots[number]
+export type ButtonCommand = NonNullable<ButtonCommandSlot>["command"] | null
 
 /**
  * Typed against the contract tuple so a backend pad-size change fails the build
@@ -11,22 +12,22 @@ export type ButtonCommand = ButtonCommandSlots[number]
 export const BUTTON_SLOT_COUNT: ButtonCommandSlots["length"] = 16
 
 const hasEverySlot = (
-  commands: readonly ButtonCommand[]
-): commands is ButtonCommandSlots => commands.length === BUTTON_SLOT_COUNT
+  slots: readonly ButtonCommandSlot[]
+): slots is ButtonCommandSlots => slots.length === BUTTON_SLOT_COUNT
 
 /**
- * The one place a command list becomes a full slot set, so editing helpers can
+ * The one place a slot list becomes a full slot set, so editing helpers can
  * work with plain arrays without an unchecked cast reaching the save request.
  */
 export const toButtonCommandSlots = (
-  commands: readonly ButtonCommand[]
+  slots: readonly ButtonCommandSlot[]
 ): ButtonCommandSlots => {
-  if (!hasEverySlot(commands)) {
+  if (!hasEverySlot(slots)) {
     throw new RangeError(
-      `a button profile needs exactly ${BUTTON_SLOT_COUNT} slots, received ${commands.length}`
+      `a button profile needs exactly ${BUTTON_SLOT_COUNT} slots, received ${slots.length}`
     )
   }
-  return commands
+  return slots
 }
 
 export type ButtonCommandType =

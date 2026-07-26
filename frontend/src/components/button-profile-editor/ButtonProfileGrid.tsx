@@ -17,7 +17,7 @@ export const ButtonProfileGrid = ({
   onEdit,
 }: ButtonProfileGridProps) => (
   <div className="grid grid-cols-4 gap-2" aria-label="Editable button pad">
-    {slots.map((command, index) => {
+    {slots.map((slot, index) => {
       const color = rgb[index] ?? [0, 0, 0]
       return (
         <Button
@@ -26,19 +26,19 @@ export const ButtonProfileGrid = ({
           variant="secondary"
           className={cn(
             "relative aspect-square h-auto min-h-16 flex-col gap-1 overflow-hidden rounded-3xl border-2 p-2",
-            command === null && "border-dashed text-muted-foreground"
+            slot === null && "border-dashed text-muted-foreground"
           )}
           style={{
             borderColor: `rgb(${color.join(" ")})`,
             boxShadow: `inset 0 0 12px rgb(${color.join(" ")} / 0.22)`,
           }}
-          aria-label={`Edit button ${index}: ${commandLabel(command)}`}
+          aria-label={`Edit button ${index}: ${commandLabel(slot?.command ?? null)}`}
           disabled={disabled}
           onClick={() => onEdit(index)}
         >
           <span className="font-heading text-lg">{index}</span>
           <span className="line-clamp-2 text-center text-[0.65rem] leading-tight sm:text-xs">
-            {commandLabel(command)}
+            {commandLabel(slot?.command ?? null)}
           </span>
         </Button>
       )

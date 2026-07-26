@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   commandLabel,
   commandToFormValue,
+  defaultColourForCommand,
   formValueToCommand,
 } from "./utils"
 
@@ -16,18 +17,14 @@ describe("button profile command conversion", () => {
     ] as const
 
     expect(
-      commands.map((command) =>
-        formValueToCommand(commandToFormValue(command))
-      )
+      commands.map((command) => formValueToCommand(commandToFormValue(command)))
     ).toEqual(commands)
   })
 
   it("converts unassigned and parameterless commands", () => {
     expect(formValueToCommand(commandToFormValue(null))).toBeNull()
     expect(
-      formValueToCommand(
-        commandToFormValue({ type: "start_high_beam_strobe" })
-      )
+      formValueToCommand(commandToFormValue({ type: "start_high_beam_strobe" }))
     ).toEqual({ type: "start_high_beam_strobe" })
   })
 
@@ -39,5 +36,23 @@ describe("button profile command conversion", () => {
     expect(commandLabel({ type: "adjust_manual_assistance", delta: 1 })).toBe(
       "Assist +"
     )
+  })
+
+  it("seeds the coordinator defaults for newly assigned commands", () => {
+    expect(
+      defaultColourForCommand({
+        type: "select_steering_mode",
+        mode: "manual",
+      })
+    ).toEqual([0, 0, 255])
+    expect(
+      defaultColourForCommand({ type: "toggle_automatic_assistance" })
+    ).toEqual([0, 0, 255])
+    expect(
+      defaultColourForCommand({
+        type: "set_manual_assistance_level",
+        level: 4,
+      })
+    ).toEqual([255, 255, 255])
   })
 })

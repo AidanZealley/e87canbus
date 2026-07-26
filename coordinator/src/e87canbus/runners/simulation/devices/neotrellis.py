@@ -21,6 +21,7 @@ from e87canbus.protocol.can import (
 )
 from e87canbus.protocol.generated import (
     BUTTON_PAD_EFFECT_BLINK,
+    BUTTON_PAD_EFFECT_COMMAND_VERSION,
     BUTTON_PAD_EFFECT_LENGTH,
 )
 from e87canbus.runners.simulation.devices.peer import SimulatedDeviceState, SimulatedRegistryPeer
@@ -109,7 +110,7 @@ class SimulatedNeoTrellisNode(SimulatedRegistryPeer):
                 if (
                     self._operational_with_fresh_lease(now)
                     and len(frame.data) == BUTTON_PAD_EFFECT_LENGTH
-                    and frame.data[0] == 1
+                    and frame.data[0] == BUTTON_PAD_EFFECT_COMMAND_VERSION
                     and frame.data[1] == BUTTON_PAD_EFFECT_BLINK
                     and frame.data[2] < BUTTON_LED_COUNT
                     and frame.data[4] in (1, 2)
