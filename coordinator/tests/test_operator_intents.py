@@ -20,7 +20,6 @@ from e87canbus.domain.buttons.profiles import (
     button_profile_definition_with,
     empty_button_profile_definition,
 )
-from e87canbus.domain.events import RGB_WHITE
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntentContext,
@@ -33,6 +32,7 @@ from e87canbus.domain.intents import (
     intent_requires_servotronic,
 )
 from e87canbus.domain.state import (
+    RGB_WHITE,
     ApplicationState,
     MaximumAssistance,
     NormalSteering,

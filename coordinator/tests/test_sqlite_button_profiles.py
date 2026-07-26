@@ -27,7 +27,6 @@ from e87canbus.domain.buttons.profiles import (
     decode_button_profile,
     empty_button_profile_definition,
 )
-from e87canbus.domain.events import RGB_BLUE, RGB_WHITE, Rgb
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
@@ -43,7 +42,7 @@ from e87canbus.domain.revisioned_profiles import (
     ProfileRevisionConflictError,
     StoredProfileDataError,
 )
-from e87canbus.domain.state import SteeringMode
+from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb, SteeringMode
 
 NOW = datetime(2026, 7, 24, 12, tzinfo=UTC)
 IDENTIFIER = UUID("12345678-1234-4678-9234-567812345678")
