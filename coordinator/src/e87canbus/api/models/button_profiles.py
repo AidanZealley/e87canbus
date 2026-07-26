@@ -1,12 +1,20 @@
 """Strict HTTP models for durable button-pad profiles."""
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Self, Union, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
 from e87canbus.api.models.steering import CANONICAL_UUID_PATTERN, StrictRequest
 from e87canbus.domain.buttons.catalogue import BUTTON_COMMAND_CATALOGUE, ButtonCommandSpec
-from e87canbus.domain.buttons.profiles import BUTTON_PROFILE_NAME_MAX_LENGTH
+from e87canbus.domain.buttons.profiles import (
+    BLINK_DURATION_MAX_MS,
+    BLINK_DURATION_MIN_MS,
+    BREATHE_PERIOD_MAX_MS,
+    BREATHE_PERIOD_MIN_MS,
+    BUTTON_PROFILE_NAME_MAX_LENGTH,
+    BUTTON_PROFILE_SCHEMA_VERSION,
+    RGB_CHANNEL_MAX,
+)
 from e87canbus.domain.events import BUTTON_LED_COUNT
 
 
@@ -39,10 +47,54 @@ ButtonProfileCommand = Annotated[
 
 globals().update({model.__name__: model for model in _COMMAND_MODELS})
 
+RgbChannel = Annotated[int, Field(ge=0, le=RGB_CHANNEL_MAX)]
+
+
+class BreatheAnimationRequest(StrictRequest):
+    """Bounds mirror the button-pad track payload, so an accepted animation is runnable."""
+
+    kind: Literal["breathe"]
+    period_ms: int = Field(ge=BREATHE_PERIOD_MIN_MS, le=BREATHE_PERIOD_MAX_MS)
+    minimum: RgbChannel
+    maximum: RgbChannel
+
+    @model_validator(mode="after")
+    def _ordered_brightness(self) -> Self:
+        if self.minimum > self.maximum:
+            raise ValueError("breathe minimum brightness must not exceed its maximum")
+        return self
+
+
+class BlinkAnimationRequest(StrictRequest):
+    kind: Literal["blink"]
+    on_ms: int = Field(ge=BLINK_DURATION_MIN_MS, le=BLINK_DURATION_MAX_MS)
+    off_ms: int = Field(ge=BLINK_DURATION_MIN_MS, le=BLINK_DURATION_MAX_MS)
+
+
+ButtonProfileAnimation = Annotated[
+    Union[BreatheAnimationRequest, BlinkAnimationRequest],  # noqa: UP007
+    Field(discriminator="kind"),
+]
+
+
+class ButtonProfileSlotRequest(StrictRequest):
+    """One authored button: presentation is a sibling of the command, not part of it.
+
+    ``active_colour`` is reserved and typed as null so a client cannot start depending on
+    a second colour before the renderer honours one. Whether an animation is permitted at
+    all depends on the bound command having an observable condition, which the domain
+    decides at the save boundary.
+    """
+
+    command: ButtonProfileCommand
+    colour: list[RgbChannel] = Field(min_length=3, max_length=3)
+    active_colour: None = None
+    animation: ButtonProfileAnimation | None = None
+
 
 class ButtonProfileDefinitionRequest(StrictRequest):
-    schema_version: Literal[1]
-    slots: list[ButtonProfileCommand | None] = Field(
+    schema_version: Literal[2]
+    slots: list[ButtonProfileSlotRequest | None] = Field(
         min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
     )
 
@@ -58,11 +110,20 @@ class UpdateButtonProfileRequest(StrictRequest):
     definition: ButtonProfileDefinitionRequest
 
 
+class ButtonProfileSlotResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command: ButtonProfileCommand
+    colour: tuple[RgbChannel, RgbChannel, RgbChannel]
+    active_colour: None
+    animation: ButtonProfileAnimation | None
+
+
 class ButtonProfileDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1]
-    slots: tuple[ButtonProfileCommand | None, ...] = Field(
+    schema_version: Literal[2]
+    slots: tuple[ButtonProfileSlotResponse | None, ...] = Field(
         min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
     )
 
@@ -76,3 +137,17 @@ class ButtonProfileResponse(BaseModel):
     definition: ButtonProfileDefinitionResponse
     created_at: str
     updated_at: str
+
+
+# ``Literal`` cannot be built from a name, so the accepted version is written twice above
+# and read back here: the check is against the annotations themselves, not a third copy
+# of the number that could agree with neither. The API accepts exactly one version, so an
+# older body is rejected rather than upgraded - migration is a property of stored rows.
+_ACCEPTED_SCHEMA_VERSIONS = {
+    get_args(model.model_fields["schema_version"].annotation)[0]
+    for model in (ButtonProfileDefinitionRequest, ButtonProfileDefinitionResponse)
+}
+if {BUTTON_PROFILE_SCHEMA_VERSION} != _ACCEPTED_SCHEMA_VERSIONS:
+    raise RuntimeError(
+        "the button profile schema version accepted over HTTP must be the stored one"
+    )

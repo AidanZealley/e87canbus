@@ -6,6 +6,7 @@ from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
+    ButtonSlot,
     button_profile_definition_with,
 )
 from e87canbus.domain.controller import SOFT_WHITE
@@ -207,7 +208,7 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
 def test_decoded_physical_button_press_uses_the_injected_profile() -> None:
     profile = ActiveButtonProfile(
         "test-remap",
-        button_profile_definition_with({8: ToggleAutomaticAssistance()}),
+        button_profile_definition_with({8: ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE)}),
     )
     kernel = CoordinatorKernel(button_profile=profile)
     kernel.dispatch(KernelStarted(0.0))

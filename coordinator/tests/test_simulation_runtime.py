@@ -14,6 +14,7 @@ from e87canbus.config import (
 from e87canbus.domain.buttons.pad import resolve_button_pad_tracks
 from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
+    ButtonSlot,
     button_profile_definition_with,
 )
 from e87canbus.domain.controller import (
@@ -734,7 +735,7 @@ def test_assistance_and_maximum_buttons_run_through_the_simulated_can_slice() ->
 def test_simulated_can_uses_the_kernel_injected_button_profile() -> None:
     profile = ActiveButtonProfile(
         "test-remap",
-        button_profile_definition_with({8: ToggleMaximumAssistance()}),
+        button_profile_definition_with({8: ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE)}),
     )
     controller = build_test_engine(button_profile=profile)
 

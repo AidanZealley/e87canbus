@@ -28,6 +28,27 @@ export const zAdjustManualAssistanceRequest = z.object({
 })
 
 /**
+ * BlinkAnimationRequest
+ */
+export const zBlinkAnimationRequest = z.object({
+  kind: z.literal("blink"),
+  off_ms: z.int().gte(1).lte(10000),
+  on_ms: z.int().gte(1).lte(10000),
+})
+
+/**
+ * BreatheAnimationRequest
+ *
+ * Bounds mirror the button-pad track payload, so an accepted animation is runnable.
+ */
+export const zBreatheAnimationRequest = z.object({
+  kind: z.literal("breathe"),
+  maximum: z.int().gte(0).lte(255),
+  minimum: z.int().gte(0).lte(255),
+  period_ms: z.int().gte(250).lte(10000),
+})
+
+/**
  * CommandAcknowledgement
  */
 export const zCommandAcknowledgement = z.object({
@@ -295,187 +316,88 @@ export const zToggleMaximumAssistanceCommand = z.object({
 })
 
 /**
+ * ButtonProfileSlotRequest
+ *
+ * One authored button: presentation is a sibling of the command, not part of it.
+ *
+ * ``active_colour`` is reserved and typed as null so a client cannot start depending on
+ * a second colour before the renderer honours one. Whether an animation is permitted at
+ * all depends on the bound command having an observable condition, which the domain
+ * decides at the save boundary.
+ */
+export const zButtonProfileSlotRequest = z.object({
+  active_colour: z.null().optional(),
+  animation: z
+    .discriminatedUnion("kind", [
+      zBreatheAnimationRequest,
+      zBlinkAnimationRequest,
+    ])
+    .nullish(),
+  colour: z.tuple([
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+  ]),
+  command: z.discriminatedUnion("type", [
+    zSelectSteeringModeCommand,
+    zToggleAutomaticAssistanceCommand,
+    zAdjustManualAssistanceCommand,
+    zSetManualAssistanceLevelCommand,
+    zSetMaximumAssistanceCommand,
+    zToggleMaximumAssistanceCommand,
+    zStartHighBeamStrobeCommand,
+  ]),
+})
+
+/**
  * ButtonProfileDefinitionRequest
  */
 export const zButtonProfileDefinitionRequest = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   slots: z.tuple([
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+    zButtonProfileSlotRequest.nullable(),
+  ]),
+})
+
+/**
+ * ButtonProfileSlotResponse
+ */
+export const zButtonProfileSlotResponse = z.object({
+  active_colour: z.null(),
+  animation: z
+    .discriminatedUnion("kind", [
+      zBreatheAnimationRequest,
+      zBlinkAnimationRequest,
+    ])
+    .nullable(),
+  colour: z.tuple([
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+  ]),
+  command: z.discriminatedUnion("type", [
+    zSelectSteeringModeCommand,
+    zToggleAutomaticAssistanceCommand,
+    zAdjustManualAssistanceCommand,
+    zSetManualAssistanceLevelCommand,
+    zSetMaximumAssistanceCommand,
+    zToggleMaximumAssistanceCommand,
+    zStartHighBeamStrobeCommand,
   ]),
 })
 
@@ -483,184 +405,24 @@ export const zButtonProfileDefinitionRequest = z.object({
  * ButtonProfileDefinitionResponse
  */
 export const zButtonProfileDefinitionResponse = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   slots: z.tuple([
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
-    z
-      .discriminatedUnion("type", [
-        zSelectSteeringModeCommand,
-        zToggleAutomaticAssistanceCommand,
-        zAdjustManualAssistanceCommand,
-        zSetManualAssistanceLevelCommand,
-        zSetMaximumAssistanceCommand,
-        zToggleMaximumAssistanceCommand,
-        zStartHighBeamStrobeCommand,
-      ])
-      .nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
+    zButtonProfileSlotResponse.nullable(),
   ]),
 })
 
