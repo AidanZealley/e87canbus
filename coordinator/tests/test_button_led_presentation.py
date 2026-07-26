@@ -180,6 +180,8 @@ def test_an_authored_blink_renders_only_while_the_button_is_active() -> None:
 
     assert active[5].kind == BUTTON_PAD_TRACK_BLINK
     assert active[5].repeat == 0
+    assert active[5].rgb == AUTHORED
+    assert active[5].final_rgb == resting_rgb(AUTHORED)
     # The inactive state is always static and faint, whatever the slot authored.
     assert inactive[5] == solid_track(resting_rgb(AUTHORED))
 

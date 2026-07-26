@@ -21,6 +21,7 @@ from e87canbus.domain.buttons.profiles import (
     ButtonProfileDefinition,
     ButtonSlot,
     SlotAnimation,
+    button_profile_fingerprint,
     canonical_button_profile_bytes,
     decode_button_profile,
     empty_button_profile_definition,
@@ -83,7 +84,7 @@ def test_v6_upgrade_selects_first_profile_when_builtin_is_absent(tmp_path: Path)
     with sqlite3.connect(path) as connection:
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("DROP TABLE selected_button_profile")
-        connection.execute("DELETE FROM schema_migrations WHERE version=7")
+        connection.execute("DELETE FROM schema_migrations WHERE version>=7")
         connection.execute(
             "DELETE FROM button_profiles WHERE profile_id=?",
             (BUILT_IN_BUTTON_PROFILE_ID,),
@@ -91,6 +92,62 @@ def test_v6_upgrade_selects_first_profile_when_builtin_is_absent(tmp_path: Path)
     repo.initialize()
 
     assert repo.get_selected_profile() == created
+
+
+def test_v7_upgrade_normalizes_existing_animation_durations_to_medium(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    definition = ButtonProfileDefinition(
+        (
+            ButtonSlot(
+                ToggleMaximumAssistance(),
+                RGB_WHITE,
+                animation=BreatheAnimation(7_500, 8, 255),
+            ),
+            ButtonSlot(
+                ToggleAutomaticAssistance(),
+                RGB_BLUE,
+                animation=BlinkAnimation(125, 900),
+            ),
+        )
+        + (None,) * 14
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute("DELETE FROM schema_migrations WHERE version=8")
+        connection.execute(
+            """
+            UPDATE button_profiles
+            SET revision=3, definition_json=?, definition_fingerprint=?,
+                updated_at_utc=?
+            WHERE profile_id=?
+            """,
+            (
+                canonical_button_profile_bytes(definition).decode(),
+                button_profile_fingerprint(definition),
+                "2026-07-24T11:00:00.000000Z",
+                BUILT_IN_BUTTON_PROFILE_ID,
+            ),
+        )
+
+    repo.initialize()
+
+    migrated = repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+    assert migrated is not None
+    assert migrated.revision == 4
+    assert migrated.updated_at == "2026-07-24T12:00:00.000000Z"
+    assert migrated.definition.slots[0] == replace(
+        definition.slots[0],
+        animation=BreatheAnimation(2_000, 8, 255),
+    )
+    assert migrated.definition.slots[1] == replace(
+        definition.slots[1],
+        animation=BlinkAnimation(400, 400),
+    )
+    repo.initialize()
+    assert repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID) == migrated
 
 
 def test_create_defaults_to_explicit_complete_inert_pad_and_crud(tmp_path: Path) -> None:

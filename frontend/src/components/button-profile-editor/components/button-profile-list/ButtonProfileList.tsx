@@ -5,6 +5,7 @@ import { ButtonProfileItem } from "../button-profile-item"
 type ButtonProfileListProps = {
   slots: ButtonCommandSlots
   visualStates: readonly ButtonVisualState[]
+  manualAssistanceLevelCount?: number
   disabled?: boolean
   onChange: (index: number, slot: ButtonCommandSlot) => Promise<void>
 }
@@ -12,6 +13,7 @@ type ButtonProfileListProps = {
 export const ButtonProfileList = ({
   slots,
   visualStates,
+  manualAssistanceLevelCount,
   disabled = false,
   onChange,
 }: ButtonProfileListProps) => (
@@ -22,6 +24,7 @@ export const ButtonProfileList = ({
         buttonIndex={index}
         slot={slot}
         visualState={visualStates[index] ?? "unassigned"}
+        manualAssistanceLevelCount={manualAssistanceLevelCount}
         disabled={disabled}
         onChange={(nextSlot) => onChange(index, nextSlot)}
       />

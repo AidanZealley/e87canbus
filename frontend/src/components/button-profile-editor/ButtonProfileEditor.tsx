@@ -95,6 +95,7 @@ export const ButtonProfileEditor = ({
     <ButtonProfileList
       slots={slots}
       visualStates={visualStates}
+      manualAssistanceLevelCount={steering?.manual_assistance_level_count}
       disabled={save.isPending}
       onChange={commitSlot}
     />

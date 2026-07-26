@@ -6,8 +6,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  BUTTON_ANIMATION_SPEED_PRESETS,
+  DEFAULT_BUTTON_ANIMATION_SPEED,
+  type ButtonAnimationSpeed,
+} from "../../constants"
 import type { ButtonCommandSlot } from "../../types"
-import { BoundedNumberInput } from "../bounded-number-input"
+import { ButtonBrightnessRange } from "../button-brightness-range"
 
 type ButtonAnimation = NonNullable<ButtonCommandSlot>["animation"]
 
@@ -23,6 +28,16 @@ const animationOptions = [
   { value: "breathe", label: "Breathe" },
   { value: "blink", label: "Blink" },
 ]
+
+const animationSpeed = (
+  animation: Exclude<ButtonAnimation, null>
+): ButtonAnimationSpeed =>
+  BUTTON_ANIMATION_SPEED_PRESETS.find((preset) =>
+    animation.kind === "breathe"
+      ? animation.period_ms === preset.breathePeriodMs
+      : animation.on_ms === preset.blinkOnMs &&
+        animation.off_ms === preset.blinkOffMs
+  )?.value ?? DEFAULT_BUTTON_ANIMATION_SPEED
 
 export const ButtonAnimationEditor = ({
   buttonIndex,
@@ -51,15 +66,27 @@ export const ButtonAnimationEditor = ({
           onValueChange={(value) => {
             if (value === "off") void commit(null)
             if (value === "breathe" && animation?.kind !== "breathe") {
+              const preset = BUTTON_ANIMATION_SPEED_PRESETS.find(
+                ({ value: speed }) => speed === DEFAULT_BUTTON_ANIMATION_SPEED
+              )
+              if (preset === undefined) return
               void commit({
                 kind: "breathe",
-                period_ms: 2000,
+                period_ms: preset.breathePeriodMs,
                 minimum: 8,
                 maximum: 255,
               })
             }
             if (value === "blink" && animation?.kind !== "blink") {
-              void commit({ kind: "blink", on_ms: 400, off_ms: 400 })
+              const preset = BUTTON_ANIMATION_SPEED_PRESETS.find(
+                ({ value: speed }) => speed === DEFAULT_BUTTON_ANIMATION_SPEED
+              )
+              if (preset === undefined) return
+              void commit({
+                kind: "blink",
+                on_ms: preset.blinkOnMs,
+                off_ms: preset.blinkOffMs,
+              })
             }
           }}
         >
@@ -79,58 +106,61 @@ export const ButtonAnimationEditor = ({
         </Select>
       </div>
 
-      {animation?.kind === "breathe" ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <BoundedNumberInput
-            id={`button-${buttonIndex}-breathe-period`}
-            label="Period (ms)"
-            value={animation.period_ms}
-            minimum={250}
-            maximum={10000}
-            disabled={disabled}
-            onCommit={(period_ms) => commit({ ...animation, period_ms })}
-          />
-          <BoundedNumberInput
-            id={`button-${buttonIndex}-breathe-minimum`}
-            label="Minimum"
-            value={animation.minimum}
-            minimum={0}
-            maximum={animation.maximum}
-            disabled={disabled}
-            onCommit={(minimum) => commit({ ...animation, minimum })}
-          />
-          <BoundedNumberInput
-            id={`button-${buttonIndex}-breathe-maximum`}
-            label="Maximum"
-            value={animation.maximum}
-            minimum={animation.minimum}
-            maximum={255}
-            disabled={disabled}
-            onCommit={(maximum) => commit({ ...animation, maximum })}
-          />
-        </div>
-      ) : null}
-
-      {animation?.kind === "blink" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <BoundedNumberInput
-            id={`button-${buttonIndex}-blink-on`}
-            label="On (ms)"
-            value={animation.on_ms}
-            minimum={1}
-            maximum={10000}
-            disabled={disabled}
-            onCommit={(on_ms) => commit({ ...animation, on_ms })}
-          />
-          <BoundedNumberInput
-            id={`button-${buttonIndex}-blink-off`}
-            label="Off (ms)"
-            value={animation.off_ms}
-            minimum={1}
-            maximum={10000}
-            disabled={disabled}
-            onCommit={(off_ms) => commit({ ...animation, off_ms })}
-          />
+      {animation !== null ? (
+        <div className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor={`button-${buttonIndex}-animation-speed`}>
+              Speed
+            </Label>
+            <Select
+              value={animationSpeed(animation)}
+              items={BUTTON_ANIMATION_SPEED_PRESETS}
+              disabled={disabled}
+              onValueChange={(value) => {
+                const preset = BUTTON_ANIMATION_SPEED_PRESETS.find(
+                  ({ value: speed }) => speed === value
+                )
+                if (preset === undefined) return
+                if (animation.kind === "breathe") {
+                  void commit({
+                    ...animation,
+                    period_ms: preset.breathePeriodMs,
+                  })
+                } else {
+                  void commit({
+                    ...animation,
+                    on_ms: preset.blinkOnMs,
+                    off_ms: preset.blinkOffMs,
+                  })
+                }
+              }}
+            >
+              <SelectTrigger
+                id={`button-${buttonIndex}-animation-speed`}
+                className="w-full"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BUTTON_ANIMATION_SPEED_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {animation.kind === "breathe" ? (
+            <ButtonBrightnessRange
+              id={`button-${buttonIndex}-breathe-brightness`}
+              minimum={animation.minimum}
+              maximum={animation.maximum}
+              disabled={disabled}
+              onCommit={(minimum, maximum) =>
+                commit({ ...animation, minimum, maximum })
+              }
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

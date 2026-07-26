@@ -11,6 +11,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, expect, it, vi } from "vitest"
 
 import type { ButtonProfileResponse } from "@/api/http"
+import { snapshot } from "@/live/test-fixtures"
+import { useLiveStore } from "@/live/live-store"
 
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
@@ -95,6 +97,7 @@ const profile = (revision: number, level: number): ButtonProfileResponse =>
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  useLiveStore.getState().reset()
 })
 
 it("renders a newer saved revision when the profile changes", async () => {
@@ -135,6 +138,7 @@ it("commits a binding as soon as it is applied", async () => {
   })
   mocks.profile = profile(1, 2)
   mocks.update.mockResolvedValue(profile(2, 5))
+  useLiveStore.setState({ steering: snapshot("boot", 1).data.steering })
   render(
     <QueryClientProvider client={queryClient}>
       <ButtonProfileEditor profile={mocks.profile!} />
@@ -147,9 +151,8 @@ it("commits a binding as soon as it is applied", async () => {
     })
   )
   fireEvent.change(screen.getByLabelText("Level"), {
-    target: { value: "5" },
+    target: { value: "50" },
   })
-  fireEvent.blur(screen.getByLabelText("Level"))
 
   await waitFor(() => {
     expect(mocks.update.mock.calls[0]?.[0]).toEqual({
