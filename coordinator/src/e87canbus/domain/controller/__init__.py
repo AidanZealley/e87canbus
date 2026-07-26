@@ -21,11 +21,13 @@ Import the public surface from this package; the module split is internal layout
 """
 
 from e87canbus.domain.controller.button_leds import (
+    RESTING_BRIGHTNESS,
     SOFT_AMBER,
-    SOFT_WHITE,
     ButtonLedPresenter,
     ButtonLedProjection,
     derived_button_led_state,
+    rendered_button_track,
+    resting_rgb,
 )
 from e87canbus.domain.controller.intents import (
     clear_maximum_assistance,
@@ -51,8 +53,8 @@ from e87canbus.domain.controller.steering import (
 )
 
 __all__ = [
+    "RESTING_BRIGHTNESS",
     "SOFT_AMBER",
-    "SOFT_WHITE",
     "ApplicationSnapshot",
     "ButtonLedPresenter",
     "ButtonLedProjection",
@@ -66,6 +68,8 @@ __all__ = [
     "finish_button_intent",
     "initial_effects",
     "normalize_state",
+    "rendered_button_track",
+    "resting_rgb",
     "snapshot",
     "steering_command_for_active_curve",
     "steering_command_for_current_state",

@@ -19,10 +19,10 @@ from e87canbus.domain.buttons.profiles import (
 )
 from e87canbus.domain.controller import (
     SOFT_AMBER,
-    SOFT_WHITE,
     ApplicationSnapshot,
     EngineTelemetryStatus,
     EngineTelemetryValue,
+    resting_rgb,
 )
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
@@ -33,7 +33,6 @@ from e87canbus.domain.events import (
 )
 from e87canbus.domain.intents import SetMaximumAssistance, ToggleMaximumAssistance
 from e87canbus.domain.state import (
-    RGB_AMBER,
     RGB_BLUE,
     RGB_OFF,
     RGB_WHITE,
@@ -83,21 +82,19 @@ TEST_SIMULATOR_CONFIG = replace(
         max_frames_per_network_window=1_000,
     ),
 )
+SOFT_WHITE = resting_rgb(RGB_WHITE)
+# The built-in pad with nothing active: every assigned button faint in its own authored
+# colour, including the blue automatic-assistance button.
 RESTING_LEDS = (
-    RGB_OFF,
+    resting_rgb(RGB_BLUE),
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
 ) + (RGB_OFF,) * 11
 AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
-MANUAL_LEDS = (RGB_AMBER,) + RESTING_LEDS[1:]
-MAXIMUM_LEDS = (
-    RGB_AMBER,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    RGB_WHITE,
-) + RESTING_LEDS[4:]
+MANUAL_LEDS = RESTING_LEDS
+MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
 
 
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:

@@ -12,7 +12,6 @@ from e87canbus.adapters.output import (
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.events import (
-    ButtonLedState,
     ConfigureServotronicCurve,
     SetButtonPadProgram,
     SetHighBeam,
@@ -28,6 +27,7 @@ from e87canbus.domain.state import (
     RGB_OFF,
     RGB_WHITE,
     ButtonFeedback,
+    Rgb,
 )
 from e87canbus.domain.steering.curves import initial_active_steering_curve
 from e87canbus.protocol.can import CanFrame
@@ -39,12 +39,12 @@ from e87canbus.protocol.servotronic_protocol import (
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.transport.isotp import IsoTpEndpoint
 
-BLUE_LEDS = ButtonLedState((RGB_BLUE,) + (RGB_OFF,) * 15)
-WHITE_LEDS = ButtonLedState((RGB_WHITE,) * 16)
+BLUE_LEDS: tuple[Rgb, ...] = (RGB_BLUE,) + (RGB_OFF,) * 15
+WHITE_LEDS: tuple[Rgb, ...] = (RGB_WHITE,) * 16
 
 
-def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
-    return SetButtonPadProgram(static_button_pad_program(leds.rgb))
+def led_program(rgb: tuple[Rgb, ...]) -> SetButtonPadProgram:
+    return SetButtonPadProgram(static_button_pad_program(rgb))
 
 
 class FakeTransmitter:

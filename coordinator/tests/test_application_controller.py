@@ -21,7 +21,6 @@ from e87canbus.domain.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
-    ButtonLedState,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
@@ -39,7 +38,6 @@ from e87canbus.domain.events import (
 from e87canbus.domain.intents import OperatorIntentContext, StartHighBeamStrobe
 from e87canbus.domain.state import (
     BUTTON_FEEDBACK_REJECTED,
-    RGB_AMBER,
     RGB_BLUE,
     RGB_OFF,
     RGB_WHITE,
@@ -50,6 +48,7 @@ from e87canbus.domain.state import (
     MaximumAssistance,
     NormalSteering,
     OilTemperatureSample,
+    Rgb,
     SpeedSample,
     SteeringMode,
 )
@@ -65,22 +64,23 @@ ENGINE_CONFIG = EngineTelemetryConfig()
 BUILT_IN_LEDS = controller.ButtonLedProjection(built_in_active_button_profile())
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
-RESTING_LEDS = (
-    RGB_OFF,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
-    controller.SOFT_WHITE,
+SOFT_WHITE = controller.resting_rgb(RGB_WHITE)
+# The built-in pad with nothing active: every assigned button faint in its own authored
+# colour, including the blue automatic-assistance button.
+RESTING_LEDS: tuple[Rgb, ...] = (
+    controller.resting_rgb(RGB_BLUE),
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
+    SOFT_WHITE,
 ) + (RGB_OFF,) * 11
-AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
-MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
-MANUAL_MAXIMUM_LEDS = ButtonLedState(
-    (RGB_AMBER, controller.SOFT_WHITE, controller.SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:]
-)
+AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
+MANUAL_LEDS = RESTING_LEDS
+MANUAL_MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
 
 
-def static_effect(leds: ButtonLedState) -> SetButtonPadProgram:
-    return SetButtonPadProgram(static_button_pad_program(leds.rgb))
+def static_effect(rgb: tuple[Rgb, ...]) -> SetButtonPadProgram:
+    return SetButtonPadProgram(static_button_pad_program(rgb))
 
 
 def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:
@@ -170,7 +170,7 @@ def test_initial_snapshot_and_effects() -> None:
         active_steering_curve=ACTIVE_CURVE,
         steering_curve_activation_status=SteeringCurveActivationStatus.ACTIVE,
         curve_activation_available=False,
-        button_pad_program=static_button_pad_program(AUTO_LEDS.rgb),
+        button_pad_program=static_button_pad_program(AUTO_LEDS),
         high_beam_enabled=False,
         high_beam_strobe_active=False,
         high_beam_strobe_cycles_remaining=0,

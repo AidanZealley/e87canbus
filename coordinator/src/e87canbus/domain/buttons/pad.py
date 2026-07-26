@@ -10,9 +10,13 @@ from e87canbus.protocol.can import (
     BUTTON_PAD_TRACK_SOLID,
     BUTTON_PAD_TRANSFER_MAX_LENGTH,
     ButtonPadTrackCommandPayload,
-    ButtonPadTrackPayload,
     decode_button_pad_program,
     encode_button_pad_program,
+)
+from e87canbus.protocol.can import (
+    # Re-exported: a track is what this module's constructors return, so the rest of
+    # the domain names it here rather than reaching into the wire codec itself.
+    ButtonPadTrackPayload as ButtonPadTrackPayload,
 )
 
 BUTTON_PAD_PROGRAM_ENCODING: Final = "e87-button-pad-v2"

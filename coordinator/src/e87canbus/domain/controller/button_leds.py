@@ -1,23 +1,30 @@
 """The button-pad LED projection derived from application state.
 
 Given application state and the active button profile, this produces the complete
-desired button-pad program: the steady per-button colours plus any active
-feedback-blink tracks. It reads state and never mutates it.
+desired button-pad program in two steps: what each button is reporting
+(:class:`ButtonLedState`), and the track that renders that report against the slot's
+authored colour and animation. It reads state and never mutates it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, assert_never
 
-from e87canbus.domain.buttons.catalogue import ButtonCommandPresentation
-from e87canbus.domain.buttons.commands import button_command_presentation
+from e87canbus.domain.buttons.commands import button_command_is_active
 from e87canbus.domain.buttons.pad import (
+    ButtonPadTrackPayload,
     blink_track,
+    breathe_track,
     resolved_button_pad_program,
     solid_track,
 )
-from e87canbus.domain.buttons.profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.profiles import (
+    ActiveButtonProfile,
+    BlinkAnimation,
+    BreatheAnimation,
+    ButtonSlot,
+)
 from e87canbus.domain.events import (
     BUTTON_FEEDBACK_BLINK_OFF_MS,
     BUTTON_FEEDBACK_BLINK_ON_MS,
@@ -25,18 +32,43 @@ from e87canbus.domain.events import (
     ButtonLedState,
     SetButtonPadProgram,
 )
+from e87canbus.domain.intents import intent_requires_servotronic
 from e87canbus.domain.state import (
-    RGB_AMBER,
-    RGB_BLUE,
     RGB_OFF,
-    RGB_WHITE,
     ApplicationState,
-    MaximumAssistance,
-    SteeringMode,
+    ButtonVisual,
+    Rgb,
 )
 
-SOFT_WHITE: tuple[int, int, int] = (8, 8, 8)
-SOFT_AMBER: tuple[int, int, int] = (8, 6, 0)
+# The one treatment that is not authorable, because its value is that it reads
+# identically on every button: the resting override for a control the car cannot obey.
+SOFT_AMBER: Rgb = (8, 6, 0)
+
+# The resting brightness an inactive button is scaled down to. It is the level the pad
+# has always rested at - the retired ``SOFT_WHITE`` was white at exactly this level -
+# so authoring a colour changes which hue rests, not how dim resting is.
+RESTING_BRIGHTNESS: int = 8
+
+# Indefinite: an authored animation runs for as long as its button is active, and the
+# button ceasing to be active is what replaces the track.
+_AUTHORED_REPEAT = 0
+
+
+def resting_rgb(rgb: Rgb) -> Rgb:
+    """Scale an authored colour down to the pad's resting brightness.
+
+    Rounded to the nearest byte rather than truncated, because the constants this has
+    to keep reproducing were written that way: ``SOFT_AMBER`` is ``(8, 6, 0)`` while
+    ``RGB_AMBER``'s green channel of 191 is 5.99 at this scale, so truncation would
+    move the amber resting colour a step darker than the pad has ever shown it.
+    """
+
+    red, green, blue = rgb
+    return (
+        (red * RESTING_BRIGHTNESS + 127) // 255,
+        (green * RESTING_BRIGHTNESS + 127) // 255,
+        (blue * RESTING_BRIGHTNESS + 127) // 255,
+    )
 
 
 class ButtonLedPresenter(Protocol):
@@ -55,33 +87,68 @@ def derived_button_led_state(
     profile: ActiveButtonProfile,
     servotronic_usable: bool = True,
 ) -> ButtonLedState:
-    """Derive colours from each slot's catalogue presentation, never from its index."""
+    """Derive what each button reports, never from its index and never as a colour.
 
-    steering = state.steering
-    mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
-    maximum_active = isinstance(steering, MaximumAssistance)
-    colours = [RGB_OFF] * BUTTON_LED_COUNT
+    The order is a priority order: a button the car cannot obey says so regardless of
+    what its command's condition would otherwise report, and a command with no
+    observable condition is simply never active.
+    """
+
+    visuals = [ButtonVisual.UNASSIGNED] * BUTTON_LED_COUNT
     for index, slot in profile.assigned():
-        presentation = button_command_presentation(slot.command)
-        if presentation is ButtonCommandPresentation.STEERING_MODE:
-            colour = (
-                RGB_BLUE
-                if servotronic_usable and mode is SteeringMode.AUTO
-                else RGB_AMBER
-                if servotronic_usable
-                else SOFT_AMBER
-            )
-        elif presentation is ButtonCommandPresentation.MAXIMUM_ASSISTANCE and maximum_active:
-            colour = RGB_WHITE
-        elif presentation in (
-            ButtonCommandPresentation.STEERING_ADJUSTMENT,
-            ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
-        ):
-            colour = SOFT_WHITE if servotronic_usable else SOFT_AMBER
+        command = slot.command
+        if not servotronic_usable and intent_requires_servotronic(command):
+            visuals[index] = ButtonVisual.UNAVAILABLE
+        elif button_command_is_active(state, command):
+            visuals[index] = ButtonVisual.ACTIVE
         else:
-            colour = SOFT_WHITE
-        colours[index] = colour
-    return ButtonLedState(tuple(colours))
+            visuals[index] = ButtonVisual.INACTIVE
+    return ButtonLedState(tuple(visuals))
+
+
+def rendered_button_track(
+    slot: ButtonSlot | None,
+    visual: ButtonVisual,
+) -> ButtonPadTrackPayload:
+    """Render one button from its authored values and the state it is reporting.
+
+    This is the whole of the colour decision, and it holds no knowledge of any
+    command: which appearance applies was decided by the derivation, and which pixels
+    that appearance uses was decided by whoever authored the slot.
+    """
+
+    if visual is ButtonVisual.UNASSIGNED:
+        return solid_track(RGB_OFF)
+    # Only an empty slot derives UNASSIGNED, so every other state has authored values.
+    # A replaceable presenter can break that agreement, so it fails as a value error
+    # rather than an assertion that -O would strip into an AttributeError.
+    if slot is None:
+        raise ValueError(f"{visual} requires an assigned slot")
+    match visual:
+        case ButtonVisual.UNAVAILABLE:
+            return solid_track(SOFT_AMBER)
+        case ButtonVisual.ACTIVE:
+            return _active_track(slot)
+        case ButtonVisual.INACTIVE:
+            # Static always: an authored animation renders the active state alone.
+            return solid_track(resting_rgb(slot.colour))
+        case _:
+            assert_never(visual)
+
+
+def _active_track(slot: ButtonSlot) -> ButtonPadTrackPayload:
+    # ``active_colour`` is reserved and always ``None``, which means "``colour`` at
+    # full brightness"; resolving it here is where a second authored colour lands.
+    colour = slot.active_colour if slot.active_colour is not None else slot.colour
+    match slot.animation:
+        case None:
+            return solid_track(colour)
+        case BreatheAnimation(period_ms=period_ms, minimum=minimum, maximum=maximum):
+            return breathe_track(colour, minimum, maximum, period_ms, _AUTHORED_REPEAT, colour)
+        case BlinkAnimation(on_ms=on_ms, off_ms=off_ms):
+            return blink_track(colour, on_ms, off_ms, _AUTHORED_REPEAT, colour)
+        case _:
+            assert_never(slot.animation)
 
 
 @dataclass(frozen=True)
@@ -104,19 +171,22 @@ class ButtonLedProjection:
             raise ValueError("servotronic_usable must be a boolean")
 
     def led_state(self, state: ApplicationState) -> ButtonLedState:
-        """The steady colours an operator sees, before any timed track is applied."""
+        """What each button is reporting, before any transient track is applied."""
 
         return self.presenter(state, self.profile, self.servotronic_usable)
 
     def effect(self, state: ApplicationState) -> SetButtonPadProgram:
-        """Return the complete device program; static RGB remains the normal case.
+        """Return the complete device program: authored steady tracks plus feedback.
 
         The frozen ``SetButtonPadProgram`` result is shareable, so callers that need
         it more than once in a single commit compute it once and reuse the local.
         """
 
-        displayed = self.led_state(state).rgb
-        tracks = [solid_track(rgb) for rgb in displayed]
+        visuals = self.led_state(state).visuals
+        tracks = [
+            rendered_button_track(slot, visual)
+            for slot, visual in zip(self.profile.slots, visuals, strict=True)
+        ]
         for index, feedback in enumerate(state.button_feedback):
             if feedback is not None:
                 tracks[index] = blink_track(
@@ -124,20 +194,9 @@ class ButtonLedProjection:
                     BUTTON_FEEDBACK_BLINK_ON_MS,
                     BUTTON_FEEDBACK_BLINK_OFF_MS,
                     feedback.pulses,
-                    displayed[index],
+                    # A blink resolves back to the steady appearance beneath it, which
+                    # an animation makes a track rather than a colour; the pad restores
+                    # a final colour only, so it rests at the animation's own colour.
+                    tracks[index].rgb,
                 )
         return SetButtonPadProgram(resolved_button_pad_program(tuple(tracks)))
-
-    def maximum_assistance_indexes(self) -> tuple[int, ...]:
-        """Every button whose colour carries the maximum-assistance indicator.
-
-        A profile may show that indicator on no button or on several, so callers ask
-        the profile rather than assuming the built-in index.
-        """
-
-        return tuple(
-            index
-            for index, slot in self.profile.assigned()
-            if button_command_presentation(slot.command)
-            is ButtonCommandPresentation.MAXIMUM_ASSISTANCE
-        )

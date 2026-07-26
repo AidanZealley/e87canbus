@@ -11,7 +11,6 @@ from e87canbus.domain.buttons.profiles import (
     button_profile_definition_with,
 )
 from e87canbus.domain.controller import (
-    SOFT_WHITE,
     ButtonLedProjection,
     derived_button_led_state,
 )
@@ -27,11 +26,10 @@ from e87canbus.domain.intents import (
 )
 from e87canbus.domain.state import (
     BUTTON_FEEDBACK_REJECTED,
-    RGB_BLUE,
-    RGB_OFF,
     RGB_WHITE,
     ApplicationState,
     ButtonFeedback,
+    ButtonVisual,
     MaximumAssistance,
     SteeringMode,
 )
@@ -119,10 +117,10 @@ def test_derived_led_presentation_follows_binding_intents_not_fixed_indexes() ->
         selected,
     )
 
-    assert normal.rgb[7] == RGB_BLUE
-    assert normal.rgb[12] == SOFT_WHITE
-    assert normal.rgb[0] == RGB_OFF
-    assert maximum.rgb[12] == RGB_WHITE
+    assert normal.visuals[7] is ButtonVisual.ACTIVE
+    assert normal.visuals[12] is ButtonVisual.INACTIVE
+    assert normal.visuals[0] is ButtonVisual.UNASSIGNED
+    assert maximum.visuals[12] is ButtonVisual.ACTIVE
 
 
 def test_activation_replaces_profile_and_emits_complete_led_program() -> None:
@@ -200,7 +198,7 @@ def test_activation_rolls_back_routing_when_led_presentation_fails() -> None:
 
 def test_visible_press_on_a_user_bound_button_is_not_confirmed_by_a_blink() -> None:
     # The built-in profile binds nothing to button 7, so a profile-blind comparison
-    # sees RGB_OFF on both sides and adds a confirmation blink over a real change.
+    # sees an unassigned button on both sides and blinks over a real change.
     kernel = CoordinatorKernel(button_profile=profile({7: ToggleAutomaticAssistance()}))
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
@@ -213,7 +211,8 @@ def test_visible_press_on_a_user_bound_button_is_not_confirmed_by_a_blink() -> N
 
 def test_invisible_press_is_confirmed_even_where_the_built_in_profile_would_change() -> None:
     # Button 0 is ToggleAutomaticAssistance built in, so a profile-blind comparison
-    # reads the steering-mode change as visible and swallows the confirmation.
+    # reads the steering-mode change as visible and swallows the confirmation. The
+    # flash carries this profile's authored colour, which ``profile`` makes white.
     kernel = CoordinatorKernel(button_profile=profile({0: AdjustManualAssistance(1)}))
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)

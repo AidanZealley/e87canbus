@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 from e87canbus.config import CanNetwork
 
@@ -12,6 +12,21 @@ from e87canbus.config import CanNetwork
 class SteeringMode(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
+
+
+class ButtonVisual(Enum):
+    """What one button is reporting, before authored values turn it into pixels.
+
+    These four cases are the whole of the LED rendering rule, so the enum is complete
+    by construction and every consumer's exhaustive match covers the pad. Colour is
+    deliberately absent: it is authored per slot, so what a derivation can decide is
+    which of a slot's appearances applies, not which pixels result.
+    """
+
+    UNASSIGNED = "unassigned"
+    UNAVAILABLE = "unavailable"
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 
 Rgb = tuple[int, int, int]
