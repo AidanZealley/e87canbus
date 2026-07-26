@@ -59,9 +59,10 @@ BUTTON_PROFILE_V1_SCHEMA_VERSION = 1
 def _v1_seed_colour(command: ButtonCommand) -> Rgb:
     """The colour v1 derived for this command, which becomes its authored base colour.
 
-    This reproduces the ``ButtonCommandPresentation`` table as it stood at v1 rather than
-    reading today's, deliberately: a migration describes rows that were written in the
-    past, so it must not move when the live derivation does. A pad upgraded through it
+    This reproduces the presentation table v1 derived its colours from rather than
+    reading today's rendering rule, deliberately: a migration describes rows that were
+    written in the past, so it must not move when the live derivation does. That table
+    no longer exists - authoring the colour deleted it. A pad upgraded through here
     looks exactly as it did, except for the accepted steering-mode regression - those
     buttons were bright blue in automatic and bright amber in manual, and become one blue
     that is bright only in automatic.

@@ -36,7 +36,6 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance as SetMaximumAssistanceIntent,
 )
 from e87canbus.domain.state import (
-    RGB_WHITE,
     ApplicationState,
     ButtonFeedback,
     MaximumAssistance,
@@ -49,10 +48,8 @@ from e87canbus.domain.steering.curves import (
     clamp_manual_level,
 )
 
-# The press was accepted but changed nothing an operator can see. Authored button
-# colours make this the slot's own base colour at full brightness; until slots carry
-# a colour it stays white, which is what the pad has always flashed here.
-_ACKNOWLEDGED_PRESS_FEEDBACK = ButtonFeedback(RGB_WHITE, 1)
+# One pulse says "accepted"; two is how the pad reports a refusal.
+_ACKNOWLEDGED_PRESS_PULSES = 1
 
 
 def execute_operator_intent(
@@ -99,10 +96,10 @@ def finish_button_intent(
     """Layer button-origin presentation onto an already-complete intent result.
 
     ``intent_result`` is the self-contained output of ``execute_operator_intent``;
-    this only substitutes the button-LED program for the pressing origin and adds a
-    white confirmation blink when nothing the operator can see actually changed.
+    this only substitutes the button-LED program for the pressing origin and adds an
+    acknowledgement blink when nothing the operator can see actually changed.
     Every comparison is made against the active profile, because whether a press is
-    visible at all depends on what that profile binds to the pressed button.
+    visible at all depends on what that profile binds to every button.
     """
     new_state = intent_result.state
     previous_leds = leds.effect(state)
@@ -115,20 +112,18 @@ def finish_button_intent(
         isinstance(effect, SetButtonPadProgram) for effect in effects
     ):
         effects += (new_leds,)
-    previous_led_state = leds.led_state(state)
-    new_led_state = leds.led_state(new_state)
-    button_visual_changed = new_led_state.rgb[button_index] != previous_led_state.rgb[button_index]
-    # A manual-assistance press can cancel the maximum-assistance override. In that
-    # case the persistent program replaces the indicator without a racing blink,
-    # wherever (and however often) the active profile happens to show it.
-    maximum_indicator_changed = any(
-        new_led_state.rgb[index] != previous_led_state.rgb[index]
-        for index in leds.maximum_assistance_indexes()
-    )
-    if not button_visual_changed and not maximum_indicator_changed:
+    # Any button changing is real feedback, so only an entirely unmoved pad earns the
+    # flash: activeness propagates, and a level step that relights a different button
+    # must not also report that nothing happened. Visual states are compared rather
+    # than rendered tracks, so an animation's phase cannot enter the comparison.
+    if leds.led_state(new_state) == leds.led_state(state):
         feedback = transition(
             new_state,
-            ButtonCommandFailed(button_index, observed_at, _ACKNOWLEDGED_PRESS_FEEDBACK),
+            ButtonCommandFailed(
+                button_index,
+                observed_at,
+                _acknowledged_press_feedback(leds, button_index),
+            ),
             config,
             active_definition,
             high_beam_strobe_config,
@@ -136,6 +131,20 @@ def finish_button_intent(
         new_state = feedback.state
         effects += feedback.effects
     return Transition(new_state, effects)
+
+
+def _acknowledged_press_feedback(leds: ButtonLedProjection, button_index: int) -> ButtonFeedback:
+    """One flash of the pressed button's own colour: the press landed, nothing moved.
+
+    The colour is the slot's, not a system value, so the acknowledgement reads as that
+    button confirming itself. A press with no binding never reaches here - it fails in
+    the kernel with the unbound feedback - so the slot is always occupied.
+    """
+
+    slot = leds.profile.slots[button_index]
+    if slot is None:
+        raise ValueError(f"button {button_index} has no binding to acknowledge")
+    return ButtonFeedback(slot.colour, _ACKNOWLEDGED_PRESS_PULSES)
 
 
 def clear_maximum_assistance(

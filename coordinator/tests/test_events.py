@@ -7,6 +7,7 @@ from e87canbus.domain.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
+from e87canbus.domain.state import ButtonVisual
 
 
 def test_steering_effect_rejects_out_of_range_assistance() -> None:
@@ -14,11 +15,9 @@ def test_steering_effect_rejects_out_of_range_assistance() -> None:
         SetSteeringAssistance(1.1, SteeringCommandReason.MAXIMUM)
 
 
-def test_button_led_state_rejects_partial_and_invalid_rgb() -> None:
+def test_button_led_state_requires_one_visual_state_per_button() -> None:
     with pytest.raises(ValueError, match="exactly 16"):
-        ButtonLedState(((0, 0, 0),) * 15)
-    with pytest.raises(ValueError, match="RGB bytes"):
-        ButtonLedState(((0, 0, 0),) * 15 + ((256, 0, 0),))
+        ButtonLedState((ButtonVisual.UNASSIGNED,) * 15)
 
 
 def test_high_beam_effect_requires_boolean() -> None:

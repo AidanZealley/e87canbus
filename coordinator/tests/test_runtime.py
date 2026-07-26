@@ -9,12 +9,11 @@ from e87canbus.domain.buttons.profiles import (
     ButtonSlot,
     button_profile_definition_with,
 )
-from e87canbus.domain.controller import SOFT_WHITE
+from e87canbus.domain.controller import resting_rgb
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
     ApplicationEvent,
-    ButtonLedState,
     ButtonPressed,
     SetButtonPadProgram,
     SetSteeringAssistance,
@@ -31,10 +30,10 @@ from e87canbus.domain.intents import (
 )
 from e87canbus.domain.state import (
     BUTTON_FEEDBACK_UNAVAILABLE,
-    RGB_AMBER,
     RGB_BLUE,
     RGB_OFF,
     RGB_WHITE,
+    Rgb,
     SpeedSample,
     SteeringMode,
 )
@@ -68,20 +67,24 @@ from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runners.simulation.protocol import SimulationProtocolRouter, encode_simulated_speed
 
 
-def led_program(leds: ButtonLedState) -> SetButtonPadProgram:
-    return SetButtonPadProgram(static_button_pad_program(leds.rgb))
+def led_program(rgb: tuple[Rgb, ...]) -> SetButtonPadProgram:
+    return SetButtonPadProgram(static_button_pad_program(rgb))
 
 
-RESTING_LEDS = (
-    RGB_OFF,
+SOFT_WHITE = resting_rgb(RGB_WHITE)
+# The built-in pad with nothing active: every assigned button faint in its own authored
+# colour. Slot 0 is authored blue, so manual rests faintly blue where the derived table
+# used to show bright amber - the accepted cost of one colour per slot.
+RESTING_LEDS: tuple[Rgb, ...] = (
+    resting_rgb(RGB_BLUE),
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
 ) + (RGB_OFF,) * 11
-AUTO_LEDS = ButtonLedState((RGB_BLUE,) + RESTING_LEDS[1:])
-MANUAL_LEDS = ButtonLedState((RGB_AMBER,) + RESTING_LEDS[1:])
-MAXIMUM_LEDS = ButtonLedState((RGB_AMBER, SOFT_WHITE, SOFT_WHITE, RGB_WHITE) + RESTING_LEDS[4:])
+AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
+MANUAL_LEDS = RESTING_LEDS
+MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
 
 
 def activate_devices(kernel: CoordinatorKernel) -> None:

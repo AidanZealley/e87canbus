@@ -1,9 +1,9 @@
 """Every command a user can assign to a button, and nothing else.
 
 This file is the one you edit to add an assignable command. It holds the catalogue and
-the shapes that describe an entry; the behaviour derived from it - lookup, codec, LED
-presentation, the configuration check - lives in :mod:`e87canbus.domain.buttons.commands`
-and needs no change when the catalogue grows.
+the shapes that describe an entry; the behaviour derived from it - lookup, codec, the
+active condition a button reports, the configuration check - lives in
+:mod:`e87canbus.domain.buttons.commands` and needs no change when the catalogue grows.
 
 Adding a command is two edits here and in :mod:`e87canbus.domain.intents`, after which
 type checking names every remaining decision:
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Literal, TypeVar, get_args
 
 from e87canbus.domain.intents import (
@@ -39,15 +38,6 @@ from e87canbus.domain.state import ApplicationState, MaximumAssistance, Steering
 # second union to keep in step. If an intent is ever added that a user must not be able
 # to bind, the coverage check at the end of this file fails and the two are split then.
 ButtonCommand = OperatorIntent
-
-
-class ButtonCommandPresentation(Enum):
-    """How a command's button looks when idle, independent of which button it is on."""
-
-    STEERING_MODE = "steering_mode"
-    STEERING_ADJUSTMENT = "steering_adjustment"
-    MAXIMUM_ASSISTANCE = "maximum_assistance"
-    MOMENTARY = "momentary"
 
 
 def _identity(value: Any) -> Any:
@@ -140,7 +130,7 @@ def _manual_level(state: ApplicationState) -> int | None:
 
 @dataclass(frozen=True)
 class ButtonCommandSpec:
-    """One assignable command: its wire tag, its intent, its look, and its values.
+    """One assignable command: its wire tag, its intent, its values, and its condition.
 
     ``active`` is the observable condition under which a button bound to this command
     reads as on. It takes the bound command because activeness depends on the command's
@@ -152,7 +142,6 @@ class ButtonCommandSpec:
 
     tag: str
     command_type: type[Any]
-    presentation: ButtonCommandPresentation
     fields: tuple[ButtonCommandField, ...] = ()
     # Required and keyword-only, with no default: an added command must say whether it
     # has an observable condition, rather than silently inheriting "it has none".
@@ -163,8 +152,6 @@ class ButtonCommandSpec:
             raise ValueError("button command tag must be non-empty trimmed text")
         if not isinstance(self.command_type, type):
             raise TypeError("button command type must be a class")
-        if not isinstance(self.presentation, ButtonCommandPresentation):
-            raise TypeError("button command presentation must be supported")
         names = tuple(field.name for field in self.fields)
         if len(names) != len(set(names)):
             raise ValueError(f"button command {self.tag} has duplicate fields")
@@ -184,7 +171,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "select_steering_mode",
         SelectSteeringMode,
-        ButtonCommandPresentation.STEERING_MODE,
         (
             ButtonCommandField(
                 "mode",
@@ -201,7 +187,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "toggle_automatic_assistance",
         ToggleAutomaticAssistance,
-        ButtonCommandPresentation.STEERING_MODE,
         active=_bound(
             ToggleAutomaticAssistance,
             lambda state, _command: _current_mode(state) is SteeringMode.AUTO,
@@ -210,7 +195,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "adjust_manual_assistance",
         AdjustManualAssistance,
-        ButtonCommandPresentation.STEERING_ADJUSTMENT,
         (ButtonCommandField("delta", annotation=Literal[-1, 1]),),
         # A relative step has no state it can be "in"; the level it moves reports itself.
         active=None,
@@ -218,7 +202,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "set_manual_assistance_level",
         SetManualAssistanceLevel,
-        ButtonCommandPresentation.STEERING_ADJUSTMENT,
         (ButtonCommandField("level", minimum=0),),
         active=_bound(
             SetManualAssistanceLevel,
@@ -228,7 +211,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "set_maximum_assistance",
         SetMaximumAssistance,
-        ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
         (ButtonCommandField("enabled", annotation=bool),),
         active=_bound(
             SetMaximumAssistance,
@@ -238,7 +220,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "toggle_maximum_assistance",
         ToggleMaximumAssistance,
-        ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
         active=_bound(
             ToggleMaximumAssistance,
             lambda state, _command: _maximum_assistance_active(state),
@@ -247,7 +228,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
     ButtonCommandSpec(
         "start_high_beam_strobe",
         StartHighBeamStrobe,
-        ButtonCommandPresentation.MOMENTARY,
         # Lighting while the strobe runs needs a running flag the derivation can read,
         # which does not exist yet; until it does the strobe has no observable condition.
         active=None,

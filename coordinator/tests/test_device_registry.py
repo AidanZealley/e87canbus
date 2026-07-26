@@ -7,7 +7,7 @@ import pytest
 from e87canbus.adapters.output import EffectRequest, SendRegistryFrame
 from e87canbus.config import CanNetwork, CustomCanIds
 from e87canbus.domain.buttons.pad import static_button_pad_program
-from e87canbus.domain.controller import SOFT_AMBER, SOFT_WHITE
+from e87canbus.domain.controller import SOFT_AMBER, resting_rgb
 from e87canbus.domain.devices.catalogue import DeviceLifecycleStatus, DeviceRole
 from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
@@ -22,6 +22,7 @@ from e87canbus.domain.state import (
     BUTTON_FEEDBACK_UNAVAILABLE,
     RGB_BLUE,
     RGB_OFF,
+    RGB_WHITE,
 )
 from e87canbus.kernel import (
     CoordinatorKernel,
@@ -41,6 +42,7 @@ from e87canbus.protocol.can import (
 )
 
 IDS = CustomCanIds()
+SOFT_WHITE = resting_rgb(RGB_WHITE)
 
 
 def hello(

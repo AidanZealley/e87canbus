@@ -12,7 +12,7 @@ from e87canbus.api.main import create_app, socket_origin_policy
 from e87canbus.api.models.live import health_state
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.domain.buttons.pad import resolve_button_pad_tracks
-from e87canbus.domain.controller import SOFT_WHITE
+from e87canbus.domain.controller import resting_rgb
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     SetSteeringAssistance,
@@ -21,11 +21,14 @@ from e87canbus.domain.events import (
 from e87canbus.domain.state import (
     RGB_BLUE,
     RGB_OFF,
+    RGB_WHITE,
 )
 from e87canbus.runners.composition import build_simulated_controller_loop
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
 from registry_test_support import activate_simulation_devices
+
+SOFT_WHITE = resting_rgb(RGB_WHITE)
 
 
 def make_app(*, inbox_capacity: int = 64):

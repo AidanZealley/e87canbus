@@ -1,8 +1,9 @@
 """Behaviour derived from the button-command catalogue.
 
 Everything here reads :mod:`e87canbus.domain.buttons.catalogue` and needs no change when
-a command is added: lookup, the storage and wire codec, LED presentation, and the check
-for values a particular vehicle configuration cannot run.
+a command is added: lookup, the storage and wire codec, the condition under which a
+bound command's button reads as active, and the check for values a particular vehicle
+configuration cannot run.
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from e87canbus.domain.buttons.catalogue import (
     SPECS_BY_TAG,
     SPECS_BY_TYPE,
     ButtonCommand,
-    ButtonCommandPresentation,
     ButtonCommandSpec,
 )
 from e87canbus.domain.intents import (
@@ -40,12 +40,6 @@ def _spec_for(command: ButtonCommand) -> ButtonCommandSpec:
         return SPECS_BY_TYPE[type(command)]
     except KeyError as exc:
         raise TypeError(f"unsupported button command: {type(command).__name__}") from exc
-
-
-def button_command_presentation(command: ButtonCommand) -> ButtonCommandPresentation:
-    """Return steady LED semantics from the command's catalogue entry."""
-
-    return _spec_for(command).presentation
 
 
 def button_command_has_active_state(command: ButtonCommand) -> bool:

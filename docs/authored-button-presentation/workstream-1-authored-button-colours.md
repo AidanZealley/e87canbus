@@ -116,8 +116,14 @@ Replacing `derived_button_led_state`, per button, highest priority first:
 Transient feedback blinks continue to be layered on top by
 `ButtonLedProjection.effect`, and take priority while running.
 
-Integer scaling uses truncation so `RGB_WHITE` yields exactly `(8,8,8)` and
-`RGB_AMBER` exactly `(8,6,0)`, matching today's constants. Pin this with a test.
+Integer scaling uses nearest-integer rounding — `(channel * 8 + 127) // 255` —
+so `RGB_WHITE` yields exactly `(8,8,8)` and `RGB_AMBER` exactly `(8,6,0)`,
+matching today's constants. Pin both with a test.
+
+Truncation does not work and must not be used: `191 * 8 // 255` is `5`, so
+`RGB_AMBER` would dim to `(8,5,0)` and `SOFT_AMBER` could not be reproduced.
+Only the white constant survives truncation, which is why the discrepancy is
+easy to miss.
 
 ## `ButtonLedState` holds visual states, not colours
 

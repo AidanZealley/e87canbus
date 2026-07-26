@@ -9,12 +9,11 @@ from enum import StrEnum
 from e87canbus.domain.buttons.pad import ButtonPadProgram
 from e87canbus.domain.state import (
     BUTTON_FEEDBACK_REJECTED,
-    RGB_OFF,
     ButtonFeedback,
+    ButtonVisual,
     CoolantTemperatureSample,
     EngineRpmSample,
     OilTemperatureSample,
-    Rgb,
     SpeedSample,
 )
 from e87canbus.domain.steering.curves import SteeringCurveDefinition
@@ -35,20 +34,23 @@ def button_feedback_duration_s(pulses: int) -> float:
 
 @dataclass(frozen=True)
 class ButtonLedState:
-    rgb: tuple[Rgb, ...]
+    """What every button is reporting, one entry per button in button order.
+
+    This is the semantic half of the pad's appearance: the pixels follow from it and
+    the slot's authored colour and animation, which are fixed for the lifetime of a
+    profile. Holding states rather than rendered colours means "did anything on the
+    pad change" is a comparison of this value, into which animation phase cannot
+    enter, and means an authored breathe needs no wider type here.
+    """
+
+    visuals: tuple[ButtonVisual, ...]
 
     def __post_init__(self) -> None:
-        if len(self.rgb) != BUTTON_LED_COUNT:
-            raise ValueError(f"button LED state must contain exactly {BUTTON_LED_COUNT} RGB values")
-        if any(
-            len(value) != 3
-            or any(type(channel) is not int or not 0 <= channel <= 0xFF for channel in value)
-            for value in self.rgb
-        ):
-            raise ValueError("button LED state must contain only RGB bytes")
-
-
-OFF_BUTTON_LEDS = ButtonLedState((RGB_OFF,) * BUTTON_LED_COUNT)
+        # Membership needs no check: every entry is an enum member by construction.
+        if len(self.visuals) != BUTTON_LED_COUNT:
+            raise ValueError(
+                f"button LED state must contain exactly {BUTTON_LED_COUNT} visual states"
+            )
 
 
 @dataclass(frozen=True)
