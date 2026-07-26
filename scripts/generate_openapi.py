@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 
 from e87canbus.api.main import create_app
 from e87canbus.deployment import DeploymentProfile
+from e87canbus.domain.buttons.catalogue import BUTTON_COMMAND_CATALOGUE
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "protocol" / "openapi.json"
@@ -22,6 +23,13 @@ def rendered_schema() -> str:
             profile_database_path=Path(temporary_directory) / "contract.sqlite3",
         )
         schema = app.openapi()
+    schema["x-button-command-catalogue"] = [
+        {
+            "type": spec.tag,
+            "has_active_state": spec.active is not None,
+        }
+        for spec in BUTTON_COMMAND_CATALOGUE
+    ]
     return json.dumps(schema, indent=2, sort_keys=True) + "\n"
 
 

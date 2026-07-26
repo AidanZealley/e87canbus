@@ -1,34 +1,45 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  commandHasActiveState,
   commandLabel,
-  commandToFormValue,
+  commandWithField,
+  defaultCommandForType,
   defaultColourForCommand,
-  formValueToCommand,
 } from "./utils"
 
-describe("button profile command conversion", () => {
-  it("round-trips every parameterized command", () => {
-    const commands = [
-      { type: "select_steering_mode", mode: "manual" },
-      { type: "adjust_manual_assistance", delta: -1 },
-      { type: "set_manual_assistance_level", level: 6 },
-      { type: "set_maximum_assistance", enabled: false },
-    ] as const
-
+describe("button profile commands", () => {
+  it("builds commands and applies generated field values", () => {
+    expect(defaultCommandForType("select_steering_mode")).toEqual({
+      type: "select_steering_mode",
+      mode: "auto",
+    })
+    expect(defaultCommandForType("set_manual_assistance_level")).toEqual({
+      type: "set_manual_assistance_level",
+      level: 0,
+    })
     expect(
-      commands.map((command) => formValueToCommand(commandToFormValue(command)))
-    ).toEqual(commands)
+      commandWithField(
+        { type: "set_maximum_assistance", enabled: true },
+        "enabled",
+        false
+      )
+    ).toEqual({ type: "set_maximum_assistance", enabled: false })
+    expect(defaultCommandForType("start_high_beam_strobe")).toEqual({
+      type: "start_high_beam_strobe",
+    })
   })
 
-  it("converts unassigned and parameterless commands", () => {
-    expect(formValueToCommand(commandToFormValue(null))).toBeNull()
-    expect(
-      formValueToCommand(commandToFormValue({ type: "start_high_beam_strobe" }))
-    ).toEqual({ type: "start_high_beam_strobe" })
+  it("reads active-state support from the generated catalogue", () => {
+    expect(commandHasActiveState({ type: "toggle_automatic_assistance" })).toBe(
+      true
+    )
+    expect(commandHasActiveState({ type: "start_high_beam_strobe" })).toBe(
+      false
+    )
   })
 
-  it("produces concise grid labels", () => {
+  it("produces concise item labels", () => {
     expect(commandLabel(null)).toBe("Unassigned")
     expect(
       commandLabel({ type: "set_manual_assistance_level", level: 4 })

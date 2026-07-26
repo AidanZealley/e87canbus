@@ -10,11 +10,10 @@ import type { ButtonProfileResponse } from "@/api/http"
 import { useLiveStore } from "@/live/live-store"
 import { ButtonProfileError } from "./ButtonProfileError"
 import { ButtonProfileLoading } from "./ButtonProfileLoading"
-import { ButtonProfilePad } from "./ButtonProfilePad"
+import { deriveButtonVisualState } from "./button-led-presentation"
+import { ButtonProfileList } from "./components/button-profile-list"
 import { buttonProfileErrorDetail } from "./error-detail"
-import { toButtonCommandSlots, type ButtonCommand } from "./types"
-import { defaultColourForCommand } from "./utils"
-import { deriveButtonProfileLedPreview } from "./button-led-presentation"
+import { toButtonCommandSlots, type ButtonCommandSlot } from "./types"
 
 type ButtonProfileEditorProps = {
   profile?: ButtonProfileResponse
@@ -39,7 +38,7 @@ export const ButtonProfileEditor = ({
       )?.fault ?? null
   )
   const slots = savedProfile?.definition.slots
-  const displayRgb = deriveButtonProfileLedPreview(slots ?? [], {
+  const presentationContext = {
     synchronized,
     steering,
     servotronicUsable:
@@ -48,13 +47,16 @@ export const ButtonProfileEditor = ({
       servotronicStatus === "active" &&
       steeringFault === null &&
       servotronicFault === null,
-  })
+  }
+  const visualStates = (slots ?? []).map((slot) =>
+    deriveButtonVisualState(slot, presentationContext)
+  )
 
   const save = useMutation({
     ...updateButtonProfileMutation(),
     onSuccess: (profile) => {
       queryClient.setQueryData(getSavedButtonProfileQueryKey(), profile)
-      toast.success("Button binding saved")
+      toast.success("Button saved")
     },
     onError: (error) => toast.error(buttonProfileErrorDetail(error)),
   })
@@ -74,20 +76,9 @@ export const ButtonProfileEditor = ({
   }
 
   const profile = savedProfile
-  const commitBinding = async (index: number, command: ButtonCommand) => {
+  const commitSlot = async (index: number, slot: ButtonCommandSlot) => {
     const next = [...slots]
-    const currentSlot = slots[index]
-    next[index] =
-      command === null
-        ? null
-        : {
-            command,
-            colour: currentSlot?.colour ?? defaultColourForCommand(command),
-            // Presentation is not editable yet, so changing only the command must
-            // not discard authored values that arrived from another client.
-            active_colour: currentSlot?.active_colour ?? null,
-            animation: currentSlot?.animation ?? null,
-          }
+    next[index] = slot
     await save.mutateAsync({
       path: { profile_id: profile.profile_id },
       body: {
@@ -102,11 +93,11 @@ export const ButtonProfileEditor = ({
   }
 
   return (
-    <ButtonProfilePad
+    <ButtonProfileList
       slots={slots}
-      rgb={displayRgb}
+      visualStates={visualStates}
       disabled={save.isPending}
-      onChange={commitBinding}
+      onChange={commitSlot}
     />
   )
 }

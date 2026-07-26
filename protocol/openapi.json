@@ -3513,5 +3513,35 @@
         ]
       }
     }
-  }
+  },
+  "x-button-command-catalogue": [
+    {
+      "has_active_state": true,
+      "type": "select_steering_mode"
+    },
+    {
+      "has_active_state": true,
+      "type": "toggle_automatic_assistance"
+    },
+    {
+      "has_active_state": false,
+      "type": "adjust_manual_assistance"
+    },
+    {
+      "has_active_state": true,
+      "type": "set_manual_assistance_level"
+    },
+    {
+      "has_active_state": true,
+      "type": "set_maximum_assistance"
+    },
+    {
+      "has_active_state": true,
+      "type": "toggle_maximum_assistance"
+    },
+    {
+      "has_active_state": false,
+      "type": "start_high_beam_strobe"
+    }
+  ]
 }
