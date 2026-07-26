@@ -11,23 +11,44 @@ from e87canbus.api.models.button_profiles import (
 )
 from e87canbus.config import simulator_config
 from e87canbus.domain.buttons.catalogue import ButtonCommand
-from e87canbus.domain.buttons.commands import encode_button_command
+from e87canbus.domain.buttons.profiles import encode_button_slot
 from e87canbus.domain.revisioned_profiles import ProfileStorageError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
+def slot_json(
+    command: dict[str, Any],
+    colour: list[int] | None = None,
+    animation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "command": command,
+        "colour": colour or [255, 255, 255],
+        "active_colour": None,
+        "animation": animation,
+    }
+
+
 def definition_json() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "slots": [
-            {"type": "select_steering_mode", "mode": "auto"},
-            {"type": "toggle_automatic_assistance"},
-            {"type": "adjust_manual_assistance", "delta": -1},
-            {"type": "set_manual_assistance_level", "level": 3},
-            {"type": "set_maximum_assistance", "enabled": True},
-            {"type": "toggle_maximum_assistance"},
-            {"type": "start_high_beam_strobe"},
+            slot_json({"type": "select_steering_mode", "mode": "auto"}, [0, 0, 255]),
+            slot_json(
+                {"type": "toggle_automatic_assistance"},
+                [0, 0, 255],
+                {"kind": "breathe", "period_ms": 2000, "minimum": 8, "maximum": 255},
+            ),
+            slot_json({"type": "adjust_manual_assistance", "delta": -1}),
+            slot_json({"type": "set_manual_assistance_level", "level": 3}),
+            slot_json(
+                {"type": "set_maximum_assistance", "enabled": True},
+                [255, 0, 0],
+                {"kind": "blink", "on_ms": 400, "off_ms": 400},
+            ),
+            slot_json({"type": "toggle_maximum_assistance"}),
+            slot_json({"type": "start_high_beam_strobe"}),
             None,
             None,
             None,
@@ -58,7 +79,7 @@ def test_button_profile_crud_and_saved_convenience_resource(client: TestClient) 
     assert initial.status_code == 200
     assert len(initial.json()["definition"]["slots"]) == 16
     assert created.status_code == 201
-    assert created.json()["definition"] == {"schema_version": 1, "slots": [None] * 16}
+    assert created.json()["definition"] == {"schema_version": 2, "slots": [None] * 16}
 
     profile_id = created.json()["profile_id"]
     fetched = client.get(f"/api/button-pad/profiles/{profile_id}")
@@ -234,12 +255,38 @@ def test_selected_and_built_in_profiles_cannot_be_deleted(client: TestClient) ->
         lambda value: value["slots"].pop(),
         lambda value: value["slots"].append(None),
         lambda value: value["slots"].__setitem__(
-            0, {"type": "adjust_manual_assistance", "delta": 2}
+            0, slot_json({"type": "adjust_manual_assistance", "delta": 2})
         ),
-        lambda value: value["slots"].__setitem__(0, {"type": "not_a_command"}),
+        lambda value: value["slots"].__setitem__(0, slot_json({"type": "not_a_command"})),
         lambda value: value["slots"].__setitem__(
-            0, {"type": "toggle_maximum_assistance", "extra": True}
+            0, slot_json({"type": "toggle_maximum_assistance", "extra": True})
         ),
+        # A slot is the command plus its presentation; the bare command is v1's shape.
+        lambda value: value["slots"].__setitem__(0, {"type": "toggle_maximum_assistance"}),
+        # An out-of-range colour channel, and a colour that is not a triple at all.
+        lambda value: value["slots"][0].__setitem__("colour", [0, 0, 256]),
+        lambda value: value["slots"][0].__setitem__("colour", [-1, 0, 0]),
+        lambda value: value["slots"][0].__setitem__("colour", [0, 0]),
+        # active_colour is reserved until a renderer honours it.
+        lambda value: value["slots"][0].__setitem__("active_colour", [255, 0, 0]),
+        # Breathe bounds, both ends of the period and the brightness ordering.
+        lambda value: value["slots"][1]["animation"].__setitem__("period_ms", 249),
+        lambda value: value["slots"][1]["animation"].__setitem__("period_ms", 10_001),
+        lambda value: value["slots"][1]["animation"].update({"minimum": 200, "maximum": 199}),
+        lambda value: value["slots"][1]["animation"].__setitem__("maximum", 256),
+        # Blink bounds, both ends of both durations.
+        lambda value: value["slots"][4]["animation"].__setitem__("on_ms", 0),
+        lambda value: value["slots"][4]["animation"].__setitem__("off_ms", 10_001),
+        lambda value: value["slots"][1]["animation"].__setitem__("kind", "sparkle"),
+        # Animation on a command that has no active state to animate.
+        lambda value: value["slots"][6].__setitem__(
+            "animation", {"kind": "blink", "on_ms": 400, "off_ms": 400}
+        ),
+        lambda value: value["slots"][2].__setitem__(
+            "animation", {"kind": "breathe", "period_ms": 2000, "minimum": 8, "maximum": 255}
+        ),
+        # The API accepts one schema version: a v1 body is rejected, not upgraded.
+        lambda value: value.__setitem__("schema_version", 1),
     ],
 )
 def test_profile_definition_contract_rejects_ambiguous_or_invalid_slots(
@@ -254,6 +301,97 @@ def test_profile_definition_contract_rejects_ambiguous_or_invalid_slots(
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.parametrize(
+    "slot",
+    [
+        slot_json({"type": "toggle_maximum_assistance"}, [0, 0, 0]),
+        slot_json({"type": "toggle_maximum_assistance"}, [255, 255, 255]),
+        slot_json(
+            {"type": "toggle_maximum_assistance"},
+            None,
+            {"kind": "breathe", "period_ms": 250, "minimum": 0, "maximum": 0},
+        ),
+        slot_json(
+            {"type": "toggle_maximum_assistance"},
+            None,
+            {"kind": "breathe", "period_ms": 10_000, "minimum": 255, "maximum": 255},
+        ),
+        slot_json(
+            {"type": "toggle_maximum_assistance"},
+            None,
+            {"kind": "breathe", "period_ms": 2000, "minimum": 200, "maximum": 200},
+        ),
+        slot_json(
+            {"type": "toggle_maximum_assistance"},
+            None,
+            {"kind": "blink", "on_ms": 1, "off_ms": 1},
+        ),
+        slot_json(
+            {"type": "toggle_maximum_assistance"},
+            None,
+            {"kind": "blink", "on_ms": 10_000, "off_ms": 10_000},
+        ),
+    ],
+)
+def test_a_slot_exactly_on_its_bounds_is_accepted(
+    client: TestClient, slot: dict[str, Any]
+) -> None:
+    """The rejections above would also pass if the accepted range were one step too tight."""
+
+    definition = definition_json()
+    definition["slots"][0] = slot
+
+    response = client.post(
+        "/api/button-pad/profiles",
+        json={"name": "On the boundary", "definition": definition},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["definition"]["slots"][0] == slot
+
+
+def test_a_whole_v1_definition_body_is_rejected_rather_than_upgraded(client: TestClient) -> None:
+    """Migration is a property of stored rows; over HTTP there is one accepted shape."""
+
+    v1_definition = {
+        "schema_version": 1,
+        "slots": [{"type": "toggle_automatic_assistance"}] + [None] * 15,
+    }
+
+    response = client.post(
+        "/api/button-pad/profiles",
+        json={"name": "Legacy", "definition": v1_definition},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_authored_colour_and_animation_round_trip_through_http_and_storage(
+    client: TestClient,
+) -> None:
+    saved = client.get("/api/button-pad/profile").json()
+    updated = client.put(
+        f"/api/button-pad/profiles/{saved['profile_id']}",
+        json={
+            "name": saved["name"],
+            "expected_revision": saved["revision"],
+            "definition": definition_json(),
+        },
+    )
+
+    assert updated.status_code == 200
+    stored = client.get(f"/api/button-pad/profiles/{saved['profile_id']}").json()
+    assert stored["definition"] == definition_json()
+    assert stored["definition"]["slots"][1]["animation"] == {
+        "kind": "breathe",
+        "period_ms": 2000,
+        "minimum": 8,
+        "maximum": 255,
+    }
+    assert stored["definition"]["slots"][4]["colour"] == [255, 0, 0]
 
 
 def test_button_profile_revision_conflicts_are_authoritative(client: TestClient) -> None:
@@ -296,17 +434,15 @@ def test_one_command_vocabulary_is_shared_by_http_and_storage() -> None:
     }
     samples = [slot for slot in definition_json()["slots"] if slot is not None]
 
-    assert http_tags == {sample["type"] for sample in samples}
+    assert http_tags == {sample["command"]["type"] for sample in samples}
     assert len(http_tags) == len(get_args(ButtonCommand))
-    # Every tag survives the round trip HTTP model -> domain intent -> stored JSON.
+    # Every tag survives the round trip HTTP model -> domain slot -> stored JSON.
     definition = definition_from_request(
         ButtonProfileDefinitionRequest.model_validate(definition_json()),
         simulator_config().steering,
     )
-    assert [
-        encode_button_command(command) for command in definition.slots if command is not None
-    ] == samples
-    assert {type(intent) for intent in definition.slots if intent is not None} == set(
+    assert [encode_button_slot(slot) for slot in definition.slots if slot is not None] == samples
+    assert {type(slot.command) for slot in definition.slots if slot is not None} == set(
         get_args(ButtonCommand)
     )
 
@@ -316,7 +452,9 @@ def test_assistance_level_beyond_the_configured_stages_is_rejected(client: TestC
 
     definition = definition_json()
     stage_count = simulator_config().steering.manual_level_count
-    definition["slots"][3] = {"type": "set_manual_assistance_level", "level": stage_count}
+    definition["slots"][3] = slot_json(
+        {"type": "set_manual_assistance_level", "level": stage_count}
+    )
 
     response = client.post(
         "/api/button-pad/profiles",

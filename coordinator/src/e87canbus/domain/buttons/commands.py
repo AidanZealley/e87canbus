@@ -26,6 +26,7 @@ from e87canbus.domain.intents import (
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
+from e87canbus.domain.state import ApplicationState
 
 _BUTTON_COMMAND_TYPES = tuple(SPECS_BY_TYPE)
 
@@ -45,6 +46,23 @@ def button_command_presentation(command: ButtonCommand) -> ButtonCommandPresenta
     """Return steady LED semantics from the command's catalogue entry."""
 
     return _spec_for(command).presentation
+
+
+def button_command_has_active_state(command: ButtonCommand) -> bool:
+    """Whether this command has an observable condition its button can report.
+
+    Authored animation renders the active state alone, so a command that can never be
+    active has nothing to animate and a slot may not carry one for it.
+    """
+
+    return _spec_for(command).active is not None
+
+
+def button_command_is_active(state: ApplicationState, command: ButtonCommand) -> bool:
+    """Whether the bound command's condition holds right now; ``False`` if it has none."""
+
+    predicate = _spec_for(command).active
+    return predicate is not None and predicate(state, command)
 
 
 def encode_button_command(command: ButtonCommand) -> dict[str, Any]:

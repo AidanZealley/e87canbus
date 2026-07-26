@@ -283,6 +283,26 @@ def test_unsupported_future_definition_fails_closed(
         repository.get_profile(BUILT_IN_PROFILE_ID)
 
 
+def test_a_table_with_no_migration_reads_every_row_as_current(tmp_path: Path) -> None:
+    """Steering curves have only ever had one shape, so an older version is corruption.
+
+    Button profiles declare a migration and upgrade such a row; this table declares none,
+    so the same row must fail closed rather than being read as though it were current.
+    """
+
+    path = tmp_path / "profiles.sqlite3"
+    repository = _repository(path)
+    repository.initialize()
+    _raw_update(
+        path,
+        "UPDATE steering_profiles SET schema_version = ? WHERE profile_id = ?",
+        (99, BUILT_IN_PROFILE_ID),
+    )
+
+    with pytest.raises(StoredProfileDataError, match="schema_version column disagrees"):
+        repository.get_profile(BUILT_IN_PROFILE_ID)
+
+
 def test_failed_update_rolls_back_the_transaction(tmp_path: Path) -> None:
     path = tmp_path / "profiles.sqlite3"
     repository = _repository(path)

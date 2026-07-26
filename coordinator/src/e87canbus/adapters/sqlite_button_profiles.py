@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Callable
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
+from typing import assert_never
 from uuid import UUID, uuid4
 
 from e87canbus.adapters.sqlite_database import (
@@ -13,12 +16,17 @@ from e87canbus.adapters.sqlite_database import (
     SqliteApplicationDatabase,
 )
 from e87canbus.adapters.sqlite_revisioned_profiles import (
+    ProfileMigration,
     RevisionedProfileSpec,
     SqliteRevisionedProfileRepository,
     utc_now,
 )
+from e87canbus.domain.buttons.catalogue import ButtonCommand
+from e87canbus.domain.buttons.commands import decode_button_command
 from e87canbus.domain.buttons.profiles import (
+    BUTTON_PROFILE_SCHEMA_VERSION,
     ButtonProfileDefinition,
+    ButtonSlot,
     StoredButtonProfile,
     button_profile_fingerprint,
     canonical_button_profile_bytes,
@@ -27,6 +35,16 @@ from e87canbus.domain.buttons.profiles import (
     validate_button_profile_name,
 )
 from e87canbus.domain.buttons.repository import BUTTON_PROFILE_KIND
+from e87canbus.domain.events import RGB_BLUE, RGB_WHITE, Rgb
+from e87canbus.domain.intents import (
+    AdjustManualAssistance,
+    SelectSteeringMode,
+    SetManualAssistanceLevel,
+    SetMaximumAssistance,
+    StartHighBeamStrobe,
+    ToggleAutomaticAssistance,
+    ToggleMaximumAssistance,
+)
 from e87canbus.domain.revisioned_profiles import (
     ProfileNotFoundError,
     ProfileProtectedError,
@@ -34,6 +52,76 @@ from e87canbus.domain.revisioned_profiles import (
     ProfileStorageError,
     validate_expected_revision,
 )
+
+BUTTON_PROFILE_V1_SCHEMA_VERSION = 1
+
+
+def _v1_seed_colour(command: ButtonCommand) -> Rgb:
+    """The colour v1 derived for this command, which becomes its authored base colour.
+
+    This reproduces the ``ButtonCommandPresentation`` table as it stood at v1 rather than
+    reading today's, deliberately: a migration describes rows that were written in the
+    past, so it must not move when the live derivation does. A pad upgraded through it
+    looks exactly as it did, except for the accepted steering-mode regression - those
+    buttons were bright blue in automatic and bright amber in manual, and become one blue
+    that is bright only in automatic.
+    """
+
+    match command:
+        case SelectSteeringMode() | ToggleAutomaticAssistance():
+            return RGB_BLUE
+        case (
+            AdjustManualAssistance()
+            | SetManualAssistanceLevel()
+            | SetMaximumAssistance()
+            | ToggleMaximumAssistance()
+            | StartHighBeamStrobe()
+        ):
+            return RGB_WHITE
+        case _:
+            assert_never(command)
+
+
+def migrate_button_profile(
+    stored_version: int, definition_json: str, fingerprint: str
+) -> ButtonProfileDefinition:
+    """Read a definition written before slots carried presentation.
+
+    A v1 slot was the bare command, so the colour it is given here is the one v1 would
+    have shown it in, and both authored fields it never had stay null. Migration happens
+    on read; the row itself is rewritten at the current version by the next save.
+
+    The row is verified before it is upgraded, so an old row fails as closed as a current
+    one. v1's canonical encoding was the same sorted, separator-free JSON this build
+    writes, applied to the v1 payload, so re-encoding what was parsed reproduces exactly
+    what v1 would have stored - no v1 decoder has to be kept alive to check it.
+    """
+
+    if stored_version != BUTTON_PROFILE_V1_SCHEMA_VERSION:
+        raise ValueError(f"unsupported stored button profile schema_version: {stored_version}")
+    value = json.loads(definition_json)
+    if not isinstance(value, dict) or set(value) != {"schema_version", "slots"}:
+        raise ValueError("definition has unexpected fields")
+    if value["schema_version"] != stored_version:
+        raise ValueError("schema_version column disagrees with definition_json")
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    if definition_json != canonical.decode():
+        raise ValueError("definition_json is not canonical")
+    if fingerprint != sha256(canonical).hexdigest():
+        raise ValueError("definition fingerprint mismatch")
+    slots = value["slots"]
+    if not isinstance(slots, list):
+        raise ValueError("slots must be a list")
+    return ButtonProfileDefinition(
+        BUTTON_PROFILE_SCHEMA_VERSION,
+        tuple(None if command is None else _migrated_slot(command) for command in slots),
+    )
+
+
+def _migrated_slot(command_json: object) -> ButtonSlot:
+    command = decode_button_command(command_json)
+    return ButtonSlot(command, _v1_seed_colour(command))
+
 
 BUTTON_PROFILE_SPEC = RevisionedProfileSpec[ButtonProfileDefinition, StoredButtonProfile](
     kind=BUTTON_PROFILE_KIND,
@@ -43,6 +131,7 @@ BUTTON_PROFILE_SPEC = RevisionedProfileSpec[ButtonProfileDefinition, StoredButto
     fingerprint=button_profile_fingerprint,
     validate_name=validate_button_profile_name,
     build=StoredButtonProfile,
+    migration=ProfileMigration(BUTTON_PROFILE_SCHEMA_VERSION, migrate_button_profile),
 )
 
 _UPSERT_SELECTION = """INSERT INTO selected_button_profile (singleton_id, profile_id)

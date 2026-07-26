@@ -224,11 +224,77 @@
         "title": "ApplicationSettingsResponse",
         "type": "object"
       },
+      "BlinkAnimationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "blink",
+            "title": "Kind",
+            "type": "string"
+          },
+          "off_ms": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Off Ms",
+            "type": "integer"
+          },
+          "on_ms": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "On Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "on_ms",
+          "off_ms"
+        ],
+        "title": "BlinkAnimationRequest",
+        "type": "object"
+      },
+      "BreatheAnimationRequest": {
+        "additionalProperties": false,
+        "description": "Bounds mirror the button-pad track payload, so an accepted animation is runnable.",
+        "properties": {
+          "kind": {
+            "const": "breathe",
+            "title": "Kind",
+            "type": "string"
+          },
+          "maximum": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Maximum",
+            "type": "integer"
+          },
+          "minimum": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Minimum",
+            "type": "integer"
+          },
+          "period_ms": {
+            "maximum": 10000.0,
+            "minimum": 250.0,
+            "title": "Period Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "period_ms",
+          "minimum",
+          "maximum"
+        ],
+        "title": "BreatheAnimationRequest",
+        "type": "object"
+      },
       "ButtonProfileDefinitionRequest": {
         "additionalProperties": false,
         "properties": {
           "schema_version": {
-            "const": 1,
+            "const": 2,
             "title": "Schema Version",
             "type": "integer"
           },
@@ -236,41 +302,7 @@
             "items": {
               "anyOf": [
                 {
-                  "discriminator": {
-                    "mapping": {
-                      "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
-                      "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
-                      "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
-                      "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
-                      "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
-                      "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
-                      "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
-                    },
-                    "propertyName": "type"
-                  },
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/SelectSteeringModeCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ButtonProfileSlotRequest"
                 },
                 {
                   "type": "null"
@@ -294,7 +326,7 @@
         "additionalProperties": false,
         "properties": {
           "schema_version": {
-            "const": 1,
+            "const": 2,
             "title": "Schema Version",
             "type": "integer"
           },
@@ -302,41 +334,7 @@
             "items": {
               "anyOf": [
                 {
-                  "discriminator": {
-                    "mapping": {
-                      "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
-                      "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
-                      "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
-                      "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
-                      "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
-                      "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
-                      "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
-                    },
-                    "propertyName": "type"
-                  },
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/SelectSteeringModeCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
-                    },
-                    {
-                      "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ButtonProfileSlotResponse"
                 },
                 {
                   "type": "null"
@@ -396,6 +394,199 @@
           "updated_at"
         ],
         "title": "ButtonProfileResponse",
+        "type": "object"
+      },
+      "ButtonProfileSlotRequest": {
+        "additionalProperties": false,
+        "description": "One authored button: presentation is a sibling of the command, not part of it.\n\n``active_colour`` is reserved and typed as null so a client cannot start depending on\na second colour before the renderer honours one. Whether an animation is permitted at\nall depends on the bound command having an observable condition, which the domain\ndecides at the save boundary.",
+        "properties": {
+          "active_colour": {
+            "title": "Active Colour",
+            "type": "null"
+          },
+          "animation": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "blink": "#/components/schemas/BlinkAnimationRequest",
+                    "breathe": "#/components/schemas/BreatheAnimationRequest"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/BreatheAnimationRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BlinkAnimationRequest"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Animation"
+          },
+          "colour": {
+            "items": {
+              "maximum": 255.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Colour",
+            "type": "array"
+          },
+          "command": {
+            "discriminator": {
+              "mapping": {
+                "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
+                "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
+                "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
+                "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
+                "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
+                "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
+                "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectSteeringModeCommand"
+              },
+              {
+                "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
+              },
+              {
+                "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
+              }
+            ],
+            "title": "Command"
+          }
+        },
+        "required": [
+          "command",
+          "colour"
+        ],
+        "title": "ButtonProfileSlotRequest",
+        "type": "object"
+      },
+      "ButtonProfileSlotResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "active_colour": {
+            "title": "Active Colour",
+            "type": "null"
+          },
+          "animation": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "blink": "#/components/schemas/BlinkAnimationRequest",
+                    "breathe": "#/components/schemas/BreatheAnimationRequest"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/BreatheAnimationRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BlinkAnimationRequest"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Animation"
+          },
+          "colour": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "maximum": 255.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "maximum": 255.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "maximum": 255.0,
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            ],
+            "title": "Colour",
+            "type": "array"
+          },
+          "command": {
+            "discriminator": {
+              "mapping": {
+                "adjust_manual_assistance": "#/components/schemas/AdjustManualAssistanceCommand",
+                "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
+                "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
+                "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
+                "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
+                "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
+                "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectSteeringModeCommand"
+              },
+              {
+                "$ref": "#/components/schemas/ToggleAutomaticAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/AdjustManualAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/SetManualAssistanceLevelCommand"
+              },
+              {
+                "$ref": "#/components/schemas/SetMaximumAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
+              },
+              {
+                "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
+              }
+            ],
+            "title": "Command"
+          }
+        },
+        "required": [
+          "command",
+          "colour",
+          "active_colour",
+          "animation"
+        ],
+        "title": "ButtonProfileSlotResponse",
         "type": "object"
       },
       "CommandAcknowledgement": {

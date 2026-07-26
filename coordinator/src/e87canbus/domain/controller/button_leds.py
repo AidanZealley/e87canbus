@@ -61,8 +61,8 @@ def derived_button_led_state(
     mode = SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
     maximum_active = isinstance(steering, MaximumAssistance)
     colours = [RGB_OFF] * BUTTON_LED_COUNT
-    for index, command in profile.assigned():
-        presentation = button_command_presentation(command)
+    for index, slot in profile.assigned():
+        presentation = button_command_presentation(slot.command)
         if presentation is ButtonCommandPresentation.STEERING_MODE:
             colour = (
                 RGB_BLUE
@@ -137,6 +137,7 @@ class ButtonLedProjection:
 
         return tuple(
             index
-            for index, command in self.profile.assigned()
-            if button_command_presentation(command) is ButtonCommandPresentation.MAXIMUM_ASSISTANCE
+            for index, slot in self.profile.assigned()
+            if button_command_presentation(slot.command)
+            is ButtonCommandPresentation.MAXIMUM_ASSISTANCE
         )

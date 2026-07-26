@@ -146,401 +146,75 @@ export type ApplicationSettingsResponse = {
 }
 
 /**
+ * BlinkAnimationRequest
+ */
+export type BlinkAnimationRequest = {
+  /**
+   * Kind
+   */
+  kind: "blink"
+  /**
+   * Off Ms
+   */
+  off_ms: number
+  /**
+   * On Ms
+   */
+  on_ms: number
+}
+
+/**
+ * BreatheAnimationRequest
+ *
+ * Bounds mirror the button-pad track payload, so an accepted animation is runnable.
+ */
+export type BreatheAnimationRequest = {
+  /**
+   * Kind
+   */
+  kind: "breathe"
+  /**
+   * Maximum
+   */
+  maximum: number
+  /**
+   * Minimum
+   */
+  minimum: number
+  /**
+   * Period Ms
+   */
+  period_ms: number
+}
+
+/**
  * ButtonProfileDefinitionRequest
  */
 export type ButtonProfileDefinitionRequest = {
   /**
    * Schema Version
    */
-  schema_version: 1
+  schema_version: 2
   /**
    * Slots
    */
   slots: [
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
+    ButtonProfileSlotRequest | null,
   ]
 }
 
@@ -551,395 +225,27 @@ export type ButtonProfileDefinitionResponse = {
   /**
    * Schema Version
    */
-  schema_version: 1
+  schema_version: 2
   /**
    * Slots
    */
   slots: [
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
-    (
-      | ({
-          type: "select_steering_mode"
-        } & SelectSteeringModeCommand)
-      | ({
-          type: "toggle_automatic_assistance"
-        } & ToggleAutomaticAssistanceCommand)
-      | ({
-          type: "adjust_manual_assistance"
-        } & AdjustManualAssistanceCommand)
-      | ({
-          type: "set_manual_assistance_level"
-        } & SetManualAssistanceLevelCommand)
-      | ({
-          type: "set_maximum_assistance"
-        } & SetMaximumAssistanceCommand)
-      | ({
-          type: "toggle_maximum_assistance"
-        } & ToggleMaximumAssistanceCommand)
-      | ({
-          type: "start_high_beam_strobe"
-        } & StartHighBeamStrobeCommand)
-      | null
-    ),
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
+    ButtonProfileSlotResponse | null,
   ]
 }
 
@@ -968,6 +274,113 @@ export type ButtonProfileResponse = {
    * Updated At
    */
   updated_at: string
+}
+
+/**
+ * ButtonProfileSlotRequest
+ *
+ * One authored button: presentation is a sibling of the command, not part of it.
+ *
+ * ``active_colour`` is reserved and typed as null so a client cannot start depending on
+ * a second colour before the renderer honours one. Whether an animation is permitted at
+ * all depends on the bound command having an observable condition, which the domain
+ * decides at the save boundary.
+ */
+export type ButtonProfileSlotRequest = {
+  /**
+   * Active Colour
+   */
+  active_colour?: null
+  /**
+   * Animation
+   */
+  animation?:
+    | ({
+        kind: "breathe"
+      } & BreatheAnimationRequest)
+    | ({
+        kind: "blink"
+      } & BlinkAnimationRequest)
+    | null
+  /**
+   * Colour
+   */
+  colour: [number, number, number]
+  /**
+   * Command
+   */
+  command:
+    | ({
+        type: "select_steering_mode"
+      } & SelectSteeringModeCommand)
+    | ({
+        type: "toggle_automatic_assistance"
+      } & ToggleAutomaticAssistanceCommand)
+    | ({
+        type: "adjust_manual_assistance"
+      } & AdjustManualAssistanceCommand)
+    | ({
+        type: "set_manual_assistance_level"
+      } & SetManualAssistanceLevelCommand)
+    | ({
+        type: "set_maximum_assistance"
+      } & SetMaximumAssistanceCommand)
+    | ({
+        type: "toggle_maximum_assistance"
+      } & ToggleMaximumAssistanceCommand)
+    | ({
+        type: "start_high_beam_strobe"
+      } & StartHighBeamStrobeCommand)
+}
+
+/**
+ * ButtonProfileSlotResponse
+ */
+export type ButtonProfileSlotResponse = {
+  /**
+   * Active Colour
+   */
+  active_colour: null
+  /**
+   * Animation
+   */
+  animation:
+    | ({
+        kind: "breathe"
+      } & BreatheAnimationRequest)
+    | ({
+        kind: "blink"
+      } & BlinkAnimationRequest)
+    | null
+  /**
+   * Colour
+   */
+  colour: [number, number, number]
+  /**
+   * Command
+   */
+  command:
+    | ({
+        type: "select_steering_mode"
+      } & SelectSteeringModeCommand)
+    | ({
+        type: "toggle_automatic_assistance"
+      } & ToggleAutomaticAssistanceCommand)
+    | ({
+        type: "adjust_manual_assistance"
+      } & AdjustManualAssistanceCommand)
+    | ({
+        type: "set_manual_assistance_level"
+      } & SetManualAssistanceLevelCommand)
+    | ({
+        type: "set_maximum_assistance"
+      } & SetMaximumAssistanceCommand)
+    | ({
+        type: "toggle_maximum_assistance"
+      } & ToggleMaximumAssistanceCommand)
+    | ({
+        type: "start_high_beam_strobe"
+      } & StartHighBeamStrobeCommand)
 }
 
 /**

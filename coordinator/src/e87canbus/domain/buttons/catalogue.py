@@ -19,9 +19,9 @@ actually does - so nothing can half-land.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal, get_args
+from typing import Any, Literal, TypeVar, get_args
 
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
@@ -33,7 +33,7 @@ from e87canbus.domain.intents import (
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
-from e87canbus.domain.state import SteeringMode
+from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 
 # Every operator intent is assignable to a button, so this is an alias rather than a
 # second union to keep in step. If an intent is ever added that a user must not be able
@@ -79,14 +79,84 @@ class ButtonCommandField:
             raise ValueError("only an integer button command field may declare a minimum")
 
 
+ButtonCommandActive = Callable[[ApplicationState, "ButtonCommand"], bool]
+
+CommandT = TypeVar("CommandT")
+
+
+def _bound(
+    command_type: type[CommandT],
+    predicate: Callable[[ApplicationState, CommandT], bool],
+) -> ButtonCommandActive:
+    """Widen a predicate written against one command to the union a slot can hold.
+
+    A catalogue entry pairs its predicate with its command type, so the narrowing here
+    restates a fact the entry already guarantees. It exists so each predicate can read
+    its own parameters by name instead of matching over the whole union, and so the
+    single mismatch check lives in one place rather than in seven predicates.
+    """
+
+    def widened(state: ApplicationState, command: ButtonCommand) -> bool:
+        if not isinstance(command, command_type):
+            raise TypeError(
+                f"{command_type.__name__} predicate applied to {type(command).__name__}"
+            )
+        return predicate(state, command)
+
+    return widened
+
+
+def _current_mode(state: ApplicationState) -> SteeringMode:
+    """The mode the operator is in, treating maximum assistance as manual.
+
+    Maximum assistance is a distinct steering *state* rather than a mode value, and it
+    is entered from manual and returns to it, so a mode question asked while it is
+    engaged is answered as manual - the same collapse the LED derivation makes.
+    """
+
+    steering = state.steering
+    return SteeringMode.MANUAL if isinstance(steering, MaximumAssistance) else steering.mode
+
+
+def _maximum_assistance_active(state: ApplicationState) -> bool:
+    return isinstance(state.steering, MaximumAssistance)
+
+
+def _manual_level(state: ApplicationState) -> int | None:
+    """The manual stage in force, or ``None`` when none is.
+
+    Automatic and maximum assistance both retain a stage, but the car is not obeying it:
+    ``_establish_manual_assistance`` cancels maximum assistance and selects manual before
+    applying either stage command, so pressing a stage button in those states changes
+    what the steering does. A button that changes something is not reporting a state the
+    car is already in, so it is inactive.
+    """
+
+    steering = state.steering
+    if isinstance(steering, MaximumAssistance) or steering.mode is not SteeringMode.MANUAL:
+        return None
+    return steering.manual_level
+
+
 @dataclass(frozen=True)
 class ButtonCommandSpec:
-    """One assignable command: its wire tag, its intent, its look, and its values."""
+    """One assignable command: its wire tag, its intent, its look, and its values.
+
+    ``active`` is the observable condition under which a button bound to this command
+    reads as on. It takes the bound command because activeness depends on the command's
+    parameters and not only on its type: ``select_steering_mode(auto)`` is active in
+    automatic while ``select_steering_mode(manual)`` is not. ``None`` means the command
+    has no observable condition at all, which is a fact about the command rather than a
+    default - a slot holding one may not carry an animation.
+    """
 
     tag: str
     command_type: type[Any]
     presentation: ButtonCommandPresentation
     fields: tuple[ButtonCommandField, ...] = ()
+    # Required and keyword-only, with no default: an added command must say whether it
+    # has an observable condition, rather than silently inheriting "it has none".
+    active: ButtonCommandActive | None = field(kw_only=True)
 
     def __post_init__(self) -> None:
         if not self.tag or self.tag.strip() != self.tag:
@@ -123,39 +193,64 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
                 encode=_encode_steering_mode,
             ),
         ),
+        active=_bound(
+            SelectSteeringMode,
+            lambda state, command: _current_mode(state) is command.mode,
+        ),
     ),
     ButtonCommandSpec(
         "toggle_automatic_assistance",
         ToggleAutomaticAssistance,
         ButtonCommandPresentation.STEERING_MODE,
+        active=_bound(
+            ToggleAutomaticAssistance,
+            lambda state, _command: _current_mode(state) is SteeringMode.AUTO,
+        ),
     ),
     ButtonCommandSpec(
         "adjust_manual_assistance",
         AdjustManualAssistance,
         ButtonCommandPresentation.STEERING_ADJUSTMENT,
         (ButtonCommandField("delta", annotation=Literal[-1, 1]),),
+        # A relative step has no state it can be "in"; the level it moves reports itself.
+        active=None,
     ),
     ButtonCommandSpec(
         "set_manual_assistance_level",
         SetManualAssistanceLevel,
         ButtonCommandPresentation.STEERING_ADJUSTMENT,
         (ButtonCommandField("level", minimum=0),),
+        active=_bound(
+            SetManualAssistanceLevel,
+            lambda state, command: _manual_level(state) == command.level,
+        ),
     ),
     ButtonCommandSpec(
         "set_maximum_assistance",
         SetMaximumAssistance,
         ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
         (ButtonCommandField("enabled", annotation=bool),),
+        active=_bound(
+            SetMaximumAssistance,
+            lambda state, command: _maximum_assistance_active(state) is command.enabled,
+        ),
     ),
     ButtonCommandSpec(
         "toggle_maximum_assistance",
         ToggleMaximumAssistance,
         ButtonCommandPresentation.MAXIMUM_ASSISTANCE,
+        active=_bound(
+            ToggleMaximumAssistance,
+            lambda state, _command: _maximum_assistance_active(state),
+        ),
     ),
     ButtonCommandSpec(
         "start_high_beam_strobe",
         StartHighBeamStrobe,
         ButtonCommandPresentation.MOMENTARY,
+        # Lighting while the strobe runs needs a running flag the derivation can read,
+        # which does not exist yet; until it does the strobe has no observable condition.
+        active=None,
     ),
 )
 
