@@ -35,7 +35,6 @@ from e87canbus.domain.buttons.profiles import (
     validate_button_profile_name,
 )
 from e87canbus.domain.buttons.repository import BUTTON_PROFILE_KIND
-from e87canbus.domain.events import RGB_BLUE, RGB_WHITE, Rgb
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
@@ -52,6 +51,7 @@ from e87canbus.domain.revisioned_profiles import (
     ProfileStorageError,
     validate_expected_revision,
 )
+from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb
 
 BUTTON_PROFILE_V1_SCHEMA_VERSION = 1
 

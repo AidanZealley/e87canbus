@@ -335,9 +335,7 @@ def test_profile_definition_contract_rejects_ambiguous_or_invalid_slots(
         ),
     ],
 )
-def test_a_slot_exactly_on_its_bounds_is_accepted(
-    client: TestClient, slot: dict[str, Any]
-) -> None:
+def test_a_slot_exactly_on_its_bounds_is_accepted(client: TestClient, slot: dict[str, Any]) -> None:
     """The rejections above would also pass if the accepted range were one step too tight."""
 
     definition = definition_json()

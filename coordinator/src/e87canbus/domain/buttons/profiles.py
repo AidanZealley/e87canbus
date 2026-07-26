@@ -31,7 +31,7 @@ from e87canbus.domain.buttons.commands import (
     encode_button_command,
     is_button_command,
 )
-from e87canbus.domain.events import BUTTON_LED_COUNT, RGB_BLUE, RGB_WHITE, Rgb
+from e87canbus.domain.events import BUTTON_LED_COUNT
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     StartHighBeamStrobe,
@@ -41,6 +41,7 @@ from e87canbus.domain.intents import (
 from e87canbus.domain.revisioned_profiles import (
     validate_saved_profile_revision as validate_saved_profile_revision,
 )
+from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb
 from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
 BUTTON_PROFILE_SCHEMA_VERSION = 2
