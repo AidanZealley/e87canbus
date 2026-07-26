@@ -31,7 +31,7 @@ export const ButtonProfilePad = ({
         <ButtonBindingDialog
           key={editingIndex}
           buttonIndex={editingIndex}
-          command={slots[editingIndex] ?? null}
+          command={slots[editingIndex]?.command ?? null}
           open
           onOpenChange={(open) => {
             if (!open) setEditingIndex(null)

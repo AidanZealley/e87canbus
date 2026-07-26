@@ -4,6 +4,14 @@ import type {
   ButtonCommandType,
 } from "./types"
 
+export const defaultColourForCommand = (
+  command: NonNullable<ButtonCommand>
+): [number, number, number] =>
+  command.type === "select_steering_mode" ||
+  command.type === "toggle_automatic_assistance"
+    ? [0, 0, 255]
+    : [255, 255, 255]
+
 export const commandTypeOptions: ReadonlyArray<{
   value: ButtonCommandType
   label: string

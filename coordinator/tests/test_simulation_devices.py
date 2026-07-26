@@ -14,6 +14,8 @@ from e87canbus.protocol.can import (
     encode_welcome_ack,
 )
 from e87canbus.protocol.generated import (
+    BUTTON_PAD_EFFECT_BLINK,
+    BUTTON_PAD_EFFECT_COMMAND_VERSION,
     BUTTON_PRESSED,
     BUTTON_RELEASED,
 )
@@ -107,8 +109,40 @@ def test_neotrellis_decodes_one_and_two_pulse_blinks_of_an_arbitrary_colour() ->
     activate_neotrellis(node, controller_bus, clock)
 
     # The frame carries its colour, so the pad renders values no opcode ever named.
-    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x07\x01\x2a\x8c\x13"))
-    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x04\x08\x02\xff\xbf\x00"))
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes(
+                (
+                    BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                    BUTTON_PAD_EFFECT_BLINK,
+                    3,
+                    7,
+                    1,
+                    0x2A,
+                    0x8C,
+                    0x13,
+                )
+            ),
+        )
+    )
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes(
+                (
+                    BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                    BUTTON_PAD_EFFECT_BLINK,
+                    4,
+                    8,
+                    2,
+                    0xFF,
+                    0xBF,
+                    0,
+                )
+            ),
+        )
+    )
     node.process_pending(clock())
 
     assert node.effect_commands == [
@@ -129,10 +163,65 @@ def test_neotrellis_ignores_effect_frames_the_firmware_cannot_render() -> None:
     )
     activate_neotrellis(node, controller_bus, clock)
 
-    # A pulse count outside 1-2 has no firmware entry point, and 0x02 is retired.
-    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x07\x03\x2a\x8c\x13"))
-    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x01\x03\x08\x00\x2a\x8c\x13"))
-    controller_bus.send(CanFrame(ids.button_pad_effect, b"\x01\x02\x03\x09\x01\x2a\x8c\x13"))
+    # A pulse count outside 1-2 has no firmware entry point, 0x02 is retired, and
+    # version 1 has incompatible byte meanings.
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes(
+                (
+                    BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                    BUTTON_PAD_EFFECT_BLINK,
+                    3,
+                    7,
+                    3,
+                    0x2A,
+                    0x8C,
+                    0x13,
+                )
+            ),
+        )
+    )
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes(
+                (
+                    BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                    BUTTON_PAD_EFFECT_BLINK,
+                    3,
+                    8,
+                    0,
+                    0x2A,
+                    0x8C,
+                    0x13,
+                )
+            ),
+        )
+    )
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes(
+                (
+                    BUTTON_PAD_EFFECT_COMMAND_VERSION,
+                    0x02,
+                    3,
+                    9,
+                    1,
+                    0x2A,
+                    0x8C,
+                    0x13,
+                )
+            ),
+        )
+    )
+    controller_bus.send(
+        CanFrame(
+            ids.button_pad_effect,
+            bytes((1, BUTTON_PAD_EFFECT_BLINK, 3, 10, 1, 0x2A, 0x8C, 0x13)),
+        )
+    )
     node.process_pending(clock())
 
     assert node.effect_commands == []

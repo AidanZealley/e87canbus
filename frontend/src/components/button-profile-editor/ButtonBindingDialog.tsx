@@ -75,8 +75,8 @@ export const ButtonBindingDialog = ({
           <DialogTitle>Edit button {buttonIndex}</DialogTitle>
           <DialogDescription>
             Choose the command sent when this button is pressed. LED appearance
-            is previewed from the command and current vehicle state. A dim amber
-            preview means live state is unavailable.
+            is previewed from its saved colour and current vehicle state. A dim
+            amber preview means live state is unavailable.
           </DialogDescription>
         </DialogHeader>
         <form
