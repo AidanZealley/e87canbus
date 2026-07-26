@@ -19,6 +19,7 @@ type ButtonProfileItemProps = {
   buttonIndex: number
   slot: ButtonCommandSlot
   visualState: ButtonVisualState
+  manualAssistanceLevelCount?: number
   disabled?: boolean
   onChange: (slot: ButtonCommandSlot) => Promise<void>
 }
@@ -27,6 +28,7 @@ export const ButtonProfileItem = ({
   buttonIndex,
   slot,
   visualState,
+  manualAssistanceLevelCount,
   disabled = false,
   onChange,
 }: ButtonProfileItemProps) => {
@@ -109,6 +111,7 @@ export const ButtonProfileItem = ({
           <ButtonCommandEditor
             buttonIndex={buttonIndex}
             command={slot?.command ?? null}
+            manualAssistanceLevelCount={manualAssistanceLevelCount}
             disabled={disabled}
             onChange={changeCommand}
           />

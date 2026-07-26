@@ -146,7 +146,13 @@ def _active_track(slot: ButtonSlot) -> ButtonPadTrackPayload:
         case BreatheAnimation(period_ms=period_ms, minimum=minimum, maximum=maximum):
             return breathe_track(colour, minimum, maximum, period_ms, _AUTHORED_REPEAT, colour)
         case BlinkAnimation(on_ms=on_ms, off_ms=off_ms):
-            return blink_track(colour, on_ms, off_ms, _AUTHORED_REPEAT, colour)
+            return blink_track(
+                colour,
+                on_ms,
+                off_ms,
+                _AUTHORED_REPEAT,
+                resting_rgb(colour),
+            )
         case _:
             assert_never(slot.animation)
 

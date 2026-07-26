@@ -13,6 +13,7 @@ from e87canbus.domain.buttons.profiles import (
     BUILT_IN_BUTTON_PROFILE,
     button_profile_fingerprint,
     canonical_button_profile_bytes,
+    decode_button_profile,
 )
 from e87canbus.domain.settings.values import DEFAULT_APPLICATION_SETTINGS
 from e87canbus.domain.steering.curves import (
@@ -24,7 +25,7 @@ from e87canbus.domain.steering.curves import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 7
+CURRENT_MIGRATION_VERSION = 8
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 BUILT_IN_BUTTON_PROFILE_ID = "00000000-0000-4000-8000-000000000002"
@@ -110,6 +111,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_6(connection)
                 elif version == 7:
                     self._apply_migration_7(connection)
+                elif version == 8:
+                    self._apply_migration_8(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -347,6 +350,56 @@ class SqliteApplicationDatabase:
             (BUILT_IN_BUTTON_PROFILE_ID,),
         )
         self._record_migration(connection, 7)
+
+    def _apply_migration_8(self, connection: sqlite3.Connection) -> None:
+        """Normalize previously authored animation timings to the new Medium preset."""
+
+        medium_breathe_period_ms = 2_000
+        medium_blink_on_ms = 400
+        medium_blink_off_ms = 400
+        timestamp = canonical_utc_timestamp(self.clock())
+        rows = connection.execute(
+            "SELECT profile_id, revision, definition_json FROM button_profiles"
+        ).fetchall()
+        for row in rows:
+            raw_definition = json.loads(row["definition_json"])
+            changed = False
+            for slot in raw_definition.get("slots", []):
+                if not isinstance(slot, dict):
+                    continue
+                animation = slot.get("animation")
+                if not isinstance(animation, dict):
+                    continue
+                if animation.get("kind") == "breathe":
+                    changed = changed or animation.get("period_ms") != medium_breathe_period_ms
+                    animation["period_ms"] = medium_breathe_period_ms
+                elif animation.get("kind") == "blink":
+                    changed = changed or (
+                        animation.get("on_ms") != medium_blink_on_ms
+                        or animation.get("off_ms") != medium_blink_off_ms
+                    )
+                    animation["on_ms"] = medium_blink_on_ms
+                    animation["off_ms"] = medium_blink_off_ms
+            if not changed:
+                continue
+            definition = decode_button_profile(raw_definition)
+            definition_json = canonical_button_profile_bytes(definition).decode("utf-8")
+            connection.execute(
+                """
+                UPDATE button_profiles
+                SET revision = ?, definition_json = ?,
+                    definition_fingerprint = ?, updated_at_utc = ?
+                WHERE profile_id = ?
+                """,
+                (
+                    row["revision"] + 1,
+                    definition_json,
+                    button_profile_fingerprint(definition),
+                    timestamp,
+                    row["profile_id"],
+                ),
+            )
+        self._record_migration(connection, 8)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]

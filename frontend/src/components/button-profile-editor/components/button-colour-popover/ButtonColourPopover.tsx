@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/popover"
 import type { ButtonLedRgb } from "../../button-led-presentation"
 import { restingButtonLedRgb } from "../../button-led-presentation"
+import { BUTTON_COLOUR_PRESETS } from "../../constants"
 import {
   type ButtonColour,
   colourHasVisibleRestingState,
@@ -25,17 +26,6 @@ type ButtonColourPopoverProps = {
   onChange: (colour: ButtonColour) => Promise<void>
 }
 
-const PRESETS: ReadonlyArray<{
-  name: string
-  colour: ButtonLedRgb
-}> = [
-  { name: "White", colour: [255, 255, 255] },
-  { name: "Amber", colour: [255, 191, 0] },
-  { name: "Blue", colour: [0, 0, 255] },
-  { name: "Green", colour: [0, 255, 0] },
-  { name: "Red", colour: [255, 0, 0] },
-]
-
 export const ButtonColourPopover = ({
   buttonIndex,
   colour,
@@ -49,11 +39,9 @@ export const ButtonColourPopover = ({
   const draftRgb = hexToRgb(draft)
   const faintColour = restingButtonLedRgb(colour)
   const draftError =
-    draftRgb === null
-      ? "Enter a six-digit RGB hex value."
-      : !colourHasVisibleRestingState(draftRgb)
-        ? "Choose a brighter colour so the inactive LED does not render as off."
-        : null
+    draftRgb !== null && !colourHasVisibleRestingState(draftRgb)
+      ? "Choose a brighter colour so the inactive LED does not render as off."
+      : null
 
   const commit = async (value: string) => {
     const rgb = hexToRgb(value)
@@ -115,7 +103,7 @@ export const ButtonColourPopover = ({
               Full colour and its faint inactive rendering.
             </p>
           </div>
-          <div className="grid grid-cols-[4rem_1fr] gap-3">
+          <div className="grid grid-cols-[4rem_1fr] items-end gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor={`button-${buttonIndex}-native-colour`}>
                 Picker
@@ -133,40 +121,17 @@ export const ButtonColourPopover = ({
                 onChange={(event) => void commit(event.currentTarget.value)}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor={`button-${buttonIndex}-hex-colour`}>
-                Hex value
-              </Label>
-              <Input
-                id={`button-${buttonIndex}-hex-colour`}
-                value={draft}
-                spellCheck={false}
-                autoComplete="off"
-                aria-invalid={showError && draftError !== null}
-                aria-describedby={`button-${buttonIndex}-colour-help`}
-                disabled={disabled}
-                onChange={(event) => {
-                  setDraft(event.target.value.toUpperCase())
-                  setShowError(false)
-                }}
-                onBlur={() => void commit(draft)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    void commit(draft)
-                  }
-                  if (event.key === "Escape") {
-                    setDraft(savedHex)
-                    setShowError(false)
-                  }
-                }}
-              />
+            <div className="grid gap-1">
+              <span className="text-xs font-medium">Selected colour</span>
+              <output className="text-sm font-medium tabular-nums">
+                {draftRgb === null ? savedHex : rgbToHex(draftRgb)}
+              </output>
             </div>
           </div>
           <div className="grid gap-1.5">
             <span className="text-xs font-medium">Presets</span>
             <div className="flex flex-wrap gap-2">
-              {PRESETS.map((preset) => (
+              {BUTTON_COLOUR_PRESETS.map((preset) => (
                 <Button
                   key={preset.name}
                   type="button"

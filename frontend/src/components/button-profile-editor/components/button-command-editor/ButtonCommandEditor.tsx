@@ -15,11 +15,12 @@ import {
   defaultCommandForType,
   sentenceLabel,
 } from "../../utils"
-import { BoundedNumberInput } from "../bounded-number-input"
+import { ManualAssistanceSlider } from "../manual-assistance-slider"
 
 type ButtonCommandEditorProps = {
   buttonIndex: number
   command: ButtonCommand
+  manualAssistanceLevelCount?: number
   disabled?: boolean
   onChange: (command: ButtonCommand) => Promise<void>
 }
@@ -34,6 +35,7 @@ const isCommandType = (
 export const ButtonCommandEditor = ({
   buttonIndex,
   command,
+  manualAssistanceLevelCount,
   disabled = false,
   onChange,
 }: ButtonCommandEditorProps) => {
@@ -86,16 +88,15 @@ export const ButtonCommandEditor = ({
             const currentValue = Reflect.get(command, field.name)
             if (field.kind === "integer") {
               return (
-                <BoundedNumberInput
+                <ManualAssistanceSlider
                   key={field.name}
                   id={fieldId}
                   label={field.label}
-                  value={Number(currentValue)}
-                  minimum={field.minimum}
-                  maximum={field.maximum}
+                  level={Number(currentValue)}
+                  levelCount={manualAssistanceLevelCount}
                   disabled={disabled}
-                  onCommit={(value) =>
-                    commit(commandWithField(command, field.name, value))
+                  onCommit={(level) =>
+                    commit(commandWithField(command, field.name, level))
                   }
                 />
               )

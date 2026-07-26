@@ -54,21 +54,21 @@ and must not resemble or behave like a simulated pad button. Pad interaction and
 Commands are not flattened into one option per concrete binding.
 
 **Parameter control.** Driven by the selected command's catalogue fields — an
-enum select for `Literal` fields, a number input for bounded integers, nothing
-for parameterless commands. Derive it from the generated command models rather
-than a hand-written switch, so a new catalogue entry needs no editor change.
+enum select for `Literal` fields and nothing for parameterless commands. The
+manual-assistance level is a 0–100% slider whose steps use the live
+`manual_assistance_level_count` and save the corresponding zero-based level.
 
 **Colour picker.** The compact row control is a button containing two adjacent
 swatches: the full authored colour and its derived faint/inactive colour. It is a
 popover trigger, not a simulated pad button. Its accessible name includes the
 full and faint hex values.
 
-The popover contains a native `<input type="color">`, an exact `#RRGGBB` text
-input, and a small set of useful presets. Do not build or add a dependency for a
-custom hue/saturation picker in this workstream. Keep a local draft while the
-native picker is being dragged; commit a valid native-picker change, confirmed
-or blurred hex value, or preset selection rather than sending a mutation for
-every intermediate drag event.
+The popover contains a native `<input type="color">`, a read-only `#RRGGBB`
+value, and a comprehensive set of useful presets. It has no editable text
+field. Do not build or add a dependency for a custom hue/saturation picker in
+this workstream. Keep a local draft while the native picker is being dragged;
+commit a valid native-picker change or preset selection rather than sending a
+mutation for every intermediate drag event.
 
 The faint swatch uses the same nearest-integer `colour × 8/255` derivation as the
 pad. A colour is invalid when that derivation produces `[0, 0, 0]`, because it
@@ -77,8 +77,9 @@ invalid draft; keep the popover open and explain the constraint inline so the
 user can choose a brighter colour.
 
 **Animation control.** Only shown when the selected command has an active
-predicate, since animation applies to the active state. Off / breathe / blink,
-with the bounded parameters from workstream 1.
+predicate, since animation applies to the active state. Off / breathe / blink
+use Slow / Medium / Fast timing presets mapped to the existing numeric API
+fields. Breathe minimum and maximum brightness use a two-thumb 0–255 slider.
 
 **Clear.** Resets the slot to unassigned.
 
@@ -123,9 +124,8 @@ narrow widths — that failure is the reason for the workstream.
   together with its binding.
 - The paired-swatch trigger is keyboard operable, has a visible focus state, and
   announces both the full and faint hex values.
-- The popover returns focus to its trigger when closed. Its native picker,
-  presets, and exact hex text entry are all keyboard operable; swatches alone
-  are not sufficient.
+- The popover returns focus to its trigger when closed. Its native picker and
+  named presets are keyboard operable; swatches alone are not sufficient.
 - Colour is never the only carrier of state — the item shows the command name and
   its active/inactive state as text.
 
@@ -142,7 +142,7 @@ narrow widths — that failure is the reason for the workstream.
   button taps.
 - The colour trigger shows the correct full and faint swatches and exposes both
   values in its accessible name.
-- Native-picker, hex, and preset changes save valid colours; a colour whose faint
+- Native-picker and preset changes save valid colours; a colour whose faint
   value is `[0, 0, 0]` remains an unsaved draft with an inline explanation.
 
 ## Acceptance criteria
@@ -156,5 +156,4 @@ narrow widths — that failure is the reason for the workstream.
 - Every command in the catalogue is fully configurable from the list, including
   its parameters.
 - The screen is usable at narrow widths with no horizontal scroll.
-- Adding a catalogue command requires no change to the editor's parameter
-  rendering.
+- Existing button commands remain fully configurable without a keyboard.

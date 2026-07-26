@@ -58,6 +58,24 @@ describe("typescriptButtonPadRenderer conformance", () => {
     expect(rendered?.frame[15]).toEqual([0, 220, 255])
   })
 
+  it("alternates an authored blink between its full and resting colours", () => {
+    const commands = [
+      fromHex("0201fbff010000000000000000000000"),
+      fromHex("02820400020a141e9001900100000101"),
+    ]
+    const state = typescriptButtonPadRenderer.createState(commands, 0, null)
+
+    expect(typescriptButtonPadRenderer.render(state, 399)?.frame[2]).toEqual([
+      10, 20, 30,
+    ])
+    expect(typescriptButtonPadRenderer.render(state, 400)?.frame[2]).toEqual([
+      0, 1, 1,
+    ])
+    expect(typescriptButtonPadRenderer.render(state, 800)?.frame[2]).toEqual([
+      10, 20, 30,
+    ])
+  })
+
   for (const vector of vectors.invalid_commands) {
     it(`rejects ${vector.name}`, () => {
       expect(
