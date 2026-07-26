@@ -51,6 +51,24 @@ def utc_now() -> datetime:
 
 
 @dataclass(frozen=True)
+class ProfileMigration(Generic[DefinitionT]):
+    """How a table whose definition has changed shape reads rows an older build wrote.
+
+    The version this build writes and the upgrade that reaches it are one value, because
+    neither means anything alone: a row is old exactly when its ``schema_version`` column
+    is not ``current_version``, and that is the only question ``upgrade`` answers.
+
+    ``upgrade`` receives the row's stored text and fingerprint rather than a parsed
+    payload, because verifying an old row is its own job: this build's canonical encoding
+    and fingerprint describe the *current* shape and cannot be applied to it, so the
+    upgrade is the only place that still knows how the row it is reading was written.
+    """
+
+    current_version: int
+    upgrade: Callable[[int, str, str], DefinitionT]
+
+
+@dataclass(frozen=True)
 class RevisionedProfileSpec(Generic[DefinitionT, StoredT]):
     """Everything that distinguishes one revisioned profile table from another."""
 
@@ -61,6 +79,8 @@ class RevisionedProfileSpec(Generic[DefinitionT, StoredT]):
     fingerprint: Callable[[DefinitionT], str]
     validate_name: Callable[[str], None]
     build: Callable[[str, str, int, DefinitionT, str, str], StoredT]
+    # Absent for a table that has only ever had one shape.
+    migration: ProfileMigration[DefinitionT] | None = None
 
     def __post_init__(self) -> None:
         if not self.kind or self.kind != self.kind.strip():
@@ -277,24 +297,44 @@ class SqliteRevisionedProfileRepository(Generic[DefinitionT, StoredT]):
     def _from_row(self, row: sqlite3.Row) -> StoredT:
         profile_id = str(row["profile_id"])
         try:
-            definition_json = row["definition_json"]
-            if not isinstance(definition_json, str):
-                raise ValueError("definition_json must be text")
-            definition = self._spec.decode(json.loads(definition_json))
-            if row["schema_version"] != definition.schema_version:
-                raise ValueError("schema_version column disagrees with definition_json")
-            canonical_json, fingerprint = self._encoded(definition)
-            if definition_json != canonical_json:
-                raise ValueError("definition_json is not canonical")
-            if row["definition_fingerprint"] != fingerprint:
-                raise ValueError("definition fingerprint mismatch")
             return self._spec.build(
                 profile_id,
                 row["name"],
                 row["revision"],
-                definition,
+                self._definition_from_row(row),
                 row["created_at_utc"],
                 row["updated_at_utc"],
             )
         except (KeyError, TypeError, ValueError) as error:
             raise StoredProfileDataError(self._spec.kind, profile_id, str(error)) from error
+
+    def _definition_from_row(self, row: sqlite3.Row) -> DefinitionT:
+        """Decode the stored definition, upgrading a row an older build wrote.
+
+        A current row is checked against its own canonical encoding and its fingerprint,
+        so a hand-edited or truncated row fails closed rather than being run. Both checks
+        describe *this* build's encoding, so neither can be applied to an older row: the
+        migration verifies that row against the encoding that wrote it instead, and the
+        next save rewrites it canonically at the current version.
+
+        A table that has only ever had one shape declares no migration, and every row is
+        then read as current - a version its decoder does not recognise is corruption
+        rather than history, and the checks below say so.
+        """
+
+        definition_json = row["definition_json"]
+        if not isinstance(definition_json, str):
+            raise ValueError("definition_json must be text")
+        stored_version = row["schema_version"]
+        migration = self._spec.migration
+        if migration is not None and stored_version != migration.current_version:
+            return migration.upgrade(stored_version, definition_json, row["definition_fingerprint"])
+        definition = self._spec.decode(json.loads(definition_json))
+        if stored_version != definition.schema_version:
+            raise ValueError("schema_version column disagrees with definition_json")
+        canonical_json, fingerprint = self._encoded(definition)
+        if definition_json != canonical_json:
+            raise ValueError("definition_json is not canonical")
+        if row["definition_fingerprint"] != fingerprint:
+            raise ValueError("definition fingerprint mismatch")
+        return definition

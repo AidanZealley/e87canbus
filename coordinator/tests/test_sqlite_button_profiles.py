@@ -3,7 +3,9 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -16,11 +18,16 @@ from e87canbus.adapters.sqlite_database import (
 )
 from e87canbus.domain.buttons.profiles import (
     BUILT_IN_BUTTON_PROFILE,
+    BlinkAnimation,
+    BreatheAnimation,
     ButtonProfileDefinition,
+    ButtonSlot,
+    SlotAnimation,
     canonical_button_profile_bytes,
     decode_button_profile,
     empty_button_profile_definition,
 )
+from e87canbus.domain.events import RGB_BLUE, RGB_WHITE, Rgb
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
@@ -91,7 +98,10 @@ def test_create_defaults_to_explicit_complete_inert_pad_and_crud(tmp_path: Path)
     created = repo.create_profile("Empty")
     assert created.definition == empty_button_profile_definition()
     assert len(created.definition.slots) == 16 and set(created.definition.slots) == {None}
-    changed = replace(created.definition, slots=(ToggleMaximumAssistance(),) + (None,) * 15)
+    changed = replace(
+        created.definition,
+        slots=(ButtonSlot(ToggleMaximumAssistance(), RGB_BLUE),) + (None,) * 15,
+    )
     updated = repo.update_profile(created.profile_id, 1, "Edited", changed)
     assert updated.revision == 2 and repo.get_profile(created.profile_id) == updated
     repo.delete_profile(created.profile_id, 2)
@@ -123,26 +133,260 @@ def test_optimistic_revision_and_case_insensitive_names(tmp_path: Path) -> None:
 
 
 def test_codec_round_trips_every_user_command_and_rejects_foreign_command() -> None:
-    commands = (
-        SelectSteeringMode(SteeringMode.AUTO),
-        ToggleAutomaticAssistance(),
-        AdjustManualAssistance(-1),
-        SetManualAssistanceLevel(3),
-        SetMaximumAssistance(True),
-        ToggleMaximumAssistance(),
-        StartHighBeamStrobe(),
+    slots = (
+        ButtonSlot(SelectSteeringMode(SteeringMode.AUTO), RGB_BLUE),
+        ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE, animation=BlinkAnimation(400, 400)),
+        ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
+        ButtonSlot(SetManualAssistanceLevel(3), (1, 2, 3)),
+        ButtonSlot(SetMaximumAssistance(True), RGB_WHITE, animation=BreatheAnimation(2000, 8, 255)),
+        ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
+        ButtonSlot(StartHighBeamStrobe(), RGB_WHITE),
     )
-    definition = ButtonProfileDefinition(1, commands + (None,) * 9)
+    definition = ButtonProfileDefinition(2, slots + (None,) * 9)
     assert (
         decode_button_profile(json.loads(canonical_button_profile_bytes(definition))) == definition
     )
-    with pytest.raises(ValueError, match="not user-bindable"):
-        ButtonProfileDefinition(1, ("toggle_automatic_assistance",) + (None,) * 15)  # type: ignore[arg-type]
-    raw = {"schema_version": 1, "slots": [{"type": "toggle_button_pad_lamp_test"}] + [None] * 15}
+    with pytest.raises(ValueError, match="must hold a ButtonSlot"):
+        ButtonProfileDefinition(2, ("toggle_automatic_assistance",) + (None,) * 15)  # type: ignore[arg-type]
+    raw = {
+        "schema_version": 2,
+        "slots": [_slot_json({"type": "toggle_button_pad_lamp_test"})] + [None] * 15,
+    }
     with pytest.raises(ValueError, match="unsupported"):
         decode_button_profile(raw)
     with pytest.raises(ValueError, match="must be an integer"):
         ButtonProfileDefinition(True, (None,) * 16)
+
+
+def _slot_json(command: dict[str, object], **overrides: object) -> dict[str, object]:
+    return {
+        "command": command,
+        "colour": [0, 0, 255],
+        "active_colour": None,
+        "animation": None,
+        **overrides,
+    }
+
+
+def test_stored_slot_shape_is_the_documented_json() -> None:
+    definition = ButtonProfileDefinition(
+        2,
+        (ButtonSlot(SelectSteeringMode(SteeringMode.AUTO), RGB_BLUE),) + (None,) * 15,
+    )
+
+    encoded = json.loads(canonical_button_profile_bytes(definition))
+
+    assert encoded["schema_version"] == 2
+    assert encoded["slots"][0] == {
+        "command": {"type": "select_steering_mode", "mode": "auto"},
+        "colour": [0, 0, 255],
+        "active_colour": None,
+        "animation": None,
+    }
+    assert encoded["slots"][1:] == [None] * 15
+
+
+@pytest.mark.parametrize(
+    "animation",
+    [
+        BreatheAnimation(2000, 8, 255),
+        BlinkAnimation(400, 400),
+    ],
+)
+def test_animation_round_trips_through_the_stored_shape(animation: object) -> None:
+    definition = ButtonProfileDefinition(
+        2,
+        (ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE, animation=animation),)  # type: ignore[arg-type]
+        + (None,) * 15,
+    )
+
+    assert (
+        decode_button_profile(json.loads(canonical_button_profile_bytes(definition))) == definition
+    )
+
+
+def test_a_slot_rejects_values_the_pad_could_not_render() -> None:
+    with pytest.raises(ValueError, match="three RGB bytes"):
+        ButtonSlot(ToggleMaximumAssistance(), (0, 0, 256))
+    with pytest.raises(ValueError, match="reserved"):
+        ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE, active_colour=RGB_BLUE)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="no active state"):
+        ButtonSlot(StartHighBeamStrobe(), RGB_WHITE, animation=BlinkAnimation(400, 400))
+    with pytest.raises(ValueError, match="no active state"):
+        ButtonSlot(AdjustManualAssistance(1), RGB_WHITE, animation=BreatheAnimation(2000, 0, 255))
+    with pytest.raises(ValueError, match="breathe period"):
+        BreatheAnimation(249, 0, 255)
+    with pytest.raises(ValueError, match="breathe period"):
+        BreatheAnimation(10_001, 0, 255)
+    with pytest.raises(ValueError, match="must not exceed its maximum"):
+        BreatheAnimation(2000, 200, 199)
+    with pytest.raises(ValueError, match="blink on duration"):
+        BlinkAnimation(0, 400)
+    with pytest.raises(ValueError, match="blink off duration"):
+        BlinkAnimation(400, 10_001)
+
+
+@pytest.mark.parametrize(
+    "animation",
+    [
+        BreatheAnimation(250, 0, 0),
+        BreatheAnimation(10_000, 255, 255),
+        BreatheAnimation(2000, 200, 200),
+        BlinkAnimation(1, 1),
+        BlinkAnimation(10_000, 10_000),
+    ],
+)
+def test_an_animation_exactly_on_its_bounds_is_accepted(animation: SlotAnimation) -> None:
+    """The rejections above would also pass if the bounds were one step too tight."""
+
+    assert ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE, animation=animation).animation is (
+        animation
+    )
+
+
+@pytest.mark.parametrize("colour", [(0, 0, 0), (255, 255, 255)])
+def test_a_colour_channel_at_either_extreme_is_accepted(colour: Rgb) -> None:
+    assert ButtonSlot(ToggleMaximumAssistance(), colour).colour == colour
+
+
+def _v1_definition() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "slots": [
+            {"type": "select_steering_mode", "mode": "manual"},
+            {"type": "toggle_automatic_assistance"},
+            {"type": "adjust_manual_assistance", "delta": -1},
+            {"type": "set_manual_assistance_level", "level": 3},
+            {"type": "set_maximum_assistance", "enabled": True},
+            {"type": "toggle_maximum_assistance"},
+            {"type": "start_high_beam_strobe"},
+        ]
+        + [None] * 9,
+    }
+
+
+def _write_v1_row(
+    path: Path,
+    definition: dict[str, Any],
+    *,
+    schema_version: int = 1,
+    fingerprint: str | None = None,
+) -> None:
+    """Write the row exactly as the build that only knew v1 would have written it."""
+
+    canonical = json.dumps(definition, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """UPDATE button_profiles
+            SET schema_version=?, definition_json=?, definition_fingerprint=?
+            WHERE profile_id=?""",
+            (
+                schema_version,
+                canonical,
+                fingerprint or sha256(canonical.encode()).hexdigest(),
+                BUILT_IN_BUTTON_PROFILE_ID,
+            ),
+        )
+
+
+def test_a_v1_row_is_migrated_on_read_and_rewritten_at_v2_on_save(tmp_path: Path) -> None:
+    """A pre-existing database upgrades without operator action and keeps its bindings."""
+
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    _write_v1_row(path, _v1_definition())
+
+    migrated = repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+
+    assert migrated is not None
+    assert migrated.definition.schema_version == 2
+    assert migrated.definition.slots[:7] == (
+        ButtonSlot(SelectSteeringMode(SteeringMode.MANUAL), RGB_BLUE),
+        ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE),
+        ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
+        ButtonSlot(SetManualAssistanceLevel(3), RGB_WHITE),
+        ButtonSlot(SetMaximumAssistance(True), RGB_WHITE),
+        ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
+        ButtonSlot(StartHighBeamStrobe(), RGB_WHITE),
+    )
+    assert migrated.definition.slots[7:] == (None,) * 9
+
+    repo.update_profile(migrated.profile_id, migrated.revision, migrated.name, migrated.definition)
+
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            "SELECT schema_version, definition_json FROM button_profiles WHERE profile_id=?",
+            (BUILT_IN_BUTTON_PROFILE_ID,),
+        ).fetchone()
+    assert row[0] == 2
+    assert json.loads(row[1])["slots"][0]["colour"] == [0, 0, 255]
+    assert repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID) is not None
+
+
+def test_a_schema_version_the_migration_does_not_recognise_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE button_profiles SET schema_version=99 WHERE profile_id=?",
+            (BUILT_IN_BUTTON_PROFILE_ID,),
+        )
+    with pytest.raises(StoredProfileDataError, match="unsupported stored button profile"):
+        repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+
+
+@pytest.mark.parametrize(
+    ("corrupt", "message"),
+    [
+        # A row whose column and payload disagree about which shape it is in.
+        (
+            lambda path: _write_v1_row(path, {**_v1_definition(), "schema_version": 2}),
+            "schema_version column disagrees",
+        ),
+        # v1's own encoding, hand-edited: reformatted, and content changed under its hash.
+        (
+            lambda path: _write_v1_row(
+                path, _v1_definition(), fingerprint=sha256(b"something else").hexdigest()
+            ),
+            "fingerprint mismatch",
+        ),
+    ],
+)
+def test_a_v1_row_is_verified_against_the_encoding_that_wrote_it(
+    tmp_path: Path, corrupt: Callable[[Path], None], message: str
+) -> None:
+    """An old row fails as closed as a current one, checked by v1's encoding not this one."""
+
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    corrupt(path)
+
+    with pytest.raises(StoredProfileDataError, match=message):
+        repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
+
+
+def test_a_noncanonical_v1_row_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "app.sqlite"
+    repo = repository(path)
+    repo.initialize()
+    reformatted = json.dumps(_v1_definition(), indent=2)
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """UPDATE button_profiles
+            SET schema_version=1, definition_json=?, definition_fingerprint=?
+            WHERE profile_id=?""",
+            (
+                reformatted,
+                sha256(reformatted.encode()).hexdigest(),
+                BUILT_IN_BUTTON_PROFILE_ID,
+            ),
+        )
+
+    with pytest.raises(StoredProfileDataError, match="not canonical"):
+        repo.get_profile(BUILT_IN_BUTTON_PROFILE_ID)
 
 
 def test_corrupt_noncanonical_storage_is_rejected(tmp_path: Path) -> None:

@@ -2,14 +2,25 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 from e87canbus.config import HighBeamStrobeConfig
+from e87canbus.domain.buttons.catalogue import (
+    BUTTON_COMMAND_CATALOGUE,
+    SPECS_BY_TYPE,
+    ButtonCommand,
+)
+from e87canbus.domain.buttons.commands import (
+    button_command_has_active_state,
+    button_command_is_active,
+)
 from e87canbus.domain.buttons.profiles import (
     BUTTON_PROFILE_SCHEMA_VERSION,
     ActiveButtonProfile,
     ButtonProfileDefinition,
+    ButtonSlot,
     built_in_active_button_profile,
     button_profile_definition_with,
     empty_button_profile_definition,
 )
+from e87canbus.domain.events import RGB_WHITE
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntentContext,
@@ -21,7 +32,12 @@ from e87canbus.domain.intents import (
     ToggleMaximumAssistance,
     intent_requires_servotronic,
 )
-from e87canbus.domain.state import SteeringMode
+from e87canbus.domain.state import (
+    ApplicationState,
+    MaximumAssistance,
+    NormalSteering,
+    SteeringMode,
+)
 
 
 def test_exact_steering_intents_validate_their_values() -> None:
@@ -99,9 +115,11 @@ def test_built_in_profile_uses_the_configured_high_beam_button() -> None:
 
 def test_profile_rejects_out_of_range_or_unassignable_slots() -> None:
     with pytest.raises(ValueError, match="between 0 and 15"):
-        button_profile_definition_with({16: ToggleAutomaticAssistance()})
+        button_profile_definition_with({16: ButtonSlot(ToggleAutomaticAssistance(), RGB_WHITE)})
     with pytest.raises(ValueError, match="not user-bindable"):
-        button_profile_definition_with({1: object()})  # type: ignore[dict-item]
+        ButtonSlot(object(), RGB_WHITE)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="must hold a ButtonSlot"):
+        button_profile_definition_with({1: ToggleAutomaticAssistance()})  # type: ignore[dict-item]
 
 
 def test_profile_rejects_a_definition_that_is_not_a_full_slot_set() -> None:
@@ -125,3 +143,81 @@ def test_profile_requires_a_stable_trimmed_identifier(profile_id: str) -> None:
 def test_profile_identifier_must_be_a_string() -> None:
     with pytest.raises(TypeError, match="profile_id must be a string"):
         ActiveButtonProfile(1, empty_button_profile_definition())  # type: ignore[arg-type]
+
+
+AUTOMATIC = ApplicationState(steering=NormalSteering(SteeringMode.AUTO, 2))
+MANUAL = ApplicationState(steering=NormalSteering(SteeringMode.MANUAL, 2))
+MAXIMUM = ApplicationState(steering=MaximumAssistance(NormalSteering(SteeringMode.MANUAL, 2)))
+
+
+@pytest.mark.parametrize(
+    ("command", "active_states"),
+    [
+        (SelectSteeringMode(SteeringMode.AUTO), (AUTOMATIC,)),
+        # Maximum assistance is a distinct state rather than a mode, and it is manual's.
+        (SelectSteeringMode(SteeringMode.MANUAL), (MANUAL, MAXIMUM)),
+        (ToggleAutomaticAssistance(), (AUTOMATIC,)),
+        (SetMaximumAssistance(True), (MAXIMUM,)),
+        (SetMaximumAssistance(False), (AUTOMATIC, MANUAL)),
+        (ToggleMaximumAssistance(), (MAXIMUM,)),
+        # A stage is only in force while manual is; automatic and maximum retain a stage
+        # they will return to without being at it.
+        (SetManualAssistanceLevel(2), (MANUAL,)),
+        (SetManualAssistanceLevel(1), ()),
+        (SetManualAssistanceLevel(0), ()),
+        # Neither of these has an observable condition at all.
+        (AdjustManualAssistance(1), ()),
+        (AdjustManualAssistance(-1), ()),
+        (StartHighBeamStrobe(), ()),
+    ],
+)
+def test_each_command_is_active_in_exactly_the_states_it_describes(
+    command: ButtonCommand, active_states: tuple[ApplicationState, ...]
+) -> None:
+    for state in (AUTOMATIC, MANUAL, MAXIMUM):
+        assert button_command_is_active(state, command) is (state in active_states)
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (SelectSteeringMode(SteeringMode.AUTO), True),
+        (ToggleAutomaticAssistance(), True),
+        (SetManualAssistanceLevel(0), True),
+        (SetMaximumAssistance(False), True),
+        (ToggleMaximumAssistance(), True),
+        (AdjustManualAssistance(1), False),
+        (StartHighBeamStrobe(), False),
+    ],
+)
+def test_only_a_command_with_a_predicate_reports_an_active_state(
+    command: ButtonCommand, expected: bool
+) -> None:
+    assert button_command_has_active_state(command) is expected
+
+
+def test_every_catalogue_entry_states_whether_it_has_an_active_condition() -> None:
+    """Adding a command must be a decision about activeness, not a silent default.
+
+    The comparison names every tag rather than only the ones with a predicate, so an
+    eighth command fails here instead of passing as never-active. ``active`` has no
+    default, so it also fails at construction; this pins the answers themselves.
+    """
+
+    assert {spec.tag: spec.active is not None for spec in BUTTON_COMMAND_CATALOGUE} == {
+        "select_steering_mode": True,
+        "toggle_automatic_assistance": True,
+        "adjust_manual_assistance": False,
+        "set_manual_assistance_level": True,
+        "set_maximum_assistance": True,
+        "toggle_maximum_assistance": True,
+        "start_high_beam_strobe": False,
+    }
+
+
+def test_a_predicate_refuses_a_command_it_does_not_belong_to() -> None:
+    predicate = SPECS_BY_TYPE[SelectSteeringMode].active
+
+    assert predicate is not None
+    with pytest.raises(TypeError, match="SelectSteeringMode predicate applied to"):
+        predicate(AUTOMATIC, ToggleAutomaticAssistance())

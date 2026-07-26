@@ -6,6 +6,7 @@ from e87canbus.config import CanNetwork, CustomCanIds, SteeringConfig
 from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     ButtonCommand,
+    ButtonSlot,
     built_in_active_button_profile,
     button_profile_definition_with,
 )
@@ -52,7 +53,14 @@ from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 
 
 def profile(assignments: dict[int, ButtonCommand], profile_id: str = "user") -> ActiveButtonProfile:
-    return ActiveButtonProfile(profile_id, button_profile_definition_with(assignments))
+    """Bind commands to buttons; these cases are about routing, not authored colour."""
+
+    return ActiveButtonProfile(
+        profile_id,
+        button_profile_definition_with(
+            {index: ButtonSlot(command, RGB_WHITE) for index, command in assignments.items()}
+        ),
+    )
 
 
 def led_effect(

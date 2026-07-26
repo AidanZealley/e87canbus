@@ -15,11 +15,11 @@ from e87canbus.api.models.button_profiles import (
     UpdateButtonProfileRequest,
 )
 from e87canbus.config import SteeringConfig
-from e87canbus.domain.buttons.commands import encode_button_command
 from e87canbus.domain.buttons.profiles import (
     ButtonProfileDefinition,
     StoredButtonProfile,
     decode_button_profile,
+    encode_button_slot,
     validate_button_profile_for,
     validate_button_profile_id,
 )
@@ -57,8 +57,8 @@ def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
             "definition": {
                 "schema_version": profile.definition.schema_version,
                 "slots": [
-                    None if command is None else encode_button_command(command)
-                    for command in profile.definition.slots
+                    None if slot is None else encode_button_slot(slot)
+                    for slot in profile.definition.slots
                 ],
             },
             "created_at": profile.created_at,
