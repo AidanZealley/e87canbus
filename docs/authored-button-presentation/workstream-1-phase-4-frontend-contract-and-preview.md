@@ -13,7 +13,7 @@ and [README.md](README.md) first — they are the authority for the design.
 
 ## Outcome
 
-The frontend compiles and behaves correctly against v2 button-profile slots, and
+The frontend compiles and behaves correctly against canonical button-profile slots, and
 the editor's LED preview mirrors the new visual-state derivation instead of the
 deleted colour table.
 
@@ -29,9 +29,8 @@ On branch `authored-button-colours`, everything below is already done:
 - **Phase 1** collapsed the `0x701` effect frame to one generic `blink` opcode
   carrying a pulse count and RGB, and replaced `ButtonFeedbackColour` with
   `ButtonFeedback(rgb, pulses)`.
-- **Phase 2** moved slots from bare commands to `ButtonSlot` objects at
-  `schema_version: 2`, added catalogue activeness predicates, and added the
-  v1→v2 read migration.
+- **Phase 2** moved slots from bare commands to `ButtonSlot` objects and added
+  catalogue activeness predicates.
 - **Phase 3** replaced the hardcoded colour table with a four-value
   `ButtonVisual` derivation, made rendering a pure function of
   `(slot values, visual state)`, and deleted `ButtonCommandPresentation`,
@@ -72,7 +71,6 @@ types.ts(33,30):  Property 'type' does not exist on type 'ButtonProfileSlotReque
 utils.ts(32,19):  Property 'type' does not exist on type 'ButtonProfileSlotRequest'.
 ButtonProfileEditor.tsx(79,5):  Type 'ButtonProfileSlotRequest | null' is not
                                 assignable to type 'ButtonProfileSlotResponse | null'.
-ButtonProfileEditor.tsx(86,11): Type '1' is not assignable to type '2'.
 ```
 
 `pnpm lint` additionally fails on `ButtonProfileEditor.tsx(11,1)` — unused `Card`
@@ -100,13 +98,13 @@ they are deleted in workstream 2, not here.
 
 ### 3. `ButtonProfileEditor.tsx` — build whole slots
 
-`schema_version` becomes `2`. `commitBinding` currently writes a bare command
-into a slot array; it must construct a complete `ButtonSlot`.
+`commitBinding` currently writes a bare command into a slot array; it must
+construct a complete `ButtonSlot`.
 
 Assigning a command therefore needs a **default colour**, because the editor has
 no colour picker until workstream 2 and `colour` is required. Use the same
-seeding the coordinator uses so a button assigned in the UI looks like the same
-button assigned by the built-in profile or produced by migration:
+defaults the coordinator uses so a button assigned in the UI looks like the same
+button assigned by the built-in profile:
 
 | Command | Default colour |
 | --- | --- |

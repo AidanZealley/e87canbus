@@ -61,7 +61,6 @@ const profile = (revision: number, level: number): ButtonProfileResponse =>
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     definition: {
-      schema_version: 2,
       slots: [
         {
           command: { type: "set_manual_assistance_level", level },
@@ -159,7 +158,6 @@ it("commits a binding as soon as it is applied", async () => {
         name: "My buttons",
         expected_revision: 1,
         definition: {
-          schema_version: 2,
           slots: [
             {
               command: {

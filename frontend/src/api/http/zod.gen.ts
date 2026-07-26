@@ -353,7 +353,6 @@ export const zButtonProfileSlotRequest = z.object({
  * ButtonProfileDefinitionRequest
  */
 export const zButtonProfileDefinitionRequest = z.object({
-  schema_version: z.literal(2),
   slots: z.tuple([
     zButtonProfileSlotRequest.nullable(),
     zButtonProfileSlotRequest.nullable(),
@@ -405,7 +404,6 @@ export const zButtonProfileSlotResponse = z.object({
  * ButtonProfileDefinitionResponse
  */
 export const zButtonProfileDefinitionResponse = z.object({
-  schema_version: z.literal(2),
   slots: z.tuple([
     zButtonProfileSlotResponse.nullable(),
     zButtonProfileSlotResponse.nullable(),

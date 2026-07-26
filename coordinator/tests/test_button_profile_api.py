@@ -32,7 +32,6 @@ def slot_json(
 
 def definition_json() -> dict[str, Any]:
     return {
-        "schema_version": 2,
         "slots": [
             slot_json({"type": "select_steering_mode", "mode": "auto"}, [0, 0, 255]),
             slot_json(
@@ -79,7 +78,7 @@ def test_button_profile_crud_and_saved_convenience_resource(client: TestClient) 
     assert initial.status_code == 200
     assert len(initial.json()["definition"]["slots"]) == 16
     assert created.status_code == 201
-    assert created.json()["definition"] == {"schema_version": 2, "slots": [None] * 16}
+    assert created.json()["definition"] == {"slots": [None] * 16}
 
     profile_id = created.json()["profile_id"]
     fetched = client.get(f"/api/button-pad/profiles/{profile_id}")
@@ -261,7 +260,7 @@ def test_selected_and_built_in_profiles_cannot_be_deleted(client: TestClient) ->
         lambda value: value["slots"].__setitem__(
             0, slot_json({"type": "toggle_maximum_assistance", "extra": True})
         ),
-        # A slot is the command plus its presentation; the bare command is v1's shape.
+        # A slot is the command plus its presentation; a bare command is incomplete.
         lambda value: value["slots"].__setitem__(0, {"type": "toggle_maximum_assistance"}),
         # An out-of-range colour channel, and a colour that is not a triple at all.
         lambda value: value["slots"][0].__setitem__("colour", [0, 0, 256]),
@@ -285,8 +284,6 @@ def test_selected_and_built_in_profiles_cannot_be_deleted(client: TestClient) ->
         lambda value: value["slots"][2].__setitem__(
             "animation", {"kind": "breathe", "period_ms": 2000, "minimum": 8, "maximum": 255}
         ),
-        # The API accepts one schema version: a v1 body is rejected, not upgraded.
-        lambda value: value.__setitem__("schema_version", 1),
     ],
 )
 def test_profile_definition_contract_rejects_ambiguous_or_invalid_slots(
@@ -348,23 +345,6 @@ def test_a_slot_exactly_on_its_bounds_is_accepted(client: TestClient, slot: dict
 
     assert response.status_code == 201
     assert response.json()["definition"]["slots"][0] == slot
-
-
-def test_a_whole_v1_definition_body_is_rejected_rather_than_upgraded(client: TestClient) -> None:
-    """Migration is a property of stored rows; over HTTP there is one accepted shape."""
-
-    v1_definition = {
-        "schema_version": 1,
-        "slots": [{"type": "toggle_automatic_assistance"}] + [None] * 15,
-    }
-
-    response = client.post(
-        "/api/button-pad/profiles",
-        json={"name": "Legacy", "definition": v1_definition},
-    )
-
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "validation_error"
 
 
 def test_authored_colour_and_animation_round_trip_through_http_and_storage(

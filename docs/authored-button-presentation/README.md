@@ -32,8 +32,8 @@ Each assigned button carries a single base colour. It renders:
 The faint value is the base colour scaled by 8/255. That factor is not arbitrary:
 `SOFT_WHITE (8,8,8)` is `RGB_WHITE × 8/255` and `SOFT_AMBER (8,6,0)` is
 `RGB_AMBER × 8/255`, so the existing constants are already this rule with the
-base hardcoded. Seeding a migration from today's presentation table therefore
-reproduces the current pad exactly, except where noted below.
+base hardcoded. The built-in profile and newly assigned commands use matching
+defaults, except where noted below.
 
 ### Accepted regression
 
@@ -45,7 +45,7 @@ which is harder to distinguish at a glance from an unassigned one.
 
 This is accepted for the first implementation. The stored shape reserves
 `active_colour` so restoring a distinct second colour later is a UI change and a
-default, not a schema migration.
+default rather than a cross-layer stored-shape change.
 
 ### Activeness is a property of the bound command, not the command type
 

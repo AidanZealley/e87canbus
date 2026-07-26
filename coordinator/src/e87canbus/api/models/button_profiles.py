@@ -1,6 +1,6 @@
 """Strict HTTP models for durable button-pad profiles."""
 
-from typing import Annotated, Any, Literal, Self, Union, get_args
+from typing import Annotated, Any, Literal, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
@@ -12,7 +12,6 @@ from e87canbus.domain.buttons.profiles import (
     BREATHE_PERIOD_MAX_MS,
     BREATHE_PERIOD_MIN_MS,
     BUTTON_PROFILE_NAME_MAX_LENGTH,
-    BUTTON_PROFILE_SCHEMA_VERSION,
     RGB_CHANNEL_MAX,
 )
 from e87canbus.domain.events import BUTTON_LED_COUNT
@@ -93,7 +92,6 @@ class ButtonProfileSlotRequest(StrictRequest):
 
 
 class ButtonProfileDefinitionRequest(StrictRequest):
-    schema_version: Literal[2]
     slots: list[ButtonProfileSlotRequest | None] = Field(
         min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
     )
@@ -122,7 +120,6 @@ class ButtonProfileSlotResponse(BaseModel):
 class ButtonProfileDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[2]
     slots: tuple[ButtonProfileSlotResponse | None, ...] = Field(
         min_length=BUTTON_LED_COUNT, max_length=BUTTON_LED_COUNT
     )
@@ -137,17 +134,3 @@ class ButtonProfileResponse(BaseModel):
     definition: ButtonProfileDefinitionResponse
     created_at: str
     updated_at: str
-
-
-# ``Literal`` cannot be built from a name, so the accepted version is written twice above
-# and read back here: the check is against the annotations themselves, not a third copy
-# of the number that could agree with neither. The API accepts exactly one version, so an
-# older body is rejected rather than upgraded - migration is a property of stored rows.
-_ACCEPTED_SCHEMA_VERSIONS = {
-    get_args(model.model_fields["schema_version"].annotation)[0]
-    for model in (ButtonProfileDefinitionRequest, ButtonProfileDefinitionResponse)
-}
-if {BUTTON_PROFILE_SCHEMA_VERSION} != _ACCEPTED_SCHEMA_VERSIONS:
-    raise RuntimeError(
-        "the button profile schema version accepted over HTTP must be the stored one"
-    )

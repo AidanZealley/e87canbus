@@ -192,10 +192,6 @@ export type BreatheAnimationRequest = {
  */
 export type ButtonProfileDefinitionRequest = {
   /**
-   * Schema Version
-   */
-  schema_version: 2
-  /**
    * Slots
    */
   slots: [
@@ -222,10 +218,6 @@ export type ButtonProfileDefinitionRequest = {
  * ButtonProfileDefinitionResponse
  */
 export type ButtonProfileDefinitionResponse = {
-  /**
-   * Schema Version
-   */
-  schema_version: 2
   /**
    * Slots
    */

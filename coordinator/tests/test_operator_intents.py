@@ -12,7 +12,6 @@ from e87canbus.domain.buttons.commands import (
     button_command_is_active,
 )
 from e87canbus.domain.buttons.profiles import (
-    BUTTON_PROFILE_SCHEMA_VERSION,
     ActiveButtonProfile,
     ButtonProfileDefinition,
     ButtonSlot,
@@ -124,9 +123,9 @@ def test_profile_rejects_out_of_range_or_unassignable_slots() -> None:
 
 def test_profile_rejects_a_definition_that_is_not_a_full_slot_set() -> None:
     with pytest.raises(ValueError, match="16-entry tuple"):
-        ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, (None, None))
+        ButtonProfileDefinition((None, None))
     with pytest.raises(ValueError, match="16-entry tuple"):
-        ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, [None] * 16)  # type: ignore[arg-type]
+        ButtonProfileDefinition([None] * 16)  # type: ignore[arg-type]
 
 
 def test_profile_rejects_a_definition_of_the_wrong_type() -> None:

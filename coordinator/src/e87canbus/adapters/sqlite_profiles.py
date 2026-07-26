@@ -42,6 +42,7 @@ STEERING_PROFILE_SPEC = RevisionedProfileSpec[SteeringCurveDefinition, StoredSte
     fingerprint=steering_curve_fingerprint,
     validate_name=validate_steering_profile_name,
     build=StoredSteeringProfile,
+    schema_version=lambda definition: definition.schema_version,
 )
 
 
