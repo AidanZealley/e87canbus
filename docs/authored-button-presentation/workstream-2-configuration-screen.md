@@ -31,27 +31,24 @@ support) and a natural stacked form on narrow screens.
 
 A vertical list of sixteen items, one per button index.
 
-**Collapsed item** — a single row: the preview button, the command name, the
-authored colour as a swatch, and expand/clear actions.
+**Collapsed item** — a single row: a clear button number, the command name, the
+authored colour as a paired-swatch popover trigger, and expand/clear actions. The
+button number is part of the item design, not a small simulated pad button.
 
 **Expanded item** — adds the command select, the parameter control for the
-selected command, the colour picker, and the animation control.
+selected command, and the animation control. Colour editing stays in the
+popover available from the row rather than consuming expanded-item space.
 
-Above the list, an optional 4×4 pad navigator: the same simulated pad, where
-tapping a button scrolls to and expands the matching item. This keeps the spatial
-map — sixteen stacked cards otherwise make "which one is top-left" non-obvious —
-without giving the pad any editing responsibility. Build the list first; the
-navigator is additive.
+There is no pad preview or 4×4 pad navigator on this screen. The visible button
+number is the item's spatial reference; the simulated pad and its interaction
+remain on the simulation screen.
 
 ## Item contents
 
-**Preview button.** The shared `NeoTrellisButton`, identical in appearance to the
-simulated pad, fed the same authored preview colours the pad shows. It is
-press-enabled only when the button pad is emulated: `tapSimulationButton` is a
-simulator route and `SimulatorNeoTrellis` already gates it on
-`source_mode === "emulated"` and `status === "active"`. With real pad hardware
-attached the preview renders identically but is not interactive. Do not add a
-hardware press-injection endpoint in this workstream.
+**Button number.** A prominent, non-interactive number identifying the physical
+button index. It must remain easy to scan in both collapsed and expanded states
+and must not resemble or behave like a simulated pad button. Pad interaction and
+`NeoTrellisButton` remain exclusive to the simulation screen.
 
 **Command select.** Grouped by the catalogue, one option per command type.
 Commands are not flattened into one option per concrete binding.
@@ -61,10 +58,23 @@ enum select for `Literal` fields, a number input for bounded integers, nothing
 for parameterless commands. Derive it from the generated command models rather
 than a hand-written switch, so a new catalogue entry needs no editor change.
 
-**Colour picker.** One picker, the base colour. Needs a luminance floor: at 8/255
-anything dark is indistinguishable from unassigned. Constrain the picker rather
-than validating after the fact. Show both renderings — faint and full — since one
-authored value produces both.
+**Colour picker.** The compact row control is a button containing two adjacent
+swatches: the full authored colour and its derived faint/inactive colour. It is a
+popover trigger, not a simulated pad button. Its accessible name includes the
+full and faint hex values.
+
+The popover contains a native `<input type="color">`, an exact `#RRGGBB` text
+input, and a small set of useful presets. Do not build or add a dependency for a
+custom hue/saturation picker in this workstream. Keep a local draft while the
+native picker is being dragged; commit a valid native-picker change, confirmed
+or blurred hex value, or preset selection rather than sending a mutation for
+every intermediate drag event.
+
+The faint swatch uses the same nearest-integer `colour × 8/255` derivation as the
+pad. A colour is invalid when that derivation produces `[0, 0, 0]`, because it
+would be indistinguishable from unassigned while inactive. Do not save an
+invalid draft; keep the popover open and explain the constraint inline so the
+user can choose a brighter colour.
 
 **Animation control.** Only shown when the selected command has an active
 predicate, since animation applies to the active state. Off / breathe / blink,
@@ -82,14 +92,13 @@ one revision conflict discarding unrelated edits.
 
 ## Tidy-up
 
-`ButtonProfileGrid` is not a variant of the simulated pad button — it is a fork
-of it, with a different radius, a dashed unassigned state, an inline label, and
-its own colour styling instead of `ledStyle` and the LED CSS variables. It has
-drifted and will keep drifting.
+`ButtonProfileGrid` is a configuration-screen variant of the simulated pad
+button, with a different radius, a dashed unassigned state, an inline label, and
+its own colour styling. The new item design replaces it completely; do not carry
+the variant forward or replace it with another small pad-button preview.
 
-1. Move `NeoTrellisButton` out of `components/simulator-workbench/` to a shared
-   location and have both the simulator pad and this screen consume it unchanged.
-   It already takes no editor-specific props.
+1. Keep `NeoTrellisButton` in `components/simulator-workbench/` and use it only
+   for simulation. The configuration screen does not consume it.
 2. Delete `ButtonProfileGrid.tsx`, `ButtonProfilePad.tsx`,
    `ButtonBindingDialog.tsx` and their tests.
 3. Delete `commandToFormValue`, `formValueToCommand` and
@@ -98,7 +107,8 @@ drifted and will keep drifting.
 4. Fix the mangled indentation in `components/car-buttons/CarButtons.tsx` and
    update its "Click a button to change its command" copy.
 
-Steps 1, 2 and 4 do not depend on workstream 1.
+Deleting the old grid, pad, dialog, and their tests, and completing the copy and
+indentation tidy-up, do not depend on workstream 1.
 
 ## Responsive behaviour
 
@@ -109,9 +119,13 @@ narrow widths — that failure is the reason for the workstream.
 ## Accessibility
 
 - Expand/collapse uses `aria-expanded` and `aria-controls` on the trigger.
-- The preview button keeps a label identifying the button index and its binding.
-- The colour picker is operable by keyboard and exposes a text entry for the
-  value; a swatch grid alone is not sufficient.
+- Each item's button number is exposed as part of the item's accessible name,
+  together with its binding.
+- The paired-swatch trigger is keyboard operable, has a visible focus state, and
+  announces both the full and faint hex values.
+- The popover returns focus to its trigger when closed. Its native picker,
+  presets, and exact hex text entry are all keyboard operable; swatches alone
+  are not sufficient.
 - Colour is never the only carrier of state — the item shows the command name and
   its active/inactive state as text.
 
@@ -122,15 +136,23 @@ narrow widths — that failure is the reason for the workstream.
 - Selecting a command with parameters renders its control; selecting a
   parameterless one renders none.
 - The animation control appears only for commands with an active predicate.
-- Clear resets a slot to unassigned and the preview renders `RGB_OFF`.
-- The preview button is non-interactive when the pad source mode is not
-  `emulated`, and dispatches a tap when it is.
-- The shared `NeoTrellisButton` renders identically in the simulator pad and the
-  configuration list for the same RGB input.
+- Clear resets a slot to unassigned and the item reflects its unassigned state.
+- Every collapsed and expanded item shows the correct button number.
+- Configuration items do not render `NeoTrellisButton` or dispatch simulated
+  button taps.
+- The colour trigger shows the correct full and faint swatches and exposes both
+  values in its accessible name.
+- Native-picker, hex, and preset changes save valid colours; a colour whose faint
+  value is `[0, 0, 0]` remains an unsaved draft with an inline explanation.
 
 ## Acceptance criteria
 
-- No editable 4×4 grid, no binding dialog, and no fork of the pad button remain.
+- No editable 4×4 grid, binding dialog, configuration-screen pad-button variant,
+  or small button preview remains.
+- Every item clearly identifies its button number without relying on the
+  simulated pad.
+- Colour editing uses a paired-swatch popover trigger and native browser colour
+  input; no custom colour-picker dependency or inline row fields are introduced.
 - Every command in the catalogue is fully configurable from the list, including
   its parameters.
 - The screen is usable at narrow widths with no horizontal scroll.
