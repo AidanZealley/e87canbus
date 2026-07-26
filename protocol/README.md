@@ -45,8 +45,9 @@ command masks, and bit 7 of the final opcode atomically commits the scene. Each 
 track: solid, blink, or breathe; RGB, two kind-specific parameters, `repeat`, and final RGB. A repeat
 of zero runs forever and a positive repeat count finishes on final RGB. The controller resolves the
 base scene before encoding, so the AVR stores exactly one fixed-size base track per button. A
-single-frame command on `0x701` starts finite red feedback or enables/disables a per-button breathe
-overlay without replacing that base scene. Commands are paced below the shared CAN safety ceiling, while commit gives all
+single-frame command on `0x701` starts finite press feedback — one opcode carrying a button index, a
+pulse count of one or two, and an RGB triple — without replacing that base scene. Steady appearance,
+animated or not, belongs to the program. Commands are paced below the shared CAN safety ceiling, while commit gives all
 changed tracks one device-local start time while unchanged tracks retain their phase. Malformed or unsupported commands are ignored; there is
 deliberately no acknowledgement layer.
 

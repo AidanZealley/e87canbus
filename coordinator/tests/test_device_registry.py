@@ -11,9 +11,6 @@ from e87canbus.domain.controller import SOFT_AMBER, SOFT_WHITE
 from e87canbus.domain.devices.catalogue import DeviceLifecycleStatus, DeviceRole
 from e87canbus.domain.devices.registry import FeatureUnavailable
 from e87canbus.domain.events import (
-    RGB_BLUE,
-    RGB_OFF,
-    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     SetButtonPadProgram,
     SetSteeringAssistance,
@@ -21,6 +18,11 @@ from e87canbus.domain.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.domain.intents import SetManualAssistanceLevel, SetMaximumAssistance
+from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_UNAVAILABLE,
+    RGB_BLUE,
+    RGB_OFF,
+)
 from e87canbus.kernel import (
     CoordinatorKernel,
     DeviceAdapterFailed,
@@ -303,7 +305,7 @@ def test_button_input_is_ignored_until_active_and_feedback_is_independently_time
     assert unavailable is not None
     assert kernel.state.button_feedback_deadlines[0] == pytest.approx(3.4)
     assert unavailable.effects == (
-        EffectRequest(TriggerButtonPadBlink(0, ButtonFeedbackColour.AMBER)),
+        EffectRequest(TriggerButtonPadBlink(0, BUTTON_FEEDBACK_UNAVAILABLE)),
     )
 
     expired = kernel.dispatch(ButtonFeedbackDeadlineReached(3.4))

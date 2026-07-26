@@ -26,16 +26,19 @@ from e87canbus.domain.controller import (
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     BUTTON_LED_COUNT,
-    RGB_AMBER,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
     ButtonPressed,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
 from e87canbus.domain.intents import SetMaximumAssistance, ToggleMaximumAssistance
-from e87canbus.domain.state import ApplicationState, SteeringMode
+from e87canbus.domain.state import (
+    RGB_AMBER,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
+    ApplicationState,
+    SteeringMode,
+)
 from e87canbus.domain.steering.curves import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.kernel import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.protocol.can import (

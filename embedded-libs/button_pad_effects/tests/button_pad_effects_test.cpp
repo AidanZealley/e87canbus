@@ -162,44 +162,43 @@ int main() {
                 return fail("incremental_overlays", "base program was rejected");
             }
         }
-        if (!effects.setBreathe(15, false)) {
-            return fail("incremental_overlays", "breathe disable was rejected");
-        }
         uint8_t rendered[e87canbus::BUTTON_PAD_RGB_BYTES] = {};
-        effects.render(STARTED_AT_MS + 400, rendered);
-        if (rendered[45] != 0 || rendered[46] != 0 || rendered[47] != 0 ||
-            (effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
-            return fail("incremental_overlays", "breathe disable did not suppress base track");
-        }
-        if (!effects.setBreathe(15, true) ||
-            !(effects.animationMask(STARTED_AT_MS + 400) & (1U << 15))) {
-            return fail("incremental_overlays", "breathe enable did not animate");
-        }
-        if (!effects.triggerRedDoubleBlink(2, STARTED_AT_MS + 500)) {
+        // Feedback carries its own colour, so an arbitrary RGB must survive the
+        // overlay verbatim rather than only the three colours the pad once knew.
+        if (!effects.triggerDoubleBlink(2, 0x2A, 0x8C, 0x13, STARTED_AT_MS + 500)) {
             return fail("incremental_overlays", "blink trigger was rejected");
         }
         effects.render(STARTED_AT_MS + 500, rendered);
-        if (rendered[6] != 255 || rendered[7] != 0 || rendered[8] != 0) {
-            return fail("incremental_overlays", "blink did not overlay red");
+        if (rendered[6] != 0x2A || rendered[7] != 0x8C || rendered[8] != 0x13) {
+            return fail("incremental_overlays", "double blink did not overlay its colour");
         }
         effects.render(STARTED_AT_MS + 600, rendered);
-        if (rendered[6] == 255 && rendered[7] == 0 && rendered[8] == 0) {
+        if (rendered[6] == 0x2A && rendered[7] == 0x8C && rendered[8] == 0x13) {
             return fail("incremental_overlays", "blink off phase did not reveal base");
         }
-        effects.triggerRedDoubleBlink(2, STARTED_AT_MS + 650);
+        if (!(effects.animationMask(STARTED_AT_MS + 700) & (1U << 2))) {
+            return fail("incremental_overlays", "double blink stopped after one cycle", 700);
+        }
+        effects.triggerDoubleBlink(2, 0x2A, 0x8C, 0x13, STARTED_AT_MS + 650);
         effects.render(STARTED_AT_MS + 650, rendered);
-        if (rendered[6] != 255 || rendered[7] != 0 || rendered[8] != 0) {
+        if (rendered[6] != 0x2A || rendered[7] != 0x8C || rendered[8] != 0x13) {
             return fail("incremental_overlays", "repeated blink did not restart");
         }
-        if (!effects.triggerSingleBlink(2, 255, 255, 255, STARTED_AT_MS + 700)) {
+        if (!effects.triggerSingleBlink(2, 0x11, 0x22, 0x33, STARTED_AT_MS + 700)) {
             return fail("incremental_overlays", "single blink trigger was rejected");
         }
         effects.render(STARTED_AT_MS + 700, rendered);
-        if (rendered[6] != 255 || rendered[7] != 255 || rendered[8] != 255) {
-            return fail("incremental_overlays", "single blink did not overlay white");
+        if (rendered[6] != 0x11 || rendered[7] != 0x22 || rendered[8] != 0x33) {
+            return fail("incremental_overlays", "single blink did not overlay its colour");
         }
         if (effects.animationMask(STARTED_AT_MS + 900) & (1U << 2)) {
             return fail("incremental_overlays", "single blink did not stop after one cycle");
+        }
+        if (effects.triggerSingleBlink(e87canbus::BUTTON_PAD_LED_COUNT, 0x11, 0x22, 0x33,
+                                       STARTED_AT_MS + 700) ||
+            effects.triggerDoubleBlink(e87canbus::BUTTON_PAD_LED_COUNT, 0x11, 0x22, 0x33,
+                                       STARTED_AT_MS + 700)) {
+            return fail("incremental_overlays", "blink outside the pad was accepted");
         }
     }
 

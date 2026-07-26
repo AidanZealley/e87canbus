@@ -15,10 +15,12 @@ from e87canbus.domain.buttons.pad import resolve_button_pad_tracks
 from e87canbus.domain.controller import SOFT_WHITE
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
-    RGB_BLUE,
-    RGB_OFF,
     SetSteeringAssistance,
     SteeringCommandReason,
+)
+from e87canbus.domain.state import (
+    RGB_BLUE,
+    RGB_OFF,
 )
 from e87canbus.runners.composition import build_simulated_controller_loop
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer

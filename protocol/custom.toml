@@ -31,9 +31,13 @@ pressed = 0x01
 [button_pad_effect]
 can_id = 0x701
 length = 8
+# Version 2 redefined bytes 4-7 from an enabled flag plus reserved zeroes to a
+# pulse count plus RGB, and made opcode 0x01 generic. A version 1 sender reaching
+# version 2 firmware must be rejected, not read as a black one-pulse blink.
+command_version = 2
 direction = "Coordinator to button pad"
 purpose = "Incremental LED effect"
-payload = "byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = enabled, bytes 5-7 = reserved zero"
+payload = "byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = pulses, byte 5 = red, byte 6 = green, byte 7 = blue"
 values_title = "Button Pad Effect Opcodes"
 
 [button_pad_effect.bytes]
@@ -41,16 +45,13 @@ version = 0
 opcode = 1
 button_index = 2
 sequence = 3
-enabled = 4
-reserved_5 = 5
-reserved_6 = 6
-reserved_7 = 7
+pulses = 4
+red = 5
+green = 6
+blue = 7
 
 [button_pad_effect.values]
-blink_red_double = 0x01
-breathe = 0x02
-blink_white_single = 0x03
-blink_amber_double = 0x04
+blink = 0x01
 
 [button_pad_hello]
 can_id = 0x702

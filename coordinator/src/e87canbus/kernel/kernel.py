@@ -52,13 +52,11 @@ from e87canbus.domain.events import (
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
-    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ButtonPressed,
     ConfigureServotronicCurve,
     ControlTimerElapsed,
     HighBeamStrobeDeadlineReached,
-    SetButtonPadBreathe,
     SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringFallbackReason,
@@ -71,7 +69,12 @@ from e87canbus.domain.intents import (
     OperatorIntentContext,
     intent_requires_servotronic,
 )
-from e87canbus.domain.state import ApplicationState
+from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_REJECTED,
+    BUTTON_FEEDBACK_UNAVAILABLE,
+    BUTTON_FEEDBACK_UNBOUND,
+    ApplicationState,
+)
 from e87canbus.domain.steering.curves import (
     ActiveSteeringCurve,
     SteeringCurveActivationStatus,
@@ -457,14 +460,12 @@ class CoordinatorKernel:
         intent = self._button_profile.intent_for_press(event.button_index)
         if intent is None:
             return self._transition(
-                ButtonCommandFailed(
-                    event.button_index, event.observed_at, ButtonFeedbackColour.WHITE
-                )
+                ButtonCommandFailed(event.button_index, event.observed_at, BUTTON_FEEDBACK_UNBOUND)
             )
         if intent_requires_servotronic(intent) and not self._servotronic_usable:
             return self._transition(
                 ButtonCommandFailed(
-                    event.button_index, event.observed_at, ButtonFeedbackColour.AMBER
+                    event.button_index, event.observed_at, BUTTON_FEEDBACK_UNAVAILABLE
                 )
             )
         # A profile saved before a steering-configuration change can hold a value this
@@ -480,7 +481,7 @@ class CoordinatorKernel:
                 unusable,
             )
             return self._transition(
-                ButtonCommandFailed(event.button_index, event.observed_at, ButtonFeedbackColour.RED)
+                ButtonCommandFailed(event.button_index, event.observed_at, BUTTON_FEEDBACK_REJECTED)
             )
         return self._dispatch_button_intent(event, intent)
 
@@ -965,7 +966,7 @@ class CoordinatorKernel:
             if (
                 not isinstance(
                     request.effect,
-                    (SetButtonPadProgram, TriggerButtonPadBlink, SetButtonPadBreathe),
+                    (SetButtonPadProgram, TriggerButtonPadBlink),
                 )
                 or button_active
             )

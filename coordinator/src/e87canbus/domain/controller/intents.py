@@ -17,7 +17,6 @@ from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
     ApplicationEffect,
     ButtonCommandFailed,
-    ButtonFeedbackColour,
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
@@ -37,7 +36,9 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance as SetMaximumAssistanceIntent,
 )
 from e87canbus.domain.state import (
+    RGB_WHITE,
     ApplicationState,
+    ButtonFeedback,
     MaximumAssistance,
     SteeringMode,
     SteeringState,
@@ -47,6 +48,11 @@ from e87canbus.domain.steering.curves import (
     SteeringCurveDefinition,
     clamp_manual_level,
 )
+
+# The press was accepted but changed nothing an operator can see. Authored button
+# colours make this the slot's own base colour at full brightness; until slots carry
+# a colour it stays white, which is what the pad has always flashed here.
+_ACKNOWLEDGED_PRESS_FEEDBACK = ButtonFeedback(RGB_WHITE, 1)
 
 
 def execute_operator_intent(
@@ -122,7 +128,7 @@ def finish_button_intent(
     if not button_visual_changed and not maximum_indicator_changed:
         feedback = transition(
             new_state,
-            ButtonCommandFailed(button_index, observed_at, ButtonFeedbackColour.WHITE),
+            ButtonCommandFailed(button_index, observed_at, _ACKNOWLEDGED_PRESS_FEEDBACK),
             config,
             active_definition,
             high_beam_strobe_config,

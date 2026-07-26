@@ -17,9 +17,6 @@ constexpr uint16_t OVERLAY_BLINK_OFF_MS = 100;
 constexpr uint8_t OVERLAY_BLINK_REPEAT = 2;
 constexpr uint16_t OVERLAY_BLINK_DURATION_MS =
     (OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS) * OVERLAY_BLINK_REPEAT;
-constexpr uint16_t OVERLAY_BREATHE_PERIOD_MS = 1600;
-constexpr uint8_t OVERLAY_BREATHE_MINIMUM = 20;
-constexpr uint8_t OVERLAY_BREATHE_MAXIMUM = 255;
 
 uint16_t littleEndian16(const uint8_t *bytes) {
     return static_cast<uint16_t>(bytes[0]) | (static_cast<uint16_t>(bytes[1]) << 8);
@@ -184,23 +181,6 @@ void ButtonPadEffects::render(uint32_t now_ms, uint8_t out[BUTTON_PAD_RGB_BYTES]
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
         uint8_t *rgb = out + index * 3;
         const uint16_t bit = 1U << index;
-        if ((breathe_control_mask_ & bit) && !(breathe_mask_ & bit)) {
-            memcpy(rgb, tracks_[index].final_rgb, 3);
-        } else if (breathe_mask_ & bit) {
-            const uint32_t phase = now_ms % OVERLAY_BREATHE_PERIOD_MS;
-            const uint16_t halfPeriod = OVERLAY_BREATHE_PERIOD_MS / 2;
-            const uint16_t triangle =
-                phase <= halfPeriod
-                    ? static_cast<uint16_t>((phase * 255UL) / halfPeriod)
-                    : static_cast<uint16_t>(
-                          ((OVERLAY_BREATHE_PERIOD_MS - phase) * 255UL) / halfPeriod);
-            const uint16_t brightness =
-                OVERLAY_BREATHE_MINIMUM +
-                ((OVERLAY_BREATHE_MAXIMUM - OVERLAY_BREATHE_MINIMUM) * triangle) / 255;
-            rgb[0] = 0;
-            rgb[1] = static_cast<uint8_t>((220UL * brightness) / 255);
-            rgb[2] = static_cast<uint8_t>(brightness);
-        }
         const uint32_t duration = (single_blink_mask_ & bit)
                                       ? OVERLAY_BLINK_ON_MS + OVERLAY_BLINK_OFF_MS
                                       : OVERLAY_BLINK_DURATION_MS;
@@ -229,8 +209,6 @@ uint16_t ButtonPadEffects::animationMask(uint32_t now_ms) const {
             mask |= 1U << index;
         }
     }
-    mask &= ~(breathe_control_mask_ & ~breathe_mask_);
-    mask |= breathe_mask_;
     for (uint8_t index = 0; index < BUTTON_PAD_LED_COUNT; ++index) {
         const uint16_t bit = 1U << index;
         const uint32_t duration = (single_blink_mask_ & bit)
@@ -246,10 +224,6 @@ uint16_t ButtonPadEffects::animationMask(uint32_t now_ms) const {
 bool ButtonPadEffects::animated(uint32_t now_ms) const { return animationMask(now_ms) != 0; }
 
 bool ButtonPadEffects::committed() const { return last_command_committed_; }
-
-bool ButtonPadEffects::triggerRedDoubleBlink(uint8_t button_index, uint32_t now_ms) {
-    return triggerDoubleBlink(button_index, 255, 0, 0, now_ms);
-}
 
 bool ButtonPadEffects::triggerDoubleBlink(uint8_t button_index, uint8_t red, uint8_t green,
                                           uint8_t blue, uint32_t now_ms) {
@@ -271,20 +245,6 @@ bool ButtonPadEffects::triggerSingleBlink(uint8_t button_index, uint8_t red, uin
         return false;
     }
     single_blink_mask_ |= 1U << button_index;
-    return true;
-}
-
-bool ButtonPadEffects::setBreathe(uint8_t button_index, bool enabled) {
-    if (button_index >= BUTTON_PAD_LED_COUNT) {
-        return false;
-    }
-    const uint16_t bit = 1U << button_index;
-    breathe_control_mask_ |= bit;
-    if (enabled) {
-        breathe_mask_ |= bit;
-    } else {
-        breathe_mask_ &= ~bit;
-    }
     return true;
 }
 

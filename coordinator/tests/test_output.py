@@ -12,18 +12,22 @@ from e87canbus.adapters.output import (
 from e87canbus.config import CanNetwork, TxPolicyConfig
 from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.events import (
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
-    ButtonFeedbackColour,
     ButtonLedState,
     ConfigureServotronicCurve,
-    SetButtonPadBreathe,
     SetButtonPadProgram,
     SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
     TriggerButtonPadBlink,
+)
+from e87canbus.domain.state import (
+    BUTTON_FEEDBACK_REJECTED,
+    BUTTON_FEEDBACK_UNAVAILABLE,
+    BUTTON_FEEDBACK_UNBOUND,
+    RGB_BLUE,
+    RGB_OFF,
+    RGB_WHITE,
+    ButtonFeedback,
 )
 from e87canbus.domain.steering.curves import initial_active_steering_curve
 from e87canbus.protocol.can import CanFrame
@@ -187,21 +191,34 @@ def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:
 
     executor.execute(
         (
-            EffectRequest(TriggerButtonPadBlink(3)),
-            EffectRequest(TriggerButtonPadBlink(4, ButtonFeedbackColour.WHITE)),
-            EffectRequest(TriggerButtonPadBlink(5, ButtonFeedbackColour.AMBER)),
-            EffectRequest(SetButtonPadBreathe(15, True)),
-            EffectRequest(SetButtonPadBreathe(15, False)),
+            EffectRequest(TriggerButtonPadBlink(3, BUTTON_FEEDBACK_REJECTED)),
+            EffectRequest(TriggerButtonPadBlink(4, BUTTON_FEEDBACK_UNBOUND)),
+            EffectRequest(TriggerButtonPadBlink(5, BUTTON_FEEDBACK_UNAVAILABLE)),
+            EffectRequest(TriggerButtonPadBlink(6, ButtonFeedback((0x2A, 0x8C, 0x13), 1))),
         )
     )
 
+    # One opcode carries every treatment: bytes 4-7 are pulses then RGB.
     assert raw.sent == [
-        CanFrame(0x701, b"\x01\x01\x03\x00\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x03\x04\x01\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x04\x05\x02\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x02\x0f\x03\x01\x00\x00\x00"),
-        CanFrame(0x701, b"\x01\x02\x0f\x04\x00\x00\x00\x00"),
+        CanFrame(0x701, b"\x02\x01\x03\x00\x02\xff\x00\x00"),
+        CanFrame(0x701, b"\x02\x01\x04\x01\x01\xff\xff\xff"),
+        CanFrame(0x701, b"\x02\x01\x05\x02\x02\xff\xbf\x00"),
+        CanFrame(0x701, b"\x02\x01\x06\x03\x01\x2a\x8c\x13"),
     ]
+
+
+def test_button_blink_rejects_a_pulse_count_the_pad_cannot_render() -> None:
+    raw = FakeTransmitter()
+    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
+
+    # The bound lives on the value, not on the frame encoder, because the same
+    # feedback also reaches the pad as a blink track inside the ISO-TP program.
+    with pytest.raises(ValueError, match="pulses must be one or two"):
+        ButtonFeedback(RGB_WHITE, 3)
+
+    executor.execute((EffectRequest(TriggerButtonPadBlink(3, ButtonFeedback(RGB_WHITE, 1))),))
+
+    assert raw.sent == [CanFrame(0x701, b"\x02\x01\x03\x00\x01\xff\xff\xff")]
 
 
 def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:

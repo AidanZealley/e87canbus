@@ -14,13 +14,9 @@ from typing import assert_never
 from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
 from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
-    BUTTON_FEEDBACK_BLINK_OFF_MS,
-    BUTTON_FEEDBACK_BLINK_ON_MS,
-    BUTTON_FEEDBACK_DURATION_S,
     ApplicationEffect,
     ApplicationEvent,
     ButtonCommandFailed,
-    ButtonFeedbackColour,
     ButtonFeedbackDeadlineReached,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
@@ -34,6 +30,7 @@ from e87canbus.domain.events import (
     SteeringFallbackReason,
     SteeringFallbackRequested,
     TriggerButtonPadBlink,
+    button_feedback_duration_s,
 )
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 from e87canbus.domain.steering.curves import SteeringCurveDefinition, clamp_manual_level
@@ -109,22 +106,17 @@ def transition(
                     ),
                 ),
             )
-        case ButtonCommandFailed(button_index, occurred_at, blink_colour):
+        case ButtonCommandFailed(button_index, occurred_at, feedback):
             deadlines: list[float | None] = list(state.button_feedback_deadlines)
-            colours = list(state.button_feedback_colours)
-            duration_s = (
-                (BUTTON_FEEDBACK_BLINK_ON_MS + BUTTON_FEEDBACK_BLINK_OFF_MS) / 1000
-                if blink_colour is ButtonFeedbackColour.WHITE
-                else BUTTON_FEEDBACK_DURATION_S
-            )
-            deadlines[button_index] = occurred_at + duration_s
-            colours[button_index] = blink_colour
+            pending = list(state.button_feedback)
+            deadlines[button_index] = occurred_at + button_feedback_duration_s(feedback.pulses)
+            pending[button_index] = feedback
             next_state = replace(
                 state,
                 button_feedback_deadlines=tuple(deadlines),
-                button_feedback_colours=tuple(colours),
+                button_feedback=tuple(pending),
             )
-            return Transition(next_state, (TriggerButtonPadBlink(button_index, blink_colour),))
+            return Transition(next_state, (TriggerButtonPadBlink(button_index, feedback),))
         case ButtonFeedbackDeadlineReached(now):
             next_deadlines: tuple[float | None, ...] = tuple(
                 None if deadline is not None and deadline <= now else deadline
@@ -132,18 +124,18 @@ def transition(
             )
             if next_deadlines == state.button_feedback_deadlines:
                 return Transition(state)
-            next_colours = tuple(
-                None if deadline is not None and deadline <= now else colour
-                for deadline, colour in zip(
+            next_feedback = tuple(
+                None if deadline is not None and deadline <= now else feedback
+                for deadline, feedback in zip(
                     state.button_feedback_deadlines,
-                    state.button_feedback_colours,
+                    state.button_feedback,
                     strict=True,
                 )
             )
             next_state = replace(
                 state,
                 button_feedback_deadlines=next_deadlines,
-                button_feedback_colours=next_colours,
+                button_feedback=next_feedback,
             )
             # Blink tracks carry final_rgb and stop themselves. Publishing the
             # cleared state is sufficient; transmitting a cleanup scene can

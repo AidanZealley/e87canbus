@@ -8,31 +8,29 @@ from enum import StrEnum
 
 from e87canbus.domain.buttons.pad import ButtonPadProgram
 from e87canbus.domain.state import (
-    ButtonFeedbackColour,
+    BUTTON_FEEDBACK_REJECTED,
+    RGB_OFF,
+    ButtonFeedback,
     CoolantTemperatureSample,
     EngineRpmSample,
     OilTemperatureSample,
+    Rgb,
     SpeedSample,
 )
 from e87canbus.domain.steering.curves import SteeringCurveDefinition
-
-__all__ = ["ButtonFeedbackColour"]
 
 BUTTON_LED_COUNT = 16
 # Press feedback is rendered and self-terminated on the device. The deadline only
 # clears the coordinator's canonical state; no cleanup program needs to be transmitted.
 BUTTON_FEEDBACK_BLINK_ON_MS = 100
 BUTTON_FEEDBACK_BLINK_OFF_MS = 100
-BUTTON_FEEDBACK_BLINK_REPEAT = 2
-BUTTON_FEEDBACK_DURATION_S = (
-    (BUTTON_FEEDBACK_BLINK_ON_MS + BUTTON_FEEDBACK_BLINK_OFF_MS) * BUTTON_FEEDBACK_BLINK_REPEAT
-) / 1000
-Rgb = tuple[int, int, int]
-RGB_OFF: Rgb = (0, 0, 0)
-RGB_RED: Rgb = (255, 0, 0)
-RGB_BLUE: Rgb = (0, 0, 255)
-RGB_AMBER: Rgb = (255, 191, 0)
-RGB_WHITE: Rgb = (255, 255, 255)
+BUTTON_FEEDBACK_CYCLE_MS = BUTTON_FEEDBACK_BLINK_ON_MS + BUTTON_FEEDBACK_BLINK_OFF_MS
+
+
+def button_feedback_duration_s(pulses: int) -> float:
+    """How long the pad spends rendering ``pulses`` on/off cycles."""
+
+    return (BUTTON_FEEDBACK_CYCLE_MS * pulses) / 1000
 
 
 @dataclass(frozen=True)
@@ -69,15 +67,15 @@ class ButtonPressed:
 class ButtonCommandFailed:
     button_index: int
     occurred_at: float
-    blink_colour: ButtonFeedbackColour = ButtonFeedbackColour.RED
+    feedback: ButtonFeedback = BUTTON_FEEDBACK_REJECTED
 
     def __post_init__(self) -> None:
         if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
             raise ValueError("button failure index must identify a button LED")
         if not math.isfinite(self.occurred_at):
             raise ValueError("button failure time must be finite")
-        if not isinstance(self.blink_colour, ButtonFeedbackColour):
-            raise ValueError("button failure colour must be a ButtonFeedbackColour")
+        if not isinstance(self.feedback, ButtonFeedback):
+            raise ValueError("button failure feedback must be a ButtonFeedback")
 
 
 @dataclass(frozen=True)
@@ -167,33 +165,20 @@ class SetButtonPadProgram:
 
 @dataclass(frozen=True)
 class TriggerButtonPadBlink:
+    """The low-latency single-frame feedback blink, carrying its own colour.
+
+    Steady appearance — animated or not — belongs to the button-pad program; this
+    frame exists only so a press is acknowledged without waiting on ISO-TP.
+    """
+
     button_index: int
-    colour: ButtonFeedbackColour = ButtonFeedbackColour.RED
+    feedback: ButtonFeedback = BUTTON_FEEDBACK_REJECTED
 
     def __post_init__(self) -> None:
         if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
             raise ValueError("button blink index must identify a button LED")
-        if not isinstance(self.colour, ButtonFeedbackColour):
-            raise ValueError("button blink colour must be a ButtonFeedbackColour")
-
-
-@dataclass(frozen=True)
-class SetButtonPadBreathe:
-    """The single-frame breathe command implemented by the pad firmware.
-
-    Nothing in the coordinator emits this today; it is retained because opcode
-    ``0x02`` on ``0x701`` is a shipped firmware contract, and because breathing is
-    coming back as an assignable per-button-state effect.
-    """
-
-    button_index: int
-    enabled: bool
-
-    def __post_init__(self) -> None:
-        if type(self.button_index) is not int or not 0 <= self.button_index < BUTTON_LED_COUNT:
-            raise ValueError("button breathe index must identify a button LED")
-        if type(self.enabled) is not bool:
-            raise ValueError("button breathe enabled must be a boolean")
+        if not isinstance(self.feedback, ButtonFeedback):
+            raise ValueError("button blink feedback must be a ButtonFeedback")
 
 
 @dataclass(frozen=True)
@@ -228,7 +213,6 @@ class SetHighBeam:
 ApplicationEffect = (
     SetButtonPadProgram
     | TriggerButtonPadBlink
-    | SetButtonPadBreathe
     | SetSteeringAssistance
     | ConfigureServotronicCurve
     | SetHighBeam

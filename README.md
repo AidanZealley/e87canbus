@@ -40,8 +40,9 @@ explicit CAN transmitter or actuator capability, with one network rate policy gu
 The simulator operates external nodes and follows that same path rather than injecting application
 events or state. A button-pad LED decision has a canonical v2 program containing a resolved track
 for each button. Ordered 16-byte ISO-TP commands on `0x708`/`0x709` replace the whole scene and
-commit it atomically for synchronization. Latency-sensitive red feedback and breathe toggles use
-one incremental CAN frame on `0x701`; the device composites those overlays over the base scene.
+commit it atomically for synchronization. Latency-sensitive press feedback uses one incremental CAN
+frame on `0x701` carrying its own colour and pulse count; the device composites that blink over the
+base scene.
 
 Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
 `disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
