@@ -55,7 +55,6 @@ def response(profile: StoredButtonProfile) -> ButtonProfileResponse:
             "name": profile.name,
             "revision": profile.revision,
             "definition": {
-                "schema_version": profile.definition.schema_version,
                 "slots": [
                     None if slot is None else encode_button_slot(slot)
                     for slot in profile.definition.slots

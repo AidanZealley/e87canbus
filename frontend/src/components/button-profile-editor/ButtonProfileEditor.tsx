@@ -85,7 +85,6 @@ export const ButtonProfileEditor = ({
         name: profile.name,
         expected_revision: profile.revision,
         definition: {
-          schema_version: 2,
           slots: toButtonCommandSlots(next),
         },
       },

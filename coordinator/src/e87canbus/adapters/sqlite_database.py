@@ -286,7 +286,6 @@ class SqliteApplicationDatabase:
                 profile_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                 revision INTEGER NOT NULL CHECK (revision > 0),
-                schema_version INTEGER NOT NULL,
                 definition_json TEXT NOT NULL,
                 definition_fingerprint TEXT NOT NULL,
                 created_at_utc TEXT NOT NULL,
@@ -297,13 +296,12 @@ class SqliteApplicationDatabase:
         definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
         connection.execute(
             """INSERT INTO button_profiles (
-                profile_id, name, revision, schema_version,
-                definition_json, definition_fingerprint, created_at_utc, updated_at_utc
-            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
+                profile_id, name, revision, definition_json,
+                definition_fingerprint, created_at_utc, updated_at_utc
+            ) VALUES (?, ?, 1, ?, ?, ?, ?)""",
             (
                 BUILT_IN_BUTTON_PROFILE_ID,
                 BUILT_IN_BUTTON_PROFILE_NAME,
-                BUILT_IN_BUTTON_PROFILE.schema_version,
                 definition_json,
                 button_profile_fingerprint(BUILT_IN_BUTTON_PROFILE),
                 timestamp,
@@ -320,13 +318,12 @@ class SqliteApplicationDatabase:
             definition_json = canonical_button_profile_bytes(BUILT_IN_BUTTON_PROFILE).decode()
             connection.execute(
                 """INSERT INTO button_profiles (
-                profile_id, name, revision, schema_version,
-                definition_json, definition_fingerprint, created_at_utc, updated_at_utc
-            ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
+                    profile_id, name, revision, definition_json,
+                    definition_fingerprint, created_at_utc, updated_at_utc
+                ) VALUES (?, ?, 1, ?, ?, ?, ?)""",
                 (
                     BUILT_IN_BUTTON_PROFILE_ID,
                     BUILT_IN_BUTTON_PROFILE_NAME,
-                    BUILT_IN_BUTTON_PROFILE.schema_version,
                     definition_json,
                     button_profile_fingerprint(BUILT_IN_BUTTON_PROFILE),
                     timestamp,

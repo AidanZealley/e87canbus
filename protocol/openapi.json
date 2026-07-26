@@ -293,11 +293,6 @@
       "ButtonProfileDefinitionRequest": {
         "additionalProperties": false,
         "properties": {
-          "schema_version": {
-            "const": 2,
-            "title": "Schema Version",
-            "type": "integer"
-          },
           "slots": {
             "items": {
               "anyOf": [
@@ -316,7 +311,6 @@
           }
         },
         "required": [
-          "schema_version",
           "slots"
         ],
         "title": "ButtonProfileDefinitionRequest",
@@ -325,11 +319,6 @@
       "ButtonProfileDefinitionResponse": {
         "additionalProperties": false,
         "properties": {
-          "schema_version": {
-            "const": 2,
-            "title": "Schema Version",
-            "type": "integer"
-          },
           "slots": {
             "items": {
               "anyOf": [
@@ -348,7 +337,6 @@
           }
         },
         "required": [
-          "schema_version",
           "slots"
         ],
         "title": "ButtonProfileDefinitionResponse",

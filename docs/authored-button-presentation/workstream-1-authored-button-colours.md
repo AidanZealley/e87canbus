@@ -8,7 +8,7 @@
 
 A button profile slot stores what the button does *and* what it looks like. The
 derived colour table in `derived_button_led_state` is replaced by a rendering
-rule over authored values, and the profile schema gains a colour, a reserved
+rule over authored values, and the canonical profile shape gains a colour, a reserved
 active colour, and an optional animation.
 
 ## Stored shape
@@ -28,8 +28,8 @@ becomes `ButtonSlot | None`:
 - `colour` — required RGB triple, the base colour.
 - `active_colour` — reserved, always `null` in this workstream. `null` means
   "`colour` at full brightness". Storing it now means adding per-state colours
-  later touches the editor and a default, not the schema, the codec, the API
-  models, or saved rows.
+  later touches the editor and a default rather than every persistence and
+  transport boundary.
 - `animation` — `null` for static, otherwise a tagged object:
 
 ```json
@@ -37,12 +37,11 @@ becomes `ButtonSlot | None`:
 { "kind": "blink", "on_ms": 400, "off_ms": 400 }
 ```
 
-`schema_version` goes from `1` to `2`. `BUTTON_PROFILE_SCHEMA_VERSION`,
-`decode_button_profile`, `canonical_button_profile_bytes` and the fingerprint all
-follow. Because the canonical bytes change, every stored profile's fingerprint
-changes on migration; that is expected and must not be papered over by excluding
-presentation from the fingerprint — two profiles that look different are
-different profiles.
+There is one canonical definition shape: `{ "slots": [...] }`. Button profile
+definitions do not carry a `schema_version`, and the SQLite adapter has no
+legacy decoder or shape-upgrade path. The fingerprint covers the complete
+canonical definition, including presentation — two profiles that look different
+are different profiles.
 
 ### Animation bounds
 
@@ -58,26 +57,10 @@ to the **active** state only; the inactive state is always static faint. A slot
 whose command has no active condition may not carry an animation, and the API
 rejects one.
 
-## Migration
-
-Migrating v1 to v2 seeds `colour` from the command's current presentation
-category so the pad is visually unchanged except for the accepted steering-mode
-regression:
-
-| `ButtonCommandPresentation` | Seeded colour |
-| --- | --- |
-| `STEERING_MODE` | `RGB_BLUE (0,0,255)` |
-| `MAXIMUM_ASSISTANCE` | `RGB_WHITE (255,255,255)` |
-| `STEERING_ADJUSTMENT` | `RGB_WHITE (255,255,255)` |
-| `MOMENTARY` | `RGB_WHITE (255,255,255)` |
-
-`active_colour` and `animation` seed to `null`. The built-in profile
-(`built_in_button_profile_definition`) is written in the new shape directly
-rather than migrated, since it is compiled in.
-
-Migration runs in the SQLite adapter on read of a v1 row, and the row is
-rewritten at v2 on next save. A v1 definition arriving over HTTP is rejected —
-the API accepts one schema version.
+Newly assigned commands use blue for steering-mode selection and automatic
+assistance, and white for the remaining command types. `active_colour` and
+`animation` default to `null`. The built-in profile
+(`built_in_button_profile_definition`) uses the same canonical shape directly.
 
 ## Activeness in the catalogue
 
@@ -305,12 +288,9 @@ and keep the constants pinned by `button-led-presentation.test.ts`.
   only in automatic; `set_manual_assistance_level(n)` active only at level `n`).
 - Unavailable overrides active for a Servotronic-requiring command; does not
   override for one that does not require it.
-- v1 → v2 migration produces the seeded colours, and a migrated built-in profile
-  renders byte-identical tracks to today's pad for every command except the
-  accepted steering-mode regression.
 - API rejects: out-of-range colour, breathe period outside 250–10 000,
   `minimum > maximum`, blink duration outside 1–10 000, animation on a command
-  with no active predicate, and a v1 definition body.
+  with no active predicate, and incomplete slot objects.
 - An authored breathe produces a `BUTTON_PAD_TRACK_BREATHE` track with the
   expected packed `parameter_b`, and the existing program invariants
   (one replace-all, one commit, full coverage) still hold.
@@ -336,7 +316,5 @@ and keep the constants pinned by `button-led-presentation.test.ts`.
 - A saved profile round-trips colour and animation through SQLite, HTTP, and the
   live contract, and the pad renders the authored values.
 - `active_colour` is present, always `null`, and rejected if non-null.
-- A pre-existing database upgrades without operator action and without changing
-  what any button does.
 - `0x701` carries exactly one opcode, and `ButtonFeedbackColour`,
   `SetButtonPadBreathe` and `triggerRedDoubleBlink` no longer exist.

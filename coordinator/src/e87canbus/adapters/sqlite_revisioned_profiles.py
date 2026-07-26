@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Generic, Protocol, TypeVar, cast
+from typing import Generic, TypeVar, cast
 from uuid import UUID, uuid4
 
 from e87canbus.adapters.sqlite_database import (
@@ -34,38 +34,12 @@ from e87canbus.domain.revisioned_profiles import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-
-class ProfileDefinition(Protocol):
-    """Any versioned definition whose schema version is mirrored in its own column."""
-
-    @property
-    def schema_version(self) -> int: ...
-
-
-DefinitionT = TypeVar("DefinitionT", bound=ProfileDefinition)
+DefinitionT = TypeVar("DefinitionT")
 StoredT = TypeVar("StoredT")
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-@dataclass(frozen=True)
-class ProfileMigration(Generic[DefinitionT]):
-    """How a table whose definition has changed shape reads rows an older build wrote.
-
-    The version this build writes and the upgrade that reaches it are one value, because
-    neither means anything alone: a row is old exactly when its ``schema_version`` column
-    is not ``current_version``, and that is the only question ``upgrade`` answers.
-
-    ``upgrade`` receives the row's stored text and fingerprint rather than a parsed
-    payload, because verifying an old row is its own job: this build's canonical encoding
-    and fingerprint describe the *current* shape and cannot be applied to it, so the
-    upgrade is the only place that still knows how the row it is reading was written.
-    """
-
-    current_version: int
-    upgrade: Callable[[int, str, str], DefinitionT]
 
 
 @dataclass(frozen=True)
@@ -79,8 +53,7 @@ class RevisionedProfileSpec(Generic[DefinitionT, StoredT]):
     fingerprint: Callable[[DefinitionT], str]
     validate_name: Callable[[str], None]
     build: Callable[[str, str, int, DefinitionT, str, str], StoredT]
-    # Absent for a table that has only ever had one shape.
-    migration: ProfileMigration[DefinitionT] | None = None
+    schema_version: Callable[[DefinitionT], int] | None = None
 
     def __post_init__(self) -> None:
         if not self.kind or self.kind != self.kind.strip():
@@ -147,13 +120,29 @@ class SqliteRevisionedProfileRepository(Generic[DefinitionT, StoredT]):
         encoded = self._encoded(definition)
         profile_id, timestamp = str(self._identifier_factory()), self._timestamp()
         with self._writing(f"could not create {self._spec.kind}", name=name) as connection:
-            connection.execute(
-                f"""INSERT INTO {self._spec.table} (
-                    profile_id, name, revision, schema_version,
-                    definition_json, definition_fingerprint, created_at_utc, updated_at_utc
-                ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
-                (profile_id, name, definition.schema_version, *encoded, timestamp, timestamp),
-            )
+            if self._spec.schema_version is None:
+                connection.execute(
+                    f"""INSERT INTO {self._spec.table} (
+                        profile_id, name, revision, definition_json,
+                        definition_fingerprint, created_at_utc, updated_at_utc
+                    ) VALUES (?, ?, 1, ?, ?, ?, ?)""",
+                    (profile_id, name, *encoded, timestamp, timestamp),
+                )
+            else:
+                connection.execute(
+                    f"""INSERT INTO {self._spec.table} (
+                        profile_id, name, revision, schema_version,
+                        definition_json, definition_fingerprint, created_at_utc, updated_at_utc
+                    ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)""",
+                    (
+                        profile_id,
+                        name,
+                        self._spec.schema_version(definition),
+                        *encoded,
+                        timestamp,
+                        timestamp,
+                    ),
+                )
             return self._from_row(self._required_row(connection, profile_id))
 
     def update_profile(
@@ -169,20 +158,29 @@ class SqliteRevisionedProfileRepository(Generic[DefinitionT, StoredT]):
         timestamp = self._timestamp()
         failure = f"could not update {self._spec.kind} {profile_id}"
         with self._writing(failure, name=name) as connection:
-            cursor = connection.execute(
-                f"""UPDATE {self._spec.table}
-                SET name = ?, revision = revision + 1, schema_version = ?,
-                    definition_json = ?, definition_fingerprint = ?, updated_at_utc = ?
-                WHERE profile_id = ? AND revision = ?""",
-                (
-                    name,
-                    definition.schema_version,
-                    *encoded,
-                    timestamp,
-                    profile_id,
-                    expected_revision,
-                ),
-            )
+            if self._spec.schema_version is None:
+                cursor = connection.execute(
+                    f"""UPDATE {self._spec.table}
+                    SET name = ?, revision = revision + 1, definition_json = ?,
+                        definition_fingerprint = ?, updated_at_utc = ?
+                    WHERE profile_id = ? AND revision = ?""",
+                    (name, *encoded, timestamp, profile_id, expected_revision),
+                )
+            else:
+                cursor = connection.execute(
+                    f"""UPDATE {self._spec.table}
+                    SET name = ?, revision = revision + 1, schema_version = ?,
+                        definition_json = ?, definition_fingerprint = ?, updated_at_utc = ?
+                    WHERE profile_id = ? AND revision = ?""",
+                    (
+                        name,
+                        self._spec.schema_version(definition),
+                        *encoded,
+                        timestamp,
+                        profile_id,
+                        expected_revision,
+                    ),
+                )
             if cursor.rowcount == 0:
                 raise self._stale_write(connection, profile_id, expected_revision)
             return self._from_row(self._required_row(connection, profile_id))
@@ -309,28 +307,15 @@ class SqliteRevisionedProfileRepository(Generic[DefinitionT, StoredT]):
             raise StoredProfileDataError(self._spec.kind, profile_id, str(error)) from error
 
     def _definition_from_row(self, row: sqlite3.Row) -> DefinitionT:
-        """Decode the stored definition, upgrading a row an older build wrote.
-
-        A current row is checked against its own canonical encoding and its fingerprint,
-        so a hand-edited or truncated row fails closed rather than being run. Both checks
-        describe *this* build's encoding, so neither can be applied to an older row: the
-        migration verifies that row against the encoding that wrote it instead, and the
-        next save rewrites it canonically at the current version.
-
-        A table that has only ever had one shape declares no migration, and every row is
-        then read as current - a version its decoder does not recognise is corruption
-        rather than history, and the checks below say so.
-        """
+        """Decode and verify one row against the canonical shape this build writes."""
 
         definition_json = row["definition_json"]
         if not isinstance(definition_json, str):
             raise ValueError("definition_json must be text")
-        stored_version = row["schema_version"]
-        migration = self._spec.migration
-        if migration is not None and stored_version != migration.current_version:
-            return migration.upgrade(stored_version, definition_json, row["definition_fingerprint"])
         definition = self._spec.decode(json.loads(definition_json))
-        if stored_version != definition.schema_version:
+        if self._spec.schema_version is not None and row[
+            "schema_version"
+        ] != self._spec.schema_version(definition):
             raise ValueError("schema_version column disagrees with definition_json")
         canonical_json, fingerprint = self._encoded(definition)
         if definition_json != canonical_json:

@@ -44,7 +44,6 @@ from e87canbus.domain.revisioned_profiles import (
 from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb
 from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
-BUTTON_PROFILE_SCHEMA_VERSION = 2
 BUTTON_PROFILE_NAME_MAX_LENGTH = 100
 BUILT_IN_PROFILE_ID = "built-in"
 
@@ -120,7 +119,7 @@ class ButtonSlot:
 
     ``active_colour`` is reserved for per-state authoring and must be ``None``, which
     means "``colour`` at full brightness". Storing the field now means a second colour
-    later is an editor change and a default rather than a schema migration.
+    later is an editor change and a default rather than a stored-shape rewrite.
 
     ``animation`` renders the active state alone - the inactive state is always static
     and faint - so a command with no observable condition has nothing to animate and is
@@ -152,14 +151,9 @@ class ButtonSlot:
 class ButtonProfileDefinition:
     """What every pad button does and looks like, by position; ``None`` is unassigned."""
 
-    schema_version: int
     slots: tuple[ButtonSlot | None, ...]
 
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int:
-            raise ValueError("schema_version must be an integer")
-        if self.schema_version != BUTTON_PROFILE_SCHEMA_VERSION:
-            raise ValueError(f"unsupported button profile schema_version: {self.schema_version}")
         if not isinstance(self.slots, tuple) or len(self.slots) != BUTTON_LED_COUNT:
             raise ValueError(f"slots must be an immutable {BUTTON_LED_COUNT}-entry tuple")
         if any(value is not None and not isinstance(value, ButtonSlot) for value in self.slots):
@@ -227,7 +221,7 @@ class ActiveButtonProfile:
 
 
 def empty_button_profile_definition() -> ButtonProfileDefinition:
-    return ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, (None,) * BUTTON_LED_COUNT)
+    return ButtonProfileDefinition((None,) * BUTTON_LED_COUNT)
 
 
 def button_profile_definition_with(
@@ -244,12 +238,11 @@ def button_profile_definition_with(
         if type(index) is not int or not 0 <= index < BUTTON_LED_COUNT:
             raise ValueError(f"button_index must be between 0 and {BUTTON_LED_COUNT - 1}")
         slots[index] = slot
-    return ButtonProfileDefinition(BUTTON_PROFILE_SCHEMA_VERSION, tuple(slots))
+    return ButtonProfileDefinition(tuple(slots))
 
 
-# The compiled-in pad is written in the current shape rather than migrated: it is not a
-# stored row. Its colours are what the v1 derivation showed for these commands, so an
-# out-of-the-box pad looks the same as it did before colours were authorable.
+# The compiled-in pad uses the same canonical slot shape as every saved profile. Its
+# colours preserve the original out-of-the-box appearance.
 _BUILT_IN_FIXED_SLOTS: Mapping[int, ButtonSlot] = {
     0: ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE),
     1: ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
@@ -378,21 +371,19 @@ def _decode_animation(value: object) -> SlotAnimation | None:
 
 def canonical_button_profile_bytes(definition: ButtonProfileDefinition) -> bytes:
     value = {
-        "schema_version": definition.schema_version,
         "slots": [None if slot is None else encode_button_slot(slot) for slot in definition.slots],
     }
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
 
 
 def decode_button_profile(value: object) -> ButtonProfileDefinition:
-    if not isinstance(value, dict) or set(value) != {"schema_version", "slots"}:
+    if not isinstance(value, dict) or set(value) != {"slots"}:
         raise ValueError("definition has unexpected fields")
     slots = value["slots"]
     if not isinstance(slots, list):
         raise ValueError("slots must be a list")
     return ButtonProfileDefinition(
-        value["schema_version"],
-        tuple(None if slot is None else decode_button_slot(slot) for slot in slots),
+        tuple(None if slot is None else decode_button_slot(slot) for slot in slots)
     )
 
 
