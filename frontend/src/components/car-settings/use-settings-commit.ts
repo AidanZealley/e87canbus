@@ -11,8 +11,6 @@ import { isApiProblemResponse } from "@/api/is-api-problem"
 import type { ApplicationSettingsValues } from "./types"
 import { settingsToValues, valuesToRequest } from "./utils"
 
-const TOAST_ID = "application-settings"
-
 const settingsErrorDetail = (error: unknown): string => {
   if (isApiProblemResponse(error)) return error.error.message
   return error instanceof Error ? error.message : "The request failed."
@@ -44,7 +42,9 @@ export const useSettingsCommit = (settings: ApplicationSettingsResponse) => {
             current.revision
           ),
         })
-        toast.success("Settings saved", { id: TOAST_ID })
+        // Each save raises its own toast: reusing one id updates it silently,
+        // which reads as nothing having happened when edits come in a run.
+        toast.success("Settings saved")
       } catch (error) {
         if (
           isApiProblemResponse(error) &&
@@ -53,11 +53,9 @@ export const useSettingsCommit = (settings: ApplicationSettingsResponse) => {
           await queryClient.invalidateQueries({
             queryKey: getApplicationSettingsQueryKey(),
           })
-          toast.error("Settings changed elsewhere — reloaded the latest", {
-            id: TOAST_ID,
-          })
+          toast.error("Settings changed elsewhere — reloaded the latest")
         } else {
-          toast.error(settingsErrorDetail(error), { id: TOAST_ID })
+          toast.error(settingsErrorDetail(error))
         }
       }
     })
@@ -65,5 +63,5 @@ export const useSettingsCommit = (settings: ApplicationSettingsResponse) => {
     return run
   }
 
-  return { commit, saving: update.isPending }
+  return { commit }
 }

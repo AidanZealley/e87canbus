@@ -30,7 +30,7 @@ const PANEL_CLASS = "grid content-start gap-8 p-4 sm:grid-cols-2"
 export const CarSettings = () => {
   const { settings, isAuthoritative, error, isLoading, isRefetching, refetch } =
     useEffectiveApplicationSettings()
-  const { commit, saving } = useSettingsCommit(settings)
+  const { commit } = useSettingsCommit(settings)
   const values = settingsToValues(settings)
 
   const unavailable = (
@@ -48,31 +48,19 @@ export const CarSettings = () => {
       className="min-h-full gap-0"
       aria-labelledby="settings-title"
     >
-      <div className="sticky top-0 z-20 grid gap-3 border-b bg-background/95 px-4 pt-4 pb-3 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <h1 id="settings-title" className="text-lg font-semibold">
-            Settings
-          </h1>
-          <p
-            className="ml-auto text-xs text-muted-foreground"
-            aria-live="polite"
-          >
-            {saving
-              ? "Saving…"
-              : isAuthoritative
-                ? `Revision ${settings.revision}`
-                : "Not loaded"}
-          </p>
-        </div>
+      <div className="sticky top-0 z-20 grid gap-3 border-b bg-background/95 pt-4 backdrop-blur">
+        <h1 id="settings-title" className="text-lg font-semibold px-4">
+          Settings
+        </h1>
         <TabsList
           variant="line"
-          className="h-auto w-full justify-start gap-1 overflow-x-auto p-0"
+          className="-mb-px w-full justify-start gap-1 overflow-x-auto p-0 group-data-horizontal/tabs:h-auto"
         >
           {TABS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="h-10 flex-none gap-2 px-3 text-sm [&_svg:not([class*='size-'])]:size-4"
+              className="h-10 flex-none gap-2 px-3 pb-3 text-sm group-data-horizontal/tabs:after:bottom-0 group-data-horizontal/tabs:after:h-px [&_svg:not([class*='size-'])]:size-4"
             >
               <Icon aria-hidden="true" />
               {label}

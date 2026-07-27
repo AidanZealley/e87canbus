@@ -33,9 +33,9 @@ import { DEFAULT_APPLICATION_SETTINGS } from "@/lib/application-settings"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
 
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
+const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
+
+vi.mock("sonner", () => ({ toast: toastMock }))
 
 vi.mock("@/components/steering-curve-editor/components/curve-chart", () => ({
   CurveChart: ({
@@ -381,7 +381,9 @@ it("edits settings only from authority and writes one canonical document per cha
   renderScreen(<CarSettings />)
   fireEvent.click(screen.getByRole("button", { name: "km/h" }))
 
-  expect(await screen.findByText("Revision 2")).toBeTruthy()
+  await waitFor(() =>
+    expect(toastMock.success).toHaveBeenCalledWith("Settings saved")
+  )
   expect(requests).toHaveLength(1)
   expect(requests[0]).toMatchObject({
     expected_revision: 1,
@@ -421,7 +423,9 @@ it("bounds a temperature slider by its neighbours and writes the released value"
     oil_operating_c: 118,
     oil_warning_c: 125,
   })
-  expect(await screen.findByText("Revision 2")).toBeTruthy()
+  await waitFor(() =>
+    expect(toastMock.success).toHaveBeenCalledWith("Settings saved")
+  )
 })
 
 it("keeps theme and retry available after an initial settings load failure", async () => {
@@ -445,7 +449,7 @@ it("keeps theme and retry available after an initial settings load failure", asy
 
   fireEvent.click(screen.getByRole("tab", { name: "Units" }))
   fireEvent.click(screen.getByRole("button", { name: "Retry settings" }))
-  expect(await screen.findByText("Revision 2")).toBeTruthy()
+  expect(await screen.findByRole("button", { name: "km/h" })).toBeTruthy()
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
@@ -469,12 +473,15 @@ it("reloads the authoritative document when a write conflicts", async () => {
   renderScreen(<CarSettings />)
   fireEvent.click(screen.getByRole("button", { name: "km/h" }))
 
-  expect(await screen.findByText("Revision 2")).toBeTruthy()
   await waitFor(() =>
     expect(
       screen.getByRole("button", { name: "km/h" }).getAttribute("aria-pressed")
     ).toBe("true")
   )
+  expect(toastMock.error).toHaveBeenCalledWith(
+    "Settings changed elsewhere — reloaded the latest"
+  )
+  expect(toastMock.success).not.toHaveBeenCalled()
 })
 
 it("shows observed device state as tiles in the devices group", () => {
