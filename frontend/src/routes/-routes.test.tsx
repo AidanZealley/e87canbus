@@ -95,8 +95,7 @@ it("renders the existing workbench with home and theme controls at /dev", async 
 })
 
 describe.each([
-  ["/car", "Overview"],
-  ["/car/drive", "Drive"],
+  ["/car", "Drive"],
   ["/car/steering", "Steering"],
   ["/car/buttons", "Buttons"],
   ["/car/settings", "Settings"],
@@ -107,10 +106,9 @@ describe.each([
     expect(screen.getByRole("heading", { name: heading })).toBeTruthy()
     const navigation = screen.getByRole("navigation", { name: "Car display" })
     const links = Array.from(navigation.querySelectorAll("a"))
-    expect(links).toHaveLength(5)
+    expect(links).toHaveLength(4)
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/car",
-      "/car/drive",
       "/car/steering",
       "/car/buttons",
       "/car/settings",

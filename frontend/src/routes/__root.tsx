@@ -40,7 +40,7 @@ function NotFound() {
         <div className="mt-5 flex flex-wrap gap-2">
           {isCarPath ? (
             <Link to="/car" className={buttonVariants()}>
-              Return to car overview
+              Return to car display
             </Link>
           ) : (
             <>

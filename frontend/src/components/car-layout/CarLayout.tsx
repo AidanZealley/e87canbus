@@ -1,7 +1,6 @@
 import {
   Grid2X2Icon,
   GaugeIcon,
-  HouseIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
 } from "lucide-react"
@@ -12,8 +11,7 @@ import { cn } from "@/lib/utils"
 // import { CarStatusBanners } from "./CarStatusBanners"
 
 const navigation = [
-  { to: "/car", label: "Overview", icon: HouseIcon },
-  { to: "/car/drive", label: "Drive", icon: GaugeIcon },
+  { to: "/car", label: "Drive", icon: GaugeIcon },
   { to: "/car/steering", label: "Steering", icon: SlidersHorizontalIcon },
   { to: "/car/buttons", label: "Buttons", icon: Grid2X2Icon },
   { to: "/car/settings", label: "Settings", icon: SettingsIcon },

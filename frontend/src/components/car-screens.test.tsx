@@ -25,7 +25,6 @@ import type {
   SteeringCurveDefinition,
 } from "@/api/live-contract.gen"
 import { CarDrive } from "@/components/car-drive"
-import { CarOverview } from "@/components/car-overview"
 import { CarSettingsForm } from "@/components/car-settings-form"
 import { CarSteeringEditor } from "@/components/car-steering-editor"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -236,39 +235,23 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it("masks all overview and drive live observations after disconnect", () => {
-  renderScreen(
-    <>
-      <CarOverview />
-      <CarDrive />
-    </>
-  )
-  expect(screen.getByText("Manual")).toBeTruthy()
-  // Mode "Assistance" and the manual "Manual setting" both read the resulting
-  // effective assistance percentage.
-  expect(screen.getAllByText("50%")).toHaveLength(2)
+it("masks all drive live observations after disconnect", () => {
+  renderScreen(<CarDrive />)
   expect(screen.getAllByText("126").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("62").length).toBeGreaterThan(0)
 
   act(() => useLiveStore.getState().transportDisconnected())
 
-  expect(screen.queryByText("Manual")).toBeNull()
-  expect(screen.queryByText("50%")).toBeNull()
   expect(screen.queryByText("126")).toBeNull()
-  expect(screen.getByText("Active curve unavailable")).toBeTruthy()
+  expect(screen.queryByText("62")).toBeNull()
   expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0)
 })
 
 it.each(["steering", "device"] as const)(
   "makes steering views unavailable for a %s adapter fault",
   (faultSource) => {
-    renderScreen(
-      <>
-        <CarOverview />
-        <CarSteeringEditor />
-      </>
-    )
-    // Overview assistance + overview manual setting + editor readout.
-    expect(screen.getAllByText("50%")).toHaveLength(3)
+    renderScreen(<CarSteeringEditor />)
+    expect(screen.getAllByText("50%")).toHaveLength(1)
 
     act(() => {
       const current = useLiveStore.getState()
@@ -304,7 +287,6 @@ it.each(["steering", "device"] as const)(
 
     expect(screen.queryByText("50%")).toBeNull()
     expect(screen.getAllByText("Controller fault")).toHaveLength(2)
-    expect(screen.getByText("Unavailable")).toBeTruthy()
   }
 )
 

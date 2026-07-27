@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { CarOverview } from "@/components/car-overview"
+import { CarDrive } from "@/components/car-drive"
 
 export const Route = createFileRoute("/car/")({
-  component: CarOverview,
+  component: CarDrive,
 })
