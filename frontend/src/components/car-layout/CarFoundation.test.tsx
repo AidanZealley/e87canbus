@@ -3,7 +3,6 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 import { DropletIcon } from "lucide-react"
 import { afterEach, expect, it } from "vitest"
 
-import { DeviceStatusFooter } from "@/components/device-status-footer"
 import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { RpmBar } from "@/components/rpm-bar"
 import { TelemetryValue } from "@/components/telemetry-value"
@@ -154,37 +153,4 @@ it("shows cold below OT, centers OT, and holds the bar below its useful range", 
       .getByRole("progressbar", { name: "Warm oil position" })
       .className.includes("bg-emerald-500")
   ).toBe(false)
-})
-
-it("does not render disabled or not-found registry entries", () => {
-  render(<DeviceStatusFooter entries={[]} />)
-
-  const footer = screen.getByRole("contentinfo", { name: "Device status" })
-  expect(within(footer).queryByText("Button pad")).toBeNull()
-  expect(within(footer).queryByText("Unavailable")).toBeNull()
-})
-
-it("does not present physical desired state as an observation", () => {
-  const { container } = render(
-    <DeviceStatusFooter
-      entries={[
-        {
-          role: "button_pad",
-          label: "Button pad",
-          device_id: 1,
-          source_mode: "physical",
-          status: "stale",
-          protocol_version: 1,
-          device_session_id: 1,
-          last_status_code: null,
-          last_transition_monotonic_s: null,
-        },
-      ]}
-    />
-  )
-
-  expect(screen.getByText("physical")).toBeTruthy()
-  expect(screen.getByText(/contact lost/)).toBeTruthy()
-  expect(container.querySelector(".bg-amber-500")).toBeTruthy()
-  expect(container.querySelector(".bg-emerald-500")).toBeNull()
 })

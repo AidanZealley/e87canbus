@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
@@ -25,12 +26,16 @@ import type {
   SteeringCurveDefinition,
 } from "@/api/live-contract.gen"
 import { CarDrive } from "@/components/car-drive"
-import { CarSettingsForm } from "@/components/car-settings-form"
+import { CarSettings } from "@/components/car-settings"
 import { CarSteeringEditor } from "@/components/car-steering-editor"
 import { ThemeProvider } from "@/components/theme-provider"
 import { DEFAULT_APPLICATION_SETTINGS } from "@/lib/application-settings"
 import { useLiveStore } from "@/live/live-store"
 import { snapshot } from "@/live/test-fixtures"
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
 
 vi.mock("@/components/steering-curve-editor/components/curve-chart", () => ({
   CurveChart: ({
@@ -170,6 +175,9 @@ const prepareLiveState = () => {
   }
   useLiveStore.getState().applySnapshot(value)
 }
+
+const settingsSlider = (name: string) =>
+  document.querySelector(`input[aria-label="${name}"]`) as HTMLInputElement
 
 const settingsAt = (
   revision: number,
@@ -351,13 +359,14 @@ it("keeps the curve visible but disables controls while the controller is stale"
   ).toBe(true)
 })
 
-it("loads settings only from authority and saves one canonical document", async () => {
+it("edits settings only from authority and writes one canonical document per change", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(() => new Promise<Response>(() => {}))
   )
-  const unavailable = renderScreen(<CarSettingsForm />, { settings: null })
-  expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull()
+  const unavailable = renderScreen(<CarSettings />, { settings: null })
+  expect(screen.getByText("Loading current settings…")).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "km/h" })).toBeNull()
   unavailable.unmount()
 
   const requests: Record<string, unknown>[] = []
@@ -369,23 +378,50 @@ it("loads settings only from authority and saves one canonical document", async 
       return jsonResponse(settingsAt(2, body))
     })
   )
-  renderScreen(<CarSettingsForm />)
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Oil warning (°C)" }),
-    { target: { value: "124.5" } }
-  )
-  fireEvent.click(screen.getByRole("button", { name: "Save settings" }))
-  await screen.findByText("Saved revision 2")
+  renderScreen(<CarSettings />)
+  fireEvent.click(screen.getByRole("button", { name: "km/h" }))
+
+  expect(await screen.findByText("Revision 2")).toBeTruthy()
   expect(requests).toHaveLength(1)
   expect(requests[0]).toMatchObject({
     expected_revision: 1,
+    speed_unit: "kmh",
     oil_operating_c: 110,
-    oil_warning_c: 124.5,
-    coolant_operating_c: 95,
+    oil_warning_c: 125,
     coolant_critical_c: 120,
     redline_rpm: 7200,
   })
   expect(Object.keys(requests[0] ?? {})).toHaveLength(12)
+})
+
+it("bounds a temperature slider by its neighbours and writes the released value", async () => {
+  const requests: Record<string, unknown>[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = await requestBody(input, init)
+      requests.push(body)
+      return jsonResponse(settingsAt(2, body))
+    })
+  )
+  renderScreen(<CarSettings />)
+  fireEvent.click(screen.getByRole("tab", { name: "Temps" }))
+
+  // The slider's thumb input is visually hidden, so it is addressed directly.
+  const operating = settingsSlider("Oil operating temperature")
+  expect(operating.getAttribute("aria-valuenow")).toBe("110")
+  expect(operating.getAttribute("aria-valuetext")).toBe("110°C")
+  expect(operating.min).toBe("60")
+  expect(operating.max).toBe("124")
+
+  fireEvent.change(operating, { target: { value: "118" } })
+  await waitFor(() => expect(requests).toHaveLength(1))
+  expect(requests[0]).toMatchObject({
+    expected_revision: 1,
+    oil_operating_c: 118,
+    oil_warning_c: 125,
+  })
+  expect(await screen.findByText("Revision 2")).toBeTruthy()
 })
 
 it("keeps theme and retry available after an initial settings load failure", async () => {
@@ -394,24 +430,26 @@ it("keeps theme and retry available after an initial settings load failure", asy
     .mockResolvedValueOnce(jsonResponse({ detail: "unavailable" }, 503))
     .mockResolvedValueOnce(jsonResponse(settingsAt(2)))
   vi.stubGlobal("fetch", fetchMock)
-  renderScreen(<CarSettingsForm />, { settings: null })
+  renderScreen(<CarSettings />, { settings: null })
 
   expect(
-    await screen.findByText("Current settings unavailable. Saving is disabled.")
+    await screen.findByText(
+      "Current settings unavailable. Editing is disabled."
+    )
   ).toBeTruthy()
-  expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull()
-  fireEvent.click(screen.getByRole("button", { name: "Choose color theme" }))
-  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }))
+  fireEvent.click(screen.getByRole("tab", { name: "System" }))
+  fireEvent.click(await screen.findByRole("button", { name: "Dark" }))
   await waitFor(() =>
     expect(document.documentElement.classList.contains("dark")).toBe(true)
   )
 
+  fireEvent.click(screen.getByRole("tab", { name: "Units" }))
   fireEvent.click(screen.getByRole("button", { name: "Retry settings" }))
-  expect(await screen.findByText("Loaded revision 2")).toBeTruthy()
+  expect(await screen.findByText("Revision 2")).toBeTruthy()
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
-it("retains a conflicting settings draft until reload is confirmed", async () => {
+it("reloads the authoritative document when a write conflicts", async () => {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) =>
       requestMethod(input, init) === "PUT"
@@ -425,27 +463,30 @@ it("retains a conflicting settings draft until reload is confirmed", async () =>
             },
             409
           )
-        : jsonResponse(settingsAt(2, { oil_warning_c: 126 }))
+        : jsonResponse(settingsAt(2, { speed_unit: "kmh" }))
   )
   vi.stubGlobal("fetch", fetchMock)
-  renderScreen(<CarSettingsForm />)
-  const oil = screen.getByRole("spinbutton", { name: "Oil warning (°C)" })
-  fireEvent.change(oil, { target: { value: "124" } })
-  fireEvent.click(screen.getByRole("button", { name: "Save settings" }))
+  renderScreen(<CarSettings />)
+  fireEvent.click(screen.getByRole("button", { name: "km/h" }))
 
-  expect(
-    await screen.findByText(/revision 2.*draft was retained/i)
-  ).toBeTruthy()
-  expect(await screen.findByText("Loaded revision 2")).toBeTruthy()
-  expect((oil as HTMLInputElement).value).toBe("124")
-  fireEvent.click(
-    screen.getByRole("button", { name: "Reload Current Settings" })
+  expect(await screen.findByText("Revision 2")).toBeTruthy()
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "km/h" }).getAttribute("aria-pressed")
+    ).toBe("true")
   )
-  fireEvent.click(screen.getByRole("button", { name: "Keep draft" }))
-  expect((oil as HTMLInputElement).value).toBe("124")
-  fireEvent.click(
-    screen.getByRole("button", { name: "Reload Current Settings" })
+})
+
+it("shows observed device state as tiles in the devices group", () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => new Promise<Response>(() => {}))
   )
-  fireEvent.click(screen.getByRole("button", { name: "Discard and reload" }))
-  await waitFor(() => expect((oil as HTMLInputElement).value).toBe("126"))
+  renderScreen(<CarSettings />)
+  fireEvent.click(screen.getByRole("tab", { name: "Devices" }))
+
+  const devices = screen.getByRole("group", { name: "Device status" })
+  expect(within(devices).getByText("Button pad")).toBeTruthy()
+  expect(within(devices).getByText("Servotronic controller")).toBeTruthy()
+  expect(within(devices).getAllByText("Active").length).toBe(2)
 })

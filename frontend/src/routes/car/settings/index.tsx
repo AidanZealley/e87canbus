@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { CarSettingsForm } from "@/components/car-settings-form"
+import { CarSettings } from "@/components/car-settings"
 
 export const Route = createFileRoute("/car/settings/")({
-  component: CarSettingsForm,
+  component: CarSettings,
 })
