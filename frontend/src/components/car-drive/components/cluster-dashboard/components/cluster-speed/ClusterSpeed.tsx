@@ -34,7 +34,7 @@ export const ClusterSpeed = ({ value, unit }: ClusterSpeedProps) => {
           )}
           {digits}
         </span>
-        <span className="absolute top-full -translate-y-2 right-0 text-[0.65rem] font-medium tracking-[0.25em] text-muted-foreground">
+        <span className="absolute top-full right-0 -translate-y-2 text-[0.65rem] font-medium tracking-[0.25em] text-muted-foreground">
           {unit.toUpperCase()}
         </span>
         {available ? null : <span className="sr-only">Unavailable</span>}

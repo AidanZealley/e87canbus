@@ -110,7 +110,7 @@ export const DriveTemperatureGauge = ({
       </div>
 
       <div className="flex w-full items-center justify-between gap-3">
-        <span className="truncate text-muted-foreground uppercase">
+        <span className="truncate font-semibold text-muted-foreground uppercase">
           {label}
         </span>
         <Badge

@@ -7,6 +7,7 @@ import {
   padSpeedDigits,
   tachNeedlePosition,
   tachSegmentReached,
+  tachSeverityAt,
 } from "./utils"
 
 test("rules the strip in whole thousands past the redline", () => {
@@ -33,18 +34,35 @@ test("keeps a redline on a thousand inside the strip", () => {
   assert.equal(ceilingRpm, 8000)
 })
 
-test("marks every segment the shift stage reaches into", () => {
+test("cautions the shift stages and reserves the limit colour for the redline", () => {
   const { segments } = deriveTachScale({
     redlineRpm: 7200,
     shiftStage1Rpm: 6800,
   })
-
-  assert.deepEqual(
+  const startsAt = (severity: string) =>
     segments
-      .filter((segment) => segment.warn)
-      .map((segment) => segment.startRpm),
-    [6000, 7000]
-  )
+      .filter((segment) => segment.severity === severity)
+      .map((segment) => segment.startRpm)
+
+  assert.deepEqual(startsAt("warn"), [6000])
+  assert.deepEqual(startsAt("critical"), [7000])
+})
+
+test("colours the needle by the stretch it stands in", () => {
+  const { segments } = deriveTachScale({
+    redlineRpm: 7200,
+    shiftStage1Rpm: 6800,
+  })
+  const severity = (rpm: number | null) => tachSeverityAt(rpm, segments)
+
+  assert.equal(severity(3260), "normal")
+  assert.equal(severity(5999), "normal")
+  assert.equal(severity(6000), "warn")
+  assert.equal(severity(6999), "warn")
+  assert.equal(severity(7000), "critical")
+  // Over-range readings stay with the segment the needle clamps to.
+  assert.equal(severity(9999), "critical")
+  assert.equal(severity(null), "normal")
 })
 
 test("lights every segment rule the needle has reached", () => {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { PowerIcon } from "lucide-react"
 import type { EngineState } from "@/api/live-contract.gen"
@@ -18,7 +18,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { TelemetrySlider } from "./TelemetrySlider"
+import {
+  SWEEP_INTERVAL_MS,
+  SWEEP_PERIOD_MS,
+  sweepPhase,
+  sweptValue,
+} from "./utils"
 import {
   COOLANT_MAXIMUM_TEMPERATURE_C,
   OIL_MAXIMUM_TEMPERATURE_C,
@@ -32,6 +40,9 @@ import {
 
 const MIN_SPEED_KPH = 0
 const MAX_SPEED_KPH = 300
+const MIN_RPM = 0
+const MAX_RPM = 9000
+const MIN_TEMPERATURE_C = -40
 
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
@@ -53,6 +64,7 @@ export const SimulatedVehicleControls = ({
   const [coolantTemperature, setCoolantTemperatureDraft] = useState(
     engine.coolant_temperature_c.value ?? settings.coolant_operating_c
   )
+  const [isSweeping, setIsSweeping] = useState(false)
   const speedMutation = useMutation(setVehicleSpeedMutation())
   const rpmMutation = useMutation(setEngineRpmMutation())
   const oilMutation = useMutation(setOilTemperatureMutation())
@@ -69,12 +81,56 @@ export const SimulatedVehicleControls = ({
         setRpm(IDLE_RPM)
         setOilTemperatureDraft(settings.oil_operating_c)
         setCoolantTemperatureDraft(settings.coolant_operating_c)
+      } else {
+        setIsSweeping(false)
       }
     },
   })
 
   const isRunning = speedKph !== null
   const controlsDisabled = carMutation.isPending
+  const sweeping = isSweeping && isRunning
+
+  const { mutate: mutateSpeed } = speedMutation
+  const { mutate: mutateRpm } = rpmMutation
+  const { mutate: mutateOil } = oilMutation
+  const { mutate: mutateCoolant } = coolantMutation
+
+  useEffect(() => {
+    if (!sweeping) return
+
+    const startedAt = Date.now()
+    const interval = window.setInterval(() => {
+      const phase = sweepPhase(Date.now() - startedAt, SWEEP_PERIOD_MS)
+
+      const nextSpeed = sweptValue(MIN_SPEED_KPH, MAX_SPEED_KPH, 1, phase)
+      const nextRpm = sweptValue(MIN_RPM, MAX_RPM, 100, phase)
+      const nextOil = sweptValue(
+        MIN_TEMPERATURE_C,
+        OIL_MAXIMUM_TEMPERATURE_C,
+        1,
+        phase
+      )
+      const nextCoolant = sweptValue(
+        MIN_TEMPERATURE_C,
+        COOLANT_MAXIMUM_TEMPERATURE_C,
+        1,
+        phase
+      )
+
+      setSpeed(nextSpeed)
+      setRpm(nextRpm)
+      setOilTemperatureDraft(nextOil)
+      setCoolantTemperatureDraft(nextCoolant)
+
+      mutateSpeed({ body: { speed_kph: nextSpeed } })
+      mutateRpm({ body: { rpm: nextRpm } })
+      mutateOil({ body: { temperature_c: nextOil } })
+      mutateCoolant({ body: { temperature_c: nextCoolant } })
+    }, SWEEP_INTERVAL_MS)
+
+    return () => window.clearInterval(interval)
+  }, [sweeping, mutateSpeed, mutateRpm, mutateOil, mutateCoolant])
 
   return (
     <Card className="min-w-0">
@@ -98,7 +154,16 @@ export const SimulatedVehicleControls = ({
               {isRunning ? "Stop car" : "Start car"}
             </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="simulated-sweep">Sweep</Label>
+              <Switch
+                id="simulated-sweep"
+                checked={sweeping}
+                disabled={!isRunning || controlsDisabled}
+                onCheckedChange={(checked) => setIsSweeping(checked)}
+              />
+            </div>
             <div>
               <span
                 role="img"
@@ -131,7 +196,12 @@ export const SimulatedVehicleControls = ({
           maximum={MAX_SPEED_KPH}
           step={1}
           value={speed}
-          disabled={!isRunning || controlsDisabled || speedMutation.isPending}
+          disabled={
+            !isRunning ||
+            controlsDisabled ||
+            sweeping ||
+            speedMutation.isPending
+          }
           onValueChange={setSpeed}
           onCommit={(value) => {
             setSpeed(value)
@@ -142,11 +212,13 @@ export const SimulatedVehicleControls = ({
           id="simulated-rpm"
           label="Engine RPM"
           unit="rpm"
-          minimum={0}
-          maximum={9000}
+          minimum={MIN_RPM}
+          maximum={MAX_RPM}
           step={100}
           value={rpm}
-          disabled={!isRunning || controlsDisabled || rpmMutation.isPending}
+          disabled={
+            !isRunning || controlsDisabled || sweeping || rpmMutation.isPending
+          }
           onValueChange={setRpm}
           onCommit={(value) => {
             setRpm(value)
@@ -157,11 +229,13 @@ export const SimulatedVehicleControls = ({
           id="simulated-oil-temperature"
           label="Oil temperature"
           unit="°C"
-          minimum={-40}
+          minimum={MIN_TEMPERATURE_C}
           maximum={OIL_MAXIMUM_TEMPERATURE_C}
           step={1}
           value={oilTemperature}
-          disabled={!isRunning || controlsDisabled || oilMutation.isPending}
+          disabled={
+            !isRunning || controlsDisabled || sweeping || oilMutation.isPending
+          }
           onValueChange={setOilTemperatureDraft}
           onCommit={(value) => {
             setOilTemperatureDraft(value)
@@ -172,11 +246,16 @@ export const SimulatedVehicleControls = ({
           id="simulated-coolant-temperature"
           label="Coolant temperature"
           unit="°C"
-          minimum={-40}
+          minimum={MIN_TEMPERATURE_C}
           maximum={COOLANT_MAXIMUM_TEMPERATURE_C}
           step={1}
           value={coolantTemperature}
-          disabled={!isRunning || controlsDisabled || coolantMutation.isPending}
+          disabled={
+            !isRunning ||
+            controlsDisabled ||
+            sweeping ||
+            coolantMutation.isPending
+          }
           onValueChange={setCoolantTemperatureDraft}
           onCommit={(value) => {
             setCoolantTemperatureDraft(value)

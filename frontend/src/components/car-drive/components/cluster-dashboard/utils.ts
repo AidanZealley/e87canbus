@@ -1,5 +1,12 @@
 export const TACH_SEGMENT_RPM = 1000
 
+/**
+ * How hard a stretch of the strip reads: the run up to the shift stages is
+ * plain, the shift stages themselves are a caution, and only the stretch
+ * carrying the redline is drawn as a limit.
+ */
+export type TachSeverity = "normal" | "warn" | "critical"
+
 export type TachSegment = {
   /** Engine speed this segment begins at. */
   startRpm: number
@@ -8,8 +15,7 @@ export type TachSegment = {
    * segment starting at zero, whose gridline is the edge of the strip.
    */
   label: number | null
-  /** Whether the segment reaches into shift or redline territory. */
-  warn: boolean
+  severity: TachSeverity
 }
 
 export type TachScale = {
@@ -36,18 +42,38 @@ export const deriveTachScale = ({
   )
   const segments = Array.from(
     { length: ceilingRpm / TACH_SEGMENT_RPM },
-    (_, index) => {
+    (_, index): TachSegment => {
       const startRpm = index * TACH_SEGMENT_RPM
+      const endRpm = startRpm + TACH_SEGMENT_RPM
       return {
         startRpm,
         label: index === 0 ? null : index,
-        // A segment reads as hot once any part of it is past the first shift
-        // stage, so the warning appears while the needle is still approaching.
-        warn: startRpm + TACH_SEGMENT_RPM > shiftStage1Rpm,
+        // A segment takes its colour once any part of it is past the threshold,
+        // so the warning appears while the needle is still approaching.
+        severity:
+          endRpm > redlineRpm
+            ? "critical"
+            : endRpm > shiftStage1Rpm
+              ? "warn"
+              : "normal",
       }
     }
   )
   return { ceilingRpm, segments }
+}
+
+/**
+ * The severity of the stretch the needle is standing in, which the needle and
+ * the swept wash take so the reading is coloured by where it sits on the strip.
+ */
+export const tachSeverityAt = (
+  rpm: number | null,
+  segments: readonly TachSegment[]
+): TachSeverity => {
+  if (rpm === null) return "normal"
+  // Over-range readings stay with the last segment, where the needle clamps.
+  const segment = segments.findLast((candidate) => rpm >= candidate.startRpm)
+  return segment?.severity ?? "normal"
 }
 
 /**

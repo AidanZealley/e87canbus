@@ -1,10 +1,12 @@
 import type { RpmPresentation } from "@/components/car-layout/car-ui"
 import { cn } from "@/lib/utils"
+import type { TachSeverity } from "../../utils"
 import {
   deriveTachScale,
   padRpmDigits,
   tachNeedlePosition,
   tachSegmentReached,
+  tachSeverityAt,
 } from "../../utils"
 
 type ClusterTachometerProps = RpmPresentation & {
@@ -18,6 +20,46 @@ const stageLabel: Record<RpmPresentation["stage"], string> = {
   stage_2: "Shift stage 2",
   redline: "Redline",
   unavailable: "Unavailable",
+}
+
+/**
+ * The strip is drawn in three tones: plain to the shift stages, amber across
+ * them, and the limit colour only over the stretch carrying the redline.
+ */
+const segmentRuleTone: Record<TachSeverity, string> = {
+  normal: "bg-foreground/25",
+  warn: "bg-amber-500/40",
+  critical: "bg-destructive/40",
+}
+
+const reachedSegmentRuleTone: Record<TachSeverity, string> = {
+  normal: "bg-foreground",
+  warn: "bg-amber-500",
+  critical: "bg-destructive",
+}
+
+const segmentLabelTone: Record<TachSeverity, string> = {
+  normal: "text-foreground",
+  warn: "text-amber-500",
+  critical: "text-destructive",
+}
+
+const staffRuleTone: Record<TachSeverity, string> = {
+  normal: "text-foreground/10",
+  warn: "text-amber-500/20",
+  critical: "text-destructive/20",
+}
+
+const washTone: Record<TachSeverity, string> = {
+  normal: "text-foreground/30",
+  warn: "text-amber-500/45",
+  critical: "text-destructive/45",
+}
+
+const needleTone: Record<TachSeverity, string> = {
+  normal: "bg-foreground",
+  warn: "bg-amber-500",
+  critical: "bg-destructive",
 }
 
 /**
@@ -38,6 +80,9 @@ export const ClusterTachometer = ({
   })
   const position = available ? tachNeedlePosition(rpm, ceilingRpm) : 0
   const hot = stage === "stage_2" || stage === "redline"
+  // The needle and the wash behind it take the colour of the stretch they are
+  // standing in, so the reading matches the strip it is read against.
+  const needleSeverity = available ? tachSeverityAt(rpm, segments) : "normal"
   const { pad, digits } = padRpmDigits(available ? rpm : null, ceilingRpm)
 
   return (
@@ -69,7 +114,7 @@ export const ClusterTachometer = ({
             className={cn(
               "absolute top-1 bottom-1 left-0 w-screen",
               "bg-[radial-gradient(currentColor_1px,transparent_1px)] bg-size-[4px_4px]",
-              hot ? "text-destructive/45" : "text-foreground/30"
+              washTone[needleSeverity]
             )}
           />
         </div>
@@ -79,7 +124,7 @@ export const ClusterTachometer = ({
             A flex gap here would spend width the needle knows nothing about,
             walking the gridlines away from it across the strip. */}
         <div aria-hidden="true" className="absolute inset-0 flex">
-          {segments.map(({ startRpm, label, warn }) => {
+          {segments.map(({ startRpm, label, severity }) => {
             // Each rule comes up to full strength as the needle reaches its
             // thousand, so the strip fills in sections behind the needle.
             const reached = available && tachSegmentReached(rpm, startRpm)
@@ -93,16 +138,16 @@ export const ClusterTachometer = ({
                 >
                   <span
                     className={cn(
-                      "absolute inset-x-0 top-0 h-px bg-foreground/25 motion-safe:transition-colors",
-                      warn && "bg-destructive/40",
-                      reached && "bg-foreground",
-                      reached && warn && "bg-destructive"
+                      "absolute inset-x-0 top-0 h-px motion-safe:transition-colors",
+                      segmentRuleTone[severity],
+                      reached && "h-0.5",
+                      reached && reachedSegmentRuleTone[severity]
                     )}
                   />
                   <span
                     className={cn(
-                      "text-[0.9rem] leading-none font-medium tracking-widest text-foreground",
-                      warn && "text-destructive"
+                      "leading-none font-semibold tracking-widest",
+                      segmentLabelTone[severity]
                     )}
                   >
                     {label ?? ""}
@@ -117,7 +162,7 @@ export const ClusterTachometer = ({
                       "absolute inset-x-0 top-1.5 bottom-1 bg-size-[100%_25%]",
                       "bg-[linear-gradient(to_bottom,currentColor_0_1px,transparent_1px_100%)]",
                       "mask-[linear-gradient(to_bottom,#000,#000_10%,rgba(0,0,0,0.25))]",
-                      warn ? "text-destructive/20" : "text-foreground/10"
+                      staffRuleTone[severity]
                     )}
                   />
                 </div>
@@ -131,8 +176,9 @@ export const ClusterTachometer = ({
           <span
             aria-hidden="true"
             className={cn(
-              "absolute top-0 bottom-0 w-0.5 -translate-x-1/2 bg-foreground rounded-full",
+              "absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full",
               "motion-safe:transition-[left] motion-safe:duration-150 motion-safe:ease-out",
+              needleTone[needleSeverity],
               stage === "redline" && "motion-safe:animate-shift-strobe"
             )}
             style={{ left: `${position * 100}%` }}

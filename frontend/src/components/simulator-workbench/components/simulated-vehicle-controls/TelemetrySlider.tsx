@@ -39,7 +39,7 @@ export const TelemetrySlider = ({
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3">
         <Label id={labelId}>{label}</Label>
-        <output className="text-sm tabular-nums text-muted-foreground">
+        <output className="text-sm text-muted-foreground tabular-nums">
           {controlledValue} {unit}
         </output>
       </div>

@@ -39,7 +39,7 @@ export const ClusterDashboard = () => {
 
       {/* One banked instrument panel rather than widgets pushed to the edges:
           the tell-tales, the strip and the readouts stay together. */}
-      <div className="mx-auto flex w-full max-w-[90rem] flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-360 flex-col gap-6">
         <IndicatorLights
           connected={connected}
           highBeamEnabled={lighting.high_beam_enabled}
