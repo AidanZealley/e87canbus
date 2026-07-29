@@ -255,6 +255,33 @@ it("masks all drive live observations after disconnect", () => {
   expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0)
 })
 
+it("keeps driving on a dashboard choice this build does not know", () => {
+  renderScreen(<CarDrive />, {
+    settings: settingsAt(1, { dashboard_id: "from-a-newer-build" }),
+  })
+
+  expect(screen.getAllByText("126").length).toBeGreaterThan(0)
+})
+
+it("shows the persisted dashboard choice without writing on open", async () => {
+  const requests: Record<string, unknown>[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = await requestBody(input, init)
+      requests.push(body)
+      return jsonResponse(settingsAt(2, body))
+    })
+  )
+  renderScreen(<CarSettings />)
+  fireEvent.click(screen.getByRole("tab", { name: "Display" }))
+
+  expect(
+    screen.getByRole("button", { name: "Classic" }).getAttribute("aria-pressed")
+  ).toBe("true")
+  expect(requests).toHaveLength(0)
+})
+
 it.each(["steering", "device"] as const)(
   "makes steering views unavailable for a %s adapter fault",
   (faultSource) => {
@@ -393,7 +420,7 @@ it("edits settings only from authority and writes one canonical document per cha
     coolant_critical_c: 120,
     redline_rpm: 7200,
   })
-  expect(Object.keys(requests[0] ?? {})).toHaveLength(12)
+  expect(Object.keys(requests[0] ?? {})).toHaveLength(13)
 })
 
 it("bounds a temperature slider by its neighbours and writes the released value", async () => {

@@ -289,6 +289,11 @@ export const zApplicationSettingsResponse = z.object({
   coolant_critical_c: z.number(),
   coolant_operating_c: z.number(),
   coolant_warning_c: z.number(),
+  dashboard_id: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   oil_critical_c: z.number(),
   oil_operating_c: z.number(),
   oil_warning_c: z.number(),
@@ -453,6 +458,11 @@ export const zUpdateApplicationSettingsRequest = z.object({
   coolant_critical_c: z.number().gte(-40).lte(250),
   coolant_operating_c: z.number().gte(-40).lte(250),
   coolant_warning_c: z.number().gte(-40).lte(250),
+  dashboard_id: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   expected_revision: z.int().gte(1),
   oil_critical_c: z.number().gte(-40).lte(250),
   oil_operating_c: z.number().gte(-40).lte(250),

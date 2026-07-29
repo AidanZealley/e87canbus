@@ -26,6 +26,7 @@ def test_default_settings_are_valid_stable_and_have_no_theme() -> None:
             shift_stage_1_rpm=6800,
             shift_stage_2_rpm=7000,
             redline_rpm=7200,
+            dashboard_id="classic",
             updated_at="1970-01-01T00:00:00.000000Z",
         )
         == DEFAULT_APPLICATION_SETTINGS
@@ -109,6 +110,31 @@ def test_rpm_values_must_be_ordinary_integers_in_range(field_name: str, value: o
 def test_rpm_stages_are_strictly_ordered(changes: dict[str, int]) -> None:
     with pytest.raises(ValueError, match="shift_stage_1_rpm"):
         replace(DEFAULT_APPLICATION_SETTINGS.editable_values(), **changes)
+
+
+@pytest.mark.parametrize(
+    "dashboard_id",
+    ["classic", "minimal", "night-mode", "track-day-2", "a" * 64],
+)
+def test_any_well_formed_dashboard_id_is_accepted(dashboard_id: str) -> None:
+    """The dashboard catalog belongs to the display: the domain checks shape only.
+
+    Adding a dashboard to the frontend must never require a coordinator change,
+    so identifiers the coordinator has never heard of are stored as given.
+    """
+
+    updated = replace(DEFAULT_APPLICATION_SETTINGS, dashboard_id=dashboard_id)
+
+    assert updated.dashboard_id == dashboard_id
+
+
+@pytest.mark.parametrize(
+    "dashboard_id",
+    ["", "Classic", "night mode", "night_mode", "-classic", "classic-", "a" * 65, None, 1],
+)
+def test_malformed_dashboard_id_is_rejected(dashboard_id: object) -> None:
+    with pytest.raises(ValueError, match="dashboard_id"):
+        replace(DEFAULT_APPLICATION_SETTINGS, dashboard_id=dashboard_id)
 
 
 @pytest.mark.parametrize("revision", [True, 0, -1, 1.0])

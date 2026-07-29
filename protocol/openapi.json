@@ -166,6 +166,13 @@
             "title": "Coolant Warning C",
             "type": "number"
           },
+          "dashboard_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Dashboard Id",
+            "type": "string"
+          },
           "oil_critical_c": {
             "title": "Oil Critical C",
             "type": "number"
@@ -219,6 +226,7 @@
           "shift_stage_1_rpm",
           "shift_stage_2_rpm",
           "redline_rpm",
+          "dashboard_id",
           "updated_at"
         ],
         "title": "ApplicationSettingsResponse",
@@ -1169,6 +1177,13 @@
             "title": "Coolant Warning C",
             "type": "number"
           },
+          "dashboard_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Dashboard Id",
+            "type": "string"
+          },
           "expected_revision": {
             "minimum": 1.0,
             "title": "Expected Revision",
@@ -1239,7 +1254,8 @@
           "coolant_critical_c",
           "shift_stage_1_rpm",
           "shift_stage_2_rpm",
-          "redline_rpm"
+          "redline_rpm",
+          "dashboard_id"
         ],
         "title": "UpdateApplicationSettingsRequest",
         "type": "object"

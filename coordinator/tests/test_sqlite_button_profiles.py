@@ -42,6 +42,7 @@ from e87canbus.domain.revisioned_profiles import (
     StoredProfileDataError,
 )
 from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb, SteeringMode
+from migration_test_support import rewind_application_database
 
 NOW = datetime(2026, 7, 24, 12, tzinfo=UTC)
 IDENTIFIER = UUID("12345678-1234-4678-9234-567812345678")
@@ -84,7 +85,7 @@ def test_v6_upgrade_selects_first_profile_when_builtin_is_absent(tmp_path: Path)
     with sqlite3.connect(path) as connection:
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("DROP TABLE selected_button_profile")
-        connection.execute("DELETE FROM schema_migrations WHERE version>=7")
+        rewind_application_database(connection, 6)
         connection.execute(
             "DELETE FROM button_profiles WHERE profile_id=?",
             (BUILT_IN_BUTTON_PROFILE_ID,),
@@ -116,7 +117,7 @@ def test_v7_upgrade_normalizes_existing_animation_durations_to_medium(
         + (None,) * 14
     )
     with sqlite3.connect(path) as connection:
-        connection.execute("DELETE FROM schema_migrations WHERE version=8")
+        rewind_application_database(connection, 7)
         connection.execute(
             """
             UPDATE button_profiles

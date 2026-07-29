@@ -110,6 +110,10 @@ export type ApplicationSettingsResponse = {
    */
   coolant_warning_c: number
   /**
+   * Dashboard Id
+   */
+  dashboard_id: string
+  /**
    * Oil Critical C
    */
   oil_critical_c: number
@@ -764,6 +768,10 @@ export type UpdateApplicationSettingsRequest = {
    * Coolant Warning C
    */
   coolant_warning_c: number
+  /**
+   * Dashboard Id
+   */
+  dashboard_id: string
   /**
    * Expected Revision
    */

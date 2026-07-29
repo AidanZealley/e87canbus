@@ -20,12 +20,14 @@ from e87canbus.domain.settings.repository import (
 )
 from e87canbus.domain.settings.values import (
     DEFAULT_APPLICATION_SETTINGS,
+    DEFAULT_DASHBOARD_ID,
     SpeedUnit,
 )
 from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     canonical_steering_curve_bytes,
 )
+from migration_test_support import rewind_application_database
 
 NOW = datetime(2026, 7, 14, 12, 30, tzinfo=UTC)
 
@@ -155,6 +157,25 @@ def test_round_trip_increments_once_and_uses_one_new_timestamp(tmp_path: Path) -
     assert settings.get_settings() == updated
 
 
+def test_dashboard_choice_round_trips_and_upgrades_to_the_default(tmp_path: Path) -> None:
+    path = tmp_path / "application.sqlite3"
+    database, _, settings = repositories(path)
+    database.initialize()
+    with sqlite3.connect(path) as connection:
+        rewind_application_database(connection, 8)
+    database.initialize()
+
+    assert settings.get_settings().dashboard_id == DEFAULT_DASHBOARD_ID
+
+    chosen = settings.update_settings(
+        1,
+        replace(DEFAULT_APPLICATION_SETTINGS.editable_values(), dashboard_id="never-heard-of-it"),
+    )
+
+    assert settings.get_settings() == chosen
+    assert chosen.dashboard_id == "never-heard-of-it"
+
+
 def test_stale_writer_loses_and_newer_data_remains(tmp_path: Path) -> None:
     database, _, settings = repositories(tmp_path / "application.sqlite3")
     database.initialize()
@@ -200,6 +221,7 @@ def test_concurrent_same_revision_writers_allow_one_success(tmp_path: Path) -> N
         ("oil_warning_c", 140.0),
         ("oil_operating_c", 140.0),
         ("shift_stage_1_rpm", 6800.5),
+        ("dashboard_id", "Not An Id"),
         ("updated_at_utc", "not-a-timestamp"),
     ],
 )

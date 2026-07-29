@@ -1,6 +1,7 @@
 import {
   CpuIcon,
   GaugeIcon,
+  LayoutDashboardIcon,
   MonitorCogIcon,
   RulerIcon,
   ThermometerIcon,
@@ -9,6 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEffectiveApplicationSettings } from "@/lib/application-settings-query"
 import { DevicesPanel } from "./components/devices-panel"
+import { DisplayPanel } from "./components/display-panel"
 import { SettingsUnavailable } from "./components/settings-unavailable"
 import { ShiftPanel } from "./components/shift-panel"
 import { SystemPanel } from "./components/system-panel"
@@ -21,6 +23,7 @@ const TABS = [
   { value: "units", label: "Units", icon: RulerIcon },
   { value: "temperature", label: "Temps", icon: ThermometerIcon },
   { value: "shift", label: "Shift", icon: GaugeIcon },
+  { value: "display", label: "Display", icon: LayoutDashboardIcon },
   { value: "devices", label: "Devices", icon: CpuIcon },
   { value: "system", label: "System", icon: MonitorCogIcon },
 ] as const
@@ -49,7 +52,7 @@ export const CarSettings = () => {
       aria-labelledby="settings-title"
     >
       <div className="sticky top-0 z-20 grid gap-3 border-b bg-background/95 pt-4 backdrop-blur">
-        <h1 id="settings-title" className="text-lg font-semibold px-4">
+        <h1 id="settings-title" className="px-4 text-lg font-semibold">
           Settings
         </h1>
         <TabsList
@@ -91,6 +94,17 @@ export const CarSettings = () => {
       <TabsContent value="shift" className={PANEL_CLASS}>
         {isAuthoritative ? (
           <ShiftPanel values={values} onCommit={commit} />
+        ) : (
+          unavailable
+        )}
+      </TabsContent>
+
+      <TabsContent value="display" className={PANEL_CLASS}>
+        {isAuthoritative ? (
+          <DisplayPanel
+            values={values}
+            onChange={(patch) => void commit(patch)}
+          />
         ) : (
           unavailable
         )}

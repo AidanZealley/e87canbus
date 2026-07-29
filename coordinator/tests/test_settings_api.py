@@ -34,6 +34,7 @@ def settings_json(settings: ApplicationSettings = DEFAULT_APPLICATION_SETTINGS) 
         "shift_stage_1_rpm": settings.shift_stage_1_rpm,
         "shift_stage_2_rpm": settings.shift_stage_2_rpm,
         "redline_rpm": settings.redline_rpm,
+        "dashboard_id": settings.dashboard_id,
         "updated_at": settings.updated_at,
     }
 
@@ -110,10 +111,33 @@ def test_get_and_put_serialize_complete_authoritative_document() -> None:
     ]
 
 
+def test_unknown_dashboard_id_is_accepted_and_stored() -> None:
+    """The coordinator deliberately holds no list of dashboards.
+
+    Dashboards are a frontend catalog. Constraining this to known identifiers
+    would tie every new dashboard to a coordinator release, so only the shape
+    of the identifier is checked and the display falls back on its own when it
+    does not recognize what was stored.
+    """
+
+    repository = MemorySettingsRepository()
+    app = injected_app(repository)
+    payload = {**update_json(), "dashboard_id": "a-dashboard-shipped-later"}
+
+    with TestClient(app) as client:
+        response = client.put("/api/settings", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["dashboard_id"] == "a-dashboard-shipped-later"
+    assert repository.settings.dashboard_id == "a-dashboard-shipped-later"
+
+
 @pytest.mark.parametrize(
     "change",
     [
         {"speed_unit": "knots"},
+        {"dashboard_id": "Not An Id"},
+        {"dashboard_id": ""},
         {"oil_warning_c": 140.0},
         {"shift_stage_1_rpm": True},
         {"redline_rpm": 7000},

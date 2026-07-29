@@ -25,6 +25,7 @@ const updateRequest: UpdateApplicationSettingsRequest = {
   shift_stage_1_rpm: 6800,
   shift_stage_2_rpm: 7000,
   redline_rpm: 7200,
+  dashboard_id: "classic",
 }
 
 const committedSettings: ApplicationSettingsResponse = {

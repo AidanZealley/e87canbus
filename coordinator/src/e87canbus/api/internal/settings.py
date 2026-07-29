@@ -42,6 +42,7 @@ def candidate_from_request(
             shift_stage_1_rpm=request.shift_stage_1_rpm,
             shift_stage_2_rpm=request.shift_stage_2_rpm,
             redline_rpm=request.redline_rpm,
+            dashboard_id=request.dashboard_id,
         )
     except ValueError as error:
         raise ApiProblem(422, "validation_error", str(error)) from error

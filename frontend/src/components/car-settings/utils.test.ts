@@ -52,7 +52,7 @@ test("clamps and steps an edit so ordering can never be broken", () => {
 test("sends one canonical document with the revision it expects", () => {
   const request = valuesToRequest({ ...values, oilWarningC: 124 }, 3)
 
-  assert.equal(Object.keys(request).length, 12)
+  assert.equal(Object.keys(request).length, 13)
   assert.equal(request.expected_revision, 3)
   assert.equal(request.oil_warning_c, 124)
   assert.equal(request.oil_operating_c, 110)

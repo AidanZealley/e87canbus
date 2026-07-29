@@ -13,5 +13,6 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettingsResponse = {
   shift_stage_1_rpm: 6800,
   shift_stage_2_rpm: 7000,
   redline_rpm: 7200,
+  dashboard_id: "classic",
   updated_at: "1970-01-01T00:00:00.000000Z",
 }

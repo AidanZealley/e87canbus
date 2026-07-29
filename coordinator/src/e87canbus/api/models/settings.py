@@ -1,10 +1,12 @@
 """Application-settings HTTP request and response models."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.domain.settings.values import (
+    DASHBOARD_ID_PATTERN,
+    MAX_DASHBOARD_ID_LENGTH,
     MAX_RPM,
     MAX_TEMPERATURE_C,
     MIN_RPM,
@@ -12,6 +14,16 @@ from e87canbus.domain.settings.values import (
     SpeedUnit,
     TemperatureUnit,
 )
+
+
+# Constrained by shape rather than by a list of known dashboards: the display
+# owns that catalog, so new dashboards ship without touching the coordinator.
+def dashboard_id_field() -> Any:
+    return Field(
+        min_length=1,
+        max_length=MAX_DASHBOARD_ID_LENGTH,
+        pattern=DASHBOARD_ID_PATTERN.pattern,
+    )
 
 
 class UpdateApplicationSettingsRequest(BaseModel):
@@ -29,6 +41,7 @@ class UpdateApplicationSettingsRequest(BaseModel):
     shift_stage_1_rpm: int = Field(ge=MIN_RPM, le=MAX_RPM)
     shift_stage_2_rpm: int = Field(ge=MIN_RPM, le=MAX_RPM)
     redline_rpm: int = Field(ge=MIN_RPM, le=MAX_RPM)
+    dashboard_id: str = dashboard_id_field()
 
 
 class ApplicationSettingsResponse(BaseModel):
@@ -46,4 +59,5 @@ class ApplicationSettingsResponse(BaseModel):
     shift_stage_1_rpm: int
     shift_stage_2_rpm: int
     redline_rpm: int
+    dashboard_id: str = dashboard_id_field()
     updated_at: str

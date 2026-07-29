@@ -15,7 +15,10 @@ from e87canbus.domain.buttons.profiles import (
     canonical_button_profile_bytes,
     decode_button_profile,
 )
-from e87canbus.domain.settings.values import DEFAULT_APPLICATION_SETTINGS
+from e87canbus.domain.settings.values import (
+    DEFAULT_APPLICATION_SETTINGS,
+    DEFAULT_DASHBOARD_ID,
+)
 from e87canbus.domain.steering.curves import (
     BUILT_IN_STEERING_CURVE,
     SteeringCurveDefinition,
@@ -25,7 +28,7 @@ from e87canbus.domain.steering.curves import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 8
+CURRENT_MIGRATION_VERSION = 9
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 BUILT_IN_BUTTON_PROFILE_ID = "00000000-0000-4000-8000-000000000002"
@@ -113,6 +116,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_7(connection)
                 elif version == 8:
                     self._apply_migration_8(connection)
+                elif version == 9:
+                    self._apply_migration_9(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -400,6 +405,15 @@ class SqliteApplicationDatabase:
                 ),
             )
         self._record_migration(connection, 8)
+
+    def _apply_migration_9(self, connection: sqlite3.Connection) -> None:
+        """Persist which dashboard the car display renders, defaulting to today's."""
+
+        connection.execute(
+            "ALTER TABLE application_settings "
+            f"ADD COLUMN dashboard_id TEXT NOT NULL DEFAULT '{DEFAULT_DASHBOARD_ID}'"
+        )
+        self._record_migration(connection, 9)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]

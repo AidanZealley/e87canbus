@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -13,6 +14,15 @@ MAX_TEMPERATURE_C = 250.0
 MIN_RPM = 1000
 MAX_RPM = 12000
 DEFAULT_SETTINGS_UPDATED_AT = "1970-01-01T00:00:00.000000Z"
+
+# The coordinator persists which dashboard the car display renders but never
+# learns which dashboards exist: that catalog belongs to the frontend alone.
+# Only the shape of the identifier is checked here, so adding or removing a
+# dashboard never requires a coordinator change. The display falls back to its
+# own default when it does not recognize the stored identifier.
+DASHBOARD_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MAX_DASHBOARD_ID_LENGTH = 64
+DEFAULT_DASHBOARD_ID = "classic"
 
 
 class SpeedUnit(StrEnum):
@@ -40,6 +50,7 @@ class ApplicationSettingsUpdate:
     shift_stage_1_rpm: int
     shift_stage_2_rpm: int
     redline_rpm: int
+    dashboard_id: str
 
     def __post_init__(self) -> None:
         validate_application_settings_update(self)
@@ -61,6 +72,7 @@ class ApplicationSettings:
     shift_stage_1_rpm: int
     shift_stage_2_rpm: int
     redline_rpm: int
+    dashboard_id: str
     updated_at: str
 
     def __post_init__(self) -> None:
@@ -79,6 +91,7 @@ class ApplicationSettings:
             shift_stage_1_rpm=self.shift_stage_1_rpm,
             shift_stage_2_rpm=self.shift_stage_2_rpm,
             redline_rpm=self.redline_rpm,
+            dashboard_id=self.dashboard_id,
         )
 
 
@@ -125,6 +138,19 @@ def validate_application_settings_update(candidate: ApplicationSettingsUpdate) -
     if not (candidate.shift_stage_1_rpm < candidate.shift_stage_2_rpm < candidate.redline_rpm):
         raise ValueError("shift_stage_1_rpm must be below shift_stage_2_rpm and redline_rpm")
 
+    validate_dashboard_id(candidate.dashboard_id)
+
+
+def validate_dashboard_id(dashboard_id: str) -> None:
+    """Check the identifier's shape only; the dashboard catalog is the display's."""
+
+    if type(dashboard_id) is not str:
+        raise ValueError("dashboard_id must be a string")
+    if len(dashboard_id) > MAX_DASHBOARD_ID_LENGTH:
+        raise ValueError(f"dashboard_id must be at most {MAX_DASHBOARD_ID_LENGTH} characters")
+    if DASHBOARD_ID_PATTERN.fullmatch(dashboard_id) is None:
+        raise ValueError("dashboard_id must be lowercase alphanumeric words separated by hyphens")
+
 
 def validate_application_settings(settings: ApplicationSettings) -> None:
     if type(settings.revision) is not int or settings.revision < 1:
@@ -151,5 +177,6 @@ DEFAULT_APPLICATION_SETTINGS = ApplicationSettings(
     shift_stage_1_rpm=6800,
     shift_stage_2_rpm=7000,
     redline_rpm=7200,
+    dashboard_id=DEFAULT_DASHBOARD_ID,
     updated_at=DEFAULT_SETTINGS_UPDATED_AT,
 )

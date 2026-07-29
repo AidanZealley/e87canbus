@@ -25,6 +25,7 @@ export const settingsToValues = (
   shiftStage1Rpm: settings.shift_stage_1_rpm,
   shiftStage2Rpm: settings.shift_stage_2_rpm,
   redlineRpm: settings.redline_rpm,
+  dashboardId: settings.dashboard_id,
 })
 
 export const valuesToRequest = (
@@ -43,6 +44,7 @@ export const valuesToRequest = (
   shift_stage_1_rpm: values.shiftStage1Rpm,
   shift_stage_2_rpm: values.shiftStage2Rpm,
   redline_rpm: values.redlineRpm,
+  dashboard_id: values.dashboardId,
 })
 
 /**

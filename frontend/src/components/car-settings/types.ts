@@ -13,6 +13,8 @@ export type ApplicationSettingsValues = {
   shiftStage1Rpm: number
   shiftStage2Rpm: number
   redlineRpm: number
+  /** An opaque dashboard identifier; the catalog lives in the frontend. */
+  dashboardId: string
 }
 
 export type TemperatureField =

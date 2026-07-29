@@ -81,7 +81,7 @@ export const DriveTemperatureGauge = ({
               "flex shrink-0 items-baseline gap-1 leading-none font-medium tabular-nums"
             )}
           >
-            <span className="text-4xl">{available ? value : "-"}</span>
+            <span className="text-3xl">{available ? value : "-"}</span>
             {available ? (
               <span className="text-sm font-medium">{unit}</span>
             ) : null}
@@ -97,7 +97,7 @@ export const DriveTemperatureGauge = ({
               : displayStatus
           }
           className={cn(
-            "gap-0 **:data-[slot=progress-indicator]:bg-foreground/70 **:data-[slot=progress-track]:h-1.5 **:data-[slot=progress-track]:bg-muted/60",
+            "gap-0 **:data-[slot=progress-indicator]:bg-foreground/70 **:data-[slot=progress-track]:h-1 **:data-[slot=progress-track]:bg-muted/60",
             belowOperatingTemperature &&
               "**:data-[slot=progress-indicator]:bg-blue-500",
             severity === "warning" &&
@@ -110,7 +110,7 @@ export const DriveTemperatureGauge = ({
       </div>
 
       <div className="flex w-full items-center justify-between gap-3">
-        <span className="truncate text-lg font-semibold text-muted-foreground uppercase">
+        <span className="truncate text-muted-foreground uppercase">
           {label}
         </span>
         <Badge

@@ -83,7 +83,7 @@ class SqliteApplicationSettingsRepository:
                     oil_operating_c = ?, oil_warning_c = ?, oil_critical_c = ?,
                     coolant_operating_c = ?, coolant_warning_c = ?, coolant_critical_c = ?,
                     shift_stage_1_rpm = ?, shift_stage_2_rpm = ?, redline_rpm = ?,
-                    updated_at_utc = ?
+                    dashboard_id = ?, updated_at_utc = ?
                 WHERE singleton_id = 1 AND revision = ?
                 """,
                 (
@@ -98,6 +98,7 @@ class SqliteApplicationSettingsRepository:
                     candidate.shift_stage_1_rpm,
                     candidate.shift_stage_2_rpm,
                     candidate.redline_rpm,
+                    candidate.dashboard_id,
                     timestamp,
                     expected_revision,
                 ),
@@ -147,6 +148,7 @@ class SqliteApplicationSettingsRepository:
                 shift_stage_1_rpm=row["shift_stage_1_rpm"],
                 shift_stage_2_rpm=row["shift_stage_2_rpm"],
                 redline_rpm=row["redline_rpm"],
+                dashboard_id=row["dashboard_id"],
                 updated_at=row["updated_at_utc"],
             )
         except (KeyError, TypeError, ValueError) as error:
