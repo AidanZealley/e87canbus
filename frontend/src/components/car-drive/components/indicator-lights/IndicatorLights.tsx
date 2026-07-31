@@ -19,7 +19,7 @@ type IndicatorLightsProps = {
   highBeamEnabled: boolean
 }
 
-const DORMANT = "size-6 text-muted-foreground/20"
+const DORMANT = "size-8 text-muted-foreground/20"
 
 /**
  * The tell-tale strip, shared by every dashboard so the lamps sit in one
@@ -44,7 +44,7 @@ export const IndicatorLights = ({
         <HighBeam
           aria-label={highBeamOn ? "High beam on" : "High beam off"}
           className={cn(
-            "size-6 transition-colors",
+            "size-8 transition-colors",
             highBeamOn ? "text-blue-500" : "text-muted-foreground/20"
           )}
         />
