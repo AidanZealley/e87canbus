@@ -120,6 +120,12 @@ through the kernel before dispatching the timer.
 `POST /api/dev/simulation/vehicle/speed/silence` clears the selection; subsequent timers emit no
 speed frame until another speed is set.
 
+`PUT /api/dev/simulation/vehicle/sweep` with `{"enabled": true}` starts a virtual-car-owned sweep
+of speed, RPM, oil temperature, and coolant temperature. The source evaluates a continuous cosine
+curve against monotonic simulator time on every 100 ms owner tick and emits all four CAN frames;
+the browser sends only the mode change. Setting `enabled` to `false` holds the last values, while
+an explicit set or silence command also ends the sweep and takes ownership of the selected signals.
+
 The closed `bench` profile overrides only synthetic speed to K-CAN and transmits each initial and
 refreshed frame onto physical `can0`. This lets a one-interface Servotronic prototype consume the
 same synthetic frame while preserving the more representative F-CAN default for the in-memory

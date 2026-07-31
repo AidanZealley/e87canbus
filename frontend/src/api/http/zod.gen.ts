@@ -535,6 +535,13 @@ export const zApiProblemResponse = z.object({
 })
 
 /**
+ * VehicleSweepRequest
+ */
+export const zVehicleSweepRequest = z.object({
+  enabled: z.boolean(),
+})
+
+/**
  * Successful Response
  */
 export const zGetSavedButtonProfileResponse = zButtonProfileResponse
@@ -709,6 +716,13 @@ export const zSetVehicleSpeedResponse = zSimulationCommandAcknowledgement
  * Successful Response
  */
 export const zSilenceVehicleSpeedResponse = zSimulationCommandAcknowledgement
+
+export const zSetVehicleSweepBody = zVehicleSweepRequest
+
+/**
+ * Successful Response
+ */
+export const zSetVehicleSweepResponse = zSimulationCommandAcknowledgement
 
 /**
  * Successful Response

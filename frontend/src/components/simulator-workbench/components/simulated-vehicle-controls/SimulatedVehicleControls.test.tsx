@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   silenceOilTemperature: vi.fn(),
   setCoolantTemperature: vi.fn(),
   silenceCoolantTemperature: vi.fn(),
+  setVehicleSweep: vi.fn(),
 }))
 
 vi.mock("@/api/http/sdk.gen", async (importOriginal) => ({
@@ -121,34 +122,21 @@ it("commits a slider value without a separate set action", async () => {
   )
 })
 
-it("sweeps every simulated value while the sweep switch is on", async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true })
-  try {
-    renderControls(0)
+it("delegates sweeping to the virtual car", async () => {
+  renderControls(0)
 
-    fireEvent.click(screen.getByRole("switch", { name: "Sweep" }))
-    await vi.advanceTimersByTimeAsync(3000)
+  fireEvent.click(screen.getByRole("switch", { name: "Sweep" }))
 
-    await waitFor(() => {
-      expect(api.setVehicleSpeed).toHaveBeenCalled()
-      expect(api.setEngineRpm).toHaveBeenCalled()
-      expect(api.setOilTemperature).toHaveBeenCalled()
-      expect(api.setCoolantTemperature).toHaveBeenCalled()
+  await waitFor(() =>
+    expect(api.setVehicleSweep).toHaveBeenCalledWith({
+      body: { enabled: true },
+      throwOnError: true,
     })
-
-    const sweptSpeeds = api.setVehicleSpeed.mock.calls.map(
-      (call) => call[0].body.speed_kph
-    )
-    expect(Math.max(...sweptSpeeds)).toBeGreaterThan(Math.min(...sweptSpeeds))
-
-    fireEvent.click(screen.getByRole("switch", { name: "Sweep" }))
-    const callsAfterStop = api.setVehicleSpeed.mock.calls.length
-    await vi.advanceTimersByTimeAsync(3000)
-
-    expect(api.setVehicleSpeed.mock.calls.length).toBe(callsAfterStop)
-  } finally {
-    vi.useRealTimers()
-  }
+  )
+  expect(api.setVehicleSpeed).not.toHaveBeenCalled()
+  expect(api.setEngineRpm).not.toHaveBeenCalled()
+  expect(api.setOilTemperature).not.toHaveBeenCalled()
+  expect(api.setCoolantTemperature).not.toHaveBeenCalled()
 })
 
 it("shows the observed virtual-car high-beam indicator", () => {

@@ -340,6 +340,23 @@ def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     assert snapshot.application.speed_valid is True
 
 
+def test_vehicle_sweep_command_starts_all_virtual_car_signals(client: TestClient) -> None:
+    response = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": True})
+
+    assert response.status_code == 200
+    application = client.app.state.controller_loop.snapshot().application
+    assert application.vehicle_speed_kph == 0.0
+    assert application.engine.rpm.value == 0
+    assert application.engine.oil_temperature_c.value == -40.0
+    assert application.engine.coolant_temperature_c.value == -40.0
+
+    stopped = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": False})
+    invalid = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": 1})
+
+    assert stopped.status_code == 200
+    assert invalid.status_code == 422
+
+
 def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
     response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0})
 

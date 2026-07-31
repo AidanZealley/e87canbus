@@ -7,9 +7,11 @@ from e87canbus.runners.simulation.api.models.vehicle import (
     EngineRpmRequest,
     SpeedRequest,
     TemperatureRequest,
+    VehicleSweepRequest,
 )
 from e87canbus.runners.simulation.commands import (
     SetVehicleSignal,
+    SetVehicleSweep,
     SilenceVehicleSignal,
 )
 from e87canbus.runners.simulation.signals import VehicleSignal
@@ -18,6 +20,17 @@ router = APIRouter(
     prefix="/api/dev/simulation/vehicle",
     tags=["development simulation: vehicle"],
 )
+
+
+@router.put(
+    "/sweep",
+    operation_id="setVehicleSweep",
+    responses=api_problem_responses(409, 422, 503),
+)
+async def set_vehicle_sweep(
+    request: Request, body: VehicleSweepRequest
+) -> SimulationCommandAcknowledgement:
+    return await run_command(request.app, SetVehicleSweep(body.enabled))
 
 
 @router.put(

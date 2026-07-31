@@ -29,3 +29,9 @@ class TemperatureRequest(EngineTelemetryRequest):
         StrictFloat,
         Field(ge=MIN_SIMULATED_TEMPERATURE_C, le=MAX_SIMULATED_TEMPERATURE_C),
     ]
+
+
+class VehicleSweepRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    enabled: bool

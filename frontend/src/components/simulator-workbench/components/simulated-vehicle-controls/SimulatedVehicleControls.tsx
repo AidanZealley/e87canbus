@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { PowerIcon } from "lucide-react"
 import type { EngineState } from "@/api/live-contract.gen"
@@ -7,6 +7,7 @@ import {
   setCoolantTemperatureMutation,
   setEngineRpmMutation,
   setOilTemperatureMutation,
+  setVehicleSweepMutation,
   setVehicleSpeedMutation,
 } from "@/api/http/@tanstack/react-query.gen"
 import { Button } from "@/components/ui/button"
@@ -21,12 +22,6 @@ import {
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { TelemetrySlider } from "./TelemetrySlider"
-import {
-  SWEEP_INTERVAL_MS,
-  SWEEP_PERIOD_MS,
-  sweepPhase,
-  sweptValue,
-} from "./utils"
 import {
   COOLANT_MAXIMUM_TEMPERATURE_C,
   OIL_MAXIMUM_TEMPERATURE_C,
@@ -69,6 +64,7 @@ export const SimulatedVehicleControls = ({
   const rpmMutation = useMutation(setEngineRpmMutation())
   const oilMutation = useMutation(setOilTemperatureMutation())
   const coolantMutation = useMutation(setCoolantTemperatureMutation())
+  const sweepMutation = useMutation(setVehicleSweepMutation())
   const carMutation = useMutation({
     mutationFn: (running: boolean) =>
       setSimulatedVehicleRunning(running, {
@@ -88,49 +84,8 @@ export const SimulatedVehicleControls = ({
   })
 
   const isRunning = speedKph !== null
-  const controlsDisabled = carMutation.isPending
+  const controlsDisabled = carMutation.isPending || sweepMutation.isPending
   const sweeping = isSweeping && isRunning
-
-  const { mutate: mutateSpeed } = speedMutation
-  const { mutate: mutateRpm } = rpmMutation
-  const { mutate: mutateOil } = oilMutation
-  const { mutate: mutateCoolant } = coolantMutation
-
-  useEffect(() => {
-    if (!sweeping) return
-
-    const startedAt = Date.now()
-    const interval = window.setInterval(() => {
-      const phase = sweepPhase(Date.now() - startedAt, SWEEP_PERIOD_MS)
-
-      const nextSpeed = sweptValue(MIN_SPEED_KPH, MAX_SPEED_KPH, 1, phase)
-      const nextRpm = sweptValue(MIN_RPM, MAX_RPM, 100, phase)
-      const nextOil = sweptValue(
-        MIN_TEMPERATURE_C,
-        OIL_MAXIMUM_TEMPERATURE_C,
-        1,
-        phase
-      )
-      const nextCoolant = sweptValue(
-        MIN_TEMPERATURE_C,
-        COOLANT_MAXIMUM_TEMPERATURE_C,
-        1,
-        phase
-      )
-
-      setSpeed(nextSpeed)
-      setRpm(nextRpm)
-      setOilTemperatureDraft(nextOil)
-      setCoolantTemperatureDraft(nextCoolant)
-
-      mutateSpeed({ body: { speed_kph: nextSpeed } })
-      mutateRpm({ body: { rpm: nextRpm } })
-      mutateOil({ body: { temperature_c: nextOil } })
-      mutateCoolant({ body: { temperature_c: nextCoolant } })
-    }, SWEEP_INTERVAL_MS)
-
-    return () => window.clearInterval(interval)
-  }, [sweeping, mutateSpeed, mutateRpm, mutateOil, mutateCoolant])
 
   return (
     <Card className="min-w-0">
@@ -161,7 +116,32 @@ export const SimulatedVehicleControls = ({
                 id="simulated-sweep"
                 checked={sweeping}
                 disabled={!isRunning || controlsDisabled}
-                onCheckedChange={(checked) => setIsSweeping(checked)}
+                onCheckedChange={(checked) =>
+                  sweepMutation.mutate(
+                    { body: { enabled: checked } },
+                    {
+                      onSuccess: () => {
+                        if (!checked) {
+                          if (speedKph !== null) setSpeed(speedKph)
+                          if (engine.rpm.value !== null) {
+                            setRpm(engine.rpm.value)
+                          }
+                          if (engine.oil_temperature_c.value !== null) {
+                            setOilTemperatureDraft(
+                              engine.oil_temperature_c.value
+                            )
+                          }
+                          if (engine.coolant_temperature_c.value !== null) {
+                            setCoolantTemperatureDraft(
+                              engine.coolant_temperature_c.value
+                            )
+                          }
+                        }
+                        setIsSweeping(checked)
+                      },
+                    }
+                  )
+                }
               />
             </div>
             <div>
@@ -195,7 +175,7 @@ export const SimulatedVehicleControls = ({
           minimum={MIN_SPEED_KPH}
           maximum={MAX_SPEED_KPH}
           step={1}
-          value={speed}
+          value={sweeping && speedKph !== null ? speedKph : speed}
           disabled={
             !isRunning ||
             controlsDisabled ||
@@ -215,7 +195,7 @@ export const SimulatedVehicleControls = ({
           minimum={MIN_RPM}
           maximum={MAX_RPM}
           step={100}
-          value={rpm}
+          value={sweeping && engine.rpm.value !== null ? engine.rpm.value : rpm}
           disabled={
             !isRunning || controlsDisabled || sweeping || rpmMutation.isPending
           }
@@ -232,7 +212,11 @@ export const SimulatedVehicleControls = ({
           minimum={MIN_TEMPERATURE_C}
           maximum={OIL_MAXIMUM_TEMPERATURE_C}
           step={1}
-          value={oilTemperature}
+          value={
+            sweeping && engine.oil_temperature_c.value !== null
+              ? engine.oil_temperature_c.value
+              : oilTemperature
+          }
           disabled={
             !isRunning || controlsDisabled || sweeping || oilMutation.isPending
           }
@@ -249,7 +233,11 @@ export const SimulatedVehicleControls = ({
           minimum={MIN_TEMPERATURE_C}
           maximum={COOLANT_MAXIMUM_TEMPERATURE_C}
           step={1}
-          value={coolantTemperature}
+          value={
+            sweeping && engine.coolant_temperature_c.value !== null
+              ? engine.coolant_temperature_c.value
+              : coolantTemperature
+          }
           disabled={
             !isRunning ||
             controlsDisabled ||

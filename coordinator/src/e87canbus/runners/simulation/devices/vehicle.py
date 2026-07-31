@@ -8,7 +8,11 @@ from dataclasses import dataclass, field
 from e87canbus.adapters.can_io import CanEndpoint
 from e87canbus.config import CanNetwork
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
+from e87canbus.runners.simulation.commands import (
+    SetVehicleSignal,
+    SetVehicleSweep,
+    SilenceVehicleSignal,
+)
 from e87canbus.runners.simulation.protocol import (
     SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     decode_simulated_high_beam_command,
@@ -26,7 +30,9 @@ class SimulatedVehicleNode:
     signals: SyntheticVehicleSource = field(default_factory=SyntheticVehicleSource)
     high_beam_enabled: bool = False
 
-    def execute(self, command: SetVehicleSignal | SilenceVehicleSignal) -> None:
+    def execute(
+        self, command: SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep
+    ) -> None:
         self._send(self.signals.execute(command))
 
     def emit(self) -> None:

@@ -51,6 +51,7 @@ from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runners.simulation.commands import (
     SetVehicleSignal,
+    SetVehicleSweep,
     SilenceVehicleSignal,
 )
 from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
@@ -88,6 +89,7 @@ CONTROLLER_INPUT_TYPES = (
 )
 VEHICLE_COMMAND_TYPES = (
     SetVehicleSignal,
+    SetVehicleSweep,
     SilenceVehicleSignal,
 )
 

@@ -97,6 +97,9 @@ import type {
   SetVehicleSpeedData,
   SetVehicleSpeedErrors,
   SetVehicleSpeedResponses,
+  SetVehicleSweepData,
+  SetVehicleSweepErrors,
+  SetVehicleSweepResponses,
   SilenceCoolantTemperatureData,
   SilenceCoolantTemperatureErrors,
   SilenceCoolantTemperatureResponses,
@@ -153,6 +156,7 @@ import {
   zSetSimulationDeviceStatusCodeResponse,
   zSetSteeringModeResponse,
   zSetVehicleSpeedResponse,
+  zSetVehicleSweepResponse,
   zSilenceCoolantTemperatureResponse,
   zSilenceEngineRpmResponse,
   zSilenceOilTemperatureResponse,
@@ -719,6 +723,34 @@ export const silenceVehicleSpeed = <ThrowOnError extends boolean = true>(
     responseStyle: "data",
     url: "/api/dev/simulation/vehicle/speed/silence",
     ...options,
+  })
+
+/**
+ * Set Vehicle Sweep
+ */
+export const setVehicleSweep = <ThrowOnError extends boolean = true>(
+  options: Options<SetVehicleSweepData, ThrowOnError>
+): RequestResult<
+  SetVehicleSweepResponses,
+  SetVehicleSweepErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetVehicleSweepResponses,
+    SetVehicleSweepErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetVehicleSweepResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/vehicle/sweep",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
 /**

@@ -107,7 +107,11 @@ export const ClusterTachometer = ({
         {/* The swept range, washed in a fine dot matrix beneath the rules. */}
         <div
           aria-hidden="true"
-          className="absolute inset-y-0 left-0 overflow-hidden"
+          data-slot="tachometer-wash"
+          className={cn(
+            "absolute inset-y-0 left-0 overflow-hidden",
+            "motion-safe:transition-[width] motion-safe:duration-100 motion-safe:ease-linear"
+          )}
           style={{ width: `${position * 100}%` }}
         >
           <span
@@ -128,8 +132,20 @@ export const ClusterTachometer = ({
             // Each rule comes up to full strength as the needle reaches its
             // thousand, so the strip fills in sections behind the needle.
             const reached = available && tachSegmentReached(rpm, startRpm)
+            // Once the needle enters the limit stretch, promote the preceding
+            // warning stretch too. This keeps the adjacent shift-stage and
+            // redline sections visually coherent beneath the critical wash.
+            const displaySeverity =
+              needleSeverity === "critical" && severity === "warn"
+                ? "critical"
+                : severity
             return (
-              <div key={startRpm} className="relative flex-1">
+              <div
+                key={startRpm}
+                className="relative flex-1"
+                data-start-rpm={startRpm}
+                data-severity={displaySeverity}
+              >
                 {/* The outer box owns the geometry, this one owns the ink: the
                     break between rules is a margin here, so it never comes out
                     of the width the needle's percentage is measured against. */}
@@ -139,15 +155,15 @@ export const ClusterTachometer = ({
                   <span
                     className={cn(
                       "absolute inset-x-0 top-0 h-px motion-safe:transition-colors",
-                      segmentRuleTone[severity],
+                      segmentRuleTone[displaySeverity],
                       reached && "h-0.5",
-                      reached && reachedSegmentRuleTone[severity]
+                      reached && reachedSegmentRuleTone[displaySeverity]
                     )}
                   />
                   <span
                     className={cn(
                       "leading-none font-semibold tracking-widest",
-                      segmentLabelTone[severity]
+                      segmentLabelTone[displaySeverity]
                     )}
                   >
                     {label ?? ""}
@@ -162,7 +178,7 @@ export const ClusterTachometer = ({
                       "absolute inset-x-0 top-1.5 bottom-1 bg-size-[100%_25%]",
                       "bg-[linear-gradient(to_bottom,currentColor_0_1px,transparent_1px_100%)]",
                       "mask-[linear-gradient(to_bottom,#000,#000_10%,rgba(0,0,0,0.25))]",
-                      staffRuleTone[severity]
+                      staffRuleTone[displaySeverity]
                     )}
                   />
                 </div>
@@ -175,9 +191,10 @@ export const ClusterTachometer = ({
         {available ? (
           <span
             aria-hidden="true"
+            data-slot="tachometer-needle"
             className={cn(
               "absolute top-0 bottom-0 w-0.5 -translate-x-1/2 rounded-full",
-              "motion-safe:transition-[left] motion-safe:duration-150 motion-safe:ease-out",
+              "motion-safe:transition-[left] motion-safe:duration-100 motion-safe:ease-linear",
               needleTone[needleSeverity],
               stage === "redline" && "motion-safe:animate-shift-strobe"
             )}

@@ -47,6 +47,7 @@ from e87canbus.runners.simulation.commands import (
     SetSimulatedDeviceProtocolVersion,
     SetSimulatedDeviceStatusCode,
     SetVehicleSignal,
+    SetVehicleSweep,
     SilenceVehicleSignal,
     TapButton,
 )
@@ -176,7 +177,7 @@ class SimulatedControllerRuntime:
                 self.vehicle.emit()
                 self._drain_kernel_inputs()
                 self._dispatch(TimerElapsed(now))
-            case SetVehicleSignal() | SilenceVehicleSignal():
+            case SetVehicleSignal() | SilenceVehicleSignal() | SetVehicleSweep():
                 self.vehicle.execute(command)
             case ReceivedCanFrame():
                 self._dispatch(command)

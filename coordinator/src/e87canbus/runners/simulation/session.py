@@ -75,7 +75,7 @@ def build_session(
     }
     vehicle = SimulatedVehicleNode(
         vehicle_buses,
-        SyntheticVehicleSource(config.simulation.synthetic_speed_network),
+        SyntheticVehicleSource(config.simulation.synthetic_speed_network, clock),
     )
 
     kcan_enabled = CanNetwork.KCAN in pi_buses

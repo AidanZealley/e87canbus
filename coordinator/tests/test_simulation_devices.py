@@ -20,7 +20,11 @@ from e87canbus.protocol.generated import (
     BUTTON_RELEASED,
 )
 from e87canbus.runners.simulation.bus import InMemoryCanNetwork, InMemoryCanTopology
-from e87canbus.runners.simulation.commands import SetVehicleSignal, SilenceVehicleSignal
+from e87canbus.runners.simulation.commands import (
+    SetVehicleSignal,
+    SetVehicleSweep,
+    SilenceVehicleSignal,
+)
 from e87canbus.runners.simulation.devices import (
     SimulatedBlinkCommand,
     SimulatedNeoTrellisNode,
@@ -36,6 +40,7 @@ from e87canbus.runners.simulation.protocol import (
     encode_simulated_speed,
 )
 from e87canbus.runners.simulation.signals import VehicleSignal
+from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 
 
 class MutableClock:
@@ -330,6 +335,39 @@ def test_simulated_vehicle_engine_signals_emit_and_silence_independently_on_ptca
         encode_simulated_engine_rpm(3500),
         encode_simulated_coolant_temperature(98.0),
     ]
+
+
+def test_simulated_vehicle_sweep_is_generated_from_continuous_virtual_car_time() -> None:
+    clock = MutableClock(10.0)
+    topology = InMemoryCanTopology(clock=clock)
+    fcan = topology.create_bus(CanNetwork.FCAN, "pi")
+    ptcan = topology.create_bus(CanNetwork.PTCAN, "pi")
+    vehicle = SimulatedVehicleNode(
+        {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork},
+        SyntheticVehicleSource(clock=clock),
+    )
+
+    vehicle.execute(SetVehicleSweep(True))
+    assert fcan.receive(timeout_s=0) == encode_simulated_speed(0.0)
+    assert [ptcan.receive(timeout_s=0) for _ in range(3)] == [
+        encode_simulated_engine_rpm(0),
+        encode_simulated_oil_temperature(-40.0),
+        encode_simulated_coolant_temperature(-40.0),
+    ]
+
+    clock.now = 13.0
+    vehicle.emit()
+    assert fcan.receive(timeout_s=0) == encode_simulated_speed(150.0)
+    assert [ptcan.receive(timeout_s=0) for _ in range(3)] == [
+        encode_simulated_engine_rpm(4500),
+        encode_simulated_oil_temperature(55.0),
+        encode_simulated_coolant_temperature(40.0),
+    ]
+
+    vehicle.execute(SetVehicleSweep(False))
+    clock.now = 16.0
+    vehicle.emit()
+    assert fcan.receive(timeout_s=0) == encode_simulated_speed(150.0)
 
 
 def test_simulated_vehicle_consumes_private_pi_high_beam_command_on_kcan() -> None:

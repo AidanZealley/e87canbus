@@ -858,6 +858,16 @@ export type ValidationIssue = {
   type: string
 }
 
+/**
+ * VehicleSweepRequest
+ */
+export type VehicleSweepRequest = {
+  /**
+   * Enabled
+   */
+  enabled: boolean
+}
+
 export type GetSavedButtonProfileData = {
   body?: never
   path?: never
@@ -1628,6 +1638,41 @@ export type SilenceVehicleSpeedResponses = {
 
 export type SilenceVehicleSpeedResponse =
   SilenceVehicleSpeedResponses[keyof SilenceVehicleSpeedResponses]
+
+export type SetVehicleSweepData = {
+  body: VehicleSweepRequest
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/vehicle/sweep"
+}
+
+export type SetVehicleSweepErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SetVehicleSweepError =
+  SetVehicleSweepErrors[keyof SetVehicleSweepErrors]
+
+export type SetVehicleSweepResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCommandAcknowledgement
+}
+
+export type SetVehicleSweepResponse =
+  SetVehicleSweepResponses[keyof SetVehicleSweepResponses]
 
 export type GetRuntimeConfigurationData = {
   body?: never

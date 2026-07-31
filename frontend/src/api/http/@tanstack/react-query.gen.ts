@@ -39,6 +39,7 @@ import {
   setSimulationDeviceStatusCode,
   setSteeringMode,
   setVehicleSpeed,
+  setVehicleSweep,
   silenceCoolantTemperature,
   silenceEngineRpm,
   silenceOilTemperature,
@@ -137,6 +138,9 @@ import type {
   SetVehicleSpeedData,
   SetVehicleSpeedError,
   SetVehicleSpeedResponse,
+  SetVehicleSweepData,
+  SetVehicleSweepError,
+  SetVehicleSweepResponse,
   SilenceCoolantTemperatureData,
   SilenceCoolantTemperatureError,
   SilenceCoolantTemperatureResponse,
@@ -723,6 +727,31 @@ export const silenceVehicleSpeedMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await silenceVehicleSpeed({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Set Vehicle Sweep
+ */
+export const setVehicleSweepMutation = (
+  options?: Partial<Options<SetVehicleSweepData>>
+): UseMutationOptions<
+  SetVehicleSweepResponse,
+  SetVehicleSweepError,
+  Options<SetVehicleSweepData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetVehicleSweepResponse,
+    SetVehicleSweepError,
+    Options<SetVehicleSweepData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await setVehicleSweep({
         ...options,
         ...fnOptions,
         throwOnError: true,

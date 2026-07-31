@@ -71,7 +71,10 @@ def build_live_controller_loop(
             tx_grants=tx_grants,
             bus_factory=socketcan_factory,
             synthetic_vehicle=(
-                SyntheticVehicleSource(selected_config.simulation.synthetic_speed_network)
+                SyntheticVehicleSource(
+                    selected_config.simulation.synthetic_speed_network,
+                    clock,
+                )
                 if selected_deployment.vehicle_source is VehicleSource.EMULATED
                 else None
             ),

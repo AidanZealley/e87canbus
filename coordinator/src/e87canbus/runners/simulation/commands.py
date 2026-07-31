@@ -38,6 +38,15 @@ class SilenceVehicleSignal:
 
 
 @dataclass(frozen=True)
+class SetVehicleSweep:
+    enabled: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise ValueError("vehicle sweep enabled must be a boolean")
+
+
+@dataclass(frozen=True)
 class ResetSimulation:
     pass
 
@@ -94,6 +103,7 @@ SimulationCommand = (
     | RunControlTimer
     | SetVehicleSignal
     | SilenceVehicleSignal
+    | SetVehicleSweep
     | ResetSimulation
     | ConnectSimulatedDevice
     | DisconnectSimulatedDevice
