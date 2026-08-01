@@ -12,12 +12,19 @@ Pending PT-CAN and DSC/F-CAN connector pinout confirmation.
 
 ## Pi CAN Bring-Up
 
-Confirmed defaults for the Pi deployment:
+The hardware allocation, overlay mechanics, electrical domains, and stacking rationale are
+documented in [Waveshare three-channel CAN stack](waveshare-three-channel-stack.md).
 
-- Raspberry Pi 4 with Waveshare RS485 CAN HAT v2.1.
-- HAT oscillator marking `12000`, so use `oscillator=12000000`.
-- MCP2515 overlay interrupt BCM `25`.
-- `can0` bitrate `100000`.
+Required Pi stack and assignments:
+
+- Original Waveshare RS485 CAN HAT v2.1 on SPI0 CE0, 12 MHz oscillator and interrupt BCM `25`:
+  `can0` / K-CAN at `100000`.
+- Waveshare 2-CH CAN HAT+ CAN0 on SPI1 CE1, 16 MHz oscillator and interrupt BCM `22`:
+  `can1` / PT-CAN at `500000`.
+- Waveshare 2-CH CAN HAT+ CAN1 on SPI1 CE2, 16 MHz oscillator and interrupt BCM `13`:
+  `can2` / F-CAN at `500000`.
+- Set the HAT+ logic-level jumper to 3.3 V. Its factory SPI1 CE1/CE2 selections avoid the original
+  HAT's SPI0 CE0 connection.
 - Arduino Micro / ATmega32U4 with MCP2515 CS pin `10`.
 - Button-pad Pro Micro pin-to-pin wiring is documented in
   [`devices/button-pad/README.md`](../devices/button-pad/README.md#pro-micro-to-mcp2515-wiring).
@@ -25,9 +32,9 @@ Confirmed defaults for the Pi deployment:
 
 Wire CAN-H to CAN-H, CAN-L to CAN-L, and ensure the bench bus has correct termination.
 
-The intended Pi assignment is K-CAN on `can0`, PT-CAN on `can1`, and F-CAN on `can2`.
-Actual vehicle bitrate, compatible transceivers, grounding, isolation, and termination must be
-verified before physical connection.
+Setup verifies `can0` → `spi0.0`, `can1` → `spi1.1`, and `can2` → `spi1.2`. Actual vehicle bitrate,
+compatible transceivers, grounding, isolation, and termination must be verified before physical
+connection.
 
 ## Servotronic Solenoid Driver
 

@@ -152,10 +152,12 @@ promoting either value.
 
 ### CAN HAT Notes
 
-- MCP2515-based HATs are standard and well supported
-- Default clock config on most MCP2515 boards is 500k — must reconfigure to 100k for K-CAN
-- Three CAN interfaces are planned on the Pi; hardware selection and physical compatibility remain
-  pending
+- The supported physical Pi topology is an original Waveshare RS485 CAN HAT v2.1 plus a
+  Waveshare 2-CH CAN HAT+, providing three MCP2515 controllers.
+- The original 12 MHz controller uses SPI0 CE0 and BCM25 for `can0` / K-CAN at 100 kbit/s.
+- The HAT+ 16 MHz controllers use SPI1 CE1/BCM22 and SPI1 CE2/BCM13 for `can1` / PT-CAN and
+  `can2` / F-CAN at 500 kbit/s.
+- Both `bench` and `car` require this complete physical topology; `simulator` uses no physical CAN.
 - `python-can` treats them as separate named interfaces (`can0`, `can1`, and `can2`)
 
 ### Power

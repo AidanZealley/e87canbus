@@ -8,6 +8,12 @@ CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
 DEPLOYMENT_PROFILE="car"
+CAN_INTERFACES=(can0 can1 can2)
+CAN_SERVICES=(
+    e87canbus-can0.service
+    e87canbus-can1.service
+    e87canbus-can2.service
+)
 
 if [[ "${EUID}" -eq 0 ]]; then
     echo "Run this script as the checkout owner, not as root; it uses sudo for system changes." >&2
@@ -125,23 +131,47 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# SPI and Waveshare MCP2515 overlay
+# SPI and Waveshare MCP2515 overlays
 # ---------------------------------------------------------------------------
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    echo "Configuring SPI and the Waveshare MCP2515 interface..."
+    echo "Configuring SPI and the three-channel Waveshare MCP2515 stack..."
     sudo cp -n "${CONFIG_FILE}" "${CONFIG_FILE}.e87canbus-before-setup" || true
 
-    if ! sudo grep -Eq '^[[:space:]]*dtparam=spi=on([[:space:]]|$)' "${CONFIG_FILE}"; then
-        echo 'dtparam=spi=on' | sudo tee -a "${CONFIG_FILE}" >/dev/null
-        REBOOT_REQUIRED=1
-    fi
+    reconcile_boot_line() {
+        local pattern="$1"
+        local desired="$2"
+        local matching_count
+        local exact_count
 
-    OVERLAY='dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000'
-    if ! sudo grep -Fxq "${OVERLAY}" "${CONFIG_FILE}"; then
-        sudo sed -i '/^[[:space:]]*dtoverlay=mcp2515-can0,/d' "${CONFIG_FILE}"
-        echo "${OVERLAY}" | sudo tee -a "${CONFIG_FILE}" >/dev/null
+        matching_count="$(sudo grep -Ec "${pattern}" "${CONFIG_FILE}" || true)"
+        exact_count="$(sudo grep -Fxc "${desired}" "${CONFIG_FILE}" || true)"
+        if [[ "${matching_count}" -eq 1 && "${exact_count}" -eq 1 ]]; then
+            return
+        fi
+
+        sudo sed -E -i "/${pattern}/d" "${CONFIG_FILE}"
+        echo "${desired}" | sudo tee -a "${CONFIG_FILE}" >/dev/null
         REBOOT_REQUIRED=1
-    fi
+    }
+
+    reconcile_boot_line \
+        '^[[:space:]]*dtparam=spi=' \
+        'dtparam=spi=on'
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=i2c0([,[:space:]]|$)' \
+        'dtoverlay=i2c0'
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=spi1-(1|2|3)cs([,[:space:]]|$)' \
+        'dtoverlay=spi1-3cs'
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=(mcp2515-can0([,[:space:]]|$)|mcp2515,.*spi0-0([,[:space:]]|$))' \
+        'dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000'
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=mcp2515,.*spi1-1([,[:space:]]|$)' \
+        'dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000'
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=mcp2515,.*spi1-2([,[:space:]]|$)' \
+        'dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000'
 fi
 
 # ---------------------------------------------------------------------------
@@ -204,9 +234,11 @@ for database_file in \
         sudo chmod 0640 "${database_file}"
     fi
 done
-sudo install -o root -g root -m 0644 \
-    "${REPO_ROOT}/deploy/systemd/e87canbus-can0.service" \
-    /etc/systemd/system/e87canbus-can0.service
+for can_service in "${CAN_SERVICES[@]}"; do
+    sudo install -o root -g root -m 0644 \
+        "${REPO_ROOT}/deploy/systemd/${can_service}" \
+        "/etc/systemd/system/${can_service}"
+done
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \
     /etc/systemd/system/e87canbus-controller.service
@@ -243,8 +275,17 @@ else
     echo "Configuring headless kiosk (cage) for user '${USER}'..."
 
     # Display hardware access — takes effect after reboot
-    sudo usermod -aG video,render,input "${USER}"
-    REBOOT_REQUIRED=1
+    DISPLAY_GROUP_CHANGE_REQUIRED=0
+    for display_group in video render input; do
+        if ! id -nG "${USER}" | tr ' ' '\n' | grep -Fxq "${display_group}"; then
+            DISPLAY_GROUP_CHANGE_REQUIRED=1
+            break
+        fi
+    done
+    if [[ "${DISPLAY_GROUP_CHANGE_REQUIRED}" -eq 1 ]]; then
+        sudo usermod -aG video,render,input "${USER}"
+        REBOOT_REQUIRED=1
+    fi
 
     # Plymouth splash — keeps the screen non-blank until cage takes over.
     # Tries themes in preference order; falls back gracefully if unavailable.
@@ -281,11 +322,13 @@ fi
 # ---------------------------------------------------------------------------
 sudo systemctl daemon-reload
 if [[ "${DEPLOYMENT_PROFILE}" == "simulator" ]]; then
-    sudo systemctl disable e87canbus-can0.service 2>/dev/null || true
+    sudo systemctl disable --now "${CAN_SERVICES[@]}" 2>/dev/null || true
 else
-    sudo systemctl enable e87canbus-can0.service
+    sudo systemctl enable "${CAN_SERVICES[@]}"
+    # Do not allow the application to start at boot until the post-reboot run
+    # has proved that Linux assigned each CAN name to the expected SPI device.
+    sudo systemctl disable e87canbus-controller.service 2>/dev/null || true
 fi
-sudo systemctl enable e87canbus-controller.service
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     sudo systemctl enable e87canbus-kiosk.service
 fi
@@ -296,36 +339,48 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     echo
-    echo "Boot configuration changed; reboot is required before can0 can appear."
+    echo "Boot configuration changed; reboot is required before can0, can1, and can2 can appear."
     if [[ "${REBOOT_REQUESTED}" -eq 1 ]]; then
         sudo reboot
     else
-        echo "Reboot, then run this script again to start the service:"
+        echo "Reboot, then run this script again to validate the CAN stack and start the services:"
         echo "  sudo reboot"
-        echo "  cd ${REPO_ROOT} && ./scripts/setup_pi.sh"
+        echo "  cd ${REPO_ROOT} && ./scripts/setup_pi.sh --profile ${DEPLOYMENT_PROFILE}"
     fi
     exit 0
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    REQUIRED_CAN_INTERFACES=(can0)
-    if [[ "${DEPLOYMENT_PROFILE}" == "car" ]]; then
-        REQUIRED_CAN_INTERFACES+=(can1 can2)
-    fi
-    for interface in "${REQUIRED_CAN_INTERFACES[@]}"; do
+    EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)
+    for index in "${!CAN_INTERFACES[@]}"; do
+        interface="${CAN_INTERFACES[${index}]}"
         if ! ip link show "${interface}" >/dev/null 2>&1; then
             echo "${interface} is not available; leaving the controller stopped." >&2
-            echo "Check the CAN hardware and interface units, then rerun setup." >&2
-            sudo systemctl stop e87canbus-controller.service 2>/dev/null || true
+            echo "Check the three-channel CAN hardware and boot overlays, then rerun setup." >&2
+            sudo systemctl disable --now e87canbus-controller.service 2>/dev/null || true
+            sudo systemctl stop "${CAN_SERVICES[@]}" 2>/dev/null || true
             exit 1
         fi
+
+        device_path="$(readlink -f "/sys/class/net/${interface}/device" || true)"
+        actual_spi_parent="${device_path##*/}"
+        expected_spi_parent="${EXPECTED_SPI_PARENTS[${index}]}"
+        if [[ "${actual_spi_parent}" != "${expected_spi_parent}" ]]; then
+            echo "${interface} maps to ${actual_spi_parent:-an unknown device}, expected ${expected_spi_parent}; leaving the controller stopped." >&2
+            echo "Check the HAT chip-select configuration and boot overlays, then rerun setup." >&2
+            sudo systemctl disable --now e87canbus-controller.service 2>/dev/null || true
+            sudo systemctl stop "${CAN_SERVICES[@]}" 2>/dev/null || true
+            exit 1
+        fi
+        echo "Validated ${interface} -> ${actual_spi_parent}"
     done
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    echo "Starting the boot-managed can0 service..."
-    sudo systemctl start e87canbus-can0.service
+    echo "Starting the boot-managed can0, can1, and can2 services..."
+    sudo systemctl start "${CAN_SERVICES[@]}"
 fi
+sudo systemctl enable e87canbus-controller.service
 sudo systemctl restart e87canbus-controller.service
 
 echo
@@ -333,7 +388,14 @@ echo "Pi setup complete. Check:"
 echo "  installed profile: ${DEPLOYMENT_PROFILE}"
 echo "  systemctl status e87canbus-controller.service"
 echo "  journalctl -u e87canbus-controller.service -f"
-echo "  candump can0"
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    echo "  ip -details link show can0"
+    echo "  ip -details link show can1"
+    echo "  ip -details link show can2"
+    echo "  candump can0"
+    echo "  candump can1"
+    echo "  candump can2"
+fi
 echo
 if [[ "${KIOSK_MODE}" == "desktop" ]]; then
     echo "Kiosk: autostart installed for '${USER}'. Chromium opens at /car on next desktop login."

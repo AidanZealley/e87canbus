@@ -81,11 +81,11 @@ def test_runtime_transport_must_match_the_deployment_profile() -> None:
         build_simulated_controller_loop(deployment=deployment_spec(DeploymentProfile.CAR))
 
 
-def test_bench_profile_is_physical_kcan_with_only_virtual_vehicle_controls() -> None:
+def test_bench_profile_uses_full_physical_topology_with_only_virtual_vehicle_controls() -> None:
     spec = deployment_spec(DeploymentProfile.BENCH)
 
     assert spec.transport is CanTransport.SOCKETCAN
-    assert spec.physical_networks == {CanNetwork.KCAN}
+    assert spec.physical_networks == frozenset(CanNetwork)
     assert spec.vehicle_source is VehicleSource.EMULATED
     assert spec.device_source(DeviceRole.BUTTON_PAD) is DeviceSource.PHYSICAL
     assert spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER) is DeviceSource.PHYSICAL
@@ -116,8 +116,9 @@ def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls
         assert response.status_code == 200
         assert snapshot.application.speed_valid is True
         assert snapshot.application.vehicle_speed_kph == 42.5
-        assert FakeSocketCanBus.instances[0].interface == "can0"
+        assert [bus.interface for bus in FakeSocketCanBus.instances] == ["can0", "can1", "can2"]
         assert FakeSocketCanBus.instances[0].sent == [encode_simulated_speed(42.5)]
+        assert all(not bus.sent for bus in FakeSocketCanBus.instances[1:])
         assert client.post("/api/dev/simulation/reset").status_code == 404
         assert (
             client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404

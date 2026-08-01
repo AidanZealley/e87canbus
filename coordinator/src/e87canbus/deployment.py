@@ -96,7 +96,9 @@ _PROFILE_FIELDS = {
             (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),
         ),
         VehicleSource.EMULATED,
-        frozenset({CanNetwork.KCAN}),
+        # Bench and car use the same complete physical Pi topology.  The
+        # profiles differ in behavior and transmit authority, not hardware.
+        frozenset(CanNetwork),
         frozenset({CanNetwork.KCAN}),
         SimulationApiScope.VEHICLE,
     ),

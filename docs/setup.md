@@ -33,7 +33,7 @@ The closed deployment profiles are:
 | Profile | Physical button pad | Vehicle telemetry | Transport | Development controls |
 |---|---|---|---|---|
 | `car` | yes | physical | SocketCAN | none |
-| `bench` | yes | synthetic | SocketCAN K-CAN | vehicle only |
+| `bench` | yes | synthetic | SocketCAN (K-CAN, PT-CAN, F-CAN) | vehicle only |
 | `simulator` | emulated | synthetic | in-memory CAN | full workbench |
 
 Profiles choose the complete composition; they cannot be combined with per-device or per-network
@@ -53,9 +53,9 @@ The selected readings are refreshed on every controller timer until their corres
 `/silence` endpoint is called. In the bench profile, synthetic speed is encoded onto physical
 K-CAN (`can0`) as well as being decoded through the coordinator's normal CAN event path, so an
 external bench controller can observe the same frame. Other synthetic engine readings remain
-coordinator-local because their realistic PT-CAN network is not present in the single-interface
-bench. The `car` profile does not construct the synthetic source, decoder, or API surface and has
-no CAN transmit grant.
+coordinator-local because bench retains a K-CAN-only transmit grant even though all three physical
+networks are open. The `car` profile does not construct the synthetic source, decoder, or API
+surface and has no CAN transmit grant.
 
 ## Button-pad device
 
@@ -84,17 +84,20 @@ On Linux, the port is commonly `/dev/ttyACM0` or similar.
 
 ## Coordinator CAN
 
-The `car` and `bench` Pi profiles use the boot-managed `can0` unit installed by
+The `car` and `bench` Pi profiles require the same three-channel Waveshare stack, configured by
 `scripts/setup_pi.sh`:
 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
-- `can0` at `100000`
+- `dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000`
+- `dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000`
+- `can0` / K-CAN at `100000`
+- `can1` / PT-CAN and `can2` / F-CAN at `500000`
 
-The service unit applies the bitrate and raises `can0` automatically at boot. If you change the
-boot overlay, reboot and rerun the setup script so the deployed service and CAN interface stay in
-sync.
-
-Three-interface live bring-up and a live vehicle coordinator process are not part of this milestone.
+The script also enables SPI1 with three chip selects and the HAT+ EEPROM's I2C0 overlay. Dedicated
+service units apply each bitrate and raise all three interfaces automatically at boot. After a boot
+configuration change, reboot and rerun setup; it fails closed unless `can0`, `can1`, and `can2` map
+to `spi0.0`, `spi1.1`, and `spi1.2` respectively. The controller remains disabled during the
+required reboot and is enabled only after that validation succeeds.
 
 ## Capture physical CAN traffic
 

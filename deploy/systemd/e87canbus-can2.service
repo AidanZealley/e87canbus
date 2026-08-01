@@ -1,0 +1,17 @@
+[Unit]
+Description=E87 CAN2 bootstrap
+After=sys-subsystem-net-devices-can2.device
+Requires=sys-subsystem-net-devices-can2.device
+Before=e87canbus-controller.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip link set can2 down
+ExecStart=/usr/sbin/ip link set can2 type can bitrate 500000 restart-ms 100
+ExecStart=/usr/sbin/ip link set can2 up
+ExecStop=-/usr/sbin/ip link set can2 down
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=e87canbus-controller.service

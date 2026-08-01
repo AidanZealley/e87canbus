@@ -49,9 +49,12 @@ publisher, then marks ready. Shutdown reverses ownership deliberately: not-ready
 ingress and commit safe state, stop publisher/socket tasks, then close adapters. Each thread and
 task has one owner and a bounded join/cancellation check.
 
-On Raspberry Pi deployments, `can0` is boot-managed by a dedicated `systemd` unit that applies the
-SocketCAN bitrate and raises the interface before the controller starts. That keeps the transport
-stable across reboot and makes device reconnects independent from any manual bench script.
+On physical Raspberry Pi deployments, `can0`, `can1`, and `can2` are boot-managed by dedicated
+`systemd` units that apply their SocketCAN bitrates and raise the interfaces before the controller
+starts. The controller requires all three units on physical installations, so a failed CAN bootstrap
+also fails the controller start. Setup validates their SPI parents before starting the controller.
+That keeps transport stable across reboot and makes device reconnects independent from any manual
+bench script.
 
 The canonical CLI exits nonzero for fatal controller termination, unexpected owner/timer/shutdown
 failure, or failure to complete Uvicorn startup, allowing the bounded `systemd` restart policy to

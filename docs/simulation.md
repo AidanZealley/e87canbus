@@ -126,9 +126,10 @@ curve against monotonic simulator time on every 100 ms owner tick and emits all 
 the browser sends only the mode change. Setting `enabled` to `false` holds the last values, while
 an explicit set or silence command also ends the sweep and takes ownership of the selected signals.
 
-The closed `bench` profile overrides only synthetic speed to K-CAN and transmits each initial and
-refreshed frame onto physical `can0`. This lets a one-interface Servotronic prototype consume the
-same synthetic frame while preserving the more representative F-CAN default for the in-memory
+The closed `bench` profile opens physical K-CAN, PT-CAN, and F-CAN, overrides synthetic speed to
+K-CAN, and transmits each initial and refreshed speed frame onto physical `can0`. Its transmit
+grant remains K-CAN-only, so synthetic PT-CAN engine readings are decoded locally but are not put
+on the physical bus. The more representative F-CAN speed default remains in the in-memory
 simulator. Emission and decoding share one configuration value, so changing the network cannot
 leave the simulator listening on the old bus. The production `car` profile never installs this
 simulation-only protocol or grants transmission.

@@ -51,6 +51,15 @@ commands instead. `buttons.program` contains the canonical bounded program reque
 pad, using the same versioned bytes sent to the device; physical application observation is not
 implied by local send success.
 
+## Raspberry Pi deployment
+
+For a blank microSD card and unconfigured Pi, follow the
+[fresh Raspberry Pi deployment runbook](deploy/README.md). It covers HAT assembly, OS imaging, SSH,
+repository ownership and cloning, both setup-script runs, expected CAN mappings and bitrates,
+service/health confirmation, and initial bench-bus checks. The electrical and device-tree rationale
+for combining the two Waveshare boards is recorded in the
+[three-channel CAN stack design](docs/waveshare-three-channel-stack.md).
+
 ## Local Setup
 
 ```bash

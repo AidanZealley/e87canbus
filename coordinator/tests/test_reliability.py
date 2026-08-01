@@ -155,23 +155,59 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 
 def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> None:
     root = Path(__file__).resolve().parents[2]
-    can0_unit = (root / "deploy/systemd/e87canbus-can0.service").read_text()
+    can_units = {
+        index: (root / f"deploy/systemd/e87canbus-can{index}.service").read_text()
+        for index in range(3)
+    }
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
-    assert "Before=e87canbus-controller.service" in can0_unit
-    assert "sys-subsystem-net-devices-can0.device" in can0_unit
-    assert "restart-ms 100" in can0_unit
-    assert "WantedBy=multi-user.target" in can0_unit
-    assert "ExecStartPre=-/usr/sbin/ip link set can0 down" in can0_unit
-    assert "ExecStart=/usr/sbin/ip link set can0 up" in can0_unit
-    assert "ExecStop=-/usr/sbin/ip link set can0 down" in can0_unit
-    assert "After=e87canbus-can0.service" in unit
+    for index, can_unit in can_units.items():
+        assert "Before=e87canbus-controller.service" in can_unit
+        assert f"sys-subsystem-net-devices-can{index}.device" in can_unit
+        assert "restart-ms 100" in can_unit
+        assert "WantedBy=multi-user.target" in can_unit
+        assert "RequiredBy=e87canbus-controller.service" in can_unit
+        assert f"ExecStartPre=-/usr/sbin/ip link set can{index} down" in can_unit
+        assert f"ExecStart=/usr/sbin/ip link set can{index} up" in can_unit
+        assert f"ExecStop=-/usr/sbin/ip link set can{index} down" in can_unit
+    assert "bitrate 100000" in can_units[0]
+    assert "bitrate 500000" in can_units[1]
+    assert "bitrate 500000" in can_units[2]
+    ordering = next(line for line in unit.splitlines() if line.startswith("After=e87canbus-can"))
+    for index in range(3):
+        assert f"e87canbus-can{index}.service" in ordering
     assert "EnvironmentFile=/etc/e87canbus/controller.env" in unit
     assert "e87canbus run --profile ${E87CANBUS_PROFILE}" in unit
     assert "Restart=on-failure" in unit
     assert "RestartSec=5s" in unit
     assert "--frontend-directory" in unit
     assert "tx" not in unit.lower()
+
+
+def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> None:
+    root = Path(__file__).resolve().parents[2]
+    setup = (root / "scripts/setup_pi.sh").read_text()
+
+    assert "dtoverlay=spi1-3cs" in setup
+    assert "dtoverlay=i2c0" in setup
+    assert (
+        "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000"
+        in setup
+    )
+    assert "mcp2515,.*spi0-0" in setup
+    assert (
+        "dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000"
+        in setup
+    )
+    assert (
+        "dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000"
+        in setup
+    )
+    assert "CAN_INTERFACES=(can0 can1 can2)" in setup
+    assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
+    assert 'id -nG "${USER}"' in setup
+    for index in range(3):
+        assert f"e87canbus-can{index}.service" in setup
 
 
 def test_health_topic_is_closed_and_not_runtime_registered() -> None:
