@@ -2,7 +2,8 @@
 
 This is the canonical start-to-finish procedure for turning a blank Raspberry Pi into the
 three-network E87 bench controller. Follow it in order. The commands assume the hostname
-`e87canbus`, the login user `e87`, the `bench` profile, and headless Raspberry Pi OS Lite (64-bit).
+`e87-coordinator`, the login user `e87`, the `bench` profile, and headless Raspberry Pi OS Lite
+(64-bit).
 
 The finished Pi runs one controller service and three SocketCAN interfaces:
 
@@ -51,7 +52,7 @@ In Raspberry Pi Imager:
 2. Select **Raspberry Pi OS Lite (64-bit)**. This is the expected headless deployment image.
 3. Select the microSD card.
 4. Open OS customisation and set:
-   - Hostname: `e87canbus`
+   - Hostname: `e87-coordinator`
    - Username: `e87`
    - A unique password
    - Wi-Fi SSID/password when Ethernet will not be used
@@ -67,7 +68,7 @@ Keep the password available until SSH key authentication has been configured sep
 Allow a few minutes for the first boot, then run this from the other computer:
 
 ```bash
-ssh e87@e87canbus.local
+ssh e87@e87-coordinator.local
 ```
 
 Accept the host fingerprint only when this is the Pi you just imaged, then enter the password. If
@@ -82,8 +83,8 @@ uname -m
 grep -E '^(PRETTY_NAME|VERSION_CODENAME)=' /etc/os-release
 ```
 
-Expected essentials are hostname `e87canbus`, architecture `aarch64`, and a supported Raspberry Pi
-OS release.
+Expected essentials are hostname `e87-coordinator`, architecture `aarch64`, and a supported
+Raspberry Pi OS release.
 
 ## 4. Update the operating system
 
@@ -101,7 +102,7 @@ sudo reboot
 The SSH session will close. Wait for the Pi to return, then reconnect:
 
 ```bash
-ssh e87@e87canbus.local
+ssh e87@e87-coordinator.local
 ```
 
 ## 5. Clone the repository at its required path
@@ -153,7 +154,7 @@ sudo reboot
 Wait for the Pi to return and reconnect:
 
 ```bash
-ssh e87@e87canbus.local
+ssh e87@e87-coordinator.local
 ```
 
 ## 8. Run setup a second time
@@ -267,7 +268,7 @@ curl --fail http://127.0.0.1:8000/health/ready
 ### SSH does not connect
 
 - Confirm the Pi has power and completed its first boot.
-- Try its router-assigned address instead of `e87canbus.local`.
+- Try its router-assigned address instead of `e87-coordinator.local`.
 - Confirm SSH was enabled in Raspberry Pi Imager.
 - If a re-imaged Pi reports a changed host key, verify the new Pi locally before removing the old
   entry from the other computer's `known_hosts` file.
