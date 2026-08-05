@@ -36,6 +36,13 @@ Setup verifies `can0` → `spi0.0`, `can1` → `spi1.1`, and `can2` → `spi1.2`
 compatible transceivers, grounding, isolation, and termination must be verified before physical
 connection.
 
+## Coordinator Front Panel
+
+The planned QT Py RP2040, NeoPixel Driver BFF, five-pixel status indicator, hotspot button, UART
+wiring, and enclosure constraints are documented in
+[Coordinator hardware and local controls](coordinator-hardware.md). This hardware and its setup
+automation are not implemented yet.
+
 ## Servotronic Solenoid Driver
 
 No physical steering output is designed or approved. Command transport, electrical range and
