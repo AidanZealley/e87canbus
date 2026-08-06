@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 
-from e87canbus.local_controls import (
+from e87canbus.local_controls.model import (
     ActivateHotspot,
     CoordinatorCondition,
     CoordinatorConditionChanged,
@@ -75,8 +75,6 @@ def test_press_toggles_only_stable_hotspot_states() -> None:
         coordinator=CoordinatorCondition.READY,
         hotspot=HotspotLifecycle.ACTIVE,
         client_connected=True,
-        desired_display=PanelDisplayState.HOTSPOT_CONNECTED,
-        effective_display=PanelDisplayState.HOTSPOT_CONNECTED,
     )
 
     deactivating = reduce_local_controls(ready, PanelButtonPressed(sequence=1))
@@ -150,8 +148,6 @@ def test_shutdown_has_priority_over_faults_and_hotspot_state() -> None:
         coordinator=CoordinatorCondition.FAULT,
         hotspot=HotspotLifecycle.FAULT,
         hotspot_diagnostic="failed",
-        desired_display=PanelDisplayState.FAULT,
-        effective_display=PanelDisplayState.FAULT,
     )
 
     shutdown = reduce_local_controls(faulted, ShutdownRequested())

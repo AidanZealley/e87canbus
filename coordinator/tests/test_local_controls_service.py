@@ -5,23 +5,27 @@ import time
 from collections.abc import Callable
 
 import pytest
-from e87canbus.local_controls import (
+from e87canbus.local_controls.model import (
     CoordinatorCondition,
     CoordinatorConditionChanged,
-    CoordinatorConditionPort,
     HotspotLifecycle,
     HotspotObserved,
-    HotspotPort,
-    LocalControlsInboxFull,
-    LocalControlsInputSink,
-    LocalControlsLifecycle,
-    LocalControlsService,
-    LocalControlsSnapshot,
     PanelButtonPressed,
     PanelDisplayState,
     PanelLink,
     PanelLinkChanged,
+)
+from e87canbus.local_controls.ports import (
+    CoordinatorConditionPort,
+    HotspotPort,
+    LocalControlsInputSink,
     PanelPort,
+)
+from e87canbus.local_controls.service import (
+    LocalControlsInboxFull,
+    LocalControlsLifecycle,
+    LocalControlsService,
+    LocalControlsSnapshot,
 )
 
 
@@ -86,12 +90,15 @@ class FakeCondition(CoordinatorConditionPort):
     def __init__(self) -> None:
         self.submit: LocalControlsInputSink | None = None
         self.closed = False
+        self.fail_poll = False
 
     def start(self, submit: LocalControlsInputSink) -> None:
         self.submit = submit
 
     def poll(self, now: float) -> None:
         del now
+        if self.fail_poll:
+            raise RuntimeError("condition poll failed")
 
     def close(self) -> None:
         self.closed = True
@@ -305,3 +312,15 @@ def test_failure_teardown_retains_fault_while_closing_every_port() -> None:
     assert service.snapshot().state.desired_display is PanelDisplayState.FAULT
     assert panel.displays[-1] is PanelDisplayState.FAULT
     assert panel.closed and hotspot.closed and condition.closed
+
+
+def test_unexpected_owner_failure_is_retained_as_a_visible_fault() -> None:
+    service, panel, _, condition = _service()
+    condition.fail_poll = True
+
+    _wait_until(lambda: service.lifecycle is LocalControlsLifecycle.STOPPED)
+
+    assert isinstance(service.failure, RuntimeError)
+    assert service.snapshot().state.diagnostic == "condition poll failed"
+    assert service.snapshot().state.desired_display is PanelDisplayState.FAULT
+    assert panel.displays[-1] is PanelDisplayState.FAULT
