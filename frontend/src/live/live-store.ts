@@ -7,6 +7,7 @@ import {
   type DevicesState,
   type EngineState,
   type LightingState,
+  type LocalControlsSnapshotData,
   type ServerEventPayload,
   type ServerToClientEvents,
   type SteeringState,
@@ -42,6 +43,7 @@ type LiveSlices = {
   lighting: LightingState
   devices: DevicesState
   health: ControllerHealthState
+  localControls: LocalControlsSnapshotData | null
 }
 
 export type LiveState = LiveSlices & {
@@ -72,6 +74,9 @@ export type LiveState = LiveSlices & {
   ) => TopicApplyDecision
   applyHealth: (
     envelope: ServerEventPayload<"controller.health">
+  ) => TopicApplyDecision
+  applyLocalControls: (
+    envelope: ServerEventPayload<"local-controls.state">
   ) => TopicApplyDecision
   reset: () => void
 }
@@ -164,6 +169,7 @@ const emptySlices = (): LiveSlices => ({
       fault: "not started",
     },
   },
+  localControls: null,
 })
 
 const initialConnection = (): LiveConnection => ({
@@ -301,6 +307,15 @@ export const useLiveStore = create<LiveState>((set, get) => {
       ) {
         return false
       }
+      const receivedLocalControls = envelope.data.local_controls
+      const localControls =
+        sameBoot &&
+        current.localControls !== null &&
+        receivedLocalControls !== null &&
+        current.localControls.boot_id === receivedLocalControls.boot_id &&
+        current.localControls.revision > receivedLocalControls.revision
+          ? current.localControls
+          : receivedLocalControls
       set({
         bootId: envelope.boot_id,
         topicRevisions: { ...envelope.data.topic_revisions },
@@ -312,6 +327,7 @@ export const useLiveStore = create<LiveState>((set, get) => {
         lighting: envelope.data.lighting,
         devices: reconcileDevices(current.devices, envelope.data.devices),
         health: envelope.data.health,
+        localControls,
         connection: {
           status: "connected",
           synchronized: true,
@@ -346,6 +362,34 @@ export const useLiveStore = create<LiveState>((set, get) => {
       return "applied"
     },
     applyHealth: (envelope) => applyTopic("health", "health", envelope),
+    applyLocalControls: (envelope) => {
+      if (envelope.protocol_version !== LIVE_PROTOCOL_VERSION) {
+        set({
+          connection: {
+            status: "incompatible",
+            synchronized: false,
+            error: incompatibleMessage(envelope.protocol_version),
+          },
+        })
+        return "incompatible"
+      }
+      const current = get()
+      if (
+        current.localControls === null ||
+        current.localControls.boot_id !== envelope.boot_id
+      ) {
+        return "resync"
+      }
+      if (envelope.revision <= current.localControls.revision) return "ignored"
+      set({
+        localControls: {
+          boot_id: envelope.boot_id,
+          revision: envelope.revision,
+          state: envelope.data,
+        },
+      })
+      return "applied"
+    },
     reset: () => set({ ...emptySlices(), connection: initialConnection() }),
   }
 })

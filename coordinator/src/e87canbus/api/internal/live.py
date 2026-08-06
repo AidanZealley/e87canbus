@@ -16,6 +16,7 @@ from e87canbus.api.models.live import (
     LiveData,
     LiveEnvelope,
     LiveModel,
+    LocalControlsState,
     TraceBatchData,
     TraceRow,
     buttons_state,
@@ -23,6 +24,7 @@ from e87canbus.api.models.live import (
     engine_state,
     health_state,
     lighting_state,
+    local_controls_state,
     snapshot_data,
     steering_state,
     vehicle_state,
@@ -31,6 +33,7 @@ from e87canbus.api.models.live_contract import ClientEvent, ServerEvent
 from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import AppConfig
 from e87canbus.kernel import StateTopic
+from e87canbus.local_controls import LocalControlsService, LocalControlsSnapshot
 from e87canbus.service import (
     ControllerLoop,
     ControllerLoopSnapshot,
@@ -61,9 +64,11 @@ class LiveStatePublisher:
         sio: socketio.AsyncServer,
         service: ControllerLoop,
         config: AppConfig,
+        local_controls: LocalControlsService | None = None,
     ) -> None:
         self._sio = sio
         self._service = service
+        self._local_controls = local_controls
         self._telemetry_interval_s = 1.0 / config.live_publication.telemetry_hz
         self._health_interval_s = 1.0 / config.live_publication.health_hz
         self._trace_interval_s = 1.0 / config.live_publication.trace_hz
@@ -74,6 +79,7 @@ class LiveStatePublisher:
         self._shutdown_timeout_s = config.live_publication.shutdown_timeout_s
         self._lock = threading.Lock()
         self._pending_topics: dict[StateTopic, ControllerLoopSnapshot] = {}
+        self._pending_local_controls: LocalControlsSnapshot | None = None
         self._trace: deque[dict[str, object]] = deque(maxlen=self._trace_capacity)
         self._trace_session_id: int | None = None
         self._resources: deque[ResourceChangedEvent] = deque(maxlen=self._resource_capacity)
@@ -139,6 +145,7 @@ class LiveStatePublisher:
             self._trace_subscribers.clear()
             with self._lock:
                 self._pending_topics.clear()
+                self._pending_local_controls = None
                 self._trace.clear()
                 self._resources.clear()
             self._sync_service_health(enqueue=False)
@@ -170,11 +177,21 @@ class LiveStatePublisher:
         self._signal()
         self._sync_service_health()
 
+    def offer_local_controls(self, snapshot: LocalControlsSnapshot) -> None:
+        """Accept the sibling service's latest complete projection independently."""
+
+        with self._lock:
+            self._pending_local_controls = snapshot
+        self._signal()
+
     async def send_snapshot(self, sid: str) -> None:
         snapshot = self._service.snapshot()
+        local_snapshot = (
+            self._local_controls.snapshot() if self._local_controls is not None else None
+        )
         await self._emit(
             ServerEvent.CONTROLLER_SNAPSHOT,
-            self._envelope(snapshot, snapshot_data(snapshot)),
+            self._envelope(snapshot, snapshot_data(snapshot, local_snapshot)),
             to=sid,
         )
 
@@ -283,6 +300,8 @@ class LiveStatePublisher:
             if trace_due:
                 trace_rows = tuple(self._trace)[-self._trace_batch_size :]
                 self._trace.clear()
+            local_controls = self._pending_local_controls
+            self._pending_local_controls = None
 
         for topic, snapshot in selected_topics.items():
             await self._emit(
@@ -291,6 +310,11 @@ class LiveStatePublisher:
             )
         for resource in resources:
             await self._emit(ServerEvent.RESOURCES_CHANGED, resource.model_dump())
+        if local_controls is not None:
+            await self._emit(
+                ServerEvent.LOCAL_CONTROLS_STATE,
+                self._local_envelope(local_controls, local_controls_state(local_controls)),
+            )
         if trace_rows and self._trace_subscribers:
             snapshot = self._service.snapshot()
             batch = TraceBatchData(rows=tuple(TraceRow.model_validate(row) for row in trace_rows))
@@ -340,6 +364,18 @@ class LiveStatePublisher:
         snapshot: ControllerLoopSnapshot,
         data: EnvelopePayload,
     ) -> LiveEnvelope[EnvelopePayload]:
+        return LiveEnvelope(
+            boot_id=snapshot.boot_id,
+            revision=snapshot.revision,
+            emitted_at=datetime.now(UTC),
+            data=data,
+        )
+
+    @staticmethod
+    def _local_envelope(
+        snapshot: LocalControlsSnapshot,
+        data: LocalControlsState,
+    ) -> LiveEnvelope[LocalControlsState]:
         return LiveEnvelope(
             boot_id=snapshot.boot_id,
             revision=snapshot.revision,

@@ -85,6 +85,15 @@ import type {
   SetOilTemperatureData,
   SetOilTemperatureErrors,
   SetOilTemperatureResponses,
+  SetSimulatedHotspotClientData,
+  SetSimulatedHotspotClientErrors,
+  SetSimulatedHotspotClientResponses,
+  SetSimulatedHotspotFailureData,
+  SetSimulatedHotspotFailureErrors,
+  SetSimulatedHotspotFailureResponses,
+  SetSimulatedPanelLinkData,
+  SetSimulatedPanelLinkErrors,
+  SetSimulatedPanelLinkResponses,
   SetSimulationDeviceProtocolVersionData,
   SetSimulationDeviceProtocolVersionErrors,
   SetSimulationDeviceProtocolVersionResponses,
@@ -112,9 +121,15 @@ import type {
   SilenceVehicleSpeedData,
   SilenceVehicleSpeedErrors,
   SilenceVehicleSpeedResponses,
+  TapCoordinatorPanelButtonData,
+  TapCoordinatorPanelButtonErrors,
+  TapCoordinatorPanelButtonResponses,
   TapSimulationButtonData,
   TapSimulationButtonErrors,
   TapSimulationButtonResponses,
+  TriggerCoordinatorFailureData,
+  TriggerCoordinatorFailureErrors,
+  TriggerCoordinatorFailureResponses,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsErrors,
   UpdateApplicationSettingsResponses,
@@ -152,6 +167,9 @@ import {
   zSetManualAssistanceLevelResponse,
   zSetMaximumAssistanceResponse,
   zSetOilTemperatureResponse,
+  zSetSimulatedHotspotClientResponse,
+  zSetSimulatedHotspotFailureResponse,
+  zSetSimulatedPanelLinkResponse,
   zSetSimulationDeviceProtocolVersionResponse,
   zSetSimulationDeviceStatusCodeResponse,
   zSetSteeringModeResponse,
@@ -161,7 +179,9 @@ import {
   zSilenceEngineRpmResponse,
   zSilenceOilTemperatureResponse,
   zSilenceVehicleSpeedResponse,
+  zTapCoordinatorPanelButtonResponse,
   zTapSimulationButtonResponse,
+  zTriggerCoordinatorFailureResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
   zUpdateSteeringProfileResponse,
@@ -335,6 +355,138 @@ export const updateButtonProfile = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Tap Button
+ */
+export const tapCoordinatorPanelButton = <ThrowOnError extends boolean = true>(
+  options?: Options<TapCoordinatorPanelButtonData, ThrowOnError>
+): RequestResult<
+  TapCoordinatorPanelButtonResponses,
+  TapCoordinatorPanelButtonErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    TapCoordinatorPanelButtonResponses,
+    TapCoordinatorPanelButtonErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zTapCoordinatorPanelButtonResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/button/tap",
+    ...options,
+  })
+
+/**
+ * Set Client
+ */
+export const setSimulatedHotspotClient = <ThrowOnError extends boolean = true>(
+  options: Options<SetSimulatedHotspotClientData, ThrowOnError>
+): RequestResult<
+  SetSimulatedHotspotClientResponses,
+  SetSimulatedHotspotClientErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetSimulatedHotspotClientResponses,
+    SetSimulatedHotspotClientErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetSimulatedHotspotClientResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/client",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Hotspot Failure
+ */
+export const setSimulatedHotspotFailure = <ThrowOnError extends boolean = true>(
+  options: Options<SetSimulatedHotspotFailureData, ThrowOnError>
+): RequestResult<
+  SetSimulatedHotspotFailureResponses,
+  SetSimulatedHotspotFailureErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetSimulatedHotspotFailureResponses,
+    SetSimulatedHotspotFailureErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetSimulatedHotspotFailureResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/hotspot-failure",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Set Link
+ */
+export const setSimulatedPanelLink = <ThrowOnError extends boolean = true>(
+  options: Options<SetSimulatedPanelLinkData, ThrowOnError>
+): RequestResult<
+  SetSimulatedPanelLinkResponses,
+  SetSimulatedPanelLinkErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    SetSimulatedPanelLinkResponses,
+    SetSimulatedPanelLinkErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSetSimulatedPanelLinkResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/link",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Trigger Coordinator Failure
+ */
+export const triggerCoordinatorFailure = <ThrowOnError extends boolean = true>(
+  options?: Options<TriggerCoordinatorFailureData, ThrowOnError>
+): RequestResult<
+  TriggerCoordinatorFailureResponses,
+  TriggerCoordinatorFailureErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    TriggerCoordinatorFailureResponses,
+    TriggerCoordinatorFailureErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zTriggerCoordinatorFailureResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator/failure",
+    ...options,
   })
 
 /**

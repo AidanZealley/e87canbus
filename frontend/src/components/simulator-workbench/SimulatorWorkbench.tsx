@@ -8,6 +8,7 @@ import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { useLiveStore } from "@/live/live-store"
 import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
+import { SimulatorCoordinatorPanel } from "./SimulatorCoordinatorPanel"
 import { SimulatorServotronic } from "./SimulatorServotronic"
 import { SimulatorTrace } from "./SimulatorTrace"
 import { notifySimulatorError } from "./utils"
@@ -31,6 +32,8 @@ export const SimulatorWorkbench = () => {
       />
 
       <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
+        <SimulatorCoordinatorPanel />
+
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <section className="grid min-w-0 content-start gap-2">
             <div className="flex justify-end">

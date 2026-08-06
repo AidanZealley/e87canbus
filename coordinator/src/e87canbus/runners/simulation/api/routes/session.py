@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request
 from e87canbus.api.errors import api_problem_responses
 from e87canbus.runners.simulation.api.internal.commands import run_command
 from e87canbus.runners.simulation.api.models.common import SimulationCommandAcknowledgement
-from e87canbus.runners.simulation.commands import ResetSimulation
+from e87canbus.runners.simulation.commands import ResetSimulation, TriggerCoordinatorFailure
 
 router = APIRouter(
     prefix="/api/dev/simulation",
@@ -18,3 +18,14 @@ router = APIRouter(
 )
 async def reset(request: Request) -> SimulationCommandAcknowledgement:
     return await run_command(request.app, ResetSimulation())
+
+
+@router.post(
+    "/coordinator/failure",
+    operation_id="triggerCoordinatorFailure",
+    responses=api_problem_responses(409, 503),
+)
+async def trigger_coordinator_failure(
+    request: Request,
+) -> SimulationCommandAcknowledgement:
+    return await run_command(request.app, TriggerCoordinatorFailure())

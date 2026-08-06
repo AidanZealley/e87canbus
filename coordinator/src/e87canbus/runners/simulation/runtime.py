@@ -50,6 +50,7 @@ from e87canbus.runners.simulation.commands import (
     SetVehicleSweep,
     SilenceVehicleSignal,
     TapButton,
+    TriggerCoordinatorFailure,
 )
 from e87canbus.runners.simulation.devices import (
     SimulatedNeoTrellisNode,
@@ -194,6 +195,16 @@ class SimulatedControllerRuntime:
                 before_sequence = 0
                 initial = True
                 drain = False
+            case TriggerCoordinatorFailure():
+                self._dispatch(
+                    InboxOverflowed(
+                        None,
+                        self._clock(),
+                        "simulated coordinator failure",
+                    )
+                )
+                if self.kernel.health.fatal:
+                    self._dispatch(ShutdownRequested(self._clock()))
             case ConnectSimulatedDevice(role):
                 self._peer_for(role).connect()
             case DisconnectSimulatedDevice(role):
