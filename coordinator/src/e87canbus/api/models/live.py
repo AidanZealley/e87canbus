@@ -11,6 +11,7 @@ from e87canbus.domain.buttons.pad import BUTTON_PAD_PROGRAM_ENCODING
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.kernel import StateTopic
+from e87canbus.local_controls import LocalControlsSnapshot
 from e87canbus.service import ControllerLoopSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
@@ -225,6 +226,25 @@ class ControllerHealthState(LiveModel):
     publisher: PublisherHealthState
 
 
+class LocalControlsState(LiveModel):
+    desired_display: Literal[
+        "starting", "ready", "hotspot_waiting", "hotspot_connected", "fault", "off"
+    ]
+    effective_display: Literal[
+        "starting", "ready", "hotspot_waiting", "hotspot_connected", "fault", "off"
+    ]
+    panel_link: Literal["connected", "disconnected"]
+    hotspot: Literal["disabled", "activating", "active", "deactivating", "fault"]
+    client_connected: bool
+    diagnostic: str | None
+
+
+class LocalControlsSnapshotData(LiveModel):
+    boot_id: str = Field(min_length=1)
+    revision: int = Field(ge=0)
+    state: LocalControlsState
+
+
 class ControllerSnapshotData(LiveModel):
     topic_revisions: TopicRevisions
     simulation_session_id: int | None
@@ -235,6 +255,7 @@ class ControllerSnapshotData(LiveModel):
     lighting: LightingState
     devices: DevicesState
     health: ControllerHealthState
+    local_controls: LocalControlsSnapshotData | None
 
 
 class TraceRow(LiveModel):
@@ -263,6 +284,7 @@ LiveData = (
     | LightingState
     | DevicesState
     | ControllerHealthState
+    | LocalControlsState
     | TraceBatchData
 )
 
@@ -278,7 +300,10 @@ class LiveEnvelope(LiveModel, Generic[LivePayload]):
     data: LivePayload
 
 
-def snapshot_data(snapshot: ControllerLoopSnapshot) -> ControllerSnapshotData:
+def snapshot_data(
+    snapshot: ControllerLoopSnapshot,
+    local_controls: LocalControlsSnapshot | None = None,
+) -> ControllerSnapshotData:
     return ControllerSnapshotData(
         topic_revisions=TopicRevisions(**dict(snapshot.topic_revisions)),
         simulation_session_id=snapshot.adapter.simulation_session_id,
@@ -289,6 +314,27 @@ def snapshot_data(snapshot: ControllerLoopSnapshot) -> ControllerSnapshotData:
         lighting=lighting_state(snapshot),
         devices=devices_state(snapshot),
         health=health_state(snapshot),
+        local_controls=(
+            None
+            if local_controls is None
+            else LocalControlsSnapshotData(
+                boot_id=local_controls.boot_id,
+                revision=local_controls.revision,
+                state=local_controls_state(local_controls),
+            )
+        ),
+    )
+
+
+def local_controls_state(snapshot: LocalControlsSnapshot) -> LocalControlsState:
+    state = snapshot.state
+    return LocalControlsState(
+        desired_display=state.desired_display.value,
+        effective_display=state.effective_display.value,
+        panel_link=state.panel_link.value,
+        hotspot=state.hotspot.value,
+        client_connected=state.client_connected,
+        diagnostic=state.diagnostic,
     )
 
 

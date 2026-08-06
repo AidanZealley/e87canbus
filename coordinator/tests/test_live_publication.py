@@ -12,7 +12,10 @@ from e87canbus.api.models.resources import ResourceChangedEvent
 from e87canbus.config import LivePublicationConfig, simulator_config
 from e87canbus.domain.intents import SetMaximumAssistance
 from e87canbus.kernel import ExecuteOperatorIntent, StateTopic
-from e87canbus.runners.composition import build_simulated_controller_loop
+from e87canbus.runners.composition import (
+    build_simulated_controller_loop,
+    build_simulated_local_controls,
+)
 from e87canbus.runners.simulation.runtime import (
     ResetSimulation,
     SetVehicleSignal,
@@ -160,7 +163,9 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         "lighting",
         "devices",
         "health",
+        "local_controls",
     }
+    assert first_payload["data"]["local_controls"] is None
     topic_revisions = first_payload["data"]["topic_revisions"]
     assert topic_revisions["health"] == snapshot_revision
     assert topic_revisions["vehicle"] == 1
@@ -175,6 +180,57 @@ async def test_snapshot_is_complete_and_new_boot_requires_replacement() -> None:
         "high_beam_strobe_cycles_remaining": 0,
         "observed_high_beam_enabled": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_local_controls_publish_and_reconnect_with_independent_revision() -> None:
+    service = controller_loop()
+    local = build_simulated_local_controls(service)
+    socket_server = RecordingSocketServer()
+    publisher = LiveStatePublisher(
+        cast(socketio.AsyncServer, socket_server),
+        service,
+        service.config,
+        local.service,
+    )
+    await asyncio.to_thread(local.service.start, publisher.offer_local_controls)
+    service.mark_persistence_available()
+    await asyncio.to_thread(service.start, publisher.offer)
+    await publisher.start()
+    service.mark_ready()
+    try:
+        await wait_until(lambda: local.service.snapshot().state.coordinator.value == "ready")
+        socket_server.emissions.clear()
+        controller_revision = service.snapshot().revision
+        assert local.panel.tap_button()
+        await wait_until(
+            lambda: any(
+                event == "local-controls.state" for event, *_ in socket_server.emissions
+            )
+        )
+        incremental = next(
+            payload
+            for event, payload, *_ in socket_server.emissions
+            if event == "local-controls.state"
+        )
+        assert service.snapshot().revision == controller_revision
+        assert incremental["boot_id"] == local.service.snapshot().boot_id
+        assert incremental["revision"] <= local.service.snapshot().revision
+
+        socket_server.emissions.clear()
+        await publisher.send_snapshot("reconnecting-client")
+        reconnect = socket_server.emissions[-1]
+        nested = reconnect[1]["data"]["local_controls"]
+        assert reconnect[0] == "controller.snapshot"
+        assert reconnect[2] == "reconnecting-client"
+        assert nested["boot_id"] == local.service.snapshot().boot_id
+        assert nested["revision"] == local.service.snapshot().revision
+        assert nested["state"]["hotspot"] == "activating"
+    finally:
+        service.mark_not_ready()
+        await asyncio.to_thread(service.stop)
+        await publisher.stop()
+        await asyncio.to_thread(local.service.stop)
 
 
 @pytest.mark.asyncio

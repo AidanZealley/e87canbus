@@ -51,6 +51,7 @@ describe("Socket.IO transport owner", () => {
       "buttons.state",
       "devices.state",
       "controller.health",
+      "local-controls.state",
       "resources.changed",
       "trace.batch",
     ]) {
@@ -105,6 +106,36 @@ describe("Socket.IO transport owner", () => {
     })
     expect(socket.emitted).toContain("controller.resync")
     expect(useLiveStore.getState().bootId).toBe("boot-a")
+  })
+
+  it("publishes local-controls updates through their independent revision", () => {
+    useLiveStore.getState().reset()
+    const socket = new FakeSocket()
+    createLiveTransport({
+      queryClient: new QueryClient(),
+      createSocket: () => socket as never,
+    })
+    const initial = snapshot("boot", 1)
+    socket.fire("controller.snapshot", initial)
+    socket.fire("local-controls.state", {
+      protocol_version: 1,
+      boot_id: "boot-local-controls",
+      revision: 2,
+      emitted_at: "2026-07-15T00:00:01Z",
+      data: {
+        ...initial.data.local_controls!.state,
+        desired_display: "hotspot_waiting",
+        effective_display: "hotspot_waiting",
+        hotspot: "activating",
+      },
+    })
+
+    expect(useLiveStore.getState().localControls).toMatchObject({
+      revision: 2,
+      state: { hotspot: "activating" },
+    })
+    expect(useLiveStore.getState().topicRevisions.vehicle).toBe(1)
+    expect(socket.emitted).not.toContain("controller.resync")
   })
 
   it("stays synchronized when the server snapshot arrives before the local connect event", async () => {

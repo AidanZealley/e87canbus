@@ -28,6 +28,7 @@ export type ServerToClientEvent =
   | LightingStateEvent
   | DevicesStateEvent
   | ControllerHealthEvent
+  | LocalControlsStateEvent
   | ResourcesChangedEvent
   | TraceBatchEvent
 /**
@@ -126,6 +127,14 @@ export type HighBeamEnabled = boolean
 export type HighBeamStrobeActive = boolean
 export type HighBeamStrobeCyclesRemaining = number
 export type ObservedHighBeamEnabled = boolean | null
+export type BootId1 = string
+export type Revision = number
+export type ClientConnected = boolean
+export type DesiredDisplay = "starting" | "ready" | "hotspot_waiting" | "hotspot_connected" | "fault" | "off"
+export type Diagnostic = string | null
+export type EffectiveDisplay = "starting" | "ready" | "hotspot_waiting" | "hotspot_connected" | "fault" | "off"
+export type Hotspot = "disabled" | "activating" | "active" | "deactivating" | "fault"
+export type PanelLink = "connected" | "disconnected"
 export type SimulationSessionId = number | null
 export type ActivationRevision = number
 /**
@@ -186,94 +195,104 @@ export type SpeedKph = number
 export type SpeedValid = boolean
 export type EmittedAt = string
 export type ProtocolVersion1 = 1
-export type Revision = number
+export type Revision1 = number
 export type Event3 = "controller.snapshot"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args4 = [LiveEnvelopeVehicleState]
-export type BootId1 = string
+export type BootId2 = string
 export type EmittedAt1 = string
 export type ProtocolVersion2 = 1
-export type Revision1 = number
+export type Revision2 = number
 export type Event4 = "vehicle.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args5 = [LiveEnvelopeEngineState]
-export type BootId2 = string
+export type BootId3 = string
 export type EmittedAt2 = string
 export type ProtocolVersion3 = 1
-export type Revision2 = number
+export type Revision3 = number
 export type Event5 = "engine.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args6 = [LiveEnvelopeSteeringState]
-export type BootId3 = string
+export type BootId4 = string
 export type EmittedAt3 = string
 export type ProtocolVersion4 = 1
-export type Revision3 = number
+export type Revision4 = number
 export type Event6 = "steering.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args7 = [LiveEnvelopeButtonsState]
-export type BootId4 = string
+export type BootId5 = string
 export type EmittedAt4 = string
 export type ProtocolVersion5 = 1
-export type Revision4 = number
+export type Revision5 = number
 export type Event7 = "buttons.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args8 = [LiveEnvelopeLightingState]
-export type BootId5 = string
+export type BootId6 = string
 export type EmittedAt5 = string
 export type ProtocolVersion6 = 1
-export type Revision5 = number
+export type Revision6 = number
 export type Event8 = "lighting.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args9 = [LiveEnvelopeDevicesState]
-export type BootId6 = string
+export type BootId7 = string
 export type EmittedAt6 = string
 export type ProtocolVersion7 = 1
-export type Revision6 = number
+export type Revision7 = number
 export type Event9 = "devices.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
 export type Args10 = [LiveEnvelopeControllerHealthState]
-export type BootId7 = string
+export type BootId8 = string
 export type EmittedAt7 = string
 export type ProtocolVersion8 = 1
-export type Revision7 = number
+export type Revision8 = number
 export type Event10 = "controller.health"
 /**
  * @minItems 1
  * @maxItems 1
  */
-export type Args11 = [ResourceChangedEvent]
-export type Id1 = string | null
-export type Resource = "settings" | "steering_profile" | "button_profile"
-export type Revision8 = number
-export type Type = "resources.changed"
-export type Event11 = "resources.changed"
+export type Args11 = [LiveEnvelopeLocalControlsState]
+export type BootId9 = string
+export type EmittedAt8 = string
+export type ProtocolVersion9 = 1
+export type Revision9 = number
+export type Event11 = "local-controls.state"
 /**
  * @minItems 1
  * @maxItems 1
  */
-export type Args12 = [LiveEnvelopeTraceBatchData]
-export type BootId8 = string
+export type Args12 = [ResourceChangedEvent]
+export type Id1 = string | null
+export type Resource = "settings" | "steering_profile" | "button_profile"
+export type Revision10 = number
+export type Type = "resources.changed"
+export type Event12 = "resources.changed"
+/**
+ * @minItems 1
+ * @maxItems 1
+ */
+export type Args13 = [LiveEnvelopeTraceBatchData]
+export type BootId10 = string
 export type ArbitrationId = number
 export type ArbitrationIdHex = string
 export type DataHex = string
@@ -285,10 +304,10 @@ export type SessionId = number
 export type Source = string
 export type Type1 = "frame"
 export type Rows = TraceRow[]
-export type EmittedAt8 = string
-export type ProtocolVersion9 = 1
-export type Revision9 = number
-export type Event12 = "trace.batch"
+export type EmittedAt9 = string
+export type ProtocolVersion10 = 1
+export type Revision11 = number
+export type Event13 = "trace.batch"
 
 /**
  * Generated Socket.IO protocol contract. The protocol version is encoded in each server payload envelope and in this document's identifier.
@@ -319,7 +338,7 @@ export interface LiveEnvelopeControllerSnapshotData {
   data: ControllerSnapshotData
   emitted_at: EmittedAt
   protocol_version: ProtocolVersion1
-  revision: Revision
+  revision: Revision1
 }
 export interface ControllerSnapshotData {
   buttons: ButtonsState
@@ -327,6 +346,7 @@ export interface ControllerSnapshotData {
   engine: EngineState
   health: ControllerHealthState
   lighting: LightingState
+  local_controls: LocalControlsSnapshotData | null
   simulation_session_id: SimulationSessionId
   steering: SteeringState
   topic_revisions: TopicRevisions
@@ -429,6 +449,19 @@ export interface LightingState {
   high_beam_strobe_cycles_remaining: HighBeamStrobeCyclesRemaining
   observed_high_beam_enabled: ObservedHighBeamEnabled
 }
+export interface LocalControlsSnapshotData {
+  boot_id: BootId1
+  revision: Revision
+  state: LocalControlsState
+}
+export interface LocalControlsState {
+  client_connected: ClientConnected
+  desired_display: DesiredDisplay
+  diagnostic: Diagnostic
+  effective_display: EffectiveDisplay
+  hotspot: Hotspot
+  panel_link: PanelLink
+}
 export interface SteeringState {
   active_curve: ActiveSteeringCurveState
   curve_activation_available: CurveActivationAvailable
@@ -484,98 +517,109 @@ export interface VehicleStateEvent {
   event: Event4
 }
 export interface LiveEnvelopeVehicleState {
-  boot_id: BootId1
+  boot_id: BootId2
   data: VehicleState
   emitted_at: EmittedAt1
   protocol_version: ProtocolVersion2
-  revision: Revision1
+  revision: Revision2
 }
 export interface EngineStateEvent {
   args: Args5
   event: Event5
 }
 export interface LiveEnvelopeEngineState {
-  boot_id: BootId2
+  boot_id: BootId3
   data: EngineState
   emitted_at: EmittedAt2
   protocol_version: ProtocolVersion3
-  revision: Revision2
+  revision: Revision3
 }
 export interface SteeringStateEvent {
   args: Args6
   event: Event6
 }
 export interface LiveEnvelopeSteeringState {
-  boot_id: BootId3
+  boot_id: BootId4
   data: SteeringState
   emitted_at: EmittedAt3
   protocol_version: ProtocolVersion4
-  revision: Revision3
+  revision: Revision4
 }
 export interface ButtonsStateEvent {
   args: Args7
   event: Event7
 }
 export interface LiveEnvelopeButtonsState {
-  boot_id: BootId4
+  boot_id: BootId5
   data: ButtonsState
   emitted_at: EmittedAt4
   protocol_version: ProtocolVersion5
-  revision: Revision4
+  revision: Revision5
 }
 export interface LightingStateEvent {
   args: Args8
   event: Event8
 }
 export interface LiveEnvelopeLightingState {
-  boot_id: BootId5
+  boot_id: BootId6
   data: LightingState
   emitted_at: EmittedAt5
   protocol_version: ProtocolVersion6
-  revision: Revision5
+  revision: Revision6
 }
 export interface DevicesStateEvent {
   args: Args9
   event: Event9
 }
 export interface LiveEnvelopeDevicesState {
-  boot_id: BootId6
+  boot_id: BootId7
   data: DevicesState
   emitted_at: EmittedAt6
   protocol_version: ProtocolVersion7
-  revision: Revision6
+  revision: Revision7
 }
 export interface ControllerHealthEvent {
   args: Args10
   event: Event10
 }
 export interface LiveEnvelopeControllerHealthState {
-  boot_id: BootId7
+  boot_id: BootId8
   data: ControllerHealthState
   emitted_at: EmittedAt7
   protocol_version: ProtocolVersion8
-  revision: Revision7
+  revision: Revision8
 }
-export interface ResourcesChangedEvent {
+export interface LocalControlsStateEvent {
   args: Args11
   event: Event11
+}
+export interface LiveEnvelopeLocalControlsState {
+  boot_id: BootId9
+  data: LocalControlsState
+  emitted_at: EmittedAt8
+  protocol_version: ProtocolVersion9
+  revision: Revision9
+}
+export interface ResourcesChangedEvent {
+  args: Args12
+  event: Event12
 }
 export interface ResourceChangedEvent {
   id: Id1
   resource: Resource
-  revision: Revision8
+  revision: Revision10
   type: Type
 }
 export interface TraceBatchEvent {
-  args: Args12
-  event: Event12
+  args: Args13
+  event: Event13
 }
 export interface LiveEnvelopeTraceBatchData {
-  boot_id: BootId8
+  boot_id: BootId10
   data: TraceBatchData
-  emitted_at: EmittedAt8
-  protocol_version: ProtocolVersion9
-  revision: Revision9
+  emitted_at: EmittedAt9
+  protocol_version: ProtocolVersion10
+  revision: Revision11
 }
 export interface TraceBatchData {
   rows: Rows
