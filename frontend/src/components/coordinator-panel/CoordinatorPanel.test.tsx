@@ -18,7 +18,6 @@ it.each([
   const { container } = render(
     <CoordinatorPanel
       display={display satisfies EffectiveDisplay}
-      panelLink="connected"
       onHotspotPress={() => undefined}
     />
   )
@@ -26,24 +25,18 @@ it.each([
   expect(
     screen.getByRole("img", { name: `Coordinator indicator: ${label}` })
   ).toBeTruthy()
-  const pixels = container.querySelectorAll('[aria-hidden="true"]')
+  const pixels = container.querySelectorAll("[data-panel-light]")
   expect(pixels).toHaveLength(5)
   if (animation !== null) {
     expect(pixels[0]?.className).toContain(animation)
   }
 })
 
-it("exposes the panel link and physical button without relying on colour", () => {
+it("exposes the hotspot button without relying on colour", () => {
   const onHotspotPress = vi.fn()
-  render(
-    <CoordinatorPanel
-      display="fault"
-      panelLink="disconnected"
-      onHotspotPress={onHotspotPress}
-    />
-  )
+  render(<CoordinatorPanel display="fault" onHotspotPress={onHotspotPress} />)
 
-  expect(screen.getByText("Panel link disconnected")).toBeTruthy()
+  expect(screen.getByText("Hotspot")).toBeTruthy()
   fireEvent.click(
     screen.getByRole("button", { name: "Press coordinator hotspot button" })
   )
