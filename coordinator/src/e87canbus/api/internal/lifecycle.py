@@ -16,9 +16,9 @@ from e87canbus.domain.steering.curves import (
     initial_active_steering_curve,
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
-from e87canbus.local_controls import CoordinatorCondition, CoordinatorConditionChanged
+from e87canbus.local_controls.model import CoordinatorCondition, CoordinatorConditionChanged
 from e87canbus.local_controls.service import LocalControlsService, LocalControlsServiceError
-from e87canbus.service import ControllerLoop, RuntimeExecution
+from e87canbus.service import ControllerLoop
 
 
 def create_lifespan(
@@ -34,98 +34,127 @@ def create_lifespan(
         if local_controls is not None:
             await asyncio.to_thread(local_controls.start, publisher.offer_local_controls)
         try:
-            if database is not None:
-                await asyncio.to_thread(database.initialize)
-            stored_profiles = (
-                await asyncio.to_thread(profiles.list_profiles)
-                if service.load_persisted_steering_curve
-                else ()
+            await _initialize_controller(
+                service,
+                database,
+                profiles,
+                button_profiles,
             )
-            if stored_profiles:
-                saved = next(
-                    (
-                        profile
-                        for profile in stored_profiles
-                        if profile.profile_id == BUILT_IN_PROFILE_ID
-                    ),
-                    stored_profiles[0],
-                )
-                service.configure_initial_steering_curve(
-                    initial_active_steering_curve(
-                        saved.definition,
-                        saved_profile_id=saved.profile_id,
-                        saved_profile_revision=saved.revision,
-                    )
-                )
-            saved_buttons = (
-                await asyncio.to_thread(button_profiles.get_selected_profile)
-                if service.load_persisted_button_profile
-                else None
-            )
-            if saved_buttons is not None:
-                service.configure_initial_button_profile(
-                    saved_buttons.as_active(), saved_buttons.revision
-                )
-            service.mark_persistence_available()
         except BaseException as exc:
-            service.mark_persistence_fault(str(exc))
-            if local_controls is not None:
-                await _try_set_local_condition(local_controls, CoordinatorCondition.FAULT)
-                await asyncio.to_thread(local_controls.stop, graceful=False)
+            await _handle_initialization_failure(service, local_controls, exc)
             raise
 
-        def publish(execution: RuntimeExecution) -> None:
-            publisher.offer(execution)
-
         try:
-            await asyncio.to_thread(service.start, publish)
-            await publisher.start()
-            service.mark_ready()
+            await _start_controller(service, publisher)
         except BaseException:
-            service.mark_not_ready()
-            if local_controls is not None:
-                await _try_set_local_condition(local_controls, CoordinatorCondition.FAULT)
-            try:
-                await asyncio.to_thread(service.stop, False)
-            finally:
-                try:
-                    if publisher.running:
-                        await publisher.stop()
-                finally:
-                    await asyncio.to_thread(service.close_adapter)
-                    if local_controls is not None:
-                        await asyncio.to_thread(local_controls.stop, graceful=False)
+            await _handle_start_failure(service, publisher, local_controls)
             raise
         try:
             yield
         finally:
-            service.mark_not_ready()
-            failed = service.fatal
-            if local_controls is not None:
-                await _try_set_local_condition(
-                    local_controls,
-                    (
-                        CoordinatorCondition.FAULT
-                        if failed
-                        else CoordinatorCondition.SHUTTING_DOWN
-                    ),
-                )
-            try:
-                await asyncio.to_thread(service.stop, False)
-            finally:
-                try:
-                    await publisher.stop()
-                finally:
-                    try:
-                        await asyncio.to_thread(service.close_adapter)
-                    finally:
-                        if local_controls is not None:
-                            await asyncio.to_thread(
-                                local_controls.stop,
-                                graceful=not failed,
-                            )
+            await _shutdown(service, publisher, local_controls)
 
     return lifespan
+
+
+async def _initialize_controller(
+    service: ControllerLoop,
+    database: SqliteApplicationDatabase | None,
+    profiles: SteeringProfileRepository,
+    button_profiles: ButtonProfileRepository,
+) -> None:
+    if database is not None:
+        await asyncio.to_thread(database.initialize)
+    if service.load_persisted_steering_curve:
+        stored_profiles = await asyncio.to_thread(profiles.list_profiles)
+        if stored_profiles:
+            saved = next(
+                (
+                    profile
+                    for profile in stored_profiles
+                    if profile.profile_id == BUILT_IN_PROFILE_ID
+                ),
+                stored_profiles[0],
+            )
+            service.configure_initial_steering_curve(
+                initial_active_steering_curve(
+                    saved.definition,
+                    saved_profile_id=saved.profile_id,
+                    saved_profile_revision=saved.revision,
+                )
+            )
+    if service.load_persisted_button_profile:
+        saved_buttons = await asyncio.to_thread(button_profiles.get_selected_profile)
+        if saved_buttons is not None:
+            service.configure_initial_button_profile(
+                saved_buttons.as_active(), saved_buttons.revision
+            )
+    service.mark_persistence_available()
+
+
+async def _start_controller(service: ControllerLoop, publisher: LiveStatePublisher) -> None:
+    await asyncio.to_thread(service.start, publisher.offer)
+    await publisher.start()
+    service.mark_ready()
+
+
+async def _handle_initialization_failure(
+    service: ControllerLoop,
+    local_controls: LocalControlsService | None,
+    failure: BaseException,
+) -> None:
+    service.mark_persistence_fault(str(failure))
+    if local_controls is not None:
+        await _try_set_local_condition(local_controls, CoordinatorCondition.FAULT)
+        await asyncio.to_thread(local_controls.stop, graceful=False)
+
+
+async def _handle_start_failure(
+    service: ControllerLoop,
+    publisher: LiveStatePublisher,
+    local_controls: LocalControlsService | None,
+) -> None:
+    service.mark_not_ready()
+    if local_controls is not None:
+        await _try_set_local_condition(local_controls, CoordinatorCondition.FAULT)
+    try:
+        await _stop_controller(service, publisher)
+    finally:
+        if local_controls is not None:
+            await asyncio.to_thread(local_controls.stop, graceful=False)
+
+
+async def _shutdown(
+    service: ControllerLoop,
+    publisher: LiveStatePublisher,
+    local_controls: LocalControlsService | None,
+) -> None:
+    service.mark_not_ready()
+    failed = service.fatal
+    if local_controls is not None:
+        condition = (
+            CoordinatorCondition.FAULT if failed else CoordinatorCondition.SHUTTING_DOWN
+        )
+        await _try_set_local_condition(local_controls, condition)
+    try:
+        await _stop_controller(service, publisher)
+    finally:
+        if local_controls is not None:
+            await asyncio.to_thread(local_controls.stop, graceful=not failed)
+
+
+async def _stop_controller(
+    service: ControllerLoop,
+    publisher: LiveStatePublisher,
+) -> None:
+    try:
+        await asyncio.to_thread(service.stop, False)
+    finally:
+        try:
+            if publisher.running:
+                await publisher.stop()
+        finally:
+            await asyncio.to_thread(service.close_adapter)
 
 
 async def _try_set_local_condition(
