@@ -1,6 +1,6 @@
 # Workstream 5: Pi provisioning and deployment documentation
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -205,4 +205,4 @@ Pi and verify only through reviewed commands/tests until that hardware is availa
   than implying Pi 5 support. Focused helper rejection, sudoers, Bash, NetworkManager/profile,
   deployment, reliability, Ruff, mypy, and diff checks pass (24 focused tests); target-Pi and
   assembled-hardware checks remain explicitly pending.
-- Accepted commit: `TBD`
+- Accepted commit: `90df837d4177f76c34ca552c23f4cd020af13e48`
