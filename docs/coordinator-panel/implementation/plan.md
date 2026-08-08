@@ -6,11 +6,11 @@ Status: approved; implementation has not started.
 
 Complete these fields before starting implementation:
 
-- Integration branch: `TBD`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Integration branch: `feature/coordinator-panel-implementation`
+- Starting commit: `6179d6f8d23a1dc5b7c34d3fc5c739c053f255dc`
+- Orchestrator: `Codex /root`
+- Specification approved at commit: `6179d6f8d23a1dc5b7c34d3fc5c739c053f255dc`
+- Started: `2026-08-08`
 
 The implementation branch must begin from the approved specification and mocked frontend card.
 Do not begin product work while the specification is still under review unless Aidan explicitly
@@ -20,7 +20,7 @@ requests it.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Shared services](01-shared-services.md) | Approved spec | Not started | — |
+| 1 | [Shared services](01-shared-services.md) | Approved spec | Closure review | — |
 | 2 | [Simulator integration](02-simulator.md) | 1 | Not started | — |
 | 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Not started | — |
 | 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Not started | — |
