@@ -16,6 +16,7 @@ from e87canbus.domain.steering.curves import (
     initial_active_steering_curve,
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
+from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
 from e87canbus.service import ControllerLoop, RuntimeExecution
 
 
@@ -25,6 +26,7 @@ def create_lifespan(
     profiles: SteeringProfileRepository,
     button_profiles: ButtonProfileRepository,
     publisher: LiveStatePublisher,
+    coordinator_panel: PhysicalCoordinatorPanel | None,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -69,6 +71,8 @@ def create_lifespan(
         def publish(execution: RuntimeExecution) -> None:
             publisher.offer(execution)
 
+        if coordinator_panel is not None:
+            coordinator_panel.start()
         try:
             await asyncio.to_thread(service.start, publish)
             await publisher.start()
@@ -82,18 +86,26 @@ def create_lifespan(
                     if publisher.running:
                         await publisher.stop()
                 finally:
-                    await asyncio.to_thread(service.close_adapter)
+                    try:
+                        if coordinator_panel is not None:
+                            await asyncio.to_thread(coordinator_panel.stop)
+                    finally:
+                        await asyncio.to_thread(service.close_adapter)
             raise
         try:
             yield
         finally:
-            service.mark_not_ready()
             try:
-                await asyncio.to_thread(service.stop, False)
+                if coordinator_panel is not None:
+                    await asyncio.to_thread(coordinator_panel.stop)
             finally:
+                service.mark_not_ready()
                 try:
-                    await publisher.stop()
+                    await asyncio.to_thread(service.stop, False)
                 finally:
-                    await asyncio.to_thread(service.close_adapter)
+                    try:
+                        await publisher.stop()
+                    finally:
+                        await asyncio.to_thread(service.close_adapter)
 
     return lifespan
