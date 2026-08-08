@@ -89,9 +89,12 @@ it("renders shared state and sends controls to the simulator backend", async () 
     })
   ).toBeTruthy()
 
-  fireEvent.change(screen.getByRole("combobox", { name: "Coordinator condition" }), {
-    target: { value: "fault" },
-  })
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Coordinator condition" })
+  )
+  const fault = screen.getByRole("option", { name: "Fault" })
+  fireEvent.pointerDown(fault, { pointerType: "mouse" })
+  fireEvent.click(fault)
   await waitFor(() =>
     expect(api.previewSimulationCoordinatorStatus).toHaveBeenCalledWith({
       body: { status: "fault" },
