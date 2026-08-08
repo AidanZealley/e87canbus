@@ -1,6 +1,6 @@
 # Workstream 3: production runtime integration
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -203,4 +203,4 @@ workstream.
   one-second heartbeat, with no release-blocking race or failure-isolation regression found. The
   focused panel, physical composition, and simulator suites pass (51 tests), as do focused Ruff and
   coordinator mypy checks.
-- Accepted commit: `TBD`
+- Accepted commit: `f211f94c1eb7052866ed5e40250a6e5d558f1077`
