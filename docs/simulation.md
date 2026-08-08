@@ -61,9 +61,9 @@ It models three independent CAN broadcast domains:
 
 | Network | Interface | Bitrate | Nodes |
 |---|---|---:|---|
-| K-CAN | `can0` | 100,000 | Pi, simulated vehicle, button-pad emulator |
-| PT-CAN | `can1` | 500,000 | Pi, simulated vehicle |
-| F-CAN | `can2` | 500,000 | Pi, simulated vehicle |
+| K-CAN | `kcan` | 100,000 | Pi, simulated vehicle, button-pad emulator |
+| PT-CAN | `ptcan` | 500,000 | Pi, simulated vehicle |
+| F-CAN | `fcan` | 500,000 | Pi, simulated vehicle |
 
 There is no automatic gateway behavior. Every emitted frame is retained in one chronological
 2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
@@ -127,7 +127,7 @@ the browser sends only the mode change. Setting `enabled` to `false` holds the l
 an explicit set or silence command also ends the sweep and takes ownership of the selected signals.
 
 The closed `bench` profile opens physical K-CAN, PT-CAN, and F-CAN, overrides synthetic speed to
-K-CAN, and transmits each initial and refreshed speed frame onto physical `can0`. Its transmit
+K-CAN, and transmits each initial and refreshed speed frame onto physical `kcan`. Its transmit
 grant remains K-CAN-only, so synthetic PT-CAN engine readings are decoded locally but are not put
 on the physical bus. The more representative F-CAN speed default remains in the in-memory
 simulator. Emission and decoding share one configuration value, so changing the network cannot

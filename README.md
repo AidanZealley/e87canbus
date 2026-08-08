@@ -10,8 +10,8 @@ simulator-only, bounded high-beam flash-to-pass strobe. BMW CAN IDs, DSC replay,
 actuation, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain
 out of scope.
 
-The coordinator is configured for three isolated physical networks: K-CAN (`can0`, 100 kbit/s),
-PT-CAN (`can1`, 500 kbit/s), and F-CAN (`can2`, 500 kbit/s). The Pi and simulated vehicle have an
+The coordinator is configured for three isolated physical networks: K-CAN (`kcan`, 100 kbit/s),
+PT-CAN (`ptcan`, 500 kbit/s), and F-CAN (`fcan`, 500 kbit/s). The Pi and simulated vehicle have an
 endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated Servotronic
 controller is a direct actuator capability because no physical wire protocol is verified. The
 simulator does not forward traffic between networks.

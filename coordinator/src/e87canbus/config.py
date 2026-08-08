@@ -46,9 +46,9 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
     """Return network settings in stable workbench/interface order."""
 
     return (
-        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "can0", 100_000),
-        CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "can1", 500_000),
-        CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "can2", 500_000),
+        CanNetworkConfig(CanNetwork.KCAN, "K-CAN", "kcan", 100_000),
+        CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "ptcan", 500_000),
+        CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "fcan", 500_000),
     )
 
 

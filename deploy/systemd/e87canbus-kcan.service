@@ -1,0 +1,17 @@
+[Unit]
+Description=E87 K-CAN bootstrap
+After=sys-subsystem-net-devices-kcan.device
+Requires=sys-subsystem-net-devices-kcan.device
+Before=e87canbus-controller.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip link set kcan down
+ExecStart=/usr/sbin/ip link set kcan type can bitrate 100000 restart-ms 100
+ExecStart=/usr/sbin/ip link set kcan up
+ExecStop=-/usr/sbin/ip link set kcan down
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=e87canbus-controller.service

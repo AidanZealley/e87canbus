@@ -1,0 +1,17 @@
+[Unit]
+Description=E87 PT-CAN bootstrap
+After=sys-subsystem-net-devices-ptcan.device
+Requires=sys-subsystem-net-devices-ptcan.device
+Before=e87canbus-controller.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip link set ptcan down
+ExecStart=/usr/sbin/ip link set ptcan type can bitrate 500000 restart-ms 100
+ExecStart=/usr/sbin/ip link set ptcan up
+ExecStop=-/usr/sbin/ip link set ptcan down
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=e87canbus-controller.service

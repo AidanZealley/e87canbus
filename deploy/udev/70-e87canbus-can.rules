@@ -1,0 +1,5 @@
+# Give each coordinator CAN controller a stable name derived from its physical SPI connection.
+# Kernel canN names reflect probe order and can change between boots.
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", KERNELS=="spi0.0", NAME="kcan"
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", KERNELS=="spi1.1", NAME="ptcan"
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", KERNELS=="spi1.2", NAME="fcan"

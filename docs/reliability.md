@@ -49,7 +49,7 @@ publisher, then marks ready. Shutdown reverses ownership deliberately: not-ready
 ingress and commit safe state, stop publisher/socket tasks, then close adapters. Each thread and
 task has one owner and a bounded join/cancellation check.
 
-On physical Raspberry Pi deployments, `can0`, `can1`, and `can2` are boot-managed by dedicated
+On physical Raspberry Pi deployments, `kcan`, `ptcan`, and `fcan` are boot-managed by dedicated
 `systemd` units that apply their SocketCAN bitrates and raise the interfaces before the controller
 starts. The controller requires all three units on physical installations, so a failed CAN bootstrap
 also fails the controller start. Setup validates their SPI parents before starting the controller.

@@ -11,11 +11,11 @@ DEPLOYMENT_PROFILE="car"
 HOTSPOT_PASSWORD_FILE=""
 HOTSPOT_CONNECTION="e87canbus-hotspot"
 HOTSPOT_SSID="e87canbus"
-CAN_INTERFACES=(can0 can1 can2)
+CAN_INTERFACES=(kcan ptcan fcan)
 CAN_SERVICES=(
-    e87canbus-can0.service
-    e87canbus-can1.service
-    e87canbus-can2.service
+    e87canbus-kcan.service
+    e87canbus-ptcan.service
+    e87canbus-fcan.service
 )
 
 if [[ "${EUID}" -eq 0 ]]; then
@@ -215,6 +215,15 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
         '^[[:space:]]*enable_uart=' \
         'enable_uart=1'
 
+    if ! sudo cmp -s \
+        "${REPO_ROOT}/deploy/udev/70-e87canbus-can.rules" \
+        /etc/udev/rules.d/70-e87canbus-can.rules; then
+        sudo install -o root -g root -m 0644 \
+            "${REPO_ROOT}/deploy/udev/70-e87canbus-can.rules" \
+            /etc/udev/rules.d/70-e87canbus-can.rules
+        REBOOT_REQUIRED=1
+    fi
+
     if sudo grep -Eq '(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),' "${CMDLINE_FILE}"; then
         sudo sed -E -i \
             's/(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),[^[:space:]]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $//' \
@@ -278,6 +287,13 @@ sudo chmod -R g+rX "${REPO_ROOT}"
 # shared-memory file while their ownership is changed. This also repairs databases created by an
 # older deployment that ran the application as the checkout user.
 sudo systemctl stop e87canbus-controller.service 2>/dev/null || true
+for obsolete_can_service in \
+    e87canbus-can0.service \
+    e87canbus-can1.service \
+    e87canbus-can2.service; do
+    sudo systemctl disable --now "${obsolete_can_service}" 2>/dev/null || true
+    sudo rm -f "/etc/systemd/system/${obsolete_can_service}"
+done
 sudo install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus /etc/e87canbus
 for database_file in \
     /var/lib/e87canbus/application.sqlite3 \
@@ -529,7 +545,7 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    echo "Starting the boot-managed can0, can1, and can2 services..."
+    echo "Starting the boot-managed kcan, ptcan, and fcan services..."
     sudo systemctl start "${CAN_SERVICES[@]}"
 fi
 sudo systemctl enable e87canbus-controller.service
@@ -541,12 +557,12 @@ echo "  installed profile: ${DEPLOYMENT_PROFILE}"
 echo "  systemctl status e87canbus-controller.service"
 echo "  journalctl -u e87canbus-controller.service -f"
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    echo "  ip -details link show can0"
-    echo "  ip -details link show can1"
-    echo "  ip -details link show can2"
-    echo "  candump can0"
-    echo "  candump can1"
-    echo "  candump can2"
+    echo "  ip -details link show kcan"
+    echo "  ip -details link show ptcan"
+    echo "  ip -details link show fcan"
+    echo "  candump kcan"
+    echo "  candump ptcan"
+    echo "  candump fcan"
     echo "  test -e /dev/serial0 && id e87canbus"
     echo "  sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state"
 fi
