@@ -1,16 +1,16 @@
 # Coordinator panel implementation plan
 
-Status: approved; implementation has not started.
+Status: complete.
 
 ## Orchestration record
 
 Complete these fields before starting implementation:
 
-- Integration branch: `TBD`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Integration branch: `feature/coordinator-panel-implementation`
+- Starting commit: `6179d6f8d23a1dc5b7c34d3fc5c739c053f255dc`
+- Orchestrator: `Codex /root`
+- Specification approved at commit: `6179d6f8d23a1dc5b7c34d3fc5c739c053f255dc`
+- Started: `2026-08-08`
 
 The implementation branch must begin from the approved specification and mocked frontend card.
 Do not begin product work while the specification is still under review unless Aidan explicitly
@@ -20,12 +20,12 @@ requests it.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Shared services](01-shared-services.md) | Approved spec | Not started | — |
-| 2 | [Simulator integration](02-simulator.md) | 1 | Not started | — |
-| 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Not started | — |
-| 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Not started | — |
-| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Not started | — |
-| — | [Whole-feature review](final-review.md) | 1–5 | Not started | — |
+| 1 | [Shared services](01-shared-services.md) | Approved spec | Accepted | `a17dd72e874ed43f3280f46f9cf91e31717ee64c` |
+| 2 | [Simulator integration](02-simulator.md) | 1 | Accepted | `812c526ac2fa8d99c997baae6099882212fc7c1e` |
+| 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Accepted | `f211f94c1eb7052866ed5e40250a6e5d558f1077` |
+| 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Accepted | `7a90dd92567143e87674b7c352d330c30afeeda2` |
+| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Accepted | `90df837d4177f76c34ca552c23f4cd020af13e48` |
+| — | [Whole-feature review](final-review.md) | 1–5 | Accepted | `06ba785e427ee4b857db3adb7e74116fd3cbb247` |
 
 Allowed statuses are `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review`, and
 `Accepted`. At most one workstream is active unless the orchestrator records non-overlapping file
@@ -96,4 +96,4 @@ Add entries only for decisions that affect more than one workstream or change th
 
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
-| — | None | — | — | — |
+| 2026-08-08 | Pin the physical coordinator to Raspberry Pi 4. | The frozen `/dev/serial0` plus BCM14/15 contract matches Pi 4; Pi 5 routes `/dev/serial0` to its separate debug header. Model-specific runtime UART configuration would broaden this fixed accessory implementation. | Orchestrator, from approved contract and existing Pi 4 design context | 3, 5 |

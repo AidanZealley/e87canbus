@@ -1,6 +1,6 @@
 # Workstream 1: shared panel and hotspot services
 
-Status: not started.
+Status: accepted.
 
 ## Task packet
 
@@ -76,30 +76,63 @@ Adjust filenames in the record if the accepted implementation uses different sma
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations: `TBD`
-- Specification drift: `TBD`
+- Base commit: `6179d6f8d23a1dc5b7c34d3fc5c739c053f255dc`
+- Outcome: Added the shared typed hotspot state machine and panel display service, including the
+  common button entry point, readiness gating, display priority, output seam, and focused tests.
+- Files changed: `coordinator/src/e87canbus/hotspot.py`,
+  `coordinator/src/e87canbus/panel.py`, `coordinator/tests/test_hotspot.py`,
+  `coordinator/tests/test_panel.py`, and this record.
+- Decisions: A command failure remains visible while the backend reports the observation from
+  which the command failed; successful retry or observed state progress clears it. This preserves
+  the required visible failure and retry button behaviour while allowing later backend evidence to
+  recover it. Each toggle is a direct synchronous operation, so no thread or lifecycle machinery
+  is needed in the shared service; application composition remains responsible only for scheduling
+  refreshes.
+- Verification: `uv run pytest coordinator/tests/test_panel.py coordinator/tests/test_hotspot.py`
+  (8 passed); focused `uv run ruff check ...` (passed); `uv run mypy
+  coordinator/src/e87canbus` (passed); `uv run lint-imports` (2 contracts kept).
+- Known limitations: The services expose a direct `refresh()` operation; production and simulator
+  composition must call it when observations can change independently of a button press. This is
+  intentional under the workstream boundary.
+- Specification drift: `None`.
 
 ## Independent review
 
-- Reviewer: `TBD`
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: `Codex /root/ws1_review`
+- Verdict: `Changes required`
+- Required findings:
+  - `HotspotService.toggle()` treats any latched command failure as the current `failed` state
+    without reconciling the fresh backend observation it has just read. Reproduced by failing an
+    activation from `disabled`, changing the backend observation to `connected`, and pressing the
+    button before calling `status()`: the service issues `activate` again instead of `deactivate`.
+    This violates the requirements that a successful later observation clears the failure and that
+    the hotspot service owns the toggle decision rather than deciding from stale state; in a real
+    late-completing activation it can leave an active hotspot enabled when the press should disable
+    it. Use one shared observation-to-status reconciliation path from both `status()` and
+    `toggle()`, so observation progress clears the latch before applying the transition table, and
+    protect this path with a focused test.
+- Optional observations: `None`.
+- Questions for orchestrator: `None`.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted the required failure-latch reconciliation finding. A fresh
+  backend observation must determine the button action when it demonstrates progress beyond the
+  observation at which the prior command failed.
+- Simplification/deletion pass: Replaced the duplicated, stale toggle-status calculation with one
+  small observation reconciliation helper shared by `status()` and `toggle()`. Replaced the weaker
+  status-only recovery test with the complete failure, observed progress, and button-action path;
+  no compatibility machinery or obsolete code remains.
+- Final verification: Final accepted-tree verification passed: `uv run pytest
+  coordinator/tests/test_panel.py coordinator/tests/test_hotspot.py` (8 passed); focused `uv run
+  ruff check ...` (passed); `uv run mypy coordinator/src/e87canbus` (passed); `uv run lint-imports`
+  (2 contracts kept).
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
-- Accepted commit: `TBD`
+- Verdict: `Accepted`
+- Remaining required findings: `None`. `status()` and `toggle()` now use the same fresh-observation
+  reconciliation path. The focused test confirms that a failed activation followed by an observed
+  `connected` state causes the next press to deactivate, and the targeted tests, Ruff, and mypy
+  pass.
+- Accepted commit: `a17dd72e874ed43f3280f46f9cf91e31717ee64c`

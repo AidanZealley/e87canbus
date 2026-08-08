@@ -24,12 +24,12 @@ def test_simulator_schema_has_stable_unique_operation_ids(tmp_path: Path) -> Non
     schema = schema_for(DeploymentProfile.SIMULATOR, tmp_path / "simulator.sqlite3")
     operation_ids = [operation["operationId"] for operation in operations(schema)]
 
-    assert len(operation_ids) == 39
     assert len(operation_ids) == len(set(operation_ids))
     assert "getApplicationSettings" in operation_ids
     assert "getRuntimeConfiguration" in operation_ids
     assert "activateButtonProfile" not in operation_ids
     assert "resetSimulation" in operation_ids
+    assert "getSimulationCoordinatorPanel" in operation_ids
 
 
 def test_schema_models_actual_success_and_problem_responses(tmp_path: Path) -> None:

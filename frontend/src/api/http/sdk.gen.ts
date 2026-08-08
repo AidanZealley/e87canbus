@@ -26,6 +26,9 @@ import type {
   ConnectSimulationDeviceData,
   ConnectSimulationDeviceErrors,
   ConnectSimulationDeviceResponses,
+  ConnectSimulationHotspotClientData,
+  ConnectSimulationHotspotClientErrors,
+  ConnectSimulationHotspotClientResponses,
   CreateButtonProfileData,
   CreateButtonProfileErrors,
   CreateButtonProfileResponses,
@@ -41,6 +44,12 @@ import type {
   DisconnectSimulationDeviceData,
   DisconnectSimulationDeviceErrors,
   DisconnectSimulationDeviceResponses,
+  DisconnectSimulationHotspotClientData,
+  DisconnectSimulationHotspotClientErrors,
+  DisconnectSimulationHotspotClientResponses,
+  FailNextSimulationHotspotOperationData,
+  FailNextSimulationHotspotOperationErrors,
+  FailNextSimulationHotspotOperationResponses,
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
@@ -55,6 +64,8 @@ import type {
   GetSavedSteeringProfileData,
   GetSavedSteeringProfileErrors,
   GetSavedSteeringProfileResponses,
+  GetSimulationCoordinatorPanelData,
+  GetSimulationCoordinatorPanelResponses,
   GetSteeringProfileData,
   GetSteeringProfileErrors,
   GetSteeringProfileResponses,
@@ -64,6 +75,12 @@ import type {
   ListSteeringProfilesData,
   ListSteeringProfilesErrors,
   ListSteeringProfilesResponses,
+  PressSimulationCoordinatorPanelButtonData,
+  PressSimulationCoordinatorPanelButtonErrors,
+  PressSimulationCoordinatorPanelButtonResponses,
+  PreviewSimulationCoordinatorStatusData,
+  PreviewSimulationCoordinatorStatusErrors,
+  PreviewSimulationCoordinatorStatusResponses,
   RebootSimulationDeviceData,
   RebootSimulationDeviceErrors,
   RebootSimulationDeviceResponses,
@@ -132,19 +149,25 @@ import {
   zCheckLivenessResponse,
   zCheckReadinessResponse,
   zConnectSimulationDeviceResponse,
+  zConnectSimulationHotspotClientResponse,
   zCreateButtonProfileResponse,
   zCreateSteeringProfileResponse,
   zDeleteButtonProfileResponse,
   zDeleteSteeringProfileResponse,
   zDisconnectSimulationDeviceResponse,
+  zDisconnectSimulationHotspotClientResponse,
+  zFailNextSimulationHotspotOperationResponse,
   zGetApplicationSettingsResponse,
   zGetButtonProfileResponse,
   zGetRuntimeConfigurationResponse,
   zGetSavedButtonProfileResponse,
   zGetSavedSteeringProfileResponse,
+  zGetSimulationCoordinatorPanelResponse,
   zGetSteeringProfileResponse,
   zListButtonProfilesResponse,
   zListSteeringProfilesResponse,
+  zPressSimulationCoordinatorPanelButtonResponse,
+  zPreviewSimulationCoordinatorStatusResponse,
   zRebootSimulationDeviceResponse,
   zResetSimulationResponse,
   zSetCoolantTemperatureResponse,
@@ -335,6 +358,166 @@ export const updateButtonProfile = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Get Panel
+ */
+export const getSimulationCoordinatorPanel = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<GetSimulationCoordinatorPanelData, ThrowOnError>
+): RequestResult<
+  GetSimulationCoordinatorPanelResponses,
+  unknown,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetSimulationCoordinatorPanelResponses,
+    unknown,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetSimulationCoordinatorPanelResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel",
+    ...options,
+  })
+
+/**
+ * Press Button
+ */
+export const pressSimulationCoordinatorPanelButton = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<PressSimulationCoordinatorPanelButtonData, ThrowOnError>
+): RequestResult<
+  PressSimulationCoordinatorPanelButtonResponses,
+  PressSimulationCoordinatorPanelButtonErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    PressSimulationCoordinatorPanelButtonResponses,
+    PressSimulationCoordinatorPanelButtonErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zPressSimulationCoordinatorPanelButtonResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/button",
+    ...options,
+  })
+
+/**
+ * Connect Client
+ */
+export const connectSimulationHotspotClient = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<ConnectSimulationHotspotClientData, ThrowOnError>
+): RequestResult<
+  ConnectSimulationHotspotClientResponses,
+  ConnectSimulationHotspotClientErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    ConnectSimulationHotspotClientResponses,
+    ConnectSimulationHotspotClientErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zConnectSimulationHotspotClientResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/client/connect",
+    ...options,
+  })
+
+/**
+ * Disconnect Client
+ */
+export const disconnectSimulationHotspotClient = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<DisconnectSimulationHotspotClientData, ThrowOnError>
+): RequestResult<
+  DisconnectSimulationHotspotClientResponses,
+  DisconnectSimulationHotspotClientErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    DisconnectSimulationHotspotClientResponses,
+    DisconnectSimulationHotspotClientErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zDisconnectSimulationHotspotClientResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/client/disconnect",
+    ...options,
+  })
+
+/**
+ * Preview Coordinator Status
+ */
+export const previewSimulationCoordinatorStatus = <
+  ThrowOnError extends boolean = true,
+>(
+  options: Options<PreviewSimulationCoordinatorStatusData, ThrowOnError>
+): RequestResult<
+  PreviewSimulationCoordinatorStatusResponses,
+  PreviewSimulationCoordinatorStatusErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).put<
+    PreviewSimulationCoordinatorStatusResponses,
+    PreviewSimulationCoordinatorStatusErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zPreviewSimulationCoordinatorStatusResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/coordinator-status",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Fail Next Operation
+ */
+export const failNextSimulationHotspotOperation = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<FailNextSimulationHotspotOperationData, ThrowOnError>
+): RequestResult<
+  FailNextSimulationHotspotOperationResponses,
+  FailNextSimulationHotspotOperationErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).post<
+    FailNextSimulationHotspotOperationResponses,
+    FailNextSimulationHotspotOperationErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zFailNextSimulationHotspotOperationResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation",
+    ...options,
   })
 
 /**
