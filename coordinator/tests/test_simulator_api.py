@@ -296,6 +296,64 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     )
 
 
+def test_coordinator_panel_uses_shared_services_and_resets_with_the_session(
+    client: TestClient,
+) -> None:
+    panel_path = "/api/dev/simulation/coordinator-panel"
+
+    assert client.get(panel_path).json() == {
+        "coordinator_status": "ready",
+        "display": "ready",
+        "hotspot_status": "disabled",
+        "failure_armed": False,
+        "coordinator_status_preview": None,
+    }
+
+    assert client.post(f"{panel_path}/button").json()["hotspot_status"] == "starting"
+    assert client.post(f"{panel_path}/button").json()["display"] == "ready"
+
+    for coordinator_status, display in (
+        ("starting", "starting"),
+        ("fault", "fault"),
+        ("off", "off"),
+    ):
+        preview = client.put(
+            f"{panel_path}/coordinator-status",
+            json={"status": coordinator_status},
+        ).json()
+        assert preview["coordinator_status"] == coordinator_status
+        assert preview["display"] == display
+    live = client.put(
+        f"{panel_path}/coordinator-status",
+        json={"status": None},
+    ).json()
+    assert live["coordinator_status"] == "ready"
+    assert live["display"] == "ready"
+
+    client.post(f"{panel_path}/button")
+    connected = client.post(f"{panel_path}/client/connect").json()
+    assert connected["hotspot_status"] == "connected"
+    assert connected["display"] == "hotspot_connected"
+
+    disconnected = client.post(f"{panel_path}/client/disconnect").json()
+    assert disconnected["hotspot_status"] == "waiting"
+    assert disconnected["display"] == "hotspot_waiting"
+    assert client.post(f"{panel_path}/button").json()["display"] == "ready"
+
+    armed = client.post(f"{panel_path}/hotspot/fail-next-operation").json()
+    assert armed["failure_armed"] is True
+    failed = client.post(f"{panel_path}/button").json()
+    assert failed["hotspot_status"] == "failed"
+    assert failed["display"] == "fault"
+    assert client.post(f"{panel_path}/button").json()["hotspot_status"] == "starting"
+
+    assert client.post("/api/dev/simulation/reset").status_code == 200
+    reset = client.get(panel_path).json()
+    assert reset["hotspot_status"] == "disabled"
+    assert reset["display"] == "ready"
+    assert reset["coordinator_status_preview"] is None
+
+
 def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

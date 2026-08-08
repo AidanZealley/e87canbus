@@ -120,6 +120,7 @@ def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls
         assert FakeSocketCanBus.instances[0].sent == [encode_simulated_speed(42.5)]
         assert all(not bus.sent for bus in FakeSocketCanBus.instances[1:])
         assert client.post("/api/dev/simulation/reset").status_code == 404
+        assert client.get("/api/dev/simulation/coordinator-panel").status_code == 404
         assert (
             client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code == 404
         )

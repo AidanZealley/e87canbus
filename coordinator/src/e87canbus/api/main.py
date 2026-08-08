@@ -175,7 +175,7 @@ def create_app(
     app.include_router(settings.router)
     app.include_router(steering.router)
     app.include_router(button_profiles.router)
-    install_simulation_api(app, service.deployment.simulation_api)
+    install_simulation_api(app, service.deployment.simulation_api, service)
     static_app = (
         SpaStaticFiles(directory=frontend_directory, html=True)
         if frontend_directory is not None
