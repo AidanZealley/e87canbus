@@ -20,7 +20,7 @@ requests it.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Shared services](01-shared-services.md) | Approved spec | Closure review | — |
+| 1 | [Shared services](01-shared-services.md) | Approved spec | Accepted | `a17dd72e874ed43f3280f46f9cf91e31717ee64c` |
 | 2 | [Simulator integration](02-simulator.md) | 1 | Not started | — |
 | 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Not started | — |
 | 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Not started | — |

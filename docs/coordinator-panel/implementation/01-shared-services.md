@@ -1,6 +1,6 @@
 # Workstream 1: shared panel and hotspot services
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -135,4 +135,4 @@ Adjust filenames in the record if the accepted implementation uses different sma
   reconciliation path. The focused test confirms that a failed activation followed by an observed
   `connected` state causes the next press to deactivate, and the targeted tests, Ruff, and mypy
   pass.
-- Accepted commit: `TBD`
+- Accepted commit: `a17dd72e874ed43f3280f46f9cf91e31717ee64c`
