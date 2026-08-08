@@ -15,6 +15,14 @@ import type {
 } from "@/api/http/types.gen"
 import { CoordinatorPanel } from "@/components/coordinator-panel"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { notifySimulatorError } from "./utils"
 
 export const SimulatorCoordinatorPanel = () => {
@@ -80,30 +88,38 @@ export const SimulatorCoordinatorPanel = () => {
             onHotspotPress={() => press.mutate({})}
           />
           <div className="flex flex-wrap gap-2">
-            <label className="grid gap-1 text-xs text-muted-foreground">
-              Coordinator condition
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-foreground"
-                aria-label="Coordinator condition"
+            <div className="grid gap-1">
+              <Label
+                htmlFor="coordinator-condition"
+                className="text-xs text-muted-foreground"
+              >
+                Coordinator condition
+              </Label>
+              <Select
                 value={panel.data.coordinator_status_preview ?? "live"}
                 disabled={mutationPending}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   preview.mutate({
                     body: {
                       status:
-                        event.target.value === "live"
+                        value === "live"
                           ? null
-                          : (event.target.value as CoordinatorStatus),
+                          : (value as CoordinatorStatus),
                     },
                   })
                 }
               >
-                <option value="live">Live controller</option>
-                <option value="starting">Starting</option>
-                <option value="fault">Fault</option>
-                <option value="off">Off</option>
-              </select>
-            </label>
+                <SelectTrigger id="coordinator-condition" className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live">Live controller</SelectItem>
+                  <SelectItem value="starting">Starting</SelectItem>
+                  <SelectItem value="fault">Fault</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               type="button"
               size="sm"
