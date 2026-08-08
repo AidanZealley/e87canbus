@@ -16,7 +16,8 @@ TimeoutStopSec=15s
 KillSignal=SIGINT
 StandardOutput=journal
 StandardError=journal
-NoNewPrivileges=true
+# The process remains User=e87canbus. Its sole elevation path is the root-owned,
+# argument-validating hotspot helper allowed by /etc/sudoers.d/e87canbus-hotspot.
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

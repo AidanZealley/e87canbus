@@ -30,6 +30,7 @@ def test_canonical_cli_selects_car_profile_without_opening_adapters_before_lifes
 
     assert cli.main(("run", "--profile", "car")) == 0
     assert api_main.app.state.deployment_profile is DeploymentProfile.CAR
+    assert api_main.app.state.local_controls_service is not None
     assert len(calls) == 1
 
 

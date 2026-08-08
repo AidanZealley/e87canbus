@@ -16,10 +16,13 @@ from e87canbus.deployment import (
 )
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.kernel import ReceivedCanFrame
+from e87canbus.local_controls.model import PanelDisplayState
+from e87canbus.local_controls.ports import LocalControlsInputSink
 from e87canbus.protocol.can import CanFrame, DeviceHelloPayload, encode_hello
 from e87canbus.runners.composition import (
     build_controller_loop,
     build_live_controller_loop,
+    build_physical_local_controls,
     build_simulated_controller_loop,
 )
 from e87canbus.runners.simulation.protocol import encode_simulated_speed
@@ -52,6 +55,44 @@ class FailingSendSocketCanBus(FakeSocketCanBus):
         raise OSError("bench CAN send failed")
 
 
+class RecordingPanel:
+    def __init__(self) -> None:
+        self.displays: list[PanelDisplayState] = []
+        self.closed = False
+
+    def start(self, submit: LocalControlsInputSink) -> None:
+        del submit
+
+    def set_display(self, display: PanelDisplayState) -> None:
+        self.displays.append(display)
+
+    def poll(self, now: float) -> None:
+        del now
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class RecordingHotspot:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def start(self, submit: LocalControlsInputSink) -> None:
+        del submit
+
+    def activate(self) -> None:
+        pass
+
+    def deactivate(self) -> None:
+        pass
+
+    def poll(self, now: float) -> None:
+        del now
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def slow_config():
     return replace(default_config(), tick_interval_s=60.0)
 
@@ -64,6 +105,39 @@ def test_car_profile_is_physical_and_has_no_simulation_capabilities() -> None:
     assert spec.device_source(DeviceRole.BUTTON_PAD) is DeviceSource.PHYSICAL
     assert spec.simulation_api is SimulationApiScope.NONE
     assert spec.tx_grants == frozenset()
+
+
+def test_physical_local_controls_share_the_application_lifespan(tmp_path: Path) -> None:
+    service = build_controller_loop(
+        DeploymentProfile.CAR,
+        config=slow_config(),
+        socketcan_factory=FakeSocketCanBus,
+    )
+    panel = RecordingPanel()
+    hotspot = RecordingHotspot()
+    local_controls = build_physical_local_controls(
+        service,
+        panel=panel,
+        hotspot=hotspot,
+    )
+    app = create_app(
+        controller_loop=service,
+        physical_local_controls=local_controls,
+        profile_database_path=tmp_path / "physical-local-controls.sqlite3",
+    )
+
+    with TestClient(app) as client:
+        assert client.get("/health/ready").status_code == 200
+        deadline = time.monotonic() + 0.5
+        while PanelDisplayState.READY not in panel.displays:
+            assert time.monotonic() < deadline
+            time.sleep(0.005)
+        assert app.state.local_controls_service is local_controls
+        assert app.state.simulated_local_controls is None
+
+    assert panel.displays[-1] is PanelDisplayState.OFF
+    assert panel.closed is True
+    assert hotspot.closed is True
 
 
 def test_closed_profile_fields_cannot_be_recombined() -> None:

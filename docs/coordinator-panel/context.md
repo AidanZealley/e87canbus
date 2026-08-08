@@ -1,8 +1,8 @@
 # Coordinator panel context
 
-Status: Phase 1 simulator and shared coordinator behavior implemented. Phase 2 firmware, physical
-adapters, Pi deployment, and bench validation remain pending. The QT Py RP2040 and NeoPixel Driver
-BFF have been purchased.
+Status: Phase 1 is complete. Phase 2 firmware, physical adapters, and Pi provisioning are
+implemented; physical bench acceptance remains pending. The QT Py RP2040 and NeoPixel Driver BFF
+have been purchased.
 
 This document records the agreed physical and software design for the in-car coordinator. It keeps
 the intended design separate from the currently implemented Raspberry Pi and CAN setup.
@@ -117,7 +117,8 @@ individual animation frames. Brightness should be intentionally low for an in-ca
 The RP2040 starts the white travelling animation immediately after its firmware boots, without
 waiting for Linux. Once the coordinator service is ready it sends the current state over UART. A
 heartbeat allows the RP2040 to show red if an established coordinator connection stops responding.
-The initial boot grace period and heartbeat timeout still need to be selected and tested.
+Firmware uses the selected 60-second initial boot grace and two-second established-link timeout;
+both still need physical validation.
 
 A button press before the coordinator is ready must not be queued for later execution. It may be
 ignored or acknowledged locally, but it must not unexpectedly enable the hotspot after startup.
@@ -177,7 +178,7 @@ service rather than the vehicle controller kernel.
 
 ## Coordinator responsibilities
 
-The Pi software will need:
+The Pi software implements:
 
 - A UART panel adapter using `/dev/serial0`.
 - A NetworkManager hotspot adapter that can only activate, inspect, and deactivate the managed
@@ -215,8 +216,7 @@ independently. The simulator does not need to emulate RP2040 instructions or Neo
 
 ## Phased implementation
 
-The current setup script does not configure this panel. Work is divided at the point where the
-behavior has been implemented and approved in the simulator:
+Work is divided at the point where the behavior was implemented and approved in the simulator:
 
 1. [Phase 1](phase-1-simulator.md) defines the shared state model, implements in-memory adapters,
    publishes local-control state, and adds the coordinator enclosure to the simulator workbench.

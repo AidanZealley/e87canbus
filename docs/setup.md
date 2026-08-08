@@ -99,6 +99,38 @@ configuration change, reboot and rerun setup; it fails closed unless `can0`, `ca
 to `spi0.0`, `spi1.1`, and `spi1.2` respectively. The controller remains disabled during the
 required reboot and is enabled only after that validation succeeds.
 
+## Coordinator front panel
+
+For `car` and `bench`, `scripts/setup_pi.sh` also enables the primary GPIO UART without disabling
+the Pi 4 Bluetooth controller, removes only serial-console kernel arguments, grants the service
+account `dialout` access, and validates `/dev/serial0` after reboot. It provisions one fixed
+NetworkManager profile:
+
+- UUID `9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652`
+- interface `wlan0`
+- SSID `E87-Coordinator`
+- address `192.168.50.1/24`
+- `connection.autoconnect=no`
+
+The first setup requires `--hotspot-password-file PATH`. Keep that file outside the checkout with
+mode `0600`; the script neither prints nor installs it. During initial `nmcli connection add`, the
+password exists transiently in that root command's argument list because nmcli has no supported
+stdin secret input for profile creation. Run setup only on the trusted Pi with no untrusted local
+users, then remove the temporary file. Later runs preserve the stored PSK, reconcile all non-secret
+settings, and do not require the password file.
+
+A root-owned helper accepts only the adapter's exact inspect/up/down commands for that UUID, while
+the controller continues to run as `e87canbus`. It cannot edit the profile or pass an unrelated UUID
+through the helper. `connection.permissions` was not used because NetworkManager ties a restricted
+profile to an active login session, which the system service deliberately does not have; granting
+general NetworkManager control through Polkit would expose unrelated profiles.
+
+With the QT Py attached by USB and the Pi UART/power harness disconnected, `--flash-panel` builds
+and uploads the firmware using the pinned PlatformIO version through `uv tool run`; no global
+PlatformIO installation or `pio` PATH entry is required. The source revision and resulting UF2
+SHA-256 are recorded at `/var/lib/e87canbus/coordinator-panel-firmware-version`. Follow the
+[bench evidence runbook](coordinator-panel/bench-validation.md) before accepting the physical phase.
+
 ## Capture physical CAN traffic
 
 From an already working bench or car deployment, connect the device and run:

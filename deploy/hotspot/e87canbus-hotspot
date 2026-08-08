@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOTSPOT_UUID="9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652"
+HOTSPOT_INTERFACE="wlan0"
+
+case "$*" in
+    "--terse --get-values GENERAL.STATE connection show uuid ${HOTSPOT_UUID}" | \
+    "--wait 0 connection down uuid ${HOTSPOT_UUID}")
+        ;;
+    "--wait 0 connection up uuid ${HOTSPOT_UUID} ifname ${HOTSPOT_INTERFACE}")
+        ;;
+    *)
+        echo "unsupported managed-hotspot operation" >&2
+        exit 2
+        ;;
+esac
+
+exec /usr/bin/nmcli "$@"

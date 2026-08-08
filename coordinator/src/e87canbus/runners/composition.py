@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from e87canbus.adapters.networkmanager_hotspot import (
+    CommandResult,
+    NetworkManagerHotspot,
+    NetworkManagerHotspotError,
+    run_command,
+)
 from e87canbus.adapters.socketcan import SocketCanBus
+from e87canbus.adapters.uart_panel import UartPanel
 from e87canbus.config import (
     AppConfig,
     CanNetwork,
@@ -25,7 +32,7 @@ from e87canbus.deployment import (
 )
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.local_controls.model import CoordinatorCondition, CoordinatorConditionChanged
-from e87canbus.local_controls.ports import LocalControlsInputSink
+from e87canbus.local_controls.ports import HotspotPort, LocalControlsInputSink, PanelPort
 from e87canbus.local_controls.service import LocalControlsService
 from e87canbus.runners.live import LiveControllerRuntime
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
@@ -113,6 +120,48 @@ class SimulatedLocalControls:
     panel: InMemoryPanel
     hotspot: InMemoryHotspot
     coordinator_condition: ControllerConditionAdapter
+
+
+PANEL_HOTSPOT_CONNECTION_UUID = "9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652"
+PANEL_HOTSPOT_INTERFACE = "wlan0"
+PANEL_HOTSPOT_SUBNET = "192.168.50.0/24"
+PANEL_HOTSPOT_HELPER = "/usr/local/libexec/e87canbus-hotspot"
+
+
+def _run_physical_hotspot_command(argv: Sequence[str]) -> CommandResult:
+    if argv[0] == "ip":
+        return run_command(argv)
+    if argv[0] != "nmcli":
+        raise NetworkManagerHotspotError("unsupported physical hotspot command")
+    # The root-owned helper accepts only the adapter's three fixed command shapes and UUID.
+    return run_command(("sudo", "-n", PANEL_HOTSPOT_HELPER, *argv[1:]))
+
+
+def build_physical_local_controls(
+    controller: ControllerLoop,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+    panel: PanelPort | None = None,
+    hotspot: HotspotPort | None = None,
+) -> LocalControlsService:
+    """Compose the fixed Pi panel hardware behind the Phase 1 ports."""
+
+    coordinator_condition = ControllerConditionAdapter(controller, clock=clock)
+    return LocalControlsService(
+        panel=panel if panel is not None else UartPanel(),
+        hotspot=(
+            hotspot
+            if hotspot is not None
+            else NetworkManagerHotspot(
+                connection_uuid=PANEL_HOTSPOT_CONNECTION_UUID,
+                interface=PANEL_HOTSPOT_INTERFACE,
+                subnet=PANEL_HOTSPOT_SUBNET,
+                runner=_run_physical_hotspot_command,
+            )
+        ),
+        coordinator_condition=coordinator_condition,
+        clock=clock,
+    )
 
 
 def build_simulated_local_controls(

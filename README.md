@@ -16,8 +16,8 @@ endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulate
 controller is a direct actuator capability because no physical wire protocol is verified. The
 simulator does not forward traffic between networks.
 
-The planned in-car enclosure, UART-connected RP2040 status indicator, hotspot button, and matching
-simulator boundary are recorded in the
+The in-car enclosure design, implemented UART-connected RP2040 status indicator and hotspot
+button, matching simulator boundary, and pending physical bench acceptance are recorded in the
 [coordinator panel context and specifications](docs/coordinator-panel/context.md).
 
 ## Layout

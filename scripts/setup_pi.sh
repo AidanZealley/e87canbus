@@ -8,6 +8,13 @@ CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
 DEPLOYMENT_PROFILE="car"
+HOTSPOT_PASSWORD_FILE=""
+FLASH_PANEL=0
+HOTSPOT_UUID="9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652"
+HOTSPOT_NAME="e87canbus-hotspot"
+HOTSPOT_SSID="E87-Coordinator"
+HOTSPOT_INTERFACE="wlan0"
+HOTSPOT_ADDRESS="192.168.50.1/24"
 CAN_INTERFACES=(can0 can1 can2)
 CAN_SERVICES=(
     e87canbus-can0.service
@@ -40,7 +47,22 @@ while [[ "$#" -gt 0 ]]; do
             REBOOT_REQUESTED=1
             shift
             ;;
-        *) echo "Usage: $0 [--profile car|bench|simulator] [--reboot]" >&2; exit 2 ;;
+        --hotspot-password-file)
+            if [[ "$#" -lt 2 ]]; then
+                echo "--hotspot-password-file requires a readable file" >&2
+                exit 2
+            fi
+            HOTSPOT_PASSWORD_FILE="$2"
+            shift 2
+            ;;
+        --flash-panel)
+            FLASH_PANEL=1
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [--profile car|bench|simulator] [--hotspot-password-file PATH] [--flash-panel] [--reboot]" >&2
+            exit 2
+            ;;
     esac
 done
 
@@ -94,7 +116,7 @@ fi
 echo "Installing Pi packages..."
 sudo apt-get update
 
-PACKAGES="can-utils build-essential python3 python3-pip python3-venv nodejs npm curl"
+PACKAGES="can-utils build-essential python3 python3-pip python3-venv nodejs npm curl iproute2 network-manager"
 
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     # Chromium — package name varies by distro
@@ -172,6 +194,21 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     reconcile_boot_line \
         '^[[:space:]]*dtoverlay=mcp2515,.*spi1-2([,[:space:]]|$)' \
         'dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000'
+
+    # Keep Pi 4 Bluetooth on its normal controller. enable_uart stabilizes and exposes the
+    # primary GPIO UART as /dev/serial0 without applying disable-bt or miniuart-bt overlays.
+    reconcile_boot_line \
+        '^[[:space:]]*enable_uart=' \
+        'enable_uart=1'
+
+    sudo cp -n "${CMDLINE_FILE}" "${CMDLINE_FILE}.e87canbus-before-setup" || true
+    CMDLINE_BEFORE="$(sudo cat "${CMDLINE_FILE}")"
+    CMDLINE_AFTER="$(printf '%s\n' "${CMDLINE_BEFORE}" | sed -E \
+        's/(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),[^[:space:]]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
+    if [[ "${CMDLINE_AFTER}" != "${CMDLINE_BEFORE}" ]]; then
+        printf '%s\n' "${CMDLINE_AFTER}" | sudo tee "${CMDLINE_FILE}" >/dev/null
+        REBOOT_REQUIRED=1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -215,6 +252,9 @@ if ! id e87canbus >/dev/null 2>&1; then
     sudo useradd --system --gid e87canbus --home-dir /var/lib/e87canbus \
         --create-home --shell /usr/sbin/nologin e87canbus
 fi
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    sudo usermod -aG dialout e87canbus
+fi
 
 # The checkout and its uv environment are built as the invoking user, while systemd runs the
 # service as e87canbus. Keep ownership with the checkout owner but grant the service group access.
@@ -248,6 +288,83 @@ sudo install -o root -g e87canbus -m 0640 \
 sudo sed -i \
     "s/^E87CANBUS_PROFILE=.*/E87CANBUS_PROFILE=${DEPLOYMENT_PROFILE}/" \
     /etc/e87canbus/controller.env
+
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    echo "Provisioning the fixed coordinator hotspot boundary..."
+    sudo install -d -o root -g root -m 0755 /usr/local/libexec
+    sudo install -o root -g root -m 0755 \
+        "${REPO_ROOT}/deploy/hotspot/e87canbus-hotspot" \
+        /usr/local/libexec/e87canbus-hotspot
+    sudo install -o root -g root -m 0440 \
+        "${REPO_ROOT}/deploy/hotspot/e87canbus-hotspot.sudoers" \
+        /etc/sudoers.d/e87canbus-hotspot
+    sudo visudo -cf /etc/sudoers.d/e87canbus-hotspot >/dev/null
+
+    if sudo nmcli --terse --get-values connection.uuid connection show uuid \
+        "${HOTSPOT_UUID}" >/dev/null 2>&1; then
+        EXISTING_HOTSPOT_TYPE="$(sudo nmcli --terse --get-values connection.type \
+            connection show uuid "${HOTSPOT_UUID}")"
+        if [[ "${EXISTING_HOTSPOT_TYPE}" != "802-11-wireless" ]]; then
+            echo "The managed hotspot UUID belongs to a non-Wi-Fi profile; refusing to modify it." >&2
+            exit 1
+        fi
+        sudo nmcli connection modify uuid "${HOTSPOT_UUID}" \
+            connection.id "${HOTSPOT_NAME}" \
+            connection.interface-name "${HOTSPOT_INTERFACE}" \
+            connection.autoconnect no \
+            802-11-wireless.mode ap \
+            802-11-wireless.ssid "${HOTSPOT_SSID}" \
+            wifi-sec.key-mgmt wpa-psk \
+            ipv4.method shared \
+            ipv4.addresses "${HOTSPOT_ADDRESS}" \
+            ipv6.method disabled >/dev/null
+    else
+        if [[ -z "${HOTSPOT_PASSWORD_FILE}" || ! -r "${HOTSPOT_PASSWORD_FILE}" ]]; then
+            echo "The managed hotspot does not exist. Pass --hotspot-password-file with an out-of-repository WPA password file." >&2
+            exit 1
+        fi
+        if [[ "$(stat -c '%u:%a' "${HOTSPOT_PASSWORD_FILE}")" != "${EUID}:600" ]]; then
+            echo "The hotspot password file must be owned by the invoking user with mode 0600." >&2
+            exit 1
+        fi
+        HOTSPOT_PASSWORD="$(<"${HOTSPOT_PASSWORD_FILE}")"
+        if [[ "${#HOTSPOT_PASSWORD}" -lt 8 || "${#HOTSPOT_PASSWORD}" -gt 63 ]]; then
+            echo "The hotspot password must contain 8 to 63 characters." >&2
+            exit 1
+        fi
+        if ! sudo nmcli connection add type wifi ifname "${HOTSPOT_INTERFACE}" \
+                con-name "${HOTSPOT_NAME}" ssid "${HOTSPOT_SSID}" \
+                connection.uuid "${HOTSPOT_UUID}" \
+                connection.autoconnect no \
+                802-11-wireless.mode ap \
+                wifi-sec.key-mgmt wpa-psk \
+                wifi-sec.psk "${HOTSPOT_PASSWORD}" \
+                ipv4.method shared \
+                ipv4.addresses "${HOTSPOT_ADDRESS}" \
+                ipv6.method disabled >/dev/null 2>&1; then
+            unset HOTSPOT_PASSWORD
+            echo "NetworkManager rejected the managed hotspot profile." >&2
+            exit 1
+        fi
+        unset HOTSPOT_PASSWORD
+    fi
+    sudo nmcli connection down uuid "${HOTSPOT_UUID}" >/dev/null 2>&1 || true
+fi
+
+if [[ "${FLASH_PANEL}" -eq 1 ]]; then
+    echo "Building and flashing the coordinator panel firmware..."
+    (
+        cd "${REPO_ROOT}/devices/coordinator-panel"
+        uv tool run --from platformio==6.1.18 pio run -e qtpy_rp2040 -t upload
+    )
+    PANEL_FIRMWARE_HASH="$(sha256sum \
+        "${REPO_ROOT}/devices/coordinator-panel/.pio/build/qtpy_rp2040/firmware.uf2" \
+        | cut -d ' ' -f 1)"
+    PANEL_SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+    printf 'source_revision=%s\nfirmware_sha256=%s\n' \
+        "${PANEL_SOURCE_REVISION}" "${PANEL_FIRMWARE_HASH}" \
+        | sudo tee /var/lib/e87canbus/coordinator-panel-firmware-version >/dev/null
+fi
 
 # ---------------------------------------------------------------------------
 # Kiosk startup script (shared by desktop and headless environments)
@@ -374,6 +491,35 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
         fi
         echo "Validated ${interface} -> ${actual_spi_parent}"
     done
+
+    if [[ ! -c "$(readlink -f /dev/serial0)" ]]; then
+        echo "/dev/serial0 does not resolve to a character device; leaving the controller stopped." >&2
+        sudo systemctl disable --now e87canbus-controller.service 2>/dev/null || true
+        exit 1
+    fi
+    if ! sudo -u e87canbus test -r /dev/serial0 || ! sudo -u e87canbus test -w /dev/serial0; then
+        echo "The e87canbus account cannot read and write /dev/serial0." >&2
+        exit 1
+    fi
+    echo "Validated /dev/serial0 -> $(readlink -f /dev/serial0)"
+
+    HOTSPOT_SETTINGS="$(sudo nmcli --terse --get-values \
+        connection.uuid,connection.type,connection.interface-name,connection.autoconnect,802-11-wireless.mode,802-11-wireless.ssid,802-11-wireless-security.key-mgmt,ipv4.method,ipv4.addresses,ipv6.method \
+        connection show uuid "${HOTSPOT_UUID}")"
+    EXPECTED_HOTSPOT_SETTINGS="${HOTSPOT_UUID}:802-11-wireless:${HOTSPOT_INTERFACE}:no:ap:${HOTSPOT_SSID}:wpa-psk:shared:${HOTSPOT_ADDRESS}:disabled"
+    if [[ "${HOTSPOT_SETTINGS}" != "${EXPECTED_HOTSPOT_SETTINGS}" ]]; then
+        echo "The managed hotspot settings failed validation; leaving the controller stopped." >&2
+        exit 1
+    fi
+    sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot \
+        --terse --get-values GENERAL.STATE connection show uuid "${HOTSPOT_UUID}" >/dev/null
+    if sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot \
+        --terse --get-values GENERAL.STATE connection show uuid \
+        00000000-0000-0000-0000-000000000000 >/dev/null 2>&1; then
+        echo "The hotspot helper unexpectedly accepted an unrelated connection UUID." >&2
+        exit 1
+    fi
+    echo "Validated managed hotspot ${HOTSPOT_UUID} and its narrow service-account helper"
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then

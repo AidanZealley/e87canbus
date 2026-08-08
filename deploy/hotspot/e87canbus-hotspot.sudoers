@@ -1,0 +1,2 @@
+# The root-owned helper rejects every connection UUID and operation except the provisioned hotspot.
+e87canbus ALL=(root) NOPASSWD: /usr/local/libexec/e87canbus-hotspot *

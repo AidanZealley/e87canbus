@@ -210,6 +210,42 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
         assert f"e87canbus-can{index}.service" in setup
 
 
+def test_pi_setup_provisions_only_the_fixed_panel_uart_and_hotspot() -> None:
+    root = Path(__file__).resolve().parents[2]
+    setup = (root / "scripts/setup_pi.sh").read_text()
+    helper = (root / "deploy/hotspot/e87canbus-hotspot").read_text()
+    sudoers = (root / "deploy/hotspot/e87canbus-hotspot.sudoers").read_text()
+    service = (root / "deploy/systemd/e87canbus-controller.service").read_text()
+    hotspot_uuid = "9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652"
+
+    assert "enable_uart=1" in setup
+    assert "dtoverlay=disable-bt" not in setup
+    assert "dtoverlay=miniuart-bt" not in setup
+    assert "console=(serial0|ttyAMA0|ttyS0)" in setup
+    assert "usermod -aG dialout e87canbus" in setup
+    assert "network-manager" in setup and "iproute2" in setup
+    assert "--hotspot-password-file" in setup
+    assert "${EUID}:600" in setup
+    assert "connection.autoconnect no" in setup
+    assert setup.count("wifi-sec.key-mgmt wpa-psk") == 2
+    assert setup.count('wifi-sec.psk "${HOTSPOT_PASSWORD}"') == 1
+    assert 'echo "${HOTSPOT_PASSWORD}"' not in setup
+    assert 'ipv6.method disabled >/dev/null 2>&1' in setup
+    assert hotspot_uuid in setup and hotspot_uuid in helper
+    assert "nmcli connection delete" not in setup
+    assert "unsupported managed-hotspot operation" in helper
+    assert "/usr/local/libexec/e87canbus-hotspot *" in sudoers
+    assert "sudo visudo -cf" in setup
+    assert "User=e87canbus" in service
+    assert "NoNewPrivileges=true" not in service
+    assert "coordinator-panel-firmware-version" in setup
+    assert (
+        "uv tool run --from platformio==6.1.18 pio run -e qtpy_rp2040 -t upload" in setup
+    )
+    assert "uv tool install platformio" not in setup
+    assert "command -v pio" not in setup
+
+
 def test_health_topic_is_closed_and_not_runtime_registered() -> None:
     assert StateTopic.HEALTH.value == "health"
     assert set(StateTopic) == {

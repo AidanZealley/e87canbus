@@ -22,7 +22,7 @@ from e87canbus.api.main import (
     create_app,
 )
 from e87canbus.deployment import CanTransport, DeploymentProfile
-from e87canbus.runners.composition import build_controller_loop
+from e87canbus.runners.composition import build_controller_loop, build_physical_local_controls
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -110,6 +110,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ[DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE] = selected_profile.value
     api_main.app = create_app(
         controller_loop=service,
+        physical_local_controls=(
+            build_physical_local_controls(service)
+            if selected_profile is not DeploymentProfile.SIMULATOR
+            else None
+        ),
         profile_database_path=args.profile_database,
         cors_origins=args.cors_origins,
         frontend_directory=args.frontend_directory,

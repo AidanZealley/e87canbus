@@ -25,6 +25,7 @@ You need:
 - The Waveshare 2-CH CAN HAT+.
 - The original Waveshare RS485 CAN HAT v2.1 with its `12000` oscillator marking.
 - Correct standoffs and spacers.
+- The assembled QT Py RP2040, NeoPixel Driver BFF, five-pixel strip, and momentary button.
 - Another computer on the same network, with Raspberry Pi Imager and an SSH client.
 
 With every power source disconnected:
@@ -37,6 +38,9 @@ With every power source disconnected:
    Pi or the other HAT.
 6. Leave CAN-H, CAN-L, CAN ground, the HAT+ 7–36V input, and all other external wiring disconnected.
 7. Power the first software bring-up only from the Pi's normal power connector.
+
+Keep the QT Py UART/power harness disconnected while its USB-C port is attached for flashing. Do
+not connect both supplies until the panel power-path check in the bench record has passed.
 
 Do not power the Pi simultaneously from its normal connector and the HAT+ external input unless the
 power path has been separately verified. Termination, grounding, and external CAN wiring are tested
@@ -125,15 +129,31 @@ the system changes it owns.
 
 ## 6. Run setup for the first time
 
+Create the initial hotspot password in a file outside the repository without echoing it to the
+terminal:
+
+```bash
+read -r -s -p 'Hotspot WPA password: ' HOTSPOT_PSK; echo
+printf '%s' "${HOTSPOT_PSK}" >"${HOME}/.e87-hotspot-password"
+unset HOTSPOT_PSK
+chmod 0600 "${HOME}/.e87-hotspot-password"
+```
+
+Connect the QT Py by USB with its Pi harness still disconnected, then run:
+
 ```bash
 cd /opt/e87canbus
-./scripts/setup_pi.sh --profile bench
+./scripts/setup_pi.sh --profile bench \
+  --hotspot-password-file "${HOME}/.e87-hotspot-password" \
+  --flash-panel
 ```
 
 Enter the `e87` password when `sudo` requests it. This run installs host dependencies, synchronizes
 the Python environment, builds the frontend, configures SPI0/SPI1 and the three MCP2515 controllers,
-installs the CAN/controller/kiosk services, and disables controller autostart until the hardware
-mapping has been validated.
+installs the CAN/controller/kiosk services, enables the GPIO UART, creates the fixed non-autostart
+hotspot, flashes and records the panel firmware, and disables controller autostart until the
+hardware mapping has been validated. Delete the temporary password file after this succeeds; the
+root-owned NetworkManager profile retains the secret and later setup runs do not need the file.
 
 On a fresh installation it should finish by saying that boot configuration changed and that a
 reboot is required. It should show this rerun command:
@@ -170,6 +190,8 @@ The second run must print all three confirmations before it starts the controlle
 Validated can0 -> spi0.0
 Validated can1 -> spi1.1
 Validated can2 -> spi1.2
+Validated /dev/serial0 -> /dev/tty…
+Validated managed hotspot 9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652 and its narrow service-account helper
 ```
 
 It then starts the three CAN services, enables the controller for subsequent boots, and prints
@@ -231,6 +253,22 @@ curl --fail http://127.0.0.1:8000/health/ready
 At this point the fresh Pi installation is complete. These checks prove the Pi can communicate with
 all three MCP2515 controllers and that the application is running. They do not yet prove external
 CAN transceiver wiring, termination, grounding, or traffic.
+
+Confirm the panel provisioning record and safe-off hotspot settings:
+
+```bash
+cat /var/lib/e87canbus/coordinator-panel-firmware-version
+readlink -f /dev/serial0
+sudo nmcli --terse --get-values \
+  connection.uuid,connection.type,connection.interface-name,connection.autoconnect,802-11-wireless.mode,802-11-wireless.ssid,802-11-wireless-security.key-mgmt,ipv4.method,ipv4.addresses,ipv6.method \
+  connection show uuid 9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652
+sudo nmcli --terse --get-values GENERAL.STATE connection show uuid \
+  9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652
+```
+
+Complete the [coordinator panel bench evidence record](../docs/coordinator-panel/bench-validation.md)
+before treating Phase 2 or the enclosure geometry as accepted. Using `wlan0` as a hotspot interrupts
+an upstream Wi-Fi SSH connection, so use Ethernet for this validation.
 
 ## 10. Bring up the bench buses safely
 
@@ -314,6 +352,22 @@ journalctl -b -u e87canbus-can0.service -u e87canbus-can1.service \
 
 The controller requires all three CAN services on physical installations, so a CAN bootstrap
 failure intentionally prevents a working physical deployment.
+
+### The coordinator panel or hotspot fails
+
+```bash
+readlink -f /dev/serial0
+sudo -u e87canbus test -r /dev/serial0 && sudo -u e87canbus test -w /dev/serial0
+sudo nmcli connection show uuid 9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652
+sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot \
+  --terse --get-values GENERAL.STATE connection show uuid \
+  9ec8d6d7-1c26-46aa-a4c8-7af8a1d0f652
+journalctl -b -u e87canbus-controller.service --no-pager
+```
+
+The service account intentionally cannot edit NetworkManager profiles or operate another UUID
+through the helper. Do not work around a failure by running the controller as root. Reflash with
+`--flash-panel` only while the Pi harness is disconnected from the QT Py USB-powered assembly.
 
 ### A health check fails
 

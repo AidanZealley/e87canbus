@@ -30,9 +30,11 @@ from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.settings.repository import ApplicationSettingsRepository
 from e87canbus.domain.steering.repository import SteeringProfileRepository
+from e87canbus.local_controls.service import LocalControlsService
 from e87canbus.runners.composition import (
     SimulatedLocalControls,
     build_controller_loop,
+    build_physical_local_controls,
     build_simulated_local_controls,
 )
 from e87canbus.runners.simulation.api import install_simulation_api
@@ -101,9 +103,11 @@ def create_app(
     settings_repository: ApplicationSettingsRepository | None = None,
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
+    physical_local_controls: LocalControlsService | None = None,
 ) -> FastAPI:
     if controller_loop is not None and (profile is not None or config is not None):
         raise ValueError("inject either controller_loop or composition configuration, not both")
+    injected_controller = controller_loop is not None
     service = controller_loop or build_controller_loop(
         profile or DeploymentProfile.SIMULATOR,
         config=config,
@@ -118,7 +122,11 @@ def create_app(
     local_controls = (
         simulated_local_controls.service
         if simulated_local_controls is not None
-        else None
+        else (
+            physical_local_controls
+            if injected_controller
+            else build_physical_local_controls(service, clock=clock)
+        )
     )
     selected_cors_origins = (
         tuple(cors_origins)

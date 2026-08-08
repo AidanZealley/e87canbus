@@ -1,6 +1,7 @@
 # Phase 2: physical coordinator panel and Pi integration
 
-Status: planned; [Phase 1](phase-1-simulator.md) is complete.
+Status: host software, firmware, and repeatable Pi provisioning implemented; physical bench
+acceptance remains pending. [Phase 1](phase-1-simulator.md) is complete.
 
 ## Outcome
 
@@ -130,6 +131,11 @@ connection ownership or policy supported and demonstrate that the account can ac
 deactivate the managed hotspot without gaining permission to edit it or manage unrelated
 connections. The controller service must not run as root.
 
+The implemented boundary is a root-owned argument-validating helper exposed through one sudoers
+entry. It accepts only inspect, activate, and deactivate command shapes for the fixed UUID and
+interface. NetworkManager `connection.permissions` was unsuitable because it requires an active
+login session; a general Polkit network-control grant would be wider than the helper.
+
 ## Pi provisioning
 
 Extend `scripts/setup_pi.sh` and the fresh-Pi runbook to cover:
@@ -166,6 +172,9 @@ Bulk capacitance or additional data protection should be added only if measured 
 flicker, or supply behavior justify a deliberate board-mounted revision.
 
 ## Bench validation
+
+Use the checkable [bench evidence record](bench-validation.md). Phase 2 must remain incomplete until
+that record contains observations from the assembled Pi, panel, strip, button, and laptop.
 
 Record evidence for:
 
