@@ -88,7 +88,7 @@ The `car` and `bench` profiles require a Raspberry Pi 4 Model B and provision th
 transport and its fixed `e87canbus-hotspot` NetworkManager connection. Pi 5 and other models are
 outside this fixed deployment because `/dev/serial0` does not use the documented BCM14/15 header
 pins on Pi 5. Setup validates `/proc/device-tree/model` before making physical-profile changes. On
-first setup, the script asks twice for the WPA password without echoing it:
+the post-reboot setup run, the script asks twice for the WPA password without echoing it:
 
 ```bash
 ./scripts/setup_pi.sh --profile bench

@@ -206,6 +206,7 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
     )
     assert "CAN_INTERFACES=(kcan ptcan fcan)" in setup
     assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
+    assert "disable_splash=1" in setup
     assert 'id -nG "${USER}"' in setup
     for interface in ("kcan", "ptcan", "fcan"):
         assert f"e87canbus-{interface}.service" in setup
@@ -250,6 +251,21 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
             text=True,
         )
         assert result.returncode == 2
+
+
+def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
+    root = Path(__file__).resolve().parents[2]
+    unit = (root / "deploy/systemd/e87canbus-kiosk.service").read_text()
+
+    assert "Conflicts=getty@tty7.service" in unit
+    assert "TTYPath=/dev/tty7" in unit
+    assert "TTYReset=yes" in unit
+    assert "TTYVHangup=yes" in unit
+    assert "TTYVTDisallocate=yes" in unit
+    assert "StandardInput=tty-fail" in unit
+    assert "StandardOutput=journal" in unit
+    assert "StandardError=journal" in unit
+    assert "ExecStartPre=+/usr/bin/chvt 7" in unit
 
 
 def test_health_topic_is_closed_and_not_runtime_registered() -> None:

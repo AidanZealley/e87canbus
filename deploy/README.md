@@ -133,15 +133,10 @@ cd /opt/e87canbus
 ./scripts/setup_pi.sh --profile bench
 ```
 
-Enter the `e87` password when `sudo` requests it. This run installs host dependencies, synchronizes
-the Python environment, builds the frontend, configures SPI0/SPI1, UART, the three MCP2515
-controllers, and the fixed coordinator-panel hotspot, installs the CAN/controller/kiosk services,
-and disables controller autostart until the hardware mapping has been validated. On first physical
-setup, enter the hotspot WPA password twice at the silent prompts. For unattended setup, use
-`--hotspot-password-file /secure/path/hotspot-password`; omit that option on later runs to preserve
-the stored password. Setup also installs one root-owned hotspot helper and grants the nologin
-service account passwordless access to only its fixed `activate`, `deactivate`, `state`, and
-`stations` operations.
+Enter the `e87` password when `sudo` requests it. This run installs host packages and configures
+SPI0/SPI1, UART, stable names for the three MCP2515 controllers, display access, and quiet boot
+(including suppression of the firmware rainbow splash). It
+stops before synchronizing Python or building the frontend when any of those boot settings change.
 
 On a fresh installation it should finish by saying that boot configuration changed and that a
 reboot is required. It should show this rerun command:
@@ -151,7 +146,7 @@ cd /opt/e87canbus && ./scripts/setup_pi.sh --profile bench
 ```
 
 If the script exits with an error instead, do not reboot past it without reading the error. Resolve
-package, build, or filesystem failures first.
+package or boot-configuration failures first.
 
 ## 7. Reboot into the CAN configuration
 
@@ -172,7 +167,12 @@ cd /opt/e87canbus
 ./scripts/setup_pi.sh --profile bench
 ```
 
-The second run must print all three confirmations before it starts the controller:
+This run synchronizes the Python environment, builds the frontend, configures the fixed
+coordinator-panel hotspot, and installs the CAN/controller/kiosk services. Enter the hotspot WPA
+password twice at the silent prompts. For unattended setup, include
+`--hotspot-password-file /secure/path/hotspot-password` on this post-reboot run.
+
+The run must print all three confirmations before it starts the controller:
 
 ```text
 Validated kcan -> spi0.0
