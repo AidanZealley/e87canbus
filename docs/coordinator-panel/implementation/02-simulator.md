@@ -146,6 +146,9 @@ result.
   typecheck`, `pnpm api:check`, and `pnpm lint` (passed). The first backend-suite attempt observed
   the existing timing-sensitive reset RGB assertion; an unchanged complete rerun passed, as did
   the same suite during implementation and review.
+- Whole-feature correction: Updated the stable simulator OpenAPI expectation from 39 to 45 shipped
+  operations and asserted `getSimulationCoordinatorPanel` as a representative intentional panel
+  route. Focused and full-suite verification are recorded in the whole-feature review handoff.
 
 ## Closure review
 
