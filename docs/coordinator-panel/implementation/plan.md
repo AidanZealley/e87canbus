@@ -24,7 +24,7 @@ requests it.
 | 2 | [Simulator integration](02-simulator.md) | 1 | Accepted | `812c526ac2fa8d99c997baae6099882212fc7c1e` |
 | 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Accepted | `f211f94c1eb7052866ed5e40250a6e5d558f1077` |
 | 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Accepted | `7a90dd92567143e87674b7c352d330c30afeeda2` |
-| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Not started | — |
+| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Closure review | — |
 | — | [Whole-feature review](final-review.md) | 1–5 | Not started | — |
 
 Allowed statuses are `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review`, and
@@ -96,4 +96,4 @@ Add entries only for decisions that affect more than one workstream or change th
 
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
-| — | None | — | — | — |
+| 2026-08-08 | Pin the physical coordinator to Raspberry Pi 4. | The frozen `/dev/serial0` plus BCM14/15 contract matches Pi 4; Pi 5 routes `/dev/serial0` to its separate debug header. Model-specific runtime UART configuration would broaden this fixed accessory implementation. | Orchestrator, from approved contract and existing Pi 4 design context | 3, 5 |

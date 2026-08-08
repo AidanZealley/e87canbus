@@ -1,6 +1,39 @@
 # Wiring
 
-All pinouts are pending ISTA and candump verification.
+Vehicle pinouts are pending ISTA and candump verification.
+
+## Coordinator Panel
+
+The supported physical coordinator is a Raspberry Pi 4 Model B. The QT Py RP2040 and NeoPixel
+Driver BFF mount back-to-back and drive exactly five 5 V WS2812B- or SK6812-compatible pixels.
+Connect the detachable four-wire Pi 4 harness as follows:
+
+| Function | Pi | QT Py / BFF |
+|---|---|---|
+| Pi transmit | BCM14 / TXD, physical pin 8 | RX |
+| Pi receive | BCM15 / RXD, physical pin 10 | TX |
+| Power | Regulated 5 V, physical pin 2 or 4 | BFF/QT Py 5 V |
+| Ground | Ground, for example physical pin 6 | Ground |
+
+UART is 3.3 V logic at 115,200 baud. Cross transmit to receive as shown. Never connect vehicle
+12 V or Pi 5 V to either UART signal.
+
+The button is normally open between QT Py A0 and ground; firmware enables the internal pull-up.
+Pixel data is QT Py A3 through the BFF level shifter. Wire the power leg in this order:
+
+```text
+Pi 5 V -- 500 mA fuse -- 1 A Schottky diode -- QT Py/BFF 5 V
+```
+
+Use a 1N5817 or 1N5819 with its anode toward the Pi and striped cathode toward the QT Py. The fuse,
+diode, UART, and ground must all be part of the detachable harness. Disconnect the complete harness
+before attaching QT Py USB-C for upload or service; never power it from the Pi and USB together.
+
+Before installation, bench-check harness polarity and continuity, `/dev/serial0` TX/RX, the five
+pixel order and colours, brightness, button debounce, heartbeat fault/recovery, graceful off,
+hotspot association/cancellation/disconnect, and the Ethernet forwarding block. These checks remain
+pending until the assembled hardware is available. Do not add further power switching, capacitors,
+data protection, or live-USB isolation unless the bench demonstrates a problem.
 
 ## K-CAN iDrive Connector
 

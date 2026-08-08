@@ -1,0 +1,7 @@
+Cmnd_Alias E87CANBUS_HOTSPOT = \
+    /usr/local/libexec/e87canbus-hotspot activate, \
+    /usr/local/libexec/e87canbus-hotspot deactivate, \
+    /usr/local/libexec/e87canbus-hotspot state, \
+    /usr/local/libexec/e87canbus-hotspot stations
+
+e87canbus ALL=(root) NOPASSWD: E87CANBUS_HOTSPOT

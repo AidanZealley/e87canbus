@@ -1,6 +1,6 @@
-# Fresh Raspberry Pi deployment
+# Fresh Raspberry Pi 4 deployment
 
-This is the canonical start-to-finish procedure for turning a blank Raspberry Pi into the
+This is the canonical start-to-finish procedure for turning a blank Raspberry Pi 4 Model B into the
 three-network E87 bench controller. Follow it in order. The commands assume the hostname
 `e87-coordinator`, the login user `e87`, the `bench` profile, and headless Raspberry Pi OS Lite
 (64-bit).
@@ -21,7 +21,8 @@ security decision.
 
 You need:
 
-- A Raspberry Pi with a 40-pin header, microSD card, and suitable official-quality power supply.
+- A Raspberry Pi 4 Model B, microSD card, and suitable official-quality power supply. Other Pi
+  models are not supported by the fixed `/dev/serial0` on BCM14/15 panel transport.
 - The Waveshare 2-CH CAN HAT+.
 - The original Waveshare RS485 CAN HAT v2.1 with its `12000` oscillator marking.
 - Correct standoffs and spacers.
@@ -48,7 +49,7 @@ works and [the wiring notes](../docs/wiring.md) for the maintained network assig
 
 In Raspberry Pi Imager:
 
-1. Select the correct Raspberry Pi model.
+1. Select **Raspberry Pi 4**. Pi 5 is not compatible with this deployment's fixed panel UART.
 2. Select **Raspberry Pi OS Lite (64-bit)**. This is the expected headless deployment image.
 3. Select the microSD card.
 4. Open OS customisation and set:
@@ -80,11 +81,13 @@ Confirm the machine and 64-bit operating system:
 ```bash
 hostname
 uname -m
+tr -d '\0' < /proc/device-tree/model; echo
 grep -E '^(PRETTY_NAME|VERSION_CODENAME)=' /etc/os-release
 ```
 
-Expected essentials are hostname `e87-coordinator`, architecture `aarch64`, and a supported
-Raspberry Pi OS release.
+Expected essentials are hostname `e87-coordinator`, architecture `aarch64`, a model beginning
+`Raspberry Pi 4 Model B`, and a supported Raspberry Pi OS release. Physical setup fails before
+making system changes when that model check does not pass.
 
 ## 4. Update the operating system
 
@@ -131,9 +134,14 @@ cd /opt/e87canbus
 ```
 
 Enter the `e87` password when `sudo` requests it. This run installs host dependencies, synchronizes
-the Python environment, builds the frontend, configures SPI0/SPI1 and the three MCP2515 controllers,
-installs the CAN/controller/kiosk services, and disables controller autostart until the hardware
-mapping has been validated.
+the Python environment, builds the frontend, configures SPI0/SPI1, UART, the three MCP2515
+controllers, and the fixed coordinator-panel hotspot, installs the CAN/controller/kiosk services,
+and disables controller autostart until the hardware mapping has been validated. On first physical
+setup, enter the hotspot WPA password twice at the silent prompts. For unattended setup, use
+`--hotspot-password-file /secure/path/hotspot-password`; omit that option on later runs to preserve
+the stored password. Setup also installs one root-owned hotspot helper and grants the nologin
+service account passwordless access to only its fixed `activate`, `deactivate`, `state`, and
+`stations` operations.
 
 On a fresh installation it should finish by saying that boot configuration changed and that a
 reboot is required. It should show this rerun command:
@@ -175,6 +183,16 @@ Validated can2 -> spi1.2
 It then starts the three CAN services, enables the controller for subsequent boots, and prints
 `Pi setup complete`. Missing interfaces or a different SPI mapping deliberately leave the
 controller stopped and disabled.
+
+Confirm the fixed helper permission without activating the hotspot:
+
+```bash
+sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state
+sudo -u e87canbus sudo -n -l
+```
+
+The sudo listing must contain only the four fixed helper actions, not `nmcli`, `iw`, a wildcard, or
+general root command access.
 
 ## 9. Confirm the installation
 
@@ -327,10 +345,11 @@ database, controller, and publisher have started; it returns `503` during fatal 
 
 ## Bench and car profiles
 
-Both physical profiles require the same complete three-interface stack. The bench profile opens all
-three physical networks, exposes synthetic vehicle development controls, and retains a K-CAN-only
-application transmit grant. The car profile exposes no development controls and grants no
-application CAN output. The simulator profile uses no physical CAN interfaces.
+Both physical profiles require the same complete three-interface stack, `/dev/serial0`, and fixed
+coordinator-panel hotspot. The bench profile opens all three physical networks, exposes synthetic
+vehicle development controls, and retains a K-CAN-only application transmit grant. The car profile
+exposes no development controls and grants no application CAN output. The simulator profile uses no
+physical CAN interfaces and does not request or configure a hotspot password.
 
 Always write the intended profile explicitly:
 

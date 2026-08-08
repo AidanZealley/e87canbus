@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import threading
 import time
 from dataclasses import replace
@@ -208,6 +209,39 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
     assert 'id -nG "${USER}"' in setup
     for index in range(3):
         assert f"e87canbus-can{index}.service" in setup
+
+
+def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
+    root = Path(__file__).resolve().parents[2]
+    helper_path = root / "deploy/bin/e87canbus-hotspot"
+    helper = helper_path.read_text()
+    sudoers = (root / "deploy/sudoers/e87canbus-hotspot").read_text()
+    unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
+
+    assert helper_path.stat().st_mode & 0o111
+    assert helper.count("exec ") == 4
+    assert "/usr/bin/nmcli --wait 0 connection up id e87canbus-hotspot" in helper
+    assert "/usr/bin/nmcli connection down id e87canbus-hotspot" in helper
+    assert "/usr/bin/nmcli --get-values GENERAL.STATE" in helper
+    assert "/usr/sbin/iw dev wlan0 station dump" in helper
+
+    helper_command = "/usr/local/libexec/e87canbus-hotspot"
+    assert sudoers.count(helper_command) == 4
+    assert "nmcli" not in sudoers
+    assert "/usr/sbin/iw" not in sudoers
+    assert "*" not in sudoers
+    for action in ("activate", "deactivate", "state", "stations"):
+        assert f"{helper_command} {action}" in sudoers
+    assert "NoNewPrivileges=false" in unit
+
+    for arguments in ((), ("invalid",), ("state", "extra")):
+        result = subprocess.run(
+            (helper_path, *arguments),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 2
 
 
 def test_health_topic_is_closed_and_not_runtime_registered() -> None:

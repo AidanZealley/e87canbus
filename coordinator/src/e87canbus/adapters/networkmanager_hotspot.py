@@ -6,28 +6,20 @@ import subprocess
 
 from e87canbus.hotspot import HotspotObservation
 
-HOTSPOT_CONNECTION = "e87canbus-hotspot"
-WIFI_INTERFACE = "wlan0"
+SUDO = "/usr/bin/sudo"
+HOTSPOT_HELPER = "/usr/local/libexec/e87canbus-hotspot"
 COMMAND_TIMEOUT_S = 5.0
 
 
 class NetworkManagerHotspotBackend:
     def activate(self) -> None:
-        self._run("nmcli", "--wait", "0", "connection", "up", "id", HOTSPOT_CONNECTION)
+        self._run("activate")
 
     def deactivate(self) -> None:
-        self._run("nmcli", "connection", "down", "id", HOTSPOT_CONNECTION)
+        self._run("deactivate")
 
     def observe(self) -> HotspotObservation:
-        result = self._run(
-            "nmcli",
-            "--get-values",
-            "GENERAL.STATE",
-            "connection",
-            "show",
-            "id",
-            HOTSPOT_CONNECTION,
-        )
+        result = self._run("state")
         state = result.stdout.strip().casefold()
         if state == "activating":
             return HotspotObservation.STARTING
@@ -36,15 +28,15 @@ class NetworkManagerHotspotBackend:
         if state != "activated":
             return HotspotObservation.DISABLED
 
-        stations = self._run("iw", "dev", WIFI_INTERFACE, "station", "dump")
+        stations = self._run("stations")
         if any(line.lstrip().startswith("Station ") for line in stations.stdout.splitlines()):
             return HotspotObservation.CONNECTED
         return HotspotObservation.WAITING
 
     @staticmethod
-    def _run(*command: str) -> subprocess.CompletedProcess[str]:
+    def _run(action: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            command,
+            (SUDO, "-n", HOTSPOT_HELPER, action),
             check=True,
             capture_output=True,
             text=True,

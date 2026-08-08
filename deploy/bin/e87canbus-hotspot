@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+if [[ "$#" -ne 1 ]]; then
+    echo "Usage: e87canbus-hotspot activate|deactivate|state|stations" >&2
+    exit 2
+fi
+
+case "$1" in
+    activate)
+        exec /usr/bin/nmcli --wait 0 connection up id e87canbus-hotspot
+        ;;
+    deactivate)
+        exec /usr/bin/nmcli connection down id e87canbus-hotspot
+        ;;
+    state)
+        exec /usr/bin/nmcli --get-values GENERAL.STATE \
+            connection show id e87canbus-hotspot
+        ;;
+    stations)
+        exec /usr/sbin/iw dev wlan0 station dump
+        ;;
+    *)
+        echo "Unsupported hotspot action: $1" >&2
+        exit 2
+        ;;
+esac

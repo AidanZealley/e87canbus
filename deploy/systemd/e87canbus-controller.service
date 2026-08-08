@@ -16,7 +16,8 @@ TimeoutStopSec=15s
 KillSignal=SIGINT
 StandardOutput=journal
 StandardError=journal
-NoNewPrivileges=true
+# Required for the exact sudoers-gated coordinator hotspot helper.
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
