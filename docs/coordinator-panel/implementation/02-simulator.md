@@ -1,6 +1,6 @@
 # Workstream 2: simulator integration
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -153,4 +153,4 @@ result.
 - Remaining required findings: `None`. No remediation was required after the accepted independent
   review, the reviewed simulator implementation remains intact, and no release-blocking defect was
   introduced.
-- Accepted commit: `TBD`
+- Accepted commit: `812c526ac2fa8d99c997baae6099882212fc7c1e`
