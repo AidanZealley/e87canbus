@@ -122,7 +122,7 @@ it("shows effective link-loss behavior and recovery causes", async () => {
   expect(
     screen.getByRole("img", { name: "Coordinator indicator: Fault" })
   ).toBeTruthy()
-  expect(screen.getByText("Ready")).toBeTruthy()
+  expect(screen.getByText("ready")).toBeTruthy()
   expect(screen.getByRole("status").textContent).toContain(
     "panel link disconnected"
   )
@@ -168,8 +168,6 @@ it("does not offer a client connection before hotspot activation completes", () 
       }) as HTMLButtonElement
     ).disabled
   ).toBe(true)
-  expect(screen.getByLabelText("Activating in progress")).toBeTruthy()
-  expect(screen.getByLabelText("Waiting for client in progress")).toBeTruthy()
 })
 
 it("does not describe a semantic fault as operational without a diagnostic", () => {

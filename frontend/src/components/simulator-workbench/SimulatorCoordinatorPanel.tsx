@@ -1,18 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import {
-  CableIcon,
-  CircleCheckIcon,
-  CircleOffIcon,
-  CircleXIcon,
-  LaptopIcon,
-  TriangleAlertIcon,
-  UnplugIcon,
-  WifiIcon,
-  WifiOffIcon,
-  type LucideIcon,
-} from "lucide-react"
 
-import type { EffectiveDisplay, Hotspot } from "@/api/live-contract.gen"
 import {
   setSimulatedHotspotClientMutation,
   setSimulatedHotspotFailureMutation,
@@ -23,49 +10,7 @@ import {
 import { CoordinatorPanel } from "@/components/coordinator-panel"
 import { Button } from "@/components/ui/button"
 import { useLiveStore } from "@/live/live-store"
-import { CoordinatorStatus } from "./components/coordinator-status"
 import { notifySimulatorError } from "./utils"
-
-const hotspotPresentation: Record<
-  Hotspot,
-  {
-    icon?: LucideIcon
-    label: string
-    ongoing?: boolean
-    tone: "positive" | "caution" | "negative" | "neutral"
-  }
-> = {
-  disabled: { icon: WifiOffIcon, label: "Disabled", tone: "neutral" },
-  activating: { label: "Activating", ongoing: true, tone: "caution" },
-  active: { icon: WifiIcon, label: "Active", tone: "positive" },
-  deactivating: { label: "Deactivating", ongoing: true, tone: "caution" },
-  fault: { icon: CircleXIcon, label: "Fault", tone: "negative" },
-}
-
-const displayPresentation: Record<
-  EffectiveDisplay,
-  {
-    icon?: LucideIcon
-    label: string
-    ongoing?: boolean
-    tone: "positive" | "caution" | "negative" | "neutral" | "info"
-  }
-> = {
-  starting: { label: "Starting", ongoing: true, tone: "caution" },
-  ready: { icon: CircleCheckIcon, label: "Ready", tone: "positive" },
-  hotspot_waiting: {
-    label: "Waiting for client",
-    ongoing: true,
-    tone: "info",
-  },
-  hotspot_connected: {
-    icon: WifiIcon,
-    label: "Client connected",
-    tone: "positive",
-  },
-  fault: { icon: TriangleAlertIcon, label: "Fault", tone: "negative" },
-  off: { icon: CircleOffIcon, label: "Off", tone: "neutral" },
-}
 
 export const SimulatorCoordinatorPanel = () => {
   const synchronized = useLiveStore((state) => state.connection.synchronized)
@@ -96,112 +41,106 @@ export const SimulatorCoordinatorPanel = () => {
 
   const state = localControls.state
   const clientCanConnect = state.hotspot === "active"
-  const hotspot = hotspotPresentation[state.hotspot]
-  const display = displayPresentation[state.desired_display]
 
   return (
     <section
       aria-labelledby="coordinator-panel-heading"
-      className="grid min-w-0 gap-4 rounded-xl border bg-card p-3 text-card-foreground shadow-sm"
+      className="grid min-w-0 gap-3 rounded-xl border bg-card p-3 text-card-foreground shadow-sm md:grid-cols-[minmax(14rem,1fr)_minmax(20rem,1.5fr)] md:items-center"
     >
-      <h2 id="coordinator-panel-heading" className="text-sm font-semibold">
-        Coordinator panel
-      </h2>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <CoordinatorStatus
-          label="Hotspot"
-          value={hotspot.label}
-          tone={hotspot.tone}
-          icon={hotspot.icon}
-          ongoing={hotspot.ongoing}
-        />
-        <CoordinatorStatus
-          label="Client"
-          value={state.client_connected ? "Connected" : "Disconnected"}
-          tone={state.client_connected ? "positive" : "neutral"}
-          icon={state.client_connected ? LaptopIcon : UnplugIcon}
-        />
-        <CoordinatorStatus
-          label="Panel link"
-          value={
-            state.panel_link === "connected" ? "Connected" : "Disconnected"
-          }
-          tone={state.panel_link === "connected" ? "positive" : "negative"}
-          icon={state.panel_link === "connected" ? CableIcon : UnplugIcon}
-        />
-        <CoordinatorStatus
-          label="Desired display"
-          value={display.label}
-          tone={display.tone}
-          icon={display.icon}
-          ongoing={display.ongoing}
+      <div>
+        <div className="mb-2">
+          <h2 id="coordinator-panel-heading" className="text-sm font-semibold">
+            Coordinator panel
+          </h2>
+        </div>
+        <CoordinatorPanel
+          display={state.effective_display}
+          panelLink={state.panel_link}
+          onHotspotPress={() => tap.mutate({})}
+          pressDisabled={!synchronized}
+          pressPending={tap.isPending}
         />
       </div>
 
-      {state.diagnostic !== null ? (
-        <p role="status" className="text-xs text-destructive">
-          {state.diagnostic}
-        </p>
-      ) : null}
+      <div className="grid gap-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+          <div>
+            <dt className="text-muted-foreground">Hotspot</dt>
+            <dd className="font-medium">{state.hotspot}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Client</dt>
+            <dd className="font-medium">
+              {state.client_connected ? "Connected" : "Disconnected"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Panel link</dt>
+            <dd className="font-medium">{state.panel_link}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Desired display</dt>
+            <dd className="font-medium">{state.desired_display}</dd>
+          </div>
+        </dl>
 
-      <CoordinatorPanel
-        display={state.effective_display}
-        onHotspotPress={() => tap.mutate({})}
-        pressDisabled={!synchronized}
-        pressPending={tap.isPending}
-      />
+        {state.diagnostic !== null ? (
+          <p role="status" className="text-xs text-destructive">
+            {state.diagnostic}
+          </p>
+        ) : null}
 
-      <div className="flex flex-wrap gap-2" aria-label="Simulation causes">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={
-            setClient.isPending ||
-            (!state.client_connected && !clientCanConnect)
-          }
-          onClick={() =>
-            setClient.mutate({
-              body: { connected: !state.client_connected },
-            })
-          }
-        >
-          {state.client_connected ? "Disconnect laptop" : "Connect laptop"}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={setLink.isPending}
-          onClick={() =>
-            setLink.mutate({
-              body: { connected: state.panel_link === "disconnected" },
-            })
-          }
-        >
-          {state.panel_link === "connected"
-            ? "Disconnect panel"
-            : "Reconnect panel"}
-        </Button>
-        <Button
-          size="sm"
-          variant={state.hotspot === "fault" ? "outline" : "destructive"}
-          disabled={setFailure.isPending}
-          onClick={() =>
-            setFailure.mutate({
-              body: { enabled: state.hotspot !== "fault" },
-            })
-          }
-        >
-          {state.hotspot === "fault" ? "Recover hotspot" : "Fail hotspot"}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          disabled={coordinatorFatal || failCoordinator.isPending}
-          onClick={() => failCoordinator.mutate({})}
-        >
-          {coordinatorFatal ? "Coordinator failed" : "Fail coordinator"}
-        </Button>
+        <div className="flex flex-wrap gap-2" aria-label="Simulation causes">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={
+              setClient.isPending ||
+              (!state.client_connected && !clientCanConnect)
+            }
+            onClick={() =>
+              setClient.mutate({
+                body: { connected: !state.client_connected },
+              })
+            }
+          >
+            {state.client_connected ? "Disconnect laptop" : "Connect laptop"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={setLink.isPending}
+            onClick={() =>
+              setLink.mutate({
+                body: { connected: state.panel_link === "disconnected" },
+              })
+            }
+          >
+            {state.panel_link === "connected"
+              ? "Disconnect panel"
+              : "Reconnect panel"}
+          </Button>
+          <Button
+            size="sm"
+            variant={state.hotspot === "fault" ? "outline" : "destructive"}
+            disabled={setFailure.isPending}
+            onClick={() =>
+              setFailure.mutate({
+                body: { enabled: state.hotspot !== "fault" },
+              })
+            }
+          >
+            {state.hotspot === "fault" ? "Recover hotspot" : "Fail hotspot"}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={coordinatorFatal || failCoordinator.isPending}
+            onClick={() => failCoordinator.mutate({})}
+          >
+            {coordinatorFatal ? "Coordinator failed" : "Fail coordinator"}
+          </Button>
+        </div>
       </div>
     </section>
   )
