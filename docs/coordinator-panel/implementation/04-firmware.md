@@ -1,6 +1,6 @@
 # Workstream 4: QT Py firmware and upload workflow
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -139,4 +139,4 @@ and records that an actual upload remains pending.
 - Remaining required findings: `None`. No remediation was required after the accepted independent
   review, and the reviewed firmware, native tests, upload script, and device documentation remain
   unchanged. No release-blocking defect was introduced.
-- Accepted commit: `TBD`
+- Accepted commit: `7a90dd92567143e87674b7c352d330c30afeeda2`
