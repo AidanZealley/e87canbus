@@ -8,6 +8,9 @@ CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
 DEPLOYMENT_PROFILE="car"
+HOTSPOT_PASSWORD_FILE=""
+HOTSPOT_CONNECTION="e87canbus-hotspot"
+HOTSPOT_SSID="e87canbus"
 CAN_INTERFACES=(can0 can1 can2)
 CAN_SERVICES=(
     e87canbus-can0.service
@@ -40,7 +43,18 @@ while [[ "$#" -gt 0 ]]; do
             REBOOT_REQUESTED=1
             shift
             ;;
-        *) echo "Usage: $0 [--profile car|bench|simulator] [--reboot]" >&2; exit 2 ;;
+        --hotspot-password-file)
+            if [[ "$#" -lt 2 ]]; then
+                echo "--hotspot-password-file requires a readable file" >&2
+                exit 2
+            fi
+            HOTSPOT_PASSWORD_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "Usage: $0 [--profile car|bench|simulator] [--hotspot-password-file PATH] [--reboot]" >&2
+            exit 2
+            ;;
     esac
 done
 
@@ -51,7 +65,25 @@ case "${DEPLOYMENT_PROFILE}" in
         exit 2
         ;;
 esac
+if [[ "${DEPLOYMENT_PROFILE}" == "simulator" && -n "${HOTSPOT_PASSWORD_FILE}" ]]; then
+    echo "--hotspot-password-file is only valid for the car and bench profiles" >&2
+    exit 2
+fi
 echo "Deployment profile: ${DEPLOYMENT_PROFILE}"
+
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    if [[ ! -r /proc/device-tree/model ]]; then
+        echo "Cannot identify the Raspberry Pi model; physical profiles require a Raspberry Pi 4 Model B." >&2
+        exit 1
+    fi
+    PI_MODEL="$(tr -d '\0' < /proc/device-tree/model)"
+    if [[ "${PI_MODEL}" != "Raspberry Pi 4 Model B"* ]]; then
+        echo "Unsupported physical coordinator: ${PI_MODEL}" >&2
+        echo "The car and bench profiles require a Raspberry Pi 4 Model B." >&2
+        exit 1
+    fi
+    echo "Physical coordinator: ${PI_MODEL}"
+fi
 
 # ---------------------------------------------------------------------------
 # Kiosk mode detection
@@ -96,6 +128,12 @@ sudo apt-get update
 
 PACKAGES="can-utils build-essential python3 python3-pip python3-venv nodejs npm curl"
 
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    # NetworkManager supplies the fixed access point and iw provides the target's station view.
+    # pyserial is installed in the application environment by uv.
+    PACKAGES="${PACKAGES} network-manager iw"
+fi
+
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     # Chromium — package name varies by distro
     CHROMIUM_PKG=""
@@ -134,8 +172,9 @@ fi
 # SPI and Waveshare MCP2515 overlays
 # ---------------------------------------------------------------------------
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
-    echo "Configuring SPI and the three-channel Waveshare MCP2515 stack..."
+    echo "Configuring SPI, UART, and the three-channel Waveshare MCP2515 stack..."
     sudo cp -n "${CONFIG_FILE}" "${CONFIG_FILE}.e87canbus-before-setup" || true
+    sudo cp -n "${CMDLINE_FILE}" "${CMDLINE_FILE}.e87canbus-before-setup" || true
 
     reconcile_boot_line() {
         local pattern="$1"
@@ -172,6 +211,16 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     reconcile_boot_line \
         '^[[:space:]]*dtoverlay=mcp2515,.*spi1-2([,[:space:]]|$)' \
         'dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000'
+    reconcile_boot_line \
+        '^[[:space:]]*enable_uart=' \
+        'enable_uart=1'
+
+    if sudo grep -Eq '(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),' "${CMDLINE_FILE}"; then
+        sudo sed -E -i \
+            's/(^|[[:space:]])console=(serial0|ttyAMA0|ttyS0),[^[:space:]]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $//' \
+            "${CMDLINE_FILE}"
+        REBOOT_REQUIRED=1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -216,6 +265,11 @@ if ! id e87canbus >/dev/null 2>&1; then
         --create-home --shell /usr/sbin/nologin e87canbus
 fi
 
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]] \
+    && ! id -nG e87canbus | tr ' ' '\n' | grep -Fxq dialout; then
+    sudo usermod -aG dialout e87canbus
+fi
+
 # The checkout and its uv environment are built as the invoking user, while systemd runs the
 # service as e87canbus. Keep ownership with the checkout owner but grant the service group access.
 sudo chgrp -R e87canbus "${REPO_ROOT}"
@@ -248,6 +302,104 @@ sudo install -o root -g e87canbus -m 0640 \
 sudo sed -i \
     "s/^E87CANBUS_PROFILE=.*/E87CANBUS_PROFILE=${DEPLOYMENT_PROFILE}/" \
     /etc/e87canbus/controller.env
+
+# ---------------------------------------------------------------------------
+# Coordinator-panel hotspot (physical profiles only)
+# ---------------------------------------------------------------------------
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    echo "Configuring the coordinator-panel hotspot..."
+
+    HOTSPOT_EXISTS=0
+    if sudo nmcli --get-values UUID connection show id "${HOTSPOT_CONNECTION}" >/dev/null 2>&1; then
+        HOTSPOT_EXISTS=1
+    fi
+
+    HOTSPOT_PASSWORD=""
+    REPLACE_HOTSPOT_PASSWORD=0
+    if [[ -n "${HOTSPOT_PASSWORD_FILE}" ]]; then
+        if [[ ! -f "${HOTSPOT_PASSWORD_FILE}" || ! -r "${HOTSPOT_PASSWORD_FILE}" ]]; then
+            echo "Hotspot password file is not a readable regular file: ${HOTSPOT_PASSWORD_FILE}" >&2
+            exit 2
+        fi
+        HOTSPOT_PASSWORD="$(< "${HOTSPOT_PASSWORD_FILE}")"
+        REPLACE_HOTSPOT_PASSWORD=1
+    elif [[ "${HOTSPOT_EXISTS}" -eq 0 ]] || ! sudo nmcli --show-secrets \
+        --get-values 802-11-wireless-security.psk \
+        connection show id "${HOTSPOT_CONNECTION}" 2>/dev/null | grep -q .; then
+        read -r -s -p "Hotspot WPA password: " HOTSPOT_PASSWORD
+        echo
+        read -r -s -p "Confirm hotspot WPA password: " HOTSPOT_PASSWORD_CONFIRM
+        echo
+        if [[ "${HOTSPOT_PASSWORD}" != "${HOTSPOT_PASSWORD_CONFIRM}" ]]; then
+            echo "Hotspot passwords do not match" >&2
+            exit 2
+        fi
+        unset HOTSPOT_PASSWORD_CONFIRM
+        REPLACE_HOTSPOT_PASSWORD=1
+    fi
+
+    if [[ "${REPLACE_HOTSPOT_PASSWORD}" -eq 1 ]]; then
+        if [[ "${HOTSPOT_PASSWORD}" == *$'\n'* ]]; then
+            echo "Hotspot password must be a single line" >&2
+            exit 2
+        fi
+        HOTSPOT_PASSWORD_LENGTH="${#HOTSPOT_PASSWORD}"
+        if (( HOTSPOT_PASSWORD_LENGTH < 8 || HOTSPOT_PASSWORD_LENGTH > 63 )); then
+            if (( HOTSPOT_PASSWORD_LENGTH != 64 )) \
+                || [[ ! "${HOTSPOT_PASSWORD}" =~ ^[[:xdigit:]]{64}$ ]]; then
+                echo "Hotspot password must be 8-63 characters or exactly 64 hexadecimal digits" >&2
+                exit 2
+            fi
+        fi
+    fi
+
+    if [[ "${HOTSPOT_EXISTS}" -eq 0 ]]; then
+        sudo nmcli connection add \
+            type wifi ifname wlan0 con-name "${HOTSPOT_CONNECTION}" ssid "${HOTSPOT_SSID}" \
+            >/dev/null
+    fi
+
+    # The shared method provides addressing and DHCP. Policy routing blackholes forwarded client
+    # traffic, so the access point cannot use an Ethernet default route as an internet uplink.
+    sudo nmcli connection modify id "${HOTSPOT_CONNECTION}" \
+        connection.interface-name wlan0 \
+        connection.autoconnect no \
+        connection.permissions "" \
+        802-11-wireless.mode ap \
+        802-11-wireless.ssid "${HOTSPOT_SSID}" \
+        802-11-wireless-security.key-mgmt wpa-psk \
+        ipv4.method shared \
+        ipv4.never-default yes \
+        ipv4.routes "0.0.0.0/0 type=blackhole table=500" \
+        ipv4.routing-rules "priority 100 iif wlan0 table 500" \
+        ipv6.method disabled
+
+    if [[ "${REPLACE_HOTSPOT_PASSWORD}" -eq 1 ]]; then
+        # Feed the secret to nmcli's editor over stdin and disable its command-history file. The
+        # secret never appears in argv, the environment, setup output, or a repository file.
+        printf 'set 802-11-wireless-security.psk\n%s\nsave\nquit\n' "${HOTSPOT_PASSWORD}" \
+            | sudo env XDG_CACHE_HOME=/dev/null \
+                nmcli connection edit id "${HOTSPOT_CONNECTION}" >/dev/null
+        HOTSPOT_PASSWORD=""
+        unset HOTSPOT_PASSWORD
+    fi
+
+    # The runtime gets only four exact root operations. Both sudoers and the helper reject extra
+    # arguments; the helper contains no caller-controlled command, connection, or interface.
+    sudo /usr/sbin/visudo -cf "${REPO_ROOT}/deploy/sudoers/e87canbus-hotspot" >/dev/null
+    sudo install -d -o root -g root -m 0755 /usr/local/libexec
+    sudo install -o root -g root -m 0755 \
+        "${REPO_ROOT}/deploy/bin/e87canbus-hotspot" \
+        /usr/local/libexec/e87canbus-hotspot
+    sudo install -o root -g root -m 0440 \
+        "${REPO_ROOT}/deploy/sudoers/e87canbus-hotspot" \
+        /etc/sudoers.d/e87canbus-hotspot
+
+    HOTSPOT_UUID="$(sudo nmcli --get-values UUID connection show id "${HOTSPOT_CONNECTION}")"
+    if sudo nmcli --terse --fields UUID connection show --active | grep -Fxq "${HOTSPOT_UUID}"; then
+        sudo nmcli connection down id "${HOTSPOT_CONNECTION}" >/dev/null
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Kiosk startup script (shared by desktop and headless environments)
@@ -339,7 +491,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     echo
-    echo "Boot configuration changed; reboot is required before can0, can1, and can2 can appear."
+    echo "Boot or device access configuration changed; reboot is required before physical I/O is ready."
     if [[ "${REBOOT_REQUESTED}" -eq 1 ]]; then
         sudo reboot
     else
@@ -395,6 +547,8 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     echo "  candump can0"
     echo "  candump can1"
     echo "  candump can2"
+    echo "  test -e /dev/serial0 && id e87canbus"
+    echo "  sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state"
 fi
 echo
 if [[ "${KIOSK_MODE}" == "desktop" ]]; then
