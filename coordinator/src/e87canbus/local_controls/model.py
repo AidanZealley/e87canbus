@@ -69,27 +69,13 @@ class LocalControlsState:
     hotspot: HotspotLifecycle = HotspotLifecycle.DISABLED
     client_connected: bool = False
     panel_link: PanelLink = PanelLink.CONNECTED
+    desired_display: PanelDisplayState = PanelDisplayState.STARTING
+    effective_display: PanelDisplayState = PanelDisplayState.STARTING
     last_button_sequence: int | None = None
     panel_diagnostic: str | None = None
     hotspot_diagnostic: str | None = None
     service_diagnostic: str | None = None
     inbox_overflowed: bool = False
-
-    @property
-    def desired_display(self) -> PanelDisplayState:
-        return derive_panel_state(
-            PanelInputs(
-                coordinator=self.coordinator,
-                hotspot=self.hotspot,
-                client_connected=self.client_connected,
-            )
-        )
-
-    @property
-    def effective_display(self) -> PanelDisplayState:
-        if self.panel_link is PanelLink.DISCONNECTED:
-            return PanelDisplayState.FAULT
-        return self.desired_display
 
     @property
     def diagnostic(self) -> str | None:
@@ -133,11 +119,6 @@ class InboxOverloaded:
 
 
 @dataclass(frozen=True)
-class OwnerFailed:
-    message: str
-
-
-@dataclass(frozen=True)
 class PanelRefreshDue:
     pass
 
@@ -155,7 +136,6 @@ LocalControlsEvent = (
     | PanelAdapterFailed
     | HotspotAdapterFailed
     | InboxOverloaded
-    | OwnerFailed
     | PanelRefreshDue
     | ShutdownRequested
 )
@@ -191,16 +171,6 @@ def reduce_local_controls(
 ) -> LocalControlsTransition:
     """Apply one observation while keeping all product decisions in this pure function."""
 
-    next_state, effects, force_panel_refresh = _apply_event(state, event)
-    if next_state.desired_display is not state.desired_display or force_panel_refresh:
-        effects.append(SetPanelDisplay(next_state.desired_display))
-    return LocalControlsTransition(next_state, tuple(effects))
-
-
-def _apply_event(
-    state: LocalControlsState,
-    event: LocalControlsEvent,
-) -> tuple[LocalControlsState, list[LocalControlsEffect], bool]:
     effects: list[LocalControlsEffect] = []
     next_state = state
     force_panel_refresh = isinstance(event, PanelRefreshDue)
@@ -209,7 +179,7 @@ def _apply_event(
         next_state = replace(state, coordinator=event.condition)
     elif isinstance(event, PanelButtonPressed):
         if event.sequence == state.last_button_sequence:
-            return state, effects, force_panel_refresh
+            return LocalControlsTransition(state)
         next_state = replace(state, last_button_sequence=event.sequence)
         if state.coordinator is CoordinatorCondition.READY:
             if state.hotspot is HotspotLifecycle.DISABLED:
@@ -257,16 +227,26 @@ def _apply_event(
             inbox_overflowed=True,
             service_diagnostic=f"local-controls inbox capacity {event.capacity} exceeded",
         )
-    elif isinstance(event, OwnerFailed):
-        next_state = replace(
-            state,
-            coordinator=CoordinatorCondition.FAULT,
-            service_diagnostic=_bounded(event.message),
-        )
     elif isinstance(event, ShutdownRequested):
         next_state = replace(state, coordinator=CoordinatorCondition.SHUTTING_DOWN)
 
-    return next_state, effects, force_panel_refresh
+    desired = derive_panel_state(
+        PanelInputs(
+            coordinator=next_state.coordinator,
+            hotspot=next_state.hotspot,
+            client_connected=next_state.client_connected,
+        )
+    )
+    effective = desired if next_state.panel_link is PanelLink.CONNECTED else PanelDisplayState.FAULT
+    display_changed = desired is not state.desired_display
+    next_state = replace(
+        next_state,
+        desired_display=desired,
+        effective_display=effective,
+    )
+    if display_changed or force_panel_refresh:
+        effects.append(SetPanelDisplay(desired))
+    return LocalControlsTransition(next_state, tuple(effects))
 
 
 def _bounded(message: str) -> str:

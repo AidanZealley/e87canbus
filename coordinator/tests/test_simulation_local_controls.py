@@ -15,20 +15,23 @@ from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.settings.repository import ApplicationSettingsRepository
 from e87canbus.domain.steering.repository import SteeringProfileRepository
-from e87canbus.local_controls.model import (
+from e87canbus.local_controls import (
     CoordinatorCondition,
     CoordinatorConditionChanged,
     HotspotLifecycle,
     HotspotObserved,
+    LocalControlsEvent,
+    LocalControlsLifecycle,
     LocalControlsState,
+    PanelButtonPressed,
     PanelDisplayState,
     PanelLink,
+    PanelLinkChanged,
 )
-from e87canbus.local_controls.service import LocalControlsLifecycle
-from e87canbus.runners.composition import controller_condition
+from e87canbus.runners.composition import ControllerConditionAdapter, controller_condition
 from e87canbus.runners.simulation.api.internal import commands as simulation_commands
 from e87canbus.runners.simulation.commands import ResetSimulation
-from e87canbus.runners.simulation.local_controls import InMemoryHotspot
+from e87canbus.runners.simulation.local_controls import InMemoryHotspot, InMemoryPanel
 from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 from e87canbus.service import (
     ControllerLoop,
@@ -123,6 +126,104 @@ def test_hotspot_transition_deadlines_use_the_simulator_clock() -> None:
     assert observed[-1] == HotspotObserved(HotspotLifecycle.DISABLED)
 
 
+class RejectOnceSink:
+    def __init__(self) -> None:
+        self.calls: list[LocalControlsEvent] = []
+        self.accepted: list[LocalControlsEvent] = []
+        self._reject = True
+
+    def __call__(self, event: LocalControlsEvent) -> bool:
+        self.calls.append(event)
+        if self._reject:
+            self._reject = False
+            return False
+        self.accepted.append(event)
+        return True
+
+
+def test_condition_adapter_retries_an_observation_rejected_by_the_inbox() -> None:
+    controller = ControllerLoop(
+        SimulatedControllerRuntime(config=simulator_config()),
+        deployment=deployment_spec(DeploymentProfile.SIMULATOR),
+    )
+    condition = ControllerConditionAdapter(controller)
+    sink = RejectOnceSink()
+
+    condition.start(sink)
+    condition.poll(time.monotonic())
+    condition.poll(time.monotonic())
+
+    expected = CoordinatorConditionChanged(CoordinatorCondition.STARTING)
+    assert sink.calls == [expected, expected]
+    assert sink.accepted == [expected]
+
+
+def test_panel_link_commits_only_after_the_observation_is_accepted() -> None:
+    panel = InMemoryPanel()
+    sink = RejectOnceSink()
+    panel.start(sink)
+
+    assert panel.set_link(PanelLink.DISCONNECTED) is False
+    assert panel.effective_display is PanelDisplayState.STARTING
+    assert panel.set_link(PanelLink.DISCONNECTED) is True
+
+    expected = PanelLinkChanged(PanelLink.DISCONNECTED)
+    assert sink.calls == [expected, expected]
+    assert sink.accepted == [expected]
+    assert panel.effective_display is PanelDisplayState.FAULT
+
+
+def test_panel_button_retry_does_not_consume_a_rejected_sequence() -> None:
+    panel = InMemoryPanel()
+    sink = RejectOnceSink()
+    panel.start(sink)
+
+    assert panel.tap_button() is False
+    assert panel.tap_button() is True
+
+    expected = PanelButtonPressed(sequence=1)
+    assert sink.calls == [expected, expected]
+    assert sink.accepted == [expected]
+
+
+def test_hotspot_deadline_retries_until_transition_observation_is_accepted() -> None:
+    hotspot = InMemoryHotspot(clock=lambda: 1.0, transition_s=0.25)
+    sink = RejectOnceSink()
+    hotspot.start(sink)
+    hotspot.activate()
+
+    hotspot.poll(1.25)
+    assert hotspot.set_client_connected(True) is False
+    hotspot.poll(1.25)
+    assert hotspot.set_client_connected(True) is True
+
+    transitioned = HotspotObserved(HotspotLifecycle.ACTIVE)
+    client = HotspotObserved(HotspotLifecycle.ACTIVE, True)
+    assert sink.calls[:2] == [transitioned, transitioned]
+    assert sink.accepted == [transitioned, client]
+
+
+def test_hotspot_client_and_failure_causes_retry_without_hidden_state() -> None:
+    hotspot = InMemoryHotspot(clock=lambda: 1.0, transition_s=0.0)
+    hotspot.start(lambda _event: True)
+    hotspot.activate()
+    hotspot.poll(1.0)
+
+    client_sink = RejectOnceSink()
+    hotspot.start(client_sink)
+    assert hotspot.set_client_connected(True) is False
+    assert hotspot.set_client_connected(True) is True
+    assert client_sink.accepted == [HotspotObserved(HotspotLifecycle.ACTIVE, True)]
+
+    failure_sink = RejectOnceSink()
+    hotspot.start(failure_sink)
+    assert hotspot.set_failure(True) is False
+    hotspot.activate()  # A rejected failure injection did not secretly enable failure.
+    assert hotspot.set_failure(True) is True
+    with pytest.raises(OSError, match="simulated hotspot adapter failure"):
+        hotspot.activate()
+
+
 def test_reset_clears_local_causes_and_exposes_startup_before_ready(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -181,6 +282,7 @@ def test_physical_profiles_do_not_install_panel_simulation_routes(
 ) -> None:
     # Route installation depends only on the closed deployment scope, so checking
     # OpenAPI avoids opening physical SocketCAN interfaces in this contract test.
+    from e87canbus.deployment import deployment_spec
     from e87canbus.runners.simulation.api import install_simulation_api
     isolated = FastAPI()
     install_simulation_api(isolated, deployment_spec(profile).simulation_api)

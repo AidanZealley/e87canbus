@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from e87canbus.api.errors import ApiProblem
-from e87canbus.local_controls.model import PanelLink
+from e87canbus.local_controls import PanelLink
 from e87canbus.runners.simulation.api.models.common import SimulationCommandAcknowledgement
 from e87canbus.runners.simulation.commands import (
     LocalControlsSimulationCommand,

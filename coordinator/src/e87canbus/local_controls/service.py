@@ -20,7 +20,6 @@ from e87canbus.local_controls.model import (
     LocalControlsEffect,
     LocalControlsEvent,
     LocalControlsState,
-    OwnerFailed,
     PanelAdapterFailed,
     PanelRefreshDue,
     SetPanelDisplay,
@@ -99,6 +98,7 @@ class LocalControlsService:
         self._inbox: queue.Queue[_QueuedEvent] = queue.Queue(maxsize=inbox_capacity)
         self._lock = threading.Lock()
         self._stop = threading.Event()
+        self._stopped = threading.Event()
         self._lifecycle = LocalControlsLifecycle.CREATED
         self._accepting = False
         self._thread: threading.Thread | None = None
@@ -107,7 +107,6 @@ class LocalControlsService:
         self._revision = 0
         self._state = LocalControlsState()
         self._snapshot: LocalControlsSnapshot | None = None
-        self._failure: BaseException | None = None
         self._overflow_latched = False
         self._graceful_stop = True
 
@@ -123,11 +122,6 @@ class LocalControlsService:
     @property
     def inbox_depth(self) -> int:
         return self._inbox.qsize()
-
-    @property
-    def failure(self) -> BaseException | None:
-        with self._lock:
-            return self._failure
 
     def snapshot(self) -> LocalControlsSnapshot:
         with self._lock:
@@ -192,109 +186,71 @@ class LocalControlsService:
             raise LocalControlsServiceError("local-controls owner did not stop cleanly")
 
     def _run(self, startup: Future[None]) -> None:
-        started = False
         try:
-            self._start_owner()
+            with self._lock:
+                self._accepting = True
+            self._panel.start(self.submit_input)
+            self._hotspot.start(self.submit_input)
+            self._coordinator_condition.start(self.submit_input)
+            with self._lock:
+                self._lifecycle = LocalControlsLifecycle.RUNNING
+            self._record(force=True)
+            self._apply_effects((SetPanelDisplay(self._state.desired_display),))
             startup.set_result(None)
-            started = True
-            self._run_owner_loop()
+
+            next_poll = self._clock()
+            next_refresh = self._clock() + self._panel_refresh_interval_s
+            while not self._stop.is_set():
+                now = self._clock()
+                timeout = min(
+                    max(min(next_poll, next_refresh) - now, 0.0),
+                    self._poll_interval_s,
+                )
+                try:
+                    queued = self._inbox.get(timeout=timeout)
+                except queue.Empty:
+                    queued = None
+                if queued is not None:
+                    try:
+                        revision = self._process(queued.event)
+                    except Exception as exc:
+                        if queued.future is not None:
+                            queued.future.set_exception(exc)
+                    else:
+                        if queued.future is not None:
+                            queued.future.set_result(revision)
+                    finally:
+                        self._inbox.task_done()
+
+                if self._take_overflow():
+                    self._process(InboxOverloaded(self._inbox.maxsize))
+                now = self._clock()
+                if now >= next_poll:
+                    self._poll_adapters(now)
+                    next_poll = now + self._poll_interval_s
+                if now >= next_refresh:
+                    self._process(PanelRefreshDue())
+                    next_refresh = now + self._panel_refresh_interval_s
         except Exception as exc:
-            self._handle_owner_exception(startup, exc)
+            if not startup.done():
+                startup.set_exception(exc)
         finally:
-            self._finish_owner(started)
-
-    def _start_owner(self) -> None:
-        with self._lock:
-            self._accepting = True
-        self._panel.start(self.submit_input)
-        self._hotspot.start(self.submit_input)
-        self._coordinator_condition.start(self.submit_input)
-        with self._lock:
-            self._lifecycle = LocalControlsLifecycle.RUNNING
-        self._record(force=True)
-        self._apply_effects((SetPanelDisplay(self._state.desired_display),))
-
-    def _run_owner_loop(self) -> None:
-        next_poll = self._clock()
-        next_refresh = next_poll + self._panel_refresh_interval_s
-        while not self._stop.is_set():
-            queued = self._next_queued_event(next_poll, next_refresh)
-            if queued is not None:
-                self._process_queued_event(queued)
-            if self._take_overflow():
-                self._process(InboxOverloaded(self._inbox.maxsize))
-            next_poll, next_refresh = self._run_due_work(next_poll, next_refresh)
-
-    def _next_queued_event(
-        self,
-        next_poll: float,
-        next_refresh: float,
-    ) -> _QueuedEvent | None:
-        now = self._clock()
-        timeout = min(
-            max(min(next_poll, next_refresh) - now, 0.0),
-            self._poll_interval_s,
-        )
-        try:
-            return self._inbox.get(timeout=timeout)
-        except queue.Empty:
-            return None
-
-    def _process_queued_event(self, queued: _QueuedEvent) -> None:
-        try:
-            revision = self._process(queued.event)
-        except Exception as exc:
-            if queued.future is None:
-                raise
-            queued.future.set_exception(exc)
-        else:
-            if queued.future is not None:
-                queued.future.set_result(revision)
-        finally:
-            self._inbox.task_done()
-
-    def _run_due_work(self, next_poll: float, next_refresh: float) -> tuple[float, float]:
-        now = self._clock()
-        if now >= next_poll:
-            self._poll_adapters(now)
-            next_poll = now + self._poll_interval_s
-        if now >= next_refresh:
-            self._process(PanelRefreshDue())
-            next_refresh = now + self._panel_refresh_interval_s
-        return next_poll, next_refresh
-
-    def _handle_owner_exception(self, startup: Future[None], failure: Exception) -> None:
-        if startup.done():
-            self._record_failure(failure)
-        else:
-            startup.set_exception(failure)
-
-    def _finish_owner(self, started: bool) -> None:
-        with self._lock:
-            self._accepting = False
-        if started and self._graceful_stop:
-            self._process(ShutdownRequested())
-        self._fail_pending()
-        for port in (self._coordinator_condition, self._hotspot, self._panel):
-            # A local peripheral must not turn application shutdown into a process fault.
-            with suppress(Exception):
-                port.close()
-        with self._lock:
-            self._lifecycle = LocalControlsLifecycle.STOPPED
-
-    def _record_failure(self, failure: BaseException) -> None:
-        self._graceful_stop = False
-        with self._lock:
-            if self._failure is None:
-                self._failure = failure
-        transition = reduce_local_controls(self._state, OwnerFailed(str(failure)))
-        self._state = transition.state
-        # Snapshot recording happens before notification. If the notification itself caused
-        # the owner failure, the fault is still retained for reconnect and diagnostics.
-        with suppress(Exception):
-            self._record()
-        with suppress(Exception):
-            self._panel.set_display(self._state.desired_display)
+            with self._lock:
+                self._accepting = False
+            if (
+                startup.done()
+                and startup.exception() is None
+                and self._graceful_stop
+            ):
+                self._process(ShutdownRequested())
+            self._fail_pending()
+            for port in (self._coordinator_condition, self._hotspot, self._panel):
+                # A local peripheral must not turn application shutdown into a process fault.
+                with suppress(Exception):
+                    port.close()
+            with self._lock:
+                self._lifecycle = LocalControlsLifecycle.STOPPED
+            self._stopped.set()
 
     def _process(self, event: LocalControlsEvent) -> int:
         transition = reduce_local_controls(self._state, event)
@@ -309,36 +265,27 @@ class LocalControlsService:
     def _apply_effects(self, effects: tuple[LocalControlsEffect, ...]) -> None:
         for effect in effects:
             try:
-                self._apply_effect(effect)
+                if isinstance(effect, SetPanelDisplay):
+                    self._panel.set_display(effect.display)
+                elif isinstance(effect, ActivateHotspot):
+                    self._hotspot.activate()
+                elif isinstance(effect, DeactivateHotspot):
+                    self._hotspot.deactivate()
             except Exception as exc:
-                self._handle_effect_failure(effect, exc)
+                failure: LocalControlsEvent
+                if isinstance(effect, SetPanelDisplay):
+                    failure = PanelAdapterFailed(str(exc))
+                else:
+                    failure = HotspotAdapterFailed(str(exc))
+                transition = reduce_local_controls(self._state, failure)
+                if transition.state != self._state:
+                    self._state = transition.state
+                    self._record()
+                # The failure transition replaces the interrupted command. Applying any
+                # remaining effects from the original transition could overwrite its fault
+                # display with stale optimistic state.
+                self._apply_effects(transition.effects)
                 return
-
-    def _apply_effect(self, effect: LocalControlsEffect) -> None:
-        if isinstance(effect, SetPanelDisplay):
-            self._panel.set_display(effect.display)
-        elif isinstance(effect, ActivateHotspot):
-            self._hotspot.activate()
-        elif isinstance(effect, DeactivateHotspot):
-            self._hotspot.deactivate()
-
-    def _handle_effect_failure(
-        self,
-        effect: LocalControlsEffect,
-        failure: Exception,
-    ) -> None:
-        event: LocalControlsEvent = (
-            PanelAdapterFailed(str(failure))
-            if isinstance(effect, SetPanelDisplay)
-            else HotspotAdapterFailed(str(failure))
-        )
-        transition = reduce_local_controls(self._state, event)
-        if transition.state != self._state:
-            self._state = transition.state
-            self._record()
-        # The fault transition replaces the interrupted command; remaining effects from the
-        # original transition could otherwise overwrite it with stale optimistic state.
-        self._apply_effects(transition.effects)
 
     def _poll_adapters(self, now: float) -> None:
         for port, failure_type in (

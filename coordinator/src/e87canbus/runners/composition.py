@@ -24,7 +24,7 @@ from e87canbus.deployment import (
     deployment_spec,
 )
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
-from e87canbus.local_controls.model import CoordinatorCondition, CoordinatorConditionChanged
+from e87canbus.local_controls import CoordinatorCondition, CoordinatorConditionChanged
 from e87canbus.local_controls.ports import LocalControlsInputSink
 from e87canbus.local_controls.service import LocalControlsService
 from e87canbus.runners.live import LiveControllerRuntime

@@ -11,7 +11,7 @@ from e87canbus.domain.buttons.pad import BUTTON_PAD_PROGRAM_ENCODING
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.kernel import StateTopic
-from e87canbus.local_controls.service import LocalControlsSnapshot
+from e87canbus.local_controls import LocalControlsSnapshot
 from e87canbus.service import ControllerLoopSnapshot
 
 PROTOCOL_VERSION: Literal[1] = 1
