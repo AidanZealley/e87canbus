@@ -58,6 +58,11 @@ export const zCommandAcknowledgement = z.object({
 })
 
 /**
+ * CoordinatorStatus
+ */
+export const zCoordinatorStatus = z.enum(["starting", "ready", "fault", "off"])
+
+/**
  * DeploymentProfile
  */
 export const zDeploymentProfile = z.enum(["car", "bench", "simulator"])
@@ -75,11 +80,35 @@ export const zEngineRpmRequest = z.object({
 })
 
 /**
+ * HotspotStatus
+ */
+export const zHotspotStatus = z.enum([
+  "disabled",
+  "starting",
+  "waiting",
+  "connected",
+  "stopping",
+  "failed",
+])
+
+/**
  * LivenessResponse
  */
 export const zLivenessResponse = z.object({
   status: z.literal("live").optional().default("live"),
 })
+
+/**
+ * PanelDisplay
+ */
+export const zPanelDisplay = z.enum([
+  "starting",
+  "ready",
+  "hotspot_waiting",
+  "hotspot_connected",
+  "fault",
+  "off",
+])
 
 /**
  * ReadinessResponse
@@ -156,6 +185,24 @@ export const zSetSteeringModeRequest = z.object({
 export const zSimulationCommandAcknowledgement = z.object({
   accepted: z.literal(true).optional().default(true),
   boot_id: z.string(),
+})
+
+/**
+ * SimulationCoordinatorPanelState
+ */
+export const zSimulationCoordinatorPanelState = z.object({
+  coordinator_status: zCoordinatorStatus,
+  coordinator_status_preview: zCoordinatorStatus.nullable(),
+  display: zPanelDisplay,
+  failure_armed: z.boolean(),
+  hotspot_status: zHotspotStatus,
+})
+
+/**
+ * SimulationCoordinatorStatusRequest
+ */
+export const zSimulationCoordinatorStatusRequest = z.object({
+  status: z.enum(["starting", "ready", "fault", "off"]).nullable(),
 })
 
 /**
@@ -493,6 +540,24 @@ export const zUpdateProfileRequest = z.object({
 })
 
 /**
+ * ValidationError
+ */
+export const zValidationError = z.object({
+  ctx: z.record(z.string(), z.unknown()).optional(),
+  input: z.unknown().optional(),
+  loc: z.array(z.union([z.string(), z.int()])),
+  msg: z.string(),
+  type: z.string(),
+})
+
+/**
+ * HTTPValidationError
+ */
+export const zHttpValidationError = z.object({
+  detail: z.array(zValidationError).optional(),
+})
+
+/**
  * ValidationIssue
  */
 export const zValidationIssue = z.object({
@@ -598,6 +663,45 @@ export const zUpdateButtonProfilePath = z.object({
  * Successful Response
  */
 export const zUpdateButtonProfileResponse = zButtonProfileResponse
+
+/**
+ * Successful Response
+ */
+export const zGetSimulationCoordinatorPanelResponse =
+  zSimulationCoordinatorPanelState
+
+/**
+ * Successful Response
+ */
+export const zPressSimulationCoordinatorPanelButtonResponse =
+  zSimulationCoordinatorPanelState
+
+/**
+ * Successful Response
+ */
+export const zConnectSimulationHotspotClientResponse =
+  zSimulationCoordinatorPanelState
+
+/**
+ * Successful Response
+ */
+export const zDisconnectSimulationHotspotClientResponse =
+  zSimulationCoordinatorPanelState
+
+export const zPreviewSimulationCoordinatorStatusBody =
+  zSimulationCoordinatorStatusRequest
+
+/**
+ * Successful Response
+ */
+export const zPreviewSimulationCoordinatorStatusResponse =
+  zSimulationCoordinatorPanelState
+
+/**
+ * Successful Response
+ */
+export const zFailNextSimulationHotspotOperationResponse =
+  zSimulationCoordinatorPanelState
 
 export const zTapSimulationButtonPath = z.object({
   button_index: z.int().gte(0).lt(16),

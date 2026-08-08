@@ -398,6 +398,11 @@ export type CommandAcknowledgement = {
 }
 
 /**
+ * CoordinatorStatus
+ */
+export type CoordinatorStatus = "starting" | "ready" | "fault" | "off"
+
+/**
  * CreateButtonProfileRequest
  */
 export type CreateButtonProfileRequest = {
@@ -440,6 +445,22 @@ export type EngineRpmRequest = {
 }
 
 /**
+ * HTTPValidationError
+ */
+export type HttpValidationError = {
+  /**
+   * Detail
+   */
+  detail?: Array<ValidationError>
+}
+
+/**
+ * HotspotStatus
+ */
+export type HotspotStatus =
+  "disabled" | "starting" | "waiting" | "connected" | "stopping" | "failed"
+
+/**
  * LivenessResponse
  */
 export type LivenessResponse = {
@@ -448,6 +469,17 @@ export type LivenessResponse = {
    */
   status?: "live"
 }
+
+/**
+ * PanelDisplay
+ */
+export type PanelDisplay =
+  | "starting"
+  | "ready"
+  | "hotspot_waiting"
+  | "hotspot_connected"
+  | "fault"
+  | "off"
 
 /**
  * ReadinessResponse
@@ -569,6 +601,30 @@ export type SimulationCommandAcknowledgement = {
    * Boot Id
    */
   boot_id: string
+}
+
+/**
+ * SimulationCoordinatorPanelState
+ */
+export type SimulationCoordinatorPanelState = {
+  coordinator_status: CoordinatorStatus
+  coordinator_status_preview: CoordinatorStatus | null
+  display: PanelDisplay
+  /**
+   * Failure Armed
+   */
+  failure_armed: boolean
+  hotspot_status: HotspotStatus
+}
+
+/**
+ * SimulationCoordinatorStatusRequest
+ */
+export type SimulationCoordinatorStatusRequest = {
+  /**
+   * Status
+   */
+  status: "starting" | "ready" | "fault" | "off" | null
 }
 
 /**
@@ -841,6 +897,34 @@ export type UpdateProfileRequest = {
 }
 
 /**
+ * ValidationError
+ */
+export type ValidationError = {
+  /**
+   * Context
+   */
+  ctx?: {
+    [key: string]: unknown
+  }
+  /**
+   * Input
+   */
+  input?: unknown
+  /**
+   * Location
+   */
+  loc: Array<string | number>
+  /**
+   * Message
+   */
+  msg: string
+  /**
+   * Error Type
+   */
+  type: string
+}
+
+/**
  * ValidationIssue
  */
 export type ValidationIssue = {
@@ -1099,6 +1183,174 @@ export type UpdateButtonProfileResponses = {
 
 export type UpdateButtonProfileResponse =
   UpdateButtonProfileResponses[keyof UpdateButtonProfileResponses]
+
+export type GetSimulationCoordinatorPanelData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel"
+}
+
+export type GetSimulationCoordinatorPanelResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type GetSimulationCoordinatorPanelResponse =
+  GetSimulationCoordinatorPanelResponses[keyof GetSimulationCoordinatorPanelResponses]
+
+export type PressSimulationCoordinatorPanelButtonData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel/button"
+}
+
+export type PressSimulationCoordinatorPanelButtonErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type PressSimulationCoordinatorPanelButtonError =
+  PressSimulationCoordinatorPanelButtonErrors[keyof PressSimulationCoordinatorPanelButtonErrors]
+
+export type PressSimulationCoordinatorPanelButtonResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type PressSimulationCoordinatorPanelButtonResponse =
+  PressSimulationCoordinatorPanelButtonResponses[keyof PressSimulationCoordinatorPanelButtonResponses]
+
+export type ConnectSimulationHotspotClientData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel/client/connect"
+}
+
+export type ConnectSimulationHotspotClientErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type ConnectSimulationHotspotClientError =
+  ConnectSimulationHotspotClientErrors[keyof ConnectSimulationHotspotClientErrors]
+
+export type ConnectSimulationHotspotClientResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type ConnectSimulationHotspotClientResponse =
+  ConnectSimulationHotspotClientResponses[keyof ConnectSimulationHotspotClientResponses]
+
+export type DisconnectSimulationHotspotClientData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel/client/disconnect"
+}
+
+export type DisconnectSimulationHotspotClientErrors = {
+  /**
+   * Conflict
+   */
+  409: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type DisconnectSimulationHotspotClientError =
+  DisconnectSimulationHotspotClientErrors[keyof DisconnectSimulationHotspotClientErrors]
+
+export type DisconnectSimulationHotspotClientResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type DisconnectSimulationHotspotClientResponse =
+  DisconnectSimulationHotspotClientResponses[keyof DisconnectSimulationHotspotClientResponses]
+
+export type PreviewSimulationCoordinatorStatusData = {
+  body: SimulationCoordinatorStatusRequest
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel/coordinator-status"
+}
+
+export type PreviewSimulationCoordinatorStatusErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type PreviewSimulationCoordinatorStatusError =
+  PreviewSimulationCoordinatorStatusErrors[keyof PreviewSimulationCoordinatorStatusErrors]
+
+export type PreviewSimulationCoordinatorStatusResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type PreviewSimulationCoordinatorStatusResponse =
+  PreviewSimulationCoordinatorStatusResponses[keyof PreviewSimulationCoordinatorStatusResponses]
+
+export type FailNextSimulationHotspotOperationData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation"
+}
+
+export type FailNextSimulationHotspotOperationErrors = {
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type FailNextSimulationHotspotOperationError =
+  FailNextSimulationHotspotOperationErrors[keyof FailNextSimulationHotspotOperationErrors]
+
+export type FailNextSimulationHotspotOperationResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCoordinatorPanelState
+}
+
+export type FailNextSimulationHotspotOperationResponse =
+  FailNextSimulationHotspotOperationResponses[keyof FailNextSimulationHotspotOperationResponses]
 
 export type TapSimulationButtonData = {
   body?: never
