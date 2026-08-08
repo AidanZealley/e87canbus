@@ -52,6 +52,8 @@
 @theme {
   --animate-strobe: strobe 600ms steps(1, end) infinite;
   --animate-shift-strobe: shift-strobe 150ms steps(1, end) infinite;
+  --animate-panel-travel: panel-travel 1.4s ease-in-out infinite;
+  --animate-panel-pulse: panel-pulse 1.8s ease-in-out infinite;
 
   @keyframes strobe {
     0%,
@@ -78,6 +80,29 @@
     50%,
     100% {
       opacity: 0.15;
+    }
+  }
+
+  @keyframes panel-travel {
+    0%,
+    60%,
+    100% {
+      opacity: 0.18;
+      transform: scale(0.75);
+    }
+    30% {
+      opacity: 0.9;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes panel-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 0.85;
     }
   }
 }
