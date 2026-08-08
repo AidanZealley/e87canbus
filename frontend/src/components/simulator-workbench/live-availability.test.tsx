@@ -46,7 +46,7 @@ it("clears retained LED observations and disables controls when unsynchronized",
     {
       id: "kcan",
       label: "K-CAN",
-      interface: "can0",
+      interface: "kcan",
       bitrate: 100_000,
       connected: true,
       nodes: ["Pi", "NeoTrellis"],

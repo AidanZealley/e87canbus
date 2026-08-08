@@ -38,7 +38,7 @@ def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
         CanNetwork.FCAN,
     ]
     assert [item.label for item in config.can_networks] == ["K-CAN", "PT-CAN", "F-CAN"]
-    assert [item.interface for item in config.can_networks] == ["can0", "can1", "can2"]
+    assert [item.interface for item in config.can_networks] == ["kcan", "ptcan", "fcan"]
     assert [item.bitrate for item in config.can_networks] == [100_000, 500_000, 500_000]
     assert all(item.enabled for item in config.can_networks)
     assert not any(item.tx_enabled for item in config.can_networks)

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CAN_INTERFACE="${CAN_INTERFACE:-can0}"
+CAN_INTERFACE="${CAN_INTERFACE:-kcan}"
 EXPECTED_BITRATE="${EXPECTED_BITRATE:-100000}"
 CAPTURE_ROOT="${CAPTURE_ROOT:-${HOME}/e87canbus-captures}"
 CONTROLLER_SERVICE="e87canbus-controller.service"
-CAN_SERVICE="e87canbus-can0.service"
+CAN_SERVICE="e87canbus-kcan.service"
 SESSION_LABEL="${1:-capture}"
 
 fail() {

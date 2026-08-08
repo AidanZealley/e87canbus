@@ -9,9 +9,9 @@ The finished Pi runs one controller service and three SocketCAN interfaces:
 
 | Interface | Physical connector | SPI device | Bitrate |
 |---|---|---|---:|
-| `can0` | Original RS485 CAN HAT | `spi0.0` | 100 kbit/s |
-| `can1` | 2-CH CAN HAT+ CAN0 | `spi1.1` | 500 kbit/s |
-| `can2` | 2-CH CAN HAT+ CAN1 | `spi1.2` | 500 kbit/s |
+| `kcan` | Original RS485 CAN HAT | `spi0.0` | 100 kbit/s |
+| `ptcan` | 2-CH CAN HAT+ CAN0 | `spi1.1` | 500 kbit/s |
+| `fcan` | 2-CH CAN HAT+ CAN1 | `spi1.2` | 500 kbit/s |
 
 The service binds to loopback and serves the frontend, HTTP API, and Socket.IO transport from the
 same origin. It is unauthenticated and must not be changed to a non-loopback bind without a separate
@@ -175,9 +175,9 @@ cd /opt/e87canbus
 The second run must print all three confirmations before it starts the controller:
 
 ```text
-Validated can0 -> spi0.0
-Validated can1 -> spi1.1
-Validated can2 -> spi1.2
+Validated kcan -> spi0.0
+Validated ptcan -> spi1.1
+Validated fcan -> spi1.2
 ```
 
 It then starts the three CAN services, enables the controller for subsequent boots, and prints
@@ -199,7 +199,7 @@ general root command access.
 Check the kernel-to-hardware mapping independently:
 
 ```bash
-for interface in can0 can1 can2; do
+for interface in kcan ptcan fcan; do
     printf '%s -> ' "${interface}"
     basename "$(readlink -f "/sys/class/net/${interface}/device")"
 done
@@ -208,17 +208,17 @@ done
 Expected output:
 
 ```text
-can0 -> spi0.0
-can1 -> spi1.1
-can2 -> spi1.2
+kcan -> spi0.0
+ptcan -> spi1.1
+fcan -> spi1.2
 ```
 
 Confirm the configured bitrates:
 
 ```bash
-ip -details link show can0 | grep -o 'bitrate [0-9]*'
-ip -details link show can1 | grep -o 'bitrate [0-9]*'
-ip -details link show can2 | grep -o 'bitrate [0-9]*'
+ip -details link show kcan | grep -o 'bitrate [0-9]*'
+ip -details link show ptcan | grep -o 'bitrate [0-9]*'
+ip -details link show fcan | grep -o 'bitrate [0-9]*'
 ```
 
 Expected output, in order:
@@ -233,9 +233,9 @@ All four services must be active:
 
 ```bash
 systemctl is-active \
-    e87canbus-can0.service \
-    e87canbus-can1.service \
-    e87canbus-can2.service \
+    e87canbus-kcan.service \
+    e87canbus-ptcan.service \
+    e87canbus-fcan.service \
     e87canbus-controller.service
 ```
 
@@ -267,9 +267,9 @@ the required reference-ground arrangement before applying power.
 Observe each connected bus in its own SSH session:
 
 ```bash
-candump -tz can0
-candump -tz can1
-candump -tz can2
+candump -tz kcan
+candump -tz ptcan
+candump -tz fcan
 ```
 
 `candump` waits silently when there is no traffic. Receiving valid frames proves more of the path
@@ -322,12 +322,12 @@ script.
 
 ```bash
 systemctl --no-pager --full status \
-    e87canbus-can0.service \
-    e87canbus-can1.service \
-    e87canbus-can2.service \
+    e87canbus-kcan.service \
+    e87canbus-ptcan.service \
+    e87canbus-fcan.service \
     e87canbus-controller.service
-journalctl -b -u e87canbus-can0.service -u e87canbus-can1.service \
-    -u e87canbus-can2.service -u e87canbus-controller.service
+journalctl -b -u e87canbus-kcan.service -u e87canbus-ptcan.service \
+    -u e87canbus-fcan.service -u e87canbus-controller.service
 ```
 
 The controller requires all three CAN services on physical installations, so a CAN bootstrap

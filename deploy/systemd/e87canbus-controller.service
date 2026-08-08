@@ -1,6 +1,6 @@
 [Unit]
 Description=E87 unified CAN controller
-After=e87canbus-can0.service e87canbus-can1.service e87canbus-can2.service
+After=e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service
 After=network.target
 
 [Service]

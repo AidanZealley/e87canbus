@@ -84,24 +84,24 @@ driver, SocketCAN, `ip`, `can-utils`, and `python-can` through its SocketCAN ada
 ## Linux interface names and validation
 
 The CAN subsystem initially allocates names using the pattern `can%d`; the device-tree overlay name
-does not guarantee a permanent physical-to-number mapping. The expected probe result on the
-supported Pi stack is:
+does not guarantee a permanent physical-to-number mapping. A project-owned udev rule renames each
+interface from its SPI parent, producing this stable mapping on the supported Pi stack:
 
 ```text
-can0 -> spi0.0
-can1 -> spi1.1
-can2 -> spi1.2
+kcan -> spi0.0
+ptcan -> spi1.1
+fcan -> spi1.2
 ```
 
-The setup script validates the resolved `/sys/class/net/canX/device` parent for every interface
+The setup script validates the resolved `/sys/class/net/INTERFACE/device` parent for every interface
 before enabling the controller. A missing controller or different mapping fails closed. This is
 what makes the application's stable semantic assignment safe:
 
 | Interface | Application network | Service bitrate |
 |---|---|---:|
-| `can0` | K-CAN | 100 kbit/s |
-| `can1` | PT-CAN | 500 kbit/s |
-| `can2` | F-CAN | 500 kbit/s |
+| `kcan` | K-CAN | 100 kbit/s |
+| `ptcan` | PT-CAN | 500 kbit/s |
+| `fcan` | F-CAN | 500 kbit/s |
 
 Dedicated systemd units apply those bitrates, set automatic recovery with `restart-ms 100`, and
 raise the links before the physical controller service. Bench and car use the same complete

@@ -116,7 +116,7 @@ def test_bench_api_accepts_vehicle_telemetry_but_omits_other_simulation_controls
         assert response.status_code == 200
         assert snapshot.application.speed_valid is True
         assert snapshot.application.vehicle_speed_kph == 42.5
-        assert [bus.interface for bus in FakeSocketCanBus.instances] == ["can0", "can1", "can2"]
+        assert [bus.interface for bus in FakeSocketCanBus.instances] == ["kcan", "ptcan", "fcan"]
         assert FakeSocketCanBus.instances[0].sent == [encode_simulated_speed(42.5)]
         assert all(not bus.sent for bus in FakeSocketCanBus.instances[1:])
         assert client.post("/api/dev/simulation/reset").status_code == 404

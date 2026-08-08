@@ -86,7 +86,7 @@ class OverflowingSocketCanBus(FakeSocketCanBus):
     def __init__(self, interface: str) -> None:
         super().__init__(interface)
         self.shutdown_called = False
-        self._frames_remaining = 2 if interface == "can0" else 0
+        self._frames_remaining = 2 if interface == "kcan" else 0
 
     def receive(self, timeout_s: float | None = None) -> CanFrame | None:
         del timeout_s
@@ -289,7 +289,7 @@ def test_explicit_kcan_tx_composition_waits_for_registry_contact() -> None:
     service.start()
     service.stop()
 
-    kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+    kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "kcan")
     assert kcan.sent == []
 
 
@@ -324,8 +324,8 @@ def test_partial_open_cleanup_keeps_original_failure_when_shutdown_also_fails(
 ) -> None:
     FakeSocketCanBus.instances = []
     CleanupFailingSocketCanBus.shutdown_interfaces = []
-    CleanupFailingSocketCanBus.fail_open_interface = "can1"
-    CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
+    CleanupFailingSocketCanBus.fail_open_interface = "ptcan"
+    CleanupFailingSocketCanBus.fail_shutdown_interface = "kcan"
     service = build_live_controller_loop(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
@@ -333,7 +333,7 @@ def test_partial_open_cleanup_keeps_original_failure_when_shutdown_also_fails(
     with caplog.at_level(logging.ERROR), pytest.raises(OSError, match="open failed"):
         service.start()
 
-    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["can0"]
+    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["kcan"]
     assert "failed to close SocketCAN network kcan" in caplog.text
 
 
@@ -343,7 +343,7 @@ def test_final_cleanup_isolates_each_interface_and_reports_close_failure(
     FakeSocketCanBus.instances = []
     CleanupFailingSocketCanBus.shutdown_interfaces = []
     CleanupFailingSocketCanBus.fail_open_interface = None
-    CleanupFailingSocketCanBus.fail_shutdown_interface = "can0"
+    CleanupFailingSocketCanBus.fail_shutdown_interface = "kcan"
     service = build_live_controller_loop(
         socketcan_factory=CleanupFailingSocketCanBus,
     )
@@ -352,7 +352,7 @@ def test_final_cleanup_isolates_each_interface_and_reports_close_failure(
         service.start()
         service.stop()
 
-    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["can0", "can1", "can2"]
+    assert CleanupFailingSocketCanBus.shutdown_interfaces == ["kcan", "ptcan", "fcan"]
     assert "failed to close SocketCAN network kcan" in caplog.text
 
 
@@ -384,7 +384,7 @@ def test_live_shutdown_surfaces_a_reader_that_remains_blocked_after_adapter_clos
 
 
 class TestConfigurableNetworkEnablement:
-    def test_kcan_only_opens_can0_not_can1_or_can2(self) -> None:
+    def test_kcan_only_opens_the_kcan_interface(self) -> None:
         FakeSocketCanBus.instances = []
         config = configure_can_networks(
             default_config(),
@@ -401,7 +401,7 @@ class TestConfigurableNetworkEnablement:
         service.stop()
 
         interfaces = [bus.interface for bus in FakeSocketCanBus.instances]
-        assert interfaces == ["can0"]
+        assert interfaces == ["kcan"]
 
     def test_all_three_networks_opens_all_interfaces(self) -> None:
         FakeSocketCanBus.instances = []
@@ -419,8 +419,8 @@ class TestConfigurableNetworkEnablement:
         service.start()
         service.stop()
 
-        interfaces = sorted(bus.interface for bus in FakeSocketCanBus.instances)
-        assert interfaces == ["can0", "can1", "can2"]
+        interfaces = {bus.interface for bus in FakeSocketCanBus.instances}
+        assert interfaces == {"kcan", "ptcan", "fcan"}
 
     def test_kcan_tx_grant_creates_transmitter_for_configured_network(self) -> None:
         FakeSocketCanBus.instances = []
@@ -438,7 +438,7 @@ class TestConfigurableNetworkEnablement:
         service.start()
         service.stop()
 
-        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "kcan")
         assert kcan is not None
 
     def test_no_tx_grant_creates_no_transmitter(self) -> None:
@@ -465,7 +465,7 @@ class TestConfigurableNetworkEnablement:
         finally:
             service.stop()
 
-        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "can0")
+        kcan = next(bus for bus in FakeSocketCanBus.instances if bus.interface == "kcan")
         assert kcan.sent == []
 
     def test_granting_disabled_network_fails(self) -> None:

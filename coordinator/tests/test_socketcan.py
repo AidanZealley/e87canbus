@@ -41,10 +41,10 @@ def test_socketcan_opens_configured_channel_with_socketcan_backend(
 
     monkeypatch.setattr(can, "Bus", open_bus)
 
-    bus = SocketCanBus("can2")
+    bus = SocketCanBus("fcan")
     bus.shutdown()
 
-    assert opened_with == {"interface": "socketcan", "channel": "can2"}
+    assert opened_with == {"interface": "socketcan", "channel": "fcan"}
 
 
 def test_socketcan_frame_conversion_round_trip() -> None:
@@ -72,7 +72,7 @@ def test_socketcan_normalizes_operation_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(can, "Bus", lambda **_kwargs: FailingPythonCanBus())
-    bus = SocketCanBus("can0")
+    bus = SocketCanBus("kcan")
 
     with pytest.raises(OSError) as caught:
         if operation == "send":

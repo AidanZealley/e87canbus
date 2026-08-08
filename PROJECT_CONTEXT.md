@@ -154,11 +154,11 @@ promoting either value.
 
 - The supported physical Pi topology is an original Waveshare RS485 CAN HAT v2.1 plus a
   Waveshare 2-CH CAN HAT+, providing three MCP2515 controllers.
-- The original 12 MHz controller uses SPI0 CE0 and BCM25 for `can0` / K-CAN at 100 kbit/s.
-- The HAT+ 16 MHz controllers use SPI1 CE1/BCM22 and SPI1 CE2/BCM13 for `can1` / PT-CAN and
-  `can2` / F-CAN at 500 kbit/s.
+- The original 12 MHz controller uses SPI0 CE0 and BCM25 for `kcan` / K-CAN at 100 kbit/s.
+- The HAT+ 16 MHz controllers use SPI1 CE1/BCM22 and SPI1 CE2/BCM13 for `ptcan` / PT-CAN and
+  `fcan` / F-CAN at 500 kbit/s.
 - Both `bench` and `car` require this complete physical topology; `simulator` uses no physical CAN.
-- `python-can` treats them as separate named interfaces (`can0`, `can1`, and `can2`)
+- `python-can` treats them as separate named interfaces (`kcan`, `ptcan`, and `fcan`)
 
 ### Power
 

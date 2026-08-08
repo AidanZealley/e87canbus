@@ -18,7 +18,7 @@ const networks: NetworkStatus[] = [
   {
     id: "fcan",
     label: "F-CAN",
-    interface: "can2",
+    interface: "fcan",
     bitrate: 500_000,
     connected: true,
     nodes: ["simulated-vehicle"],

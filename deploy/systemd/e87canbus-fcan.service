@@ -1,0 +1,17 @@
+[Unit]
+Description=E87 F-CAN bootstrap
+After=sys-subsystem-net-devices-fcan.device
+Requires=sys-subsystem-net-devices-fcan.device
+Before=e87canbus-controller.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip link set fcan down
+ExecStart=/usr/sbin/ip link set fcan type can bitrate 500000 restart-ms 100
+ExecStart=/usr/sbin/ip link set fcan up
+ExecStop=-/usr/sbin/ip link set fcan down
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=e87canbus-controller.service

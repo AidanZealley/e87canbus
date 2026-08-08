@@ -157,26 +157,26 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> None:
     root = Path(__file__).resolve().parents[2]
     can_units = {
-        index: (root / f"deploy/systemd/e87canbus-can{index}.service").read_text()
-        for index in range(3)
+        interface: (root / f"deploy/systemd/e87canbus-{interface}.service").read_text()
+        for interface in ("kcan", "ptcan", "fcan")
     }
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
-    for index, can_unit in can_units.items():
+    for interface, can_unit in can_units.items():
         assert "Before=e87canbus-controller.service" in can_unit
-        assert f"sys-subsystem-net-devices-can{index}.device" in can_unit
+        assert f"sys-subsystem-net-devices-{interface}.device" in can_unit
         assert "restart-ms 100" in can_unit
         assert "WantedBy=multi-user.target" in can_unit
         assert "RequiredBy=e87canbus-controller.service" in can_unit
-        assert f"ExecStartPre=-/usr/sbin/ip link set can{index} down" in can_unit
-        assert f"ExecStart=/usr/sbin/ip link set can{index} up" in can_unit
-        assert f"ExecStop=-/usr/sbin/ip link set can{index} down" in can_unit
-    assert "bitrate 100000" in can_units[0]
-    assert "bitrate 500000" in can_units[1]
-    assert "bitrate 500000" in can_units[2]
-    ordering = next(line for line in unit.splitlines() if line.startswith("After=e87canbus-can"))
-    for index in range(3):
-        assert f"e87canbus-can{index}.service" in ordering
+        assert f"ExecStartPre=-/usr/sbin/ip link set {interface} down" in can_unit
+        assert f"ExecStart=/usr/sbin/ip link set {interface} up" in can_unit
+        assert f"ExecStop=-/usr/sbin/ip link set {interface} down" in can_unit
+    assert "bitrate 100000" in can_units["kcan"]
+    assert "bitrate 500000" in can_units["ptcan"]
+    assert "bitrate 500000" in can_units["fcan"]
+    ordering = next(line for line in unit.splitlines() if line.startswith("After=e87canbus-"))
+    for interface in can_units:
+        assert f"e87canbus-{interface}.service" in ordering
     assert "EnvironmentFile=/etc/e87canbus/controller.env" in unit
     assert "e87canbus run --profile ${E87CANBUS_PROFILE}" in unit
     assert "Restart=on-failure" in unit
@@ -204,11 +204,19 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
         "dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000"
         in setup
     )
-    assert "CAN_INTERFACES=(can0 can1 can2)" in setup
+    assert "CAN_INTERFACES=(kcan ptcan fcan)" in setup
     assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
     assert 'id -nG "${USER}"' in setup
-    for index in range(3):
-        assert f"e87canbus-can{index}.service" in setup
+    for interface in ("kcan", "ptcan", "fcan"):
+        assert f"e87canbus-{interface}.service" in setup
+
+    naming_rules = (root / "deploy/udev/70-e87canbus-can.rules").read_text()
+    for spi_parent, interface in (
+        ("spi0.0", "kcan"),
+        ("spi1.1", "ptcan"),
+        ("spi1.2", "fcan"),
+    ):
+        assert f'KERNELS=="{spi_parent}", NAME="{interface}"' in naming_rules
 
 
 def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
