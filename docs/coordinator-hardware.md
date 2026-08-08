@@ -1,16 +1,11 @@
-# Coordinator panel context
+# Coordinator hardware and local controls
 
-Status: Phase 1 simulator and shared coordinator behavior implemented. Phase 2 firmware, physical
-adapters, Pi deployment, and bench validation remain pending. The QT Py RP2040 and NeoPixel Driver
-BFF have been purchased.
+Status: planned. The QT Py RP2040 and NeoPixel Driver BFF have been purchased, but the panel
+firmware, coordinator integration, hotspot control, and simulator UI described here are not yet
+implemented.
 
 This document records the agreed physical and software design for the in-car coordinator. It keeps
 the intended design separate from the currently implemented Raspberry Pi and CAN setup.
-
-Implementation is split into two specifications:
-
-- [Phase 1: simulator and shared behavior](phase-1-simulator.md)
-- [Phase 2: physical panel and Pi integration](phase-2-hardware.md)
 
 ## Coordinator role
 
@@ -125,17 +120,11 @@ ignored or acknowledged locally, but it must not unexpectedly enable the hotspot
 State priority is:
 
 1. Shutdown or power loss: off.
-2. Fatal coordinator or required CAN failure: red.
+2. Fatal coordinator, panel-link, or required CAN failure: red.
 3. Hotspot active with a client: green.
 4. Hotspot active without a client: pulsing cyan.
 5. Coordinator ready: dim white.
 6. Otherwise: white travelling startup animation.
-
-A lost panel link is a special case rather than an input to this derivation. The Pi cannot command
-the LEDs while the link is unavailable, so the RP2040 detects missed state refreshes and selects
-red locally. The Pi separately publishes the link fault for browser diagnostics. When the link
-recovers, the Pi sends the complete current semantic state and the panel converges without replaying
-missed transitions.
 
 ## Hotspot button
 
@@ -172,8 +161,7 @@ The QT Py firmware should be a small compiled C++ PlatformIO project. It owns on
 - A conservative brightness limit.
 
 It does not own hotspot policy, CAN health interpretation, network management, or application state.
-Those remain Pi responsibilities, with hotspot and panel behavior owned by a sibling local-controls
-service rather than the vehicle controller kernel.
+Those remain coordinator responsibilities.
 
 ## Coordinator responsibilities
 
@@ -183,11 +171,7 @@ The Pi software will need:
 - A NetworkManager hotspot adapter that can only activate, inspect, and deactivate the managed
   hotspot connection.
 - One state derivation that combines service readiness, expected CAN availability, hotspot status,
-  client presence, and shutdown.
-- An independently owned local-controls service beside the vehicle controller, connected to it only
-  through a narrow starting, ready, fault, or shutting-down condition.
-- Separate publication of panel-link health for diagnostics; the RP2040 owns the unreachable
-  panel's physical link-loss indication.
+  client presence, shutdown, and panel-link health.
 - Publication of the derived panel state for the visual simulator and diagnostics.
 
 The existing service account should remain unprivileged. NetworkManager permission should be as
@@ -208,17 +192,20 @@ directly:
 - Restart the simulated coordinator.
 - Inject or recover an applicable CAN or service fault.
 
-The same sibling service and state derivation then drive both the physical UART adapter and
-simulated presentation without placing local I/O in the vehicle controller's owner loop.
+The same state derivation then drives both the physical UART adapter and simulated presentation.
 The browser may render the selected animation with CSS, while the embedded animation code is tested
 independently. The simulator does not need to emulate RP2040 instructions or NeoPixel wire timing.
 
-## Phased implementation
+## Setup and implementation work remaining
 
-The current setup script does not configure this panel. Work is divided at the point where the
-behavior has been implemented and approved in the simulator:
+The current setup script does not configure this panel. Implementing it will require:
 
-1. [Phase 1](phase-1-simulator.md) defines the shared state model, implements in-memory adapters,
-   publishes local-control state, and adds the coordinator enclosure to the simulator workbench.
-2. [Phase 2](phase-2-hardware.md) adds the UART and NetworkManager adapters, QT Py firmware, Pi
-   provisioning, and physical validation without changing the approved behavior.
+1. Add the QT Py firmware project and define the minimal UART messages.
+2. Add the real UART and NetworkManager adapters plus the shared panel-state derivation.
+3. Add the in-memory adapters and workbench controls.
+4. Extend `scripts/setup_pi.sh` to enable the primary UART, remove any serial console assignment,
+   preserve the chosen Bluetooth behavior, grant `/dev/serial0` access, create the non-autoconnecting
+   hotspot profile, and install narrow NetworkManager permissions.
+5. Extend the fresh-Pi runbook with panel flashing, wiring, hotspot credentials, and validation.
+6. Bench-test power-up, delayed Pi boot, normal readiness, hotspot toggling, client arrival and
+   departure, coordinator restart, UART loss, CAN failure, shutdown, and repeated ignition cycles.

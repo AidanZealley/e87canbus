@@ -15,7 +15,6 @@ from e87canbus.api.models.live import (
     DevicesState,
     EngineState,
     LightingState,
-    LocalControlsState,
     SteeringState,
     TraceBatchData,
     VehicleState,
@@ -32,7 +31,6 @@ class ServerEvent(StrEnum):
     LIGHTING_STATE = "lighting.state"
     DEVICES_STATE = "devices.state"
     CONTROLLER_HEALTH = "controller.health"
-    LOCAL_CONTROLS_STATE = "local-controls.state"
     RESOURCES_CHANGED = "resources.changed"
     TRACE_BATCH = "trace.batch"
 
@@ -65,7 +63,6 @@ EVENT_CONTRACTS = (
     EventContract(ServerEvent.LIGHTING_STATE, "server_to_client", LightingState, True),
     EventContract(ServerEvent.DEVICES_STATE, "server_to_client", DevicesState, True),
     EventContract(ServerEvent.CONTROLLER_HEALTH, "server_to_client", ControllerHealthState, True),
-    EventContract(ServerEvent.LOCAL_CONTROLS_STATE, "server_to_client", LocalControlsState, True),
     EventContract(ServerEvent.RESOURCES_CHANGED, "server_to_client", ResourceChangedEvent),
     EventContract(ServerEvent.TRACE_BATCH, "server_to_client", TraceBatchData, True),
     EventContract(ClientEvent.CONTROLLER_RESYNC, "client_to_server", None),

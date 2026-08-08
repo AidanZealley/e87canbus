@@ -151,20 +151,6 @@ export const zSetSteeringModeRequest = z.object({
 })
 
 /**
- * SimulatedConnectionRequest
- */
-export const zSimulatedConnectionRequest = z.object({
-  connected: z.boolean(),
-})
-
-/**
- * SimulatedFailureRequest
- */
-export const zSimulatedFailureRequest = z.object({
-  enabled: z.boolean(),
-})
-
-/**
  * SimulationCommandAcknowledgement
  */
 export const zSimulationCommandAcknowledgement = z.object({
@@ -612,41 +598,6 @@ export const zUpdateButtonProfilePath = z.object({
  * Successful Response
  */
 export const zUpdateButtonProfileResponse = zButtonProfileResponse
-
-/**
- * Successful Response
- */
-export const zTapCoordinatorPanelButtonResponse =
-  zSimulationCommandAcknowledgement
-
-export const zSetSimulatedHotspotClientBody = zSimulatedConnectionRequest
-
-/**
- * Successful Response
- */
-export const zSetSimulatedHotspotClientResponse =
-  zSimulationCommandAcknowledgement
-
-export const zSetSimulatedHotspotFailureBody = zSimulatedFailureRequest
-
-/**
- * Successful Response
- */
-export const zSetSimulatedHotspotFailureResponse =
-  zSimulationCommandAcknowledgement
-
-export const zSetSimulatedPanelLinkBody = zSimulatedConnectionRequest
-
-/**
- * Successful Response
- */
-export const zSetSimulatedPanelLinkResponse = zSimulationCommandAcknowledgement
-
-/**
- * Successful Response
- */
-export const zTriggerCoordinatorFailureResponse =
-  zSimulationCommandAcknowledgement
 
 export const zTapSimulationButtonPath = z.object({
   button_index: z.int().gte(0).lt(16),

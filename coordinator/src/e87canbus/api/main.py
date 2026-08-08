@@ -30,11 +30,7 @@ from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.settings.repository import ApplicationSettingsRepository
 from e87canbus.domain.steering.repository import SteeringProfileRepository
-from e87canbus.runners.composition import (
-    SimulatedLocalControls,
-    build_controller_loop,
-    build_simulated_local_controls,
-)
+from e87canbus.runners.composition import build_controller_loop
 from e87canbus.runners.simulation.api import install_simulation_api
 from e87canbus.service import ControllerLoop
 
@@ -110,16 +106,6 @@ def create_app(
         clock=clock,
         profile_database_path=profile_database_path,
     )
-    simulated_local_controls: SimulatedLocalControls | None = (
-        build_simulated_local_controls(service, clock=clock)
-        if service.deployment.profile is DeploymentProfile.SIMULATOR
-        else None
-    )
-    local_controls = (
-        simulated_local_controls.service
-        if simulated_local_controls is not None
-        else None
-    )
     selected_cors_origins = (
         tuple(cors_origins)
         if cors_origins is not None
@@ -153,18 +139,13 @@ def create_app(
         cors_allowed_origins=socket_origin_policy(selected_cors_origins),
         outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
     )
-    publisher = LiveStatePublisher(sio, service, service.config, local_controls)
+    publisher = LiveStatePublisher(sio, service, service.config)
     install_socket_handlers(sio, publisher)
 
     app = FastAPI(
         title="E87 CAN Bus Controller API",
         lifespan=create_lifespan(
-            service,
-            database,
-            profile_repository,
-            button_profile_repository,
-            publisher,
-            local_controls,
+            service, database, profile_repository, button_profile_repository, publisher
         ),
     )
     install_exception_handlers(app)
@@ -180,8 +161,6 @@ def create_app(
     app.state.deployment = service.deployment
     app.state.socketio = sio
     app.state.live_publisher = publisher
-    app.state.local_controls_service = local_controls
-    app.state.simulated_local_controls = simulated_local_controls
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository

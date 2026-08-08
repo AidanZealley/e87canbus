@@ -35,9 +35,6 @@ import {
   setManualAssistanceLevel,
   setMaximumAssistance,
   setOilTemperature,
-  setSimulatedHotspotClient,
-  setSimulatedHotspotFailure,
-  setSimulatedPanelLink,
   setSimulationDeviceProtocolVersion,
   setSimulationDeviceStatusCode,
   setSteeringMode,
@@ -47,9 +44,7 @@ import {
   silenceEngineRpm,
   silenceOilTemperature,
   silenceVehicleSpeed,
-  tapCoordinatorPanelButton,
   tapSimulationButton,
-  triggerCoordinatorFailure,
   updateApplicationSettings,
   updateButtonProfile,
   updateSteeringProfile,
@@ -131,15 +126,6 @@ import type {
   SetOilTemperatureData,
   SetOilTemperatureError,
   SetOilTemperatureResponse,
-  SetSimulatedHotspotClientData,
-  SetSimulatedHotspotClientError,
-  SetSimulatedHotspotClientResponse,
-  SetSimulatedHotspotFailureData,
-  SetSimulatedHotspotFailureError,
-  SetSimulatedHotspotFailureResponse,
-  SetSimulatedPanelLinkData,
-  SetSimulatedPanelLinkError,
-  SetSimulatedPanelLinkResponse,
   SetSimulationDeviceProtocolVersionData,
   SetSimulationDeviceProtocolVersionError,
   SetSimulationDeviceProtocolVersionResponse,
@@ -167,15 +153,9 @@ import type {
   SilenceVehicleSpeedData,
   SilenceVehicleSpeedError,
   SilenceVehicleSpeedResponse,
-  TapCoordinatorPanelButtonData,
-  TapCoordinatorPanelButtonError,
-  TapCoordinatorPanelButtonResponse,
   TapSimulationButtonData,
   TapSimulationButtonError,
   TapSimulationButtonResponse,
-  TriggerCoordinatorFailureData,
-  TriggerCoordinatorFailureError,
-  TriggerCoordinatorFailureResponse,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsError,
   UpdateApplicationSettingsResponse,
@@ -372,131 +352,6 @@ export const updateButtonProfileMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await updateButtonProfile({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Tap Button
- */
-export const tapCoordinatorPanelButtonMutation = (
-  options?: Partial<Options<TapCoordinatorPanelButtonData>>
-): UseMutationOptions<
-  TapCoordinatorPanelButtonResponse,
-  TapCoordinatorPanelButtonError,
-  Options<TapCoordinatorPanelButtonData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    TapCoordinatorPanelButtonResponse,
-    TapCoordinatorPanelButtonError,
-    Options<TapCoordinatorPanelButtonData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await tapCoordinatorPanelButton({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Client
- */
-export const setSimulatedHotspotClientMutation = (
-  options?: Partial<Options<SetSimulatedHotspotClientData>>
-): UseMutationOptions<
-  SetSimulatedHotspotClientResponse,
-  SetSimulatedHotspotClientError,
-  Options<SetSimulatedHotspotClientData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSimulatedHotspotClientResponse,
-    SetSimulatedHotspotClientError,
-    Options<SetSimulatedHotspotClientData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSimulatedHotspotClient({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Hotspot Failure
- */
-export const setSimulatedHotspotFailureMutation = (
-  options?: Partial<Options<SetSimulatedHotspotFailureData>>
-): UseMutationOptions<
-  SetSimulatedHotspotFailureResponse,
-  SetSimulatedHotspotFailureError,
-  Options<SetSimulatedHotspotFailureData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSimulatedHotspotFailureResponse,
-    SetSimulatedHotspotFailureError,
-    Options<SetSimulatedHotspotFailureData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSimulatedHotspotFailure({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Link
- */
-export const setSimulatedPanelLinkMutation = (
-  options?: Partial<Options<SetSimulatedPanelLinkData>>
-): UseMutationOptions<
-  SetSimulatedPanelLinkResponse,
-  SetSimulatedPanelLinkError,
-  Options<SetSimulatedPanelLinkData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSimulatedPanelLinkResponse,
-    SetSimulatedPanelLinkError,
-    Options<SetSimulatedPanelLinkData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSimulatedPanelLink({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Trigger Coordinator Failure
- */
-export const triggerCoordinatorFailureMutation = (
-  options?: Partial<Options<TriggerCoordinatorFailureData>>
-): UseMutationOptions<
-  TriggerCoordinatorFailureResponse,
-  TriggerCoordinatorFailureError,
-  Options<TriggerCoordinatorFailureData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    TriggerCoordinatorFailureResponse,
-    TriggerCoordinatorFailureError,
-    Options<TriggerCoordinatorFailureData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await triggerCoordinatorFailure({
         ...options,
         ...fnOptions,
         throwOnError: true,

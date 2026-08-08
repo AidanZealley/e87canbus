@@ -292,16 +292,6 @@
         "lighting": {
           "$ref": "#/definitions/LightingState"
         },
-        "local_controls": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/LocalControlsSnapshotData"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "simulation_session_id": {
           "anyOf": [
             {
@@ -329,7 +319,6 @@
         "engine",
         "health",
         "lighting",
-        "local_controls",
         "simulation_session_id",
         "steering",
         "topic_revisions",
@@ -976,44 +965,6 @@
       "title": "LiveEnvelope[LightingState]",
       "type": "object"
     },
-    "LiveEnvelope_LocalControlsState_": {
-      "additionalProperties": false,
-      "properties": {
-        "boot_id": {
-          "minLength": 1,
-          "title": "Boot Id",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/definitions/LocalControlsState"
-        },
-        "emitted_at": {
-          "format": "date-time",
-          "title": "Emitted At",
-          "type": "string"
-        },
-        "protocol_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Protocol Version",
-          "type": "integer"
-        },
-        "revision": {
-          "minimum": 0,
-          "title": "Revision",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "boot_id",
-        "data",
-        "emitted_at",
-        "protocol_version",
-        "revision"
-      ],
-      "title": "LiveEnvelope[LocalControlsState]",
-      "type": "object"
-    },
     "LiveEnvelope_SteeringState_": {
       "additionalProperties": false,
       "properties": {
@@ -1126,132 +1077,6 @@
         "revision"
       ],
       "title": "LiveEnvelope[VehicleState]",
-      "type": "object"
-    },
-    "LocalControlsSnapshotData": {
-      "additionalProperties": false,
-      "properties": {
-        "boot_id": {
-          "minLength": 1,
-          "title": "Boot Id",
-          "type": "string"
-        },
-        "revision": {
-          "minimum": 0,
-          "title": "Revision",
-          "type": "integer"
-        },
-        "state": {
-          "$ref": "#/definitions/LocalControlsState"
-        }
-      },
-      "required": [
-        "boot_id",
-        "revision",
-        "state"
-      ],
-      "title": "LocalControlsSnapshotData",
-      "type": "object"
-    },
-    "LocalControlsState": {
-      "additionalProperties": false,
-      "properties": {
-        "client_connected": {
-          "title": "Client Connected",
-          "type": "boolean"
-        },
-        "desired_display": {
-          "enum": [
-            "starting",
-            "ready",
-            "hotspot_waiting",
-            "hotspot_connected",
-            "fault",
-            "off"
-          ],
-          "title": "Desired Display",
-          "type": "string"
-        },
-        "diagnostic": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Diagnostic"
-        },
-        "effective_display": {
-          "enum": [
-            "starting",
-            "ready",
-            "hotspot_waiting",
-            "hotspot_connected",
-            "fault",
-            "off"
-          ],
-          "title": "Effective Display",
-          "type": "string"
-        },
-        "hotspot": {
-          "enum": [
-            "disabled",
-            "activating",
-            "active",
-            "deactivating",
-            "fault"
-          ],
-          "title": "Hotspot",
-          "type": "string"
-        },
-        "panel_link": {
-          "enum": [
-            "connected",
-            "disconnected"
-          ],
-          "title": "Panel Link",
-          "type": "string"
-        }
-      },
-      "required": [
-        "client_connected",
-        "desired_display",
-        "diagnostic",
-        "effective_display",
-        "hotspot",
-        "panel_link"
-      ],
-      "title": "LocalControlsState",
-      "type": "object"
-    },
-    "LocalControlsStateEvent": {
-      "additionalProperties": false,
-      "properties": {
-        "args": {
-          "additionalItems": false,
-          "items": [
-            {
-              "$ref": "#/definitions/LiveEnvelope_LocalControlsState_"
-            }
-          ],
-          "maxItems": 1,
-          "minItems": 1,
-          "title": "Args",
-          "type": "array"
-        },
-        "event": {
-          "const": "local-controls.state",
-          "title": "Event",
-          "type": "string"
-        }
-      },
-      "required": [
-        "args",
-        "event"
-      ],
-      "title": "LocalControlsStateEvent",
       "type": "object"
     },
     "NetworkHealthState": {
@@ -1536,9 +1361,6 @@
         },
         {
           "$ref": "#/definitions/ControllerHealthEvent"
-        },
-        {
-          "$ref": "#/definitions/LocalControlsStateEvent"
         },
         {
           "$ref": "#/definitions/ResourcesChangedEvent"

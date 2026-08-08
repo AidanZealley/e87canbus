@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from e87canbus.deployment import SimulationApiScope
-from e87canbus.runners.simulation.api.routes import devices, local_controls, session, vehicle
+from e87canbus.runners.simulation.api.routes import devices, session, vehicle
 
 
 def install_simulation_api(
@@ -12,5 +12,4 @@ def install_simulation_api(
         app.include_router(vehicle.router)
     if scope is SimulationApiScope.FULL:
         app.include_router(devices.router)
-        app.include_router(local_controls.router)
         app.include_router(session.router)

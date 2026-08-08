@@ -72,8 +72,6 @@ export const createLiveTransport = ({
       applyTopic(useLiveStore.getState().applyDevices(payload)),
     "controller.health": (payload) =>
       applyTopic(useLiveStore.getState().applyHealth(payload)),
-    "local-controls.state": (payload) =>
-      applyTopic(useLiveStore.getState().applyLocalControls(payload)),
     "resources.changed": (payload) => {
       void invalidateChangedResource(queryClient, payload)
     },

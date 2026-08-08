@@ -238,19 +238,6 @@ class ControllerLoop:
     def fatal_exit_required(self) -> bool:
         return self._fatal_exit.is_set()
 
-    @property
-    def fatal(self) -> bool:
-        """Read-only fatal health used by application lifecycle composition."""
-
-        with self._lock:
-            return bool(
-                self._fatal_exit.is_set()
-                or (
-                    self._latest_snapshot is not None
-                    and self._latest_snapshot.diagnostics.health.fatal
-                )
-            )
-
     def snapshot(self) -> ControllerLoopSnapshot:
         with self._lock:
             if self._latest_snapshot is None:

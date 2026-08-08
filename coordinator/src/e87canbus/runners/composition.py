@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
 
 from e87canbus.adapters.socketcan import SocketCanBus
@@ -24,112 +23,11 @@ from e87canbus.deployment import (
     deployment_spec,
 )
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
-from e87canbus.local_controls import CoordinatorCondition, CoordinatorConditionChanged
-from e87canbus.local_controls.ports import LocalControlsInputSink
-from e87canbus.local_controls.service import LocalControlsService
 from e87canbus.runners.live import LiveControllerRuntime
 from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
-from e87canbus.runners.simulation.local_controls import InMemoryHotspot, InMemoryPanel
 from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
-from e87canbus.service import ControllerLoop, ControllerLoopLifecycle
-
-
-class ControllerConditionAdapter:
-    """Collapse controller status into the sole value visible to local controls."""
-
-    def __init__(
-        self,
-        controller: ControllerLoop,
-        *,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
-        self._controller = controller
-        self._clock = clock
-        self._lock = threading.Lock()
-        self._submit: LocalControlsInputSink | None = None
-        self._last: CoordinatorCondition | None = None
-        self._starting_until: float | None = None
-
-    def start(self, submit: LocalControlsInputSink) -> None:
-        with self._lock:
-            self._submit = submit
-        self.poll(self._clock())
-
-    def poll(self, now: float) -> None:
-        with self._lock:
-            starting_until = self._starting_until
-            if starting_until is not None and now >= starting_until:
-                self._starting_until = None
-                starting_until = None
-            condition = (
-                CoordinatorCondition.STARTING
-                if starting_until is not None
-                else controller_condition(self._controller)
-            )
-            if condition is self._last:
-                return
-            submit = self._submit
-            if submit is not None and submit(CoordinatorConditionChanged(condition)):
-                self._last = condition
-
-    def close(self) -> None:
-        with self._lock:
-            self._submit = None
-
-    def begin_simulated_restart(self, duration_s: float = 0.25) -> None:
-        """Expose a brief startup condition after the cross-service simulator reset."""
-
-        with self._lock:
-            self._starting_until = self._clock() + duration_s
-
-    def resynchronize(self) -> CoordinatorCondition:
-        """Reset synthetic startup state and invalidate the condition cache."""
-
-        condition = controller_condition(self._controller)
-        with self._lock:
-            self._starting_until = None
-            # The caller submits this condition synchronously. Leaving the cache invalidated
-            # also lets the normal poll retry if that submission cannot reach the owner.
-            self._last = None
-        return condition
-
-
-def controller_condition(controller: ControllerLoop) -> CoordinatorCondition:
-    """Pure four-state projection at the application composition boundary."""
-
-    if controller.fatal:
-        return CoordinatorCondition.FAULT
-    if controller.lifecycle is ControllerLoopLifecycle.STOPPED:
-        return CoordinatorCondition.SHUTTING_DOWN
-    if controller.ready:
-        return CoordinatorCondition.READY
-    return CoordinatorCondition.STARTING
-
-
-@dataclass(frozen=True)
-class SimulatedLocalControls:
-    service: LocalControlsService
-    panel: InMemoryPanel
-    hotspot: InMemoryHotspot
-    coordinator_condition: ControllerConditionAdapter
-
-
-def build_simulated_local_controls(
-    controller: ControllerLoop,
-    *,
-    clock: Callable[[], float] = time.monotonic,
-) -> SimulatedLocalControls:
-    panel = InMemoryPanel()
-    hotspot = InMemoryHotspot(clock=clock)
-    coordinator_condition = ControllerConditionAdapter(controller, clock=clock)
-    service = LocalControlsService(
-        panel=panel,
-        hotspot=hotspot,
-        coordinator_condition=coordinator_condition,
-        clock=clock,
-    )
-    return SimulatedLocalControls(service, panel, hotspot, coordinator_condition)
+from e87canbus.service import ControllerLoop
 
 
 def build_live_controller_loop(

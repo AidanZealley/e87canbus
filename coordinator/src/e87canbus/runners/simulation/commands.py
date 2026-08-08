@@ -1,4 +1,4 @@
-"""Closed cause vocabulary accepted by simulator APIs and adapters."""
+"""Closed command vocabulary accepted by simulated vehicle and device adapters."""
 
 from dataclasses import dataclass
 
@@ -49,39 +49,6 @@ class SetVehicleSweep:
 @dataclass(frozen=True)
 class ResetSimulation:
     pass
-
-
-@dataclass(frozen=True)
-class TriggerCoordinatorFailure:
-    pass
-
-
-@dataclass(frozen=True)
-class TapCoordinatorPanelButton:
-    pass
-
-
-@dataclass(frozen=True)
-class SetSimulatedHotspotClient:
-    connected: bool
-
-
-@dataclass(frozen=True)
-class SetSimulatedPanelLink:
-    connected: bool
-
-
-@dataclass(frozen=True)
-class SetSimulatedHotspotFailure:
-    enabled: bool
-
-
-LocalControlsSimulationCommand = (
-    TapCoordinatorPanelButton
-    | SetSimulatedHotspotClient
-    | SetSimulatedPanelLink
-    | SetSimulatedHotspotFailure
-)
 
 
 @dataclass(frozen=True)
@@ -138,7 +105,6 @@ SimulationCommand = (
     | SilenceVehicleSignal
     | SetVehicleSweep
     | ResetSimulation
-    | TriggerCoordinatorFailure
     | ConnectSimulatedDevice
     | DisconnectSimulatedDevice
     | RebootSimulatedDevice

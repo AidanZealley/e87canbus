@@ -72,7 +72,6 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
     simulation_composition_imports = {
         PACKAGE / "runners" / "composition.py": {
             "e87canbus.runners.simulation.devices",
-            "e87canbus.runners.simulation.local_controls",
             "e87canbus.runners.simulation.runtime",
             "e87canbus.runners.simulation.vehicle_source",
         },

@@ -78,18 +78,6 @@ export const snapshot = (
       devices: revision,
       health: revision,
     },
-    local_controls: {
-      boot_id: `${bootId}-local-controls`,
-      revision,
-      state: {
-        client_connected: false,
-        desired_display: "ready",
-        diagnostic: null,
-        effective_display: "ready",
-        hotspot: "disabled",
-        panel_link: "connected",
-      },
-    },
     simulation_session_id: revision,
     vehicle: { speed_kph: revision, speed_valid: true },
     engine: {

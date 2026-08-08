@@ -40,7 +40,7 @@ connection.
 
 The planned QT Py RP2040, NeoPixel Driver BFF, five-pixel status indicator, hotspot button, UART
 wiring, and enclosure constraints are documented in
-[Coordinator panel context](coordinator-panel/context.md). This hardware and its setup
+[Coordinator hardware and local controls](coordinator-hardware.md). This hardware and its setup
 automation are not implemented yet.
 
 ## Servotronic Solenoid Driver
