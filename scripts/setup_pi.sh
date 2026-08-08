@@ -310,7 +310,7 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     echo "Configuring the coordinator-panel hotspot..."
 
     HOTSPOT_EXISTS=0
-    if sudo nmcli --get-values UUID connection show id "${HOTSPOT_CONNECTION}" >/dev/null 2>&1; then
+    if sudo nmcli --get-values connection.uuid connection show id "${HOTSPOT_CONNECTION}" >/dev/null 2>&1; then
         HOTSPOT_EXISTS=1
     fi
 
@@ -395,7 +395,7 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
         "${REPO_ROOT}/deploy/sudoers/e87canbus-hotspot" \
         /etc/sudoers.d/e87canbus-hotspot
 
-    HOTSPOT_UUID="$(sudo nmcli --get-values UUID connection show id "${HOTSPOT_CONNECTION}")"
+    HOTSPOT_UUID="$(sudo nmcli --get-values connection.uuid connection show id "${HOTSPOT_CONNECTION}")"
     if sudo nmcli --terse --fields UUID connection show --active | grep -Fxq "${HOTSPOT_UUID}"; then
         sudo nmcli connection down id "${HOTSPOT_CONNECTION}" >/dev/null
     fi
