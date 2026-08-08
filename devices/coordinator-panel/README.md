@@ -39,8 +39,10 @@ If PlatformIO cannot select the USB serial device, pass it explicitly:
 UPLOAD_PORT=/dev/ttyACM0 ./scripts/coordinator_panel_upload.sh
 ```
 
-The first flash or firmware recovery may require entering the RP2040 USB bootloader manually:
-hold BOOT, tap RESET, then release BOOT before retrying the upload. The exact device path varies by
+Uploads use `picotool` directly; no firmware file needs to be dragged onto the `RPI-RP2` drive. Once
+this firmware is running, PlatformIO resets the board into BOOTSEL automatically through its USB
+serial port. If the board has no working firmware, or that reset fails, enter BOOTSEL manually: hold
+BOOT, tap RESET, release BOOT, then rerun the upload command. The exact serial device path varies by
 host and USB port.
 
 Compilation and native tests do not validate physical pixel order/colour, perceived brightness,

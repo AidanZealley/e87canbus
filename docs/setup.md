@@ -134,8 +134,10 @@ repository root:
 UPLOAD_PORT=/dev/ttyACM0 ./scripts/coordinator_panel_upload.sh
 ```
 
+The upload uses `picotool` directly, so no firmware file needs to be copied to the `RPI-RP2` drive.
 The first upload, or recovery from invalid firmware, may require manually entering the RP2040 USB
-bootloader. USB is only a service and upload connection, not the installed transport. See
+bootloader before rerunning the command. USB is only a service and upload connection, not the
+installed transport. See
 [`devices/coordinator-panel/README.md`](../devices/coordinator-panel/README.md) for the board-specific
 bootloader procedure.
 
