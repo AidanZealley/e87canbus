@@ -13,6 +13,7 @@ class FakeBackend:
     def __init__(self) -> None:
         self.observation = HotspotObservation.DISABLED
         self.activations = 0
+        self.observations = 0
 
     def activate(self) -> None:
         self.activations += 1
@@ -22,6 +23,7 @@ class FakeBackend:
         self.observation = HotspotObservation.STOPPING
 
     def observe(self) -> HotspotObservation:
+        self.observations += 1
         return self.observation
 
 
@@ -49,13 +51,18 @@ def test_display_priority_selects_the_six_visible_states() -> None:
         assert derive_display(coordinator, hotspot) is expected
 
 
-def test_button_is_ignored_until_coordinator_is_ready() -> None:
+def test_button_uses_event_time_status_before_observing_or_toggling_hotspot() -> None:
     backend = FakeBackend()
     panel = PanelService(HotspotService(backend), RecordingOutput())
-
-    panel.button_pressed()
     panel.set_coordinator_status(CoordinatorStatus.READY)
-    panel.button_pressed()
+    observations_before_press = backend.observations
+
+    panel.button_pressed(CoordinatorStatus.STARTING)
+
+    assert backend.activations == 0
+    assert backend.observations == observations_before_press
+
+    panel.button_pressed(CoordinatorStatus.READY)
 
     assert backend.activations == 1
     assert panel.display is PanelDisplay.HOTSPOT_WAITING

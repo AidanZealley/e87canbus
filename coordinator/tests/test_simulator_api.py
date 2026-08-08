@@ -323,6 +323,10 @@ def test_coordinator_panel_uses_shared_services_and_resets_with_the_session(
         ).json()
         assert preview["coordinator_status"] == coordinator_status
         assert preview["display"] == display
+        if coordinator_status == "starting":
+            ignored = client.post(f"{panel_path}/button").json()
+            assert ignored["hotspot_status"] == "disabled"
+            assert ignored["display"] == "starting"
     live = client.put(
         f"{panel_path}/coordinator-status",
         json={"status": None},

@@ -31,6 +31,7 @@ from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.settings.repository import ApplicationSettingsRepository
 from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.composition import build_controller_loop
+from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
 from e87canbus.runners.simulation.api import install_simulation_api
 from e87canbus.service import ControllerLoop
 
@@ -141,11 +142,21 @@ def create_app(
     )
     publisher = LiveStatePublisher(sio, service, service.config)
     install_socket_handlers(sio, publisher)
+    coordinator_panel = (
+        None
+        if service.deployment.profile is DeploymentProfile.SIMULATOR
+        else PhysicalCoordinatorPanel(service)
+    )
 
     app = FastAPI(
         title="E87 CAN Bus Controller API",
         lifespan=create_lifespan(
-            service, database, profile_repository, button_profile_repository, publisher
+            service,
+            database,
+            profile_repository,
+            button_profile_repository,
+            publisher,
+            coordinator_panel,
         ),
     )
     install_exception_handlers(app)
@@ -161,6 +172,7 @@ def create_app(
     app.state.deployment = service.deployment
     app.state.socketio = sio
     app.state.live_publisher = publisher
+    app.state.coordinator_panel = coordinator_panel
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository

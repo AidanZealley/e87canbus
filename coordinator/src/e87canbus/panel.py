@@ -68,8 +68,9 @@ class PanelService:
         self._display = derive_display(self._coordinator_status, self._hotspot.status())
         self._output.display(self._display)
 
-    def button_pressed(self) -> None:
-        if self._coordinator_status is not CoordinatorStatus.READY:
+    def button_pressed(self, coordinator_status: CoordinatorStatus) -> None:
+        self._coordinator_status = coordinator_status
+        if coordinator_status is not CoordinatorStatus.READY:
             return
         self._hotspot.toggle()
         self.refresh()

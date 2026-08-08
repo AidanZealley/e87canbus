@@ -80,7 +80,9 @@ class SimulatedCoordinatorPanel:
     def press_button(self) -> SimulatedPanelState:
         with self._lock:
             self._refresh()
-            self._panel.button_pressed()
+            self._panel.button_pressed(
+                self._coordinator_status_preview or self._coordinator_status_value
+            )
             return self._state()
 
     def connect_client(self) -> SimulatedPanelState:
