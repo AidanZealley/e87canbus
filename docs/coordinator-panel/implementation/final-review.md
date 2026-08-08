@@ -1,6 +1,6 @@
 # Coordinator panel whole-feature review
 
-Status: closure review. All workstreams 1–5 are accepted.
+Status: accepted. All workstreams and whole-feature closure are accepted.
 
 ## Reviewer task packet
 
@@ -136,8 +136,20 @@ corrections introduced no release-blocking defect. It does not conduct a second 
 
 ## Orchestrator completion record
 
-- Final head: `TBD`
-- Final verification: `TBD`
-- Hardware validation still pending: `TBD`
-- Specification drift: `TBD`
-- Completion report delivered: `TBD`
+- Final head: `06ba785e427ee4b857db3adb7e74116fd3cbb247` (accepted feature head before
+  this completion-record bookkeeping commit).
+- Final verification: `uv run pytest` (834 passed); Ruff (passed); mypy (123 source files passed);
+  import-linter (2 contracts kept); `uv lock --check` (passed); frontend `pnpm test` (35 files,
+  158 tests passed), `pnpm typecheck`, `pnpm lint`, `pnpm api:check`, and `pnpm build` (passed);
+  coordinator-panel native firmware tests (4 passed) and QT Py RP2040 build (passed, 40,092 bytes
+  flash and 8,804 bytes RAM); Bash syntax for setup, upload, and helper scripts (passed); sudoers
+  parse (passed); `git diff --check` (passed).
+- Hardware validation still pending: Target-Pi first provisioning and no-password rerun; installed
+  helper/sudo permission and NetworkManager state mapping; `/dev/serial0` and 3.3 V UART; hotspot
+  association, DHCP, station observation, Ethernet-forwarding block, activation cancellation, and
+  client disconnect; QT Py USB upload/bootloader recovery; five-pixel order/GRB/brightness and
+  animations; A0 debounce; heartbeat timeout/recovery and graceful-off latch; fused/diode-protected
+  harness; and the complete physical button-to-hotspot-to-display path.
+- Specification drift: `None`. Raspberry Pi 4 support is the recorded hardware clarification of
+  the approved `/dev/serial0` on BCM14/15 contract; Pi 5 support was not added.
+- Completion report delivered: `2026-08-08`.
