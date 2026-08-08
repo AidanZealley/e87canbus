@@ -1,6 +1,6 @@
 # Coordinator panel whole-feature review
 
-Status: not started. Begin only after workstreams 1–5 are accepted.
+Status: review. All workstreams 1–5 are accepted.
 
 ## Reviewer task packet
 

@@ -24,8 +24,8 @@ requests it.
 | 2 | [Simulator integration](02-simulator.md) | 1 | Accepted | `812c526ac2fa8d99c997baae6099882212fc7c1e` |
 | 3 | [Production runtime](03-production-runtime.md) | 1, 2 | Accepted | `f211f94c1eb7052866ed5e40250a6e5d558f1077` |
 | 4 | [QT Py firmware and upload](04-firmware.md) | 1, protocol accepted in 3 | Accepted | `7a90dd92567143e87674b7c352d330c30afeeda2` |
-| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Closure review | — |
-| — | [Whole-feature review](final-review.md) | 1–5 | Not started | — |
+| 5 | [Pi provisioning and deployment docs](05-pi-provisioning.md) | 3, 4 | Accepted | `90df837d4177f76c34ca552c23f4cd020af13e48` |
+| — | [Whole-feature review](final-review.md) | 1–5 | Review | — |
 
 Allowed statuses are `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review`, and
 `Accepted`. At most one workstream is active unless the orchestrator records non-overlapping file
