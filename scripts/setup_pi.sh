@@ -245,6 +245,43 @@ if [[ "${KIOSK_MODE}" == "headless" ]]; then
             REBOOT_REQUIRED=1
         fi
     done
+
+    splash_setting_count="$(sudo grep -Ec '^[[:space:]]*disable_splash=' "${CONFIG_FILE}" || true)"
+    splash_disabled_count="$(sudo grep -Fxc 'disable_splash=1' "${CONFIG_FILE}" || true)"
+    if [[ "${splash_setting_count}" -ne 1 || "${splash_disabled_count}" -ne 1 ]]; then
+        sudo sed -E -i '/^[[:space:]]*disable_splash=/d' "${CONFIG_FILE}"
+        echo 'disable_splash=1' | sudo tee -a "${CONFIG_FILE}" >/dev/null
+        REBOOT_REQUIRED=1
+    fi
+
+    # Display hardware access takes effect after reboot, so reconcile it before the early gate.
+    for display_group in video render input; do
+        if ! id -nG "${USER}" | tr ' ' '\n' | grep -Fxq "${display_group}"; then
+            sudo usermod -aG video,render,input "${USER}"
+            REBOOT_REQUIRED=1
+            break
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+# Reboot gate — apply boot config and stable interface naming before doing the
+# expensive application sync and frontend build.
+# ---------------------------------------------------------------------------
+if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
+    echo
+    echo "Boot configuration changed; reboot is required before physical I/O is ready."
+    if [[ "${REBOOT_REQUESTED}" -eq 1 ]]; then
+        sudo reboot
+    else
+        echo "Reboot, then run this script again to build and install the application:"
+        echo "  sudo reboot"
+        echo "  cd ${REPO_ROOT} && ./scripts/setup_pi.sh --profile ${DEPLOYMENT_PROFILE}"
+        if [[ -n "${HOTSPOT_PASSWORD_FILE}" ]]; then
+            echo "  Include --hotspot-password-file again on that post-reboot run."
+        fi
+    fi
+    exit 0
 fi
 
 # ---------------------------------------------------------------------------
@@ -442,19 +479,6 @@ if [[ "${KIOSK_MODE}" == "desktop" ]]; then
 else
     echo "Configuring headless kiosk (cage) for user '${USER}'..."
 
-    # Display hardware access — takes effect after reboot
-    DISPLAY_GROUP_CHANGE_REQUIRED=0
-    for display_group in video render input; do
-        if ! id -nG "${USER}" | tr ' ' '\n' | grep -Fxq "${display_group}"; then
-            DISPLAY_GROUP_CHANGE_REQUIRED=1
-            break
-        fi
-    done
-    if [[ "${DISPLAY_GROUP_CHANGE_REQUIRED}" -eq 1 ]]; then
-        sudo usermod -aG video,render,input "${USER}"
-        REBOOT_REQUIRED=1
-    fi
-
     # Plymouth splash — keeps the screen non-blank until cage takes over.
     # Tries themes in preference order; falls back gracefully if unavailable.
     if command -v plymouth-set-default-theme >/dev/null 2>&1; then
@@ -499,23 +523,6 @@ else
 fi
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     sudo systemctl enable e87canbus-kiosk.service
-fi
-
-# ---------------------------------------------------------------------------
-# Reboot gate — boot config or group changes require a reboot before services
-# can be started. Services are already enabled above; they start on next boot.
-# ---------------------------------------------------------------------------
-if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
-    echo
-    echo "Boot or device access configuration changed; reboot is required before physical I/O is ready."
-    if [[ "${REBOOT_REQUESTED}" -eq 1 ]]; then
-        sudo reboot
-    else
-        echo "Reboot, then run this script again to validate the CAN stack and start the services:"
-        echo "  sudo reboot"
-        echo "  cd ${REPO_ROOT} && ./scripts/setup_pi.sh --profile ${DEPLOYMENT_PROFILE}"
-    fi
-    exit 0
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
