@@ -130,35 +130,35 @@ def test_kernel_boot_creates_nonzero_session_and_two_not_found_entries() -> None
     ]
 
 
-def test_controller_session_changes_across_process_restarts() -> None:
+def test_controller_session_is_seeded_randomly_per_process() -> None:
+    """A client detects a coordinator restart by the session id changing.
+
+    The seed has to be random per process rather than a fixed starting point, so this
+    needs a real second interpreter: two kernels in one process advance the same seed and
+    would differ even if every boot restarted from the same number.
+    """
     repository_root = Path(__file__).resolve().parents[2]
-    environment = {
-        **os.environ,
-        "PYTHONPATH": str(repository_root / "coordinator" / "src"),
-    }
-    command = [
-        sys.executable,
-        "-c",
-        "from e87canbus.kernel import CoordinatorKernel; "
-        "print(CoordinatorKernel().controller_session_id)",
-    ]
+    restarted = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from e87canbus.kernel import CoordinatorKernel; "
+            "print(CoordinatorKernel().controller_session_id)",
+        ],
+        cwd=repository_root,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(repository_root / "coordinator" / "src"),
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
-    sessions = {
-        int(
-            subprocess.run(
-                command,
-                cwd=repository_root,
-                env=environment,
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout
-        )
-        for _ in range(4)
-    }
+    session = int(restarted.stdout)
 
-    assert len(sessions) > 1
-    assert 0 not in sessions
+    assert session != CoordinatorKernel().controller_session_id
+    assert session != 0
 
 
 def test_hello_pending_then_healthy_heartbeat_active_and_syncs_leds() -> None:

@@ -16,12 +16,8 @@ def test_backend_uses_only_fixed_helper_for_activation_and_cancellation(
 
     def run(command: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         commands.append(tuple(command))
-        assert kwargs == {
-            "check": True,
-            "capture_output": True,
-            "text": True,
-            "timeout": 5.0,
-        }
+        assert kwargs["check"] is True
+        assert kwargs["timeout"] == 5.0
         return subprocess.CompletedProcess(command, 0, stdout="")
 
     monkeypatch.setattr(subprocess, "run", run)

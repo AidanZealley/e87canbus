@@ -440,9 +440,8 @@ def test_initial_snapshot_has_auto_application_state_and_blue_mode_led() -> None
     assert controller.topology.trace() == ()
 
 
-@pytest.mark.parametrize("source", [DeviceSource.DISABLED])
-def test_non_emulated_roles_cannot_emit_button_input(source: DeviceSource) -> None:
-    controller = build_test_engine(button_pad_source=source)
+def test_non_emulated_roles_cannot_emit_button_input() -> None:
+    controller = build_test_engine(button_pad_source=DeviceSource.DISABLED)
 
     with pytest.raises(ControllerWorkUnavailable, match="emulated source role"):
         controller.execute(PressButton(0))

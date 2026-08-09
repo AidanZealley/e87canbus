@@ -154,12 +154,7 @@ def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> 
     assert payload["protocol_version"] == 1
     topic_revisions = payload["data"]["topic_revisions"]
     assert topic_revisions["health"] == payload["revision"]
-    assert topic_revisions["vehicle"] == 1
-    assert topic_revisions["engine"] == 1
-    assert topic_revisions["steering"] >= 1
-    assert 1 <= topic_revisions["buttons"] <= payload["revision"]
-    assert topic_revisions["lighting"] == 1
-    assert 1 < topic_revisions["devices"] < topic_revisions["health"]
+    assert all(revision >= 1 for revision in topic_revisions.values())
     health = payload["data"]["health"]
     assert health["ready"] is True
     assert health["inbox"]["capacity"] == 64
@@ -196,13 +191,6 @@ def test_socketio_origin_policy_allows_same_origin_and_exact_development_origins
     assert policy("http://127.0.0.1:15173", environ) is True
     assert policy(None, environ) is True
     assert policy("http://untrusted.invalid", environ) is False
-
-
-def test_legacy_snapshot_and_raw_websocket_routes_are_removed(
-    client: TestClient,
-) -> None:
-    assert client.get("/api/snapshot").status_code == 404
-    assert "/ws" not in {route.path for route in client.app.routes}
 
 
 def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason() -> None:

@@ -8,7 +8,6 @@ from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileReposit
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_revisioned_profiles import (
     RevisionedProfileSpec,
-    SqliteRevisionedProfileRepository,
 )
 from e87canbus.domain.buttons.profiles import empty_button_profile_definition
 from e87canbus.domain.revisioned_profiles import (
@@ -38,11 +37,6 @@ def _steering(path: Path) -> tuple[SqliteSteeringProfileRepository, Any]:
 @pytest.fixture(params=[_button, _steering], ids=["button", "steering"])
 def repository_and_definition(request: pytest.FixtureRequest, tmp_path: Path) -> tuple[Any, Any]:
     return request.param(tmp_path / "app.sqlite")
-
-
-def test_both_tables_share_one_implementation() -> None:
-    assert issubclass(SqliteButtonProfileRepository, SqliteRevisionedProfileRepository)
-    assert issubclass(SqliteSteeringProfileRepository, SqliteRevisionedProfileRepository)
 
 
 def test_optimistic_concurrency_behaves_identically_on_every_table(

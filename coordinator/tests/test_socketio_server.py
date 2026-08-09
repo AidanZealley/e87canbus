@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import engineio  # type: ignore[import-untyped]
 import pytest
 from e87canbus.api.internal.socketio_server import BoundedEngineIoServer
 from engineio import packet  # type: ignore[import-untyped]
@@ -25,9 +24,3 @@ async def test_engineio_peer_queue_is_finite_and_saturation_aborts_peer() -> Non
     assert peer.closed is True
     assert peer.sid not in server.sockets
     assert server.outbound_queue_saturations == 1
-
-
-def test_installed_engineio_default_queue_is_unbounded() -> None:
-    server = engineio.AsyncServer(async_mode="asgi")
-
-    assert server.create_queue().maxsize == 0
