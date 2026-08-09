@@ -45,8 +45,14 @@ class HotspotService:
         _, status = self._observe()
         return status
 
-    def _observe(self) -> tuple[HotspotObservation, HotspotStatus]:
-        observation = self._backend.observe()
+    def _observe(self) -> tuple[HotspotObservation | None, HotspotStatus]:
+        try:
+            observation = self._backend.observe()
+        except Exception:
+            # A backend that cannot be read is shown as failed, and a press still retries.
+            # This needs no latch: the next successful observation is the recovery.
+            LOGGER.exception("failed to observe coordinator hotspot")
+            return None, HotspotStatus.FAILED
         if self._failed_from is not None:
             if observation == self._failed_from:
                 return observation, HotspotStatus.FAILED

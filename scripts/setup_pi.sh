@@ -451,6 +451,14 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
                 nmcli connection edit id "${HOTSPOT_CONNECTION}" >/dev/null
         HOTSPOT_PASSWORD=""
         unset HOTSPOT_PASSWORD
+
+        # The editor exits successfully even when it rejects the property, so confirm the
+        # secret landed rather than reporting a hotspot that cannot authenticate anyone.
+        if ! sudo nmcli --show-secrets --get-values 802-11-wireless-security.psk \
+            connection show id "${HOTSPOT_CONNECTION}" | grep -q .; then
+            echo "Failed to store the hotspot WPA password" >&2
+            exit 1
+        fi
     fi
 
     # The runtime gets only four exact root operations. Both sudoers and the helper reject extra

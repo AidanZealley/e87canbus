@@ -86,12 +86,12 @@ public:
     explicit StatusTracker(uint32_t bootMs) : bootMs_(bootMs) {}
 
     void accept(Display display, uint32_t now) {
-        if (offLatched_) {
-            return;
-        }
         display_ = display;
         statusSeen_ = true;
         lastStatusMs_ = now;
+        // `off` only latches against the heartbeat timeout, so a graceful shutdown does not
+        // become a false fault. A later valid status still wins, which is what a coordinator
+        // restart sends; otherwise the panel would stay dark until it was power-cycled.
         offLatched_ = display == Display::OFF;
     }
 

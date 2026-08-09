@@ -8,6 +8,7 @@ class FakeBackend:
         self.observation = observation
         self.actions: list[str] = []
         self.failure: Exception | None = None
+        self.observation_failure: Exception | None = None
 
     def activate(self) -> None:
         self.actions.append("activate")
@@ -22,6 +23,8 @@ class FakeBackend:
         self.observation = HotspotObservation.STOPPING
 
     def observe(self) -> HotspotObservation:
+        if self.observation_failure is not None:
+            raise self.observation_failure
         return self.observation
 
 
@@ -66,6 +69,20 @@ def test_command_failure_is_visible_and_a_press_retries_activation() -> None:
     hotspot.toggle()
 
     assert backend.actions == ["activate", "activate"]
+    assert hotspot.status() is HotspotStatus.STARTING
+
+
+def test_unreadable_backend_is_failed_and_still_accepts_a_retry() -> None:
+    backend = FakeBackend()
+    backend.observation_failure = OSError("NetworkManager unavailable")
+    hotspot = HotspotService(backend)
+
+    assert hotspot.status() is HotspotStatus.FAILED
+
+    hotspot.toggle()
+    backend.observation_failure = None
+
+    assert backend.actions == ["activate"]
     assert hotspot.status() is HotspotStatus.STARTING
 
 
