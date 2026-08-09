@@ -190,7 +190,8 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
     setup = (root / "scripts/setup_pi.sh").read_text()
 
     assert "dtoverlay=spi1-3cs" in setup
-    assert "dtoverlay=i2c0" in setup
+    assert "CAN uses SPI and does not need it" in setup
+    assert "sed -E -i '/^[[:space:]]*dtoverlay=i2c0" in setup
     assert (
         "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000"
         in setup
@@ -255,8 +256,14 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
 
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     root = Path(__file__).resolve().parents[2]
+    setup = (root / "scripts/setup_pi.sh").read_text()
     unit = (root / "deploy/systemd/e87canbus-kiosk.service").read_text()
+    input_rules = (root / "deploy/udev/71-e87canbus-kiosk-input.rules").read_text()
 
+    assert "systemctl enable --now e87canbus-kiosk.service" in setup
+    assert "71-e87canbus-kiosk-input.rules" in setup
+    assert 'ATTRS{name}=="vc4-hdmi-*"' in input_rules
+    assert 'ENV{LIBINPUT_IGNORE_DEVICE}="1"' in input_rules
     assert "Conflicts=getty@tty7.service" in unit
     assert "TTYPath=/dev/tty7" in unit
     assert "TTYReset=yes" in unit

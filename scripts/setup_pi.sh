@@ -196,9 +196,12 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     reconcile_boot_line \
         '^[[:space:]]*dtparam=spi=' \
         'dtparam=spi=on'
-    reconcile_boot_line \
-        '^[[:space:]]*dtoverlay=i2c0([,[:space:]]|$)' \
-        'dtoverlay=i2c0'
+    # Waveshare includes i2c0 in its HAT+ example, but CAN uses SPI and does not need it.
+    # Exposing i2c0 prevents the BTT TFT50's DSI touch/backlight controller from probing.
+    if sudo grep -Eq '^[[:space:]]*dtoverlay=i2c0([,[:space:]]|$)' "${CONFIG_FILE}"; then
+        sudo sed -E -i '/^[[:space:]]*dtoverlay=i2c0([,[:space:]]|$)/d' "${CONFIG_FILE}"
+        REBOOT_REQUIRED=1
+    fi
     reconcile_boot_line \
         '^[[:space:]]*dtoverlay=spi1-(1|2|3)cs([,[:space:]]|$)' \
         'dtoverlay=spi1-3cs'
@@ -239,6 +242,16 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     echo "Configuring quiet boot..."
+
+    if ! sudo cmp -s \
+        "${REPO_ROOT}/deploy/udev/71-e87canbus-kiosk-input.rules" \
+        /etc/udev/rules.d/71-e87canbus-kiosk-input.rules; then
+        sudo install -o root -g root -m 0644 \
+            "${REPO_ROOT}/deploy/udev/71-e87canbus-kiosk-input.rules" \
+            /etc/udev/rules.d/71-e87canbus-kiosk-input.rules
+        REBOOT_REQUIRED=1
+    fi
+
     for param in quiet splash loglevel=3 logo.nologo vt.global_cursor_default=0; do
         if ! grep -qw "${param}" "${CMDLINE_FILE}"; then
             sudo sed -i "s/$/ ${param}/" "${CMDLINE_FILE}"
@@ -262,6 +275,9 @@ if [[ "${KIOSK_MODE}" == "headless" ]]; then
             break
         fi
     done
+elif [[ -e /etc/udev/rules.d/71-e87canbus-kiosk-input.rules ]]; then
+    sudo rm /etc/udev/rules.d/71-e87canbus-kiosk-input.rules
+    REBOOT_REQUIRED=1
 fi
 
 # ---------------------------------------------------------------------------
@@ -522,7 +538,7 @@ else
     sudo systemctl disable e87canbus-controller.service 2>/dev/null || true
 fi
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
-    sudo systemctl enable e87canbus-kiosk.service
+    sudo systemctl enable --now e87canbus-kiosk.service
 fi
 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then

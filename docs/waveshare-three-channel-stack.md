@@ -54,7 +54,6 @@ The managed physical-profile configuration is:
 
 ```ini
 dtparam=spi=on
-dtoverlay=i2c0
 dtoverlay=spi1-3cs
 dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000
 dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000
@@ -64,8 +63,6 @@ dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000
 The lines have separate jobs:
 
 - `dtparam=spi=on` enables the primary SPI controller used by the original HAT.
-- `dtoverlay=i2c0` follows the HAT+ vendor configuration for its identification EEPROM bus. It does
-  not carry CAN traffic.
 - `dtoverlay=spi1-3cs` enables SPI1 and its CE0/CE1/CE2 GPIO allocation. CE1 and CE2 are used here;
   CE0 remains unused by these CAN controllers.
 - `mcp2515-can0` describes the original fixed SPI0 CE0 controller.
@@ -77,6 +74,10 @@ not be confused with CAN bus bitrates. SocketCAN bitrates are applied later by s
 
 The generic overlay disables the corresponding `spidev` node so the kernel MCP2515 driver, rather
 than a userspace SPI client, owns each selected device.
+
+Waveshare's example also enables `dtoverlay=i2c0`, but neither MCP2515 uses I2C. On the supported
+BTT TFT50 V2.1 display that overlay prevents the DSI touch and backlight controller from probing,
+so setup deliberately removes it. The HAT+ identification EEPROM is not used at runtime.
 
 No Waveshare BCM2835, WiringPi, or Python demo library is required. The project uses the kernel
 driver, SocketCAN, `ip`, `can-utils`, and `python-can` through its SocketCAN adapter.
