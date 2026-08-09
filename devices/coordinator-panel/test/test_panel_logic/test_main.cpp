@@ -32,7 +32,7 @@ void test_parser_accepts_only_complete_bounded_status_lines() {
     TEST_ASSERT_EQUAL(Display::READY, display);
 }
 
-void test_status_timeouts_recover_and_off_latches() {
+void test_status_timeouts_and_off_recover_on_the_next_valid_status() {
     StatusTracker status(100);
     TEST_ASSERT_EQUAL(Display::STARTING, status.display(60099));
     TEST_ASSERT_EQUAL(Display::FAULT, status.display(60100));
@@ -43,8 +43,8 @@ void test_status_timeouts_recover_and_off_latches() {
     TEST_ASSERT_EQUAL(Display::HOTSPOT_CONNECTED, status.display(74000));
     status.accept(Display::OFF, 75000);
     TEST_ASSERT_EQUAL(Display::OFF, status.display(200000));
-    status.accept(Display::FAULT, 200001);
-    TEST_ASSERT_EQUAL(Display::OFF, status.display(200001));
+    status.accept(Display::STARTING, 200001);
+    TEST_ASSERT_EQUAL(Display::STARTING, status.display(200001));
 }
 
 void test_button_emits_once_per_debounced_press() {
@@ -91,7 +91,7 @@ void test_rendering_has_six_semantics_and_hard_channel_cap() {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parser_accepts_only_complete_bounded_status_lines);
-    RUN_TEST(test_status_timeouts_recover_and_off_latches);
+    RUN_TEST(test_status_timeouts_and_off_recover_on_the_next_valid_status);
     RUN_TEST(test_button_emits_once_per_debounced_press);
     RUN_TEST(test_rendering_has_six_semantics_and_hard_channel_cap);
     return UNITY_END();
