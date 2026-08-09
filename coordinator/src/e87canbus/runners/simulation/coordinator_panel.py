@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import threading
 
-from e87canbus.hotspot import HotspotObservation, HotspotService, HotspotStatus
-from e87canbus.panel import CoordinatorStatus, PanelDisplay, PanelService
+from e87canbus.hotspot import HotspotObservation, HotspotService
+from e87canbus.panel import CoordinatorStatus, PanelService
+from e87canbus.runners.simulation.api.models.coordinator_panel import (
+    SimulationCoordinatorPanelState,
+)
 from e87canbus.service import ControllerLoop, ControllerLoopLifecycle
-
-SimulatedPanelState = tuple[
-    CoordinatorStatus,
-    PanelDisplay,
-    HotspotStatus,
-    bool,
-    CoordinatorStatus | None,
-]
 
 
 class InMemoryHotspotBackend:
@@ -54,14 +49,6 @@ class InMemoryHotspotBackend:
         raise OSError("simulated hotspot operation failed")
 
 
-class InMemoryPanelOutput:
-    def __init__(self) -> None:
-        self.current = PanelDisplay.STARTING
-
-    def display(self, state: PanelDisplay) -> None:
-        self.current = state
-
-
 class SimulatedCoordinatorPanel:
     """Compose the shared services and serialize browser controls around them."""
 
@@ -69,37 +56,35 @@ class SimulatedCoordinatorPanel:
         self._controller = controller
         self._lock = threading.Lock()
         self._session_id: int | None = None
-        self._coordinator_status_preview: CoordinatorStatus | None = None
+        self._preview: CoordinatorStatus | None = None
         self._reset_accessories()
 
-    def snapshot(self) -> SimulatedPanelState:
+    def snapshot(self) -> SimulationCoordinatorPanelState:
         with self._lock:
             self._refresh()
             return self._state()
 
-    def press_button(self) -> SimulatedPanelState:
+    def press_button(self) -> SimulationCoordinatorPanelState:
         with self._lock:
             self._refresh()
-            self._panel.button_pressed(
-                self._coordinator_status_preview or self._coordinator_status_value
-            )
+            self._panel.button_pressed(self._coordinator_status)
             return self._state()
 
-    def connect_client(self) -> SimulatedPanelState:
+    def connect_client(self) -> SimulationCoordinatorPanelState:
         with self._lock:
             self._refresh()
             self._backend.connect_client()
             self._panel.refresh()
             return self._state()
 
-    def disconnect_client(self) -> SimulatedPanelState:
+    def disconnect_client(self) -> SimulationCoordinatorPanelState:
         with self._lock:
             self._refresh()
             self._backend.disconnect_client()
             self._panel.refresh()
             return self._state()
 
-    def fail_next_operation(self) -> SimulatedPanelState:
+    def fail_next_operation(self) -> SimulationCoordinatorPanelState:
         with self._lock:
             self._refresh()
             self._backend.arm_failure()
@@ -108,24 +93,22 @@ class SimulatedCoordinatorPanel:
     def preview_coordinator_status(
         self,
         status: CoordinatorStatus | None,
-    ) -> SimulatedPanelState:
+    ) -> SimulationCoordinatorPanelState:
         with self._lock:
+            self._preview = status
             self._refresh()
-            self._coordinator_status_preview = status
-            self._panel.set_coordinator_status(status or self._coordinator_status_value)
             return self._state()
 
     def _refresh(self) -> None:
-        coordinator_status, session_id = self._coordinator_status()
+        """Adopt the effective coordinator status, restarting with a new simulation session."""
+        live, session_id = self._live_coordinator_status()
         if session_id is not None and session_id != self._session_id:
             self._session_id = session_id
             self._reset_accessories()
-        self._coordinator_status_value = coordinator_status
-        self._panel.set_coordinator_status(
-            self._coordinator_status_preview or coordinator_status
-        )
+        self._coordinator_status = live if self._preview is None else self._preview
+        self._panel.set_coordinator_status(self._coordinator_status)
 
-    def _coordinator_status(self) -> tuple[CoordinatorStatus, int | None]:
+    def _live_coordinator_status(self) -> tuple[CoordinatorStatus, int | None]:
         lifecycle = self._controller.lifecycle
         if lifecycle is ControllerLoopLifecycle.CREATED:
             return CoordinatorStatus.STARTING, None
@@ -140,19 +123,18 @@ class SimulatedCoordinatorPanel:
             return CoordinatorStatus.READY, session_id
         return CoordinatorStatus.STARTING, session_id
 
-    def _state(self) -> SimulatedPanelState:
-        return (
-            self._coordinator_status_preview or self._coordinator_status_value,
-            self._panel.display,
-            self._hotspot.status(),
-            self._backend.fail_next_operation,
-            self._coordinator_status_preview,
+    def _state(self) -> SimulationCoordinatorPanelState:
+        return SimulationCoordinatorPanelState(
+            coordinator_status=self._coordinator_status,
+            display=self._panel.display,
+            hotspot_status=self._hotspot.status(),
+            failure_armed=self._backend.fail_next_operation,
+            coordinator_status_preview=self._preview,
         )
 
     def _reset_accessories(self) -> None:
         self._backend = InMemoryHotspotBackend()
         self._hotspot = HotspotService(self._backend)
-        self._output = InMemoryPanelOutput()
-        self._panel = PanelService(self._hotspot, self._output)
-        self._coordinator_status_value = CoordinatorStatus.STARTING
-        self._coordinator_status_preview = None
+        self._panel = PanelService(self._hotspot)
+        self._coordinator_status = CoordinatorStatus.STARTING
+        self._preview = None

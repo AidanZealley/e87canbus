@@ -27,14 +27,6 @@ class FakeBackend:
         return self.observation
 
 
-class RecordingOutput:
-    def __init__(self) -> None:
-        self.states: list[PanelDisplay] = []
-
-    def display(self, state: PanelDisplay) -> None:
-        self.states.append(state)
-
-
 def test_display_priority_selects_the_six_visible_states() -> None:
     examples = (
         (CoordinatorStatus.OFF, HotspotStatus.FAILED, PanelDisplay.OFF),
@@ -53,7 +45,7 @@ def test_display_priority_selects_the_six_visible_states() -> None:
 
 def test_button_uses_event_time_status_before_observing_or_toggling_hotspot() -> None:
     backend = FakeBackend()
-    panel = PanelService(HotspotService(backend), RecordingOutput())
+    panel = PanelService(HotspotService(backend))
     panel.set_coordinator_status(CoordinatorStatus.READY)
     observations_before_press = backend.observations
 
@@ -68,14 +60,12 @@ def test_button_uses_event_time_status_before_observing_or_toggling_hotspot() ->
     assert panel.display is PanelDisplay.HOTSPOT_WAITING
 
 
-def test_refresh_projects_backend_changes_to_the_same_output_state() -> None:
+def test_refresh_projects_backend_changes_to_the_display() -> None:
     backend = FakeBackend()
-    output = RecordingOutput()
-    panel = PanelService(HotspotService(backend), output)
+    panel = PanelService(HotspotService(backend))
     panel.set_coordinator_status(CoordinatorStatus.READY)
 
     backend.observation = HotspotObservation.CONNECTED
     panel.refresh()
 
     assert panel.display is PanelDisplay.HOTSPOT_CONNECTED
-    assert output.states[-1] is panel.display

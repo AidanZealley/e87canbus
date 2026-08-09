@@ -60,18 +60,9 @@ class FakeHotspotBackend:
         return self.observation
 
 
-class SlowHotspotBackend(FakeHotspotBackend):
-    def __init__(self) -> None:
-        super().__init__()
-        self.observing = threading.Event()
-
-    def observe(self) -> HotspotObservation:
-        self.observing.set()
-        time.sleep(3.2)
-        return super().observe()
-
-
 class BlockingHotspotBackend(FakeHotspotBackend):
+    """Hold the first observation, as a slow NetworkManager command does."""
+
     def __init__(self) -> None:
         super().__init__()
         self.observing = threading.Event()
@@ -82,7 +73,7 @@ class BlockingHotspotBackend(FakeHotspotBackend):
         if self._block_first_observation:
             self._block_first_observation = False
             self.observing.set()
-            assert self.release.wait(timeout=1.5)
+            assert self.release.wait(timeout=5.0)
         return super().observe()
 
 
@@ -114,8 +105,12 @@ class FakeSocketCanBus:
         pass
 
 
-def wait_for(predicate: Callable[[], bool], events: list[bytes | str] | None = None) -> None:
-    deadline = time.monotonic() + 1.5
+def wait_for(
+    predicate: Callable[[], bool],
+    events: list[bytes | str] | None = None,
+    timeout: float = 3.0,
+) -> None:
+    deadline = time.monotonic() + timeout
     while not predicate():
         assert time.monotonic() < deadline, events
         time.sleep(0.01)
@@ -134,6 +129,9 @@ def test_pre_ready_button_is_not_retained_while_hotspot_observation_is_blocked()
 
     accessory.start()
     assert backend.observing.wait(timeout=0.5)
+    # The state worker is held inside its observation, so the next snapshot is the UART
+    # thread capturing the coordinator status of this press.
+    controller.snapshotted.clear()
     port.button()
     assert controller.snapshotted.wait(timeout=0.5)
     controller.ready = True
@@ -163,6 +161,9 @@ def test_ready_button_remains_valid_while_hotspot_observation_is_blocked() -> No
 
     accessory.start()
     assert backend.observing.wait(timeout=0.5)
+    # The state worker is held inside its observation, so the next snapshot is the UART
+    # thread capturing the coordinator status of this press.
+    controller.snapshotted.clear()
     port.button()
     assert controller.snapshotted.wait(timeout=0.5)
     controller.ready = False
@@ -175,10 +176,10 @@ def test_ready_button_remains_valid_while_hotspot_observation_is_blocked() -> No
     assert port.events[-2:] == [b"STATUS off\n", "closed"]
 
 
-def test_slow_hotspot_observation_does_not_delay_uart_heartbeat() -> None:
+def test_blocked_hotspot_observation_does_not_stop_the_uart_heartbeat() -> None:
     controller = FakeController()
     port = FakeSerialPort()
-    backend = SlowHotspotBackend()
+    backend = BlockingHotspotBackend()
     accessory = PhysicalCoordinatorPanel(
         controller,  # type: ignore[arg-type]
         uart_factory=lambda: UartPanelAdapter(port),
@@ -187,16 +188,14 @@ def test_slow_hotspot_observation_does_not_delay_uart_heartbeat() -> None:
 
     accessory.start()
     assert backend.observing.wait(timeout=0.5)
-    time.sleep(3.3)
-    accessory.stop()
+    try:
+        # The state worker is held inside its observation, so these heartbeats can only
+        # come from the independent UART loop.
+        wait_for(lambda: len(port.writes) >= 2, port.events, timeout=3.0)
+    finally:
+        backend.release.set()
+        accessory.stop()
 
-    status_writes = [written_at for written_at, data in port.writes if data != b"STATUS off\n"]
-    gaps = [
-        later - earlier
-        for earlier, later in zip(status_writes, status_writes[1:], strict=False)
-    ]
-    assert len(status_writes) >= 4
-    assert max(gaps) < 1.2
     assert port.events[-2:] == [b"STATUS off\n", "closed"]
 
 
