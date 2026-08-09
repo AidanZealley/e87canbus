@@ -309,8 +309,8 @@ Leave the controller stopped. Check the HAT seating, the HAT+ 3.3V logic jumper,
 chip-select/interrupt resistor selections, and the original HAT's `12000` marking. Then inspect:
 
 ```bash
-grep -E '^(dtparam=spi|dtoverlay=(i2c0|spi1|mcp2515))' /boot/firmware/config.txt 2>/dev/null \
-    || grep -E '^(dtparam=spi|dtoverlay=(i2c0|spi1|mcp2515))' /boot/config.txt
+grep -E '^(dtparam=spi|dtoverlay=(spi1|mcp2515))' /boot/firmware/config.txt 2>/dev/null \
+    || grep -E '^(dtparam=spi|dtoverlay=(spi1|mcp2515))' /boot/config.txt
 sudo dmesg | grep -Ei 'mcp251|spi[01]|can'
 ```
 

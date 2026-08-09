@@ -1,0 +1,3 @@
+# The Pi HDMI CEC inputs advertise themselves as pointing sticks. Cage draws a cursor whenever any
+# pointer exists on its seat, even though this DSI kiosk has only a touchscreen.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="vc4-hdmi-*", ENV{LIBINPUT_IGNORE_DEVICE}="1"

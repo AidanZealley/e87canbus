@@ -175,11 +175,12 @@ The `car` and `bench` Pi profiles require the same three-channel Waveshare stack
 - `kcan` / K-CAN at `100000`
 - `ptcan` / PT-CAN and `fcan` / F-CAN at `500000`
 
-The script also enables SPI1 with three chip selects and the HAT+ EEPROM's I2C0 overlay. Dedicated
-service units apply each bitrate and raise all three interfaces automatically at boot. After a boot
-configuration change, reboot and rerun setup; it fails closed unless `kcan`, `ptcan`, and `fcan` map
-to `spi0.0`, `spi1.1`, and `spi1.2` respectively. The controller remains disabled during the
-required reboot and is enabled only after that validation succeeds.
+The script also enables SPI1 with three chip selects. It deliberately removes Waveshare's optional
+I2C0 overlay because CAN uses SPI and that overlay conflicts with the BTT TFT50 V2.1 touchscreen.
+Dedicated service units apply each bitrate and raise all three interfaces automatically at boot.
+After a boot configuration change, reboot and rerun setup; it fails closed unless `kcan`, `ptcan`,
+and `fcan` map to `spi0.0`, `spi1.1`, and `spi1.2` respectively. The controller remains disabled
+during the required reboot and is enabled only after that validation succeeds.
 
 ## Capture physical CAN traffic
 
