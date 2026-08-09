@@ -59,6 +59,9 @@ def test_monotone_cubic_matches_checked_in_language_neutral_vectors() -> None:
         [1000, 800, 800, 500, 500, 200, 200, 0],
         [1000, 889, 778, 667, 381, 0, 0, 0],
         [8, 7, 6, 5, 4, 3, 2, 1],
+        # Each generated profile is a distinct curve shape (cliff, staircase, plateau).
+        # Monotonicity bugs show up on shape rather than on values, and the whole sweep
+        # costs about a tenth of a second, so this is not padding.
         *([1000] * (index + 1) + [0] * (7 - index) for index in range(7)),
         *(
             [8 - min(point_index, transition_index) for point_index in range(8)]

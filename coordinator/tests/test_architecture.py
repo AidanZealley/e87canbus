@@ -98,10 +98,22 @@ def test_simulation_protocol_and_devices_stay_inside_simulation_composition() ->
 
 
 def test_live_composition_supplies_no_steering_actuator() -> None:
+    """The car must not be able to command the steering rack from live composition.
+
+    A source grep is a poor mechanism and easy to defeat, but the invariant is a safety
+    one and the built loop exposes no actuator to assert against. Replace it with a
+    behavioural check rather than deleting it.
+    """
     assert "steering_actuator=" not in (PACKAGE / "runners" / "live.py").read_text()
 
 
 def test_closed_event_effect_failure_and_input_boundaries_are_exhaustive() -> None:
+    """Keep the assert_never guards that make mypy enforce exhaustive matching.
+
+    Weaker than it looks (a file with several matches passes on one), but it catches
+    the change that actually happens: swapping assert_never for a permissive else,
+    after which mypy goes quiet and a new enum member silently falls through.
+    """
     paths = (
         PACKAGE / "domain" / "controller" / "reducer.py",
         PACKAGE / "domain" / "controller" / "intents.py",

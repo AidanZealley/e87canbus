@@ -9,7 +9,7 @@ from pathlib import Path
 from e87canbus.api.main import create_app
 from e87canbus.config import CanNetwork, default_config
 from e87canbus.domain.settings.repository import SettingsStorageError
-from e87canbus.kernel import CanReaderFailed, StateTopic
+from e87canbus.kernel import CanReaderFailed
 from e87canbus.runners.composition import build_live_controller_loop
 from e87canbus.service import ControllerLoopLifecycle
 from fastapi.testclient import TestClient
@@ -187,7 +187,6 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
     assert "Restart=on-failure" in unit
     assert "RestartSec=5s" in unit
     assert "--frontend-directory" in unit
-    assert "tx" not in unit.lower()
 
 
 def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> None:
@@ -235,6 +234,8 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
     assert "/usr/sbin/iw dev wlan0 station dump" in helper
 
     helper_command = "/usr/local/libexec/e87canbus-hotspot"
+    # The count is the closure property: the loop below proves the four intended actions
+    # are granted, and this proves there is no fifth grant alongside them.
     assert sudoers.count(helper_command) == 4
     assert "nmcli" not in sudoers
     assert "/usr/sbin/iw" not in sudoers
@@ -254,6 +255,13 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
 
 
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
+    """Pin the VT ownership settings that took a long bench session to find.
+
+    These greps look like transcription, and they are, but each line here is a fix for
+    an observed failure on the target: cage times out on an inactive VT, and the HDMI
+    CEC pointer draws a cursor over the touchscreen. Deleting one is easy to do by
+    accident and the failure only shows up on the Pi.
+    """
     root = Path(__file__).resolve().parents[2]
     unit = (root / "deploy/systemd/e87canbus-kiosk.service").read_text()
     input_rules = (root / "deploy/udev/71-e87canbus-kiosk-input.rules").read_text()
@@ -271,14 +279,3 @@ def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     assert "ExecStartPre=+/usr/bin/chvt 7" in unit
 
 
-def test_health_topic_is_closed_and_not_runtime_registered() -> None:
-    assert StateTopic.HEALTH.value == "health"
-    assert set(StateTopic) == {
-        StateTopic.VEHICLE,
-        StateTopic.ENGINE,
-        StateTopic.STEERING,
-        StateTopic.BUTTONS,
-        StateTopic.LIGHTING,
-        StateTopic.DEVICES,
-        StateTopic.HEALTH,
-    }

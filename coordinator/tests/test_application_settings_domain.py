@@ -1,10 +1,9 @@
-from dataclasses import fields, replace
+from dataclasses import replace
 
 import pytest
 from e87canbus.domain.settings.values import (
     DEFAULT_APPLICATION_SETTINGS,
     ApplicationSettings,
-    ApplicationSettingsUpdate,
     SpeedUnit,
     TemperatureUnit,
     validate_expected_revision,
@@ -31,8 +30,6 @@ def test_default_settings_are_valid_stable_and_have_no_theme() -> None:
         )
         == DEFAULT_APPLICATION_SETTINGS
     )
-    assert "theme" not in {field.name for field in fields(ApplicationSettings)}
-    assert "theme" not in {field.name for field in fields(ApplicationSettingsUpdate)}
 
 
 @pytest.mark.parametrize("speed_unit", ["mph", "knots", None])

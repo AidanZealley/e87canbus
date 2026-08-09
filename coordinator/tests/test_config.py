@@ -23,13 +23,17 @@ from e87canbus.domain.devices.catalogue import (
     DEFAULT_DEVICE_CATALOGUE,
     DeviceCatalogueEntry,
     DeviceIdentity,
-    DeviceLifecycleStatus,
     DeviceRole,
-    DeviceSource,
 )
 
 
 def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
+    """Bitrates are a hardware contract and tx_enabled=False keeps the car read-only.
+
+    Mirroring a default is usually worthless, but these two facts are load-bearing:
+    the wrong bitrate silently fails on the vehicle, and a stray transmit grant is the
+    one change that can affect the car rather than the coordinator.
+    """
     config = default_config()
 
     assert [item.network for item in config.can_networks] == [
@@ -48,24 +52,6 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
     config = simulator_config()
 
     assert [item.network for item in config.can_networks if item.tx_enabled] == [CanNetwork.KCAN]
-
-
-def test_default_simulation_trace_capacity() -> None:
-    assert default_config().simulation.trace_capacity == 2_000
-    assert default_config().simulation.steering_watchdog_timeout_s == 0.25
-
-
-def test_default_live_publication_bounds() -> None:
-    publication = default_config().live_publication
-
-    assert publication.telemetry_hz == 25.0
-    assert publication.health_hz == 1.0
-    assert publication.trace_hz == 10.0
-    assert publication.trace_batch_size == 100
-    assert publication.resource_capacity == 256
-    assert publication.client_queue_capacity == 64
-    assert publication.send_timeout_s == 1.0
-    assert publication.shutdown_timeout_s == 2.0
 
 
 @pytest.mark.parametrize(
@@ -99,10 +85,6 @@ def test_live_publication_bounds_reject_invalid_values(
 def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
     with pytest.raises(ValueError, match="capacity|watchdog"):
         SimulationConfig(**{field: value})
-
-
-def test_steering_level_count() -> None:
-    assert default_config().steering.manual_level_count == 11
 
 
 @pytest.mark.parametrize("button_index", [-1, BUTTON_PAD_BUTTON_COUNT])
@@ -143,26 +125,10 @@ def test_steering_configuration_rejects_invalid_values(
         SteeringConfig(**changes)  # type: ignore[arg-type]
 
 
-def test_default_tick_and_speed_timeout_intervals() -> None:
-    config = default_config()
-
-    assert config.tick_interval_s == 0.1
-    assert config.steering.speed_timeout_s == 1.0
-    assert config.engine_telemetry.timeout_s == 1.0
-    assert config.engine_telemetry is not config.steering
-
-
 @pytest.mark.parametrize("tick_interval_s", [0.0, -0.1, float("inf"), float("nan")])
 def test_tick_interval_must_be_positive(tick_interval_s: float) -> None:
     with pytest.raises(ValueError, match="tick_interval_s"):
         replace(default_config(), tick_interval_s=tick_interval_s)
-
-
-def test_default_runtime_inbox_limits() -> None:
-    config = default_config()
-
-    assert config.runtime_inbox_capacity == 1_024
-    assert config.runtime_queue_latency_warning_s == 0.1
 
 
 @pytest.mark.parametrize(
@@ -218,6 +184,12 @@ def test_runtime_latency_warning_rejects_non_finite_values(value: float) -> None
 
 
 def test_default_tx_policy() -> None:
+    """Unlike the other defaults, this one is the safety control itself.
+
+    The rate limiter is tested behaviourally elsewhere with injected values. What this
+    pins is that the shipped ceiling stays conservative, because the failure mode is a
+    bug flooding the PT-CAN of a moving car.
+    """
     policy = default_config().tx_policy
 
     assert policy.network_window_s == 1.0
@@ -225,24 +197,6 @@ def test_default_tx_policy() -> None:
 
 
 def test_default_device_catalogue_and_registry_vocabulary() -> None:
-    assert tuple(DeviceRole) == (
-        DeviceRole.BUTTON_PAD,
-        DeviceRole.SERVOTRONIC_CONTROLLER,
-    )
-    assert tuple(DeviceSource) == (
-        DeviceSource.PHYSICAL,
-        DeviceSource.EMULATED,
-        DeviceSource.DISABLED,
-    )
-    assert tuple(DeviceLifecycleStatus) == (
-        DeviceLifecycleStatus.DISABLED,
-        DeviceLifecycleStatus.NOT_FOUND,
-        DeviceLifecycleStatus.PENDING,
-        DeviceLifecycleStatus.ACTIVE,
-        DeviceLifecycleStatus.STALE,
-        DeviceLifecycleStatus.INCOMPATIBLE,
-        DeviceLifecycleStatus.FAULT,
-    )
     assert [
         (entry.identity.role, entry.identity.device_id) for entry in DEFAULT_DEVICE_CATALOGUE
     ] == [

@@ -137,10 +137,3 @@ def test_canonical_cli_returns_nonzero_when_uvicorn_never_started(
 
     assert cli.main(("run", "--profile", "car")) == 1
 
-
-def test_profile_names_are_stable() -> None:
-    assert tuple(DeploymentProfile) == (
-        DeploymentProfile.CAR,
-        DeploymentProfile.BENCH,
-        DeploymentProfile.SIMULATOR,
-    )

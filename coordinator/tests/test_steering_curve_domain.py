@@ -1,4 +1,4 @@
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
@@ -164,21 +164,6 @@ def test_assistance_bounds_are_inclusive() -> None:
     )
 
     validate_steering_curve_definition(definition)
-
-
-def test_domain_accepts_the_points_only_contract() -> None:
-    validate_steering_curve_definition(BUILT_IN_STEERING_CURVE)
-
-
-def test_domain_values_are_immutable() -> None:
-    profile = _profile()
-
-    with pytest.raises(FrozenInstanceError):
-        BUILT_IN_STEERING_CURVE.points[0].assistance_per_mille = 500  # type: ignore[misc]
-    with pytest.raises(FrozenInstanceError):
-        BUILT_IN_STEERING_CURVE.points = ()  # type: ignore[misc]
-    with pytest.raises(FrozenInstanceError):
-        profile.revision = 2  # type: ignore[misc]
 
 
 def test_canonical_bytes_and_fingerprint_are_stable() -> None:

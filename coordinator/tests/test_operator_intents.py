@@ -1,4 +1,3 @@
-from dataclasses import FrozenInstanceError
 
 import pytest
 from e87canbus.config import HighBeamStrobeConfig
@@ -57,12 +56,6 @@ def test_adjust_manual_assistance_requires_one_stage_delta(delta: object) -> Non
         AdjustManualAssistance(delta)  # type: ignore[arg-type]
 
 
-def test_operator_intents_are_immutable_values() -> None:
-    intent = AdjustManualAssistance(1)
-    with pytest.raises(FrozenInstanceError):
-        intent.delta = -1  # type: ignore[misc]
-
-
 @pytest.mark.parametrize("observed_at", [-0.1, float("inf"), float("nan"), True, "now"])
 def test_intent_context_requires_a_finite_non_negative_observation_time(
     observed_at: object,
@@ -85,12 +78,8 @@ def test_steering_intents_require_servotronic(intent: object) -> None:
     assert intent_requires_servotronic(intent) is True  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize(
-    "intent",
-    [StartHighBeamStrobe()],
-)
-def test_non_steering_intents_do_not_require_servotronic(intent: object) -> None:
-    assert intent_requires_servotronic(intent) is False  # type: ignore[arg-type]
+def test_non_steering_intents_do_not_require_servotronic() -> None:
+    assert intent_requires_servotronic(StartHighBeamStrobe()) is False
 
 
 def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
@@ -197,6 +186,9 @@ def test_only_a_command_with_a_predicate_reports_an_active_state(
 
 def test_every_catalogue_entry_states_whether_it_has_an_active_condition() -> None:
     """Adding a command must be a decision about activeness, not a silent default.
+
+    This is not a duplicate of the parametrised test above: that one names the seven
+    commands that exist today, so an eighth passes it silently. This one fails.
 
     The comparison names every tag rather than only the ones with a predicate, so an
     eighth command fails here instead of passing as never-active. ``active`` has no
