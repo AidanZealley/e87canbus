@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Protocol
 
 from e87canbus.hotspot import HotspotService, HotspotStatus
 
@@ -22,10 +21,6 @@ class PanelDisplay(StrEnum):
     HOTSPOT_CONNECTED = "hotspot_connected"
     FAULT = "fault"
     OFF = "off"
-
-
-class PanelOutput(Protocol):
-    def display(self, state: PanelDisplay) -> None: ...
 
 
 def derive_display(
@@ -47,14 +42,15 @@ def derive_display(
 
 
 class PanelService:
-    """Project coordinator and hotspot state to the panel's semantic display."""
+    """Project coordinator and hotspot state to the panel's semantic display.
 
-    def __init__(self, hotspot: HotspotService, output: PanelOutput) -> None:
+    Both callers poll `display` on their own schedule, so refreshing never pushes.
+    """
+
+    def __init__(self, hotspot: HotspotService) -> None:
         self._hotspot = hotspot
-        self._output = output
         self._coordinator_status = CoordinatorStatus.STARTING
         self._display = PanelDisplay.STARTING
-        self.refresh()
 
     @property
     def display(self) -> PanelDisplay:
@@ -65,11 +61,14 @@ class PanelService:
         self.refresh()
 
     def refresh(self) -> None:
+        """Re-derive the display. This observes the hotspot, which can be slow."""
         self._display = derive_display(self._coordinator_status, self._hotspot.status())
-        self._output.display(self._display)
 
     def button_pressed(self, coordinator_status: CoordinatorStatus) -> None:
-        self._coordinator_status = coordinator_status
+        """Handle a press captured while the coordinator was in `coordinator_status`.
+
+        A press that arrives before the coordinator is ready is ignored, not retained.
+        """
         if coordinator_status is not CoordinatorStatus.READY:
             return
         self._hotspot.toggle()

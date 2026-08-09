@@ -9,10 +9,7 @@ from e87canbus.runners.simulation.api.models.coordinator_panel import (
     SimulationCoordinatorPanelState,
     SimulationCoordinatorStatusRequest,
 )
-from e87canbus.runners.simulation.coordinator_panel import (
-    SimulatedCoordinatorPanel,
-    SimulatedPanelState,
-)
+from e87canbus.runners.simulation.coordinator_panel import SimulatedCoordinatorPanel
 
 router = APIRouter(
     prefix="/api/dev/simulation/coordinator-panel",
@@ -25,25 +22,12 @@ def _panel(request: Request) -> SimulatedCoordinatorPanel:
 
 
 def _state(
-    operation: Callable[[], SimulatedPanelState],
+    operation: Callable[[], SimulationCoordinatorPanelState],
 ) -> SimulationCoordinatorPanelState:
     try:
-        (
-            coordinator_status,
-            display,
-            hotspot_status,
-            failure_armed,
-            coordinator_status_preview,
-        ) = operation()
+        return operation()
     except ValueError as exc:
         raise ApiProblem(409, "feature_unavailable", str(exc)) from exc
-    return SimulationCoordinatorPanelState(
-        coordinator_status=coordinator_status,
-        display=display,
-        hotspot_status=hotspot_status,
-        failure_armed=failure_armed,
-        coordinator_status_preview=coordinator_status_preview,
-    )
 
 
 @router.get("", operation_id="getSimulationCoordinatorPanel")

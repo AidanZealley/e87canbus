@@ -17,22 +17,6 @@ from e87canbus.service import ControllerLoop, ControllerLoopLifecycle
 LOGGER = logging.getLogger(__name__)
 
 
-class _LatestPanelDisplay:
-    """The one value handed from slow state derivation to timed UART output."""
-
-    def __init__(self) -> None:
-        self._value = PanelDisplay.STARTING
-        self._lock = threading.Lock()
-
-    def display(self, state: PanelDisplay) -> None:
-        with self._lock:
-            self._value = state
-
-    def current(self) -> PanelDisplay:
-        with self._lock:
-            return self._value
-
-
 class PhysicalCoordinatorPanel:
     """Run bounded UART timing independently of slower NetworkManager work."""
 
@@ -47,9 +31,12 @@ class PhysicalCoordinatorPanel:
         self._uart_factory = uart_factory
         self._hotspot_backend = hotspot_backend or NetworkManagerHotspotBackend()
         self._stop = threading.Event()
-        self._failed = threading.Event()
+        # A fault leaves the panel dark so the firmware times out into red. Only a
+        # requested stop sends `off`, which is the graceful-shutdown appearance.
+        self._faulted = False
         self._buttons: queue.SimpleQueue[CoordinatorStatus] = queue.SimpleQueue()
-        self._display = _LatestPanelDisplay()
+        # Published by the state thread, read by the UART thread.
+        self._display = PanelDisplay.STARTING
         self._uart_thread: threading.Thread | None = None
         self._state_thread: threading.Thread | None = None
 
@@ -66,20 +53,8 @@ class PhysicalCoordinatorPanel:
             name="coordinator-panel-state",
             daemon=True,
         )
-        try:
-            self._uart_thread.start()
-        except Exception:
-            LOGGER.exception("failed to start coordinator panel accessory")
-            self._failed.set()
-            self._uart_thread = None
-            self._state_thread = None
-            return
-        try:
-            self._state_thread.start()
-        except Exception:
-            LOGGER.exception("failed to start coordinator panel state worker")
-            self._failed.set()
-            self._state_thread = None
+        self._uart_thread.start()
+        self._state_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
@@ -92,45 +67,46 @@ class PhysicalCoordinatorPanel:
         uart: UartPanelAdapter | None = None
         try:
             uart = self._uart_factory()
-            uart.display(PanelDisplay.STARTING)
             next_heartbeat = time.monotonic()
-            while not self._stop.is_set() and not self._failed.is_set():
+            while not self._stop.is_set():
                 for _ in range(uart.read_button_presses()):
                     self._buttons.put(self._coordinator_status())
                 now = time.monotonic()
                 if now >= next_heartbeat:
-                    uart.display(self._display.current())
+                    uart.display(self._display)
                     next_heartbeat += 1.0
         except Exception:
             LOGGER.exception("coordinator panel UART stopped after an I/O failure")
-            self._failed.set()
+            self._fault()
         finally:
-            if uart is not None and self._stop.is_set() and not self._failed.is_set():
-                try:
-                    uart.display(PanelDisplay.OFF)
-                except Exception:
-                    LOGGER.exception("failed to send coordinator panel off state")
             if uart is not None:
                 try:
+                    if not self._faulted:
+                        uart.display(PanelDisplay.OFF)
                     uart.close()
                 except Exception:
-                    LOGGER.exception("failed to close coordinator panel UART")
+                    LOGGER.exception("failed to close the coordinator panel UART")
 
     def _run_state(self) -> None:
         try:
-            panel = PanelService(HotspotService(self._hotspot_backend), self._display)
+            panel = PanelService(HotspotService(self._hotspot_backend))
             panel.set_coordinator_status(self._coordinator_status())
-            while not self._stop.is_set() and not self._failed.is_set():
+            self._display = panel.display
+            while not self._stop.is_set():
                 try:
                     button_status = self._buttons.get(timeout=1.0)
                 except queue.Empty:
                     panel.set_coordinator_status(self._coordinator_status())
-                    continue
-
-                panel.button_pressed(button_status)
+                else:
+                    panel.button_pressed(button_status)
+                self._display = panel.display
         except Exception:
             LOGGER.exception("coordinator panel state worker stopped after an I/O failure")
-            self._failed.set()
+            self._fault()
+
+    def _fault(self) -> None:
+        self._faulted = True
+        self._stop.set()
 
     def _coordinator_status(self) -> CoordinatorStatus:
         lifecycle = self._controller.lifecycle
