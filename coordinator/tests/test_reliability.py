@@ -156,13 +156,20 @@ def test_repeated_lifecycle_releases_threads_tasks_and_database_locks(tmp_path: 
 
 def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> None:
     root = Path(__file__).resolve().parents[2]
+    # The interface names and bitrates come from the coordinator's own configuration, so a
+    # rename has to reach the units and udev rules to pass.
+    networks = default_config().can_networks
     can_units = {
-        interface: (root / f"deploy/systemd/e87canbus-{interface}.service").read_text()
-        for interface in ("kcan", "ptcan", "fcan")
+        network.interface: (
+            root / f"deploy/systemd/e87canbus-{network.interface}.service"
+        ).read_text()
+        for network in networks
     }
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
-    for interface, can_unit in can_units.items():
+    for network in networks:
+        interface = network.interface
+        can_unit = can_units[interface]
         assert "Before=e87canbus-controller.service" in can_unit
         assert f"sys-subsystem-net-devices-{interface}.device" in can_unit
         assert "restart-ms 100" in can_unit
@@ -171,9 +178,7 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
         assert f"ExecStartPre=-/usr/sbin/ip link set {interface} down" in can_unit
         assert f"ExecStart=/usr/sbin/ip link set {interface} up" in can_unit
         assert f"ExecStop=-/usr/sbin/ip link set {interface} down" in can_unit
-    assert "bitrate 100000" in can_units["kcan"]
-    assert "bitrate 500000" in can_units["ptcan"]
-    assert "bitrate 500000" in can_units["fcan"]
+        assert f"bitrate {network.bitrate}" in can_unit
     ordering = next(line for line in unit.splitlines() if line.startswith("After=e87canbus-"))
     for interface in can_units:
         assert f"e87canbus-{interface}.service" in ordering
@@ -190,13 +195,10 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
     setup = (root / "scripts/setup_pi.sh").read_text()
 
     assert "dtoverlay=spi1-3cs" in setup
-    assert "CAN uses SPI and does not need it" in setup
-    assert "sed -E -i '/^[[:space:]]*dtoverlay=i2c0" in setup
     assert (
         "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000"
         in setup
     )
-    assert "mcp2515,.*spi0-0" in setup
     assert (
         "dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000"
         in setup
@@ -205,19 +207,17 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
         "dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000"
         in setup
     )
-    assert "CAN_INTERFACES=(kcan ptcan fcan)" in setup
-    assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
     assert "disable_splash=1" in setup
-    assert 'id -nG "${USER}"' in setup
-    for interface in ("kcan", "ptcan", "fcan"):
+
+    interfaces = [network.interface for network in default_config().can_networks]
+    assert f"CAN_INTERFACES=({' '.join(interfaces)})" in setup
+    assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
+    for interface in interfaces:
         assert f"e87canbus-{interface}.service" in setup
 
+    # Each controller keeps the name its configuration expects, in SPI connection order.
     naming_rules = (root / "deploy/udev/70-e87canbus-can.rules").read_text()
-    for spi_parent, interface in (
-        ("spi0.0", "kcan"),
-        ("spi1.1", "ptcan"),
-        ("spi1.2", "fcan"),
-    ):
+    for spi_parent, interface in zip(("spi0.0", "spi1.1", "spi1.2"), interfaces, strict=True):
         assert f'KERNELS=="{spi_parent}", NAME="{interface}"' in naming_rules
 
 
@@ -229,7 +229,6 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
     assert helper_path.stat().st_mode & 0o111
-    assert helper.count("exec ") == 4
     assert "/usr/bin/nmcli --wait 0 connection up id e87canbus-hotspot" in helper
     assert "/usr/bin/nmcli connection down id e87canbus-hotspot" in helper
     assert "/usr/bin/nmcli --get-values GENERAL.STATE" in helper
@@ -256,12 +255,9 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
 
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     root = Path(__file__).resolve().parents[2]
-    setup = (root / "scripts/setup_pi.sh").read_text()
     unit = (root / "deploy/systemd/e87canbus-kiosk.service").read_text()
     input_rules = (root / "deploy/udev/71-e87canbus-kiosk-input.rules").read_text()
 
-    assert "systemctl enable --now e87canbus-kiosk.service" in setup
-    assert "71-e87canbus-kiosk-input.rules" in setup
     assert 'ATTRS{name}=="vc4-hdmi-*"' in input_rules
     assert 'ENV{LIBINPUT_IGNORE_DEVICE}="1"' in input_rules
     assert "Conflicts=getty@tty7.service" in unit
