@@ -1,6 +1,6 @@
 # Workstream 5: Synchronize documentation and architectural records
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -158,4 +158,4 @@ and its reason must be recorded in the handoff.
   architectural decisions or pending hardware validation. All local Markdown targets still exist,
   the focused stale-term search remains clean and `git diff --check` passes.
 - Remaining required findings: None.
-- Accepted commit: Pending.
+- Accepted commit: `7f5b96b4bcd60c7184f660890e24cb1a1e68beb0`
