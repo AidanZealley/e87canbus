@@ -1,5 +1,5 @@
 /**
- * Mirror of `coordinator/src/e87canbus/domain/controller/button_leds.py`
+ * Mirror of `hosts/src/e87canbus/domain/controller/button_leds.py`
  * (`derived_button_led_state`), duplicated here rather than served because the
  * editor must preview a DRAFT profile that is not active and no endpoint can
  * derive colours for one. The two implementations must be changed together;

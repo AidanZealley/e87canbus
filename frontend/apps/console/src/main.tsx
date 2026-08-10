@@ -14,19 +14,13 @@ import { Toaster } from "@/components/ui/sonner"
 import { startLiveTransport } from "@e87canbus/coordinator-client/live/transport"
 import { router } from "@/router"
 import { startConsoleLiveTransport } from "@/local-live/transport"
+import { consoleQueryClientOptions } from "@/query-client-options"
 
 if (import.meta.env.DEV) {
   window.setInterval(() => performance.clearMeasures(), 60_000)
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-  },
-})
+const queryClient = new QueryClient(consoleQueryClientOptions)
 
 const durableQueryDefaults = {
   staleTime: 30_000,

@@ -77,6 +77,8 @@ export const ButtonProfileEditor = ({
 
   const profile = savedProfile
   const commitSlot = async (index: number, slot: ButtonCommandSlot) => {
+    if (!synchronized) return
+
     const next = [...slots]
     next[index] = slot
     await save.mutateAsync({
@@ -96,7 +98,7 @@ export const ButtonProfileEditor = ({
       slots={slots}
       visualStates={visualStates}
       manualAssistanceLevelCount={steering?.manual_assistance_level_count}
-      disabled={save.isPending}
+      disabled={!synchronized || save.isPending}
       onChange={commitSlot}
     />
   )

@@ -180,3 +180,24 @@ chunks to confirm the prohibited cross-app feature sets are absent.
   backend exception, compatibility route or shared abstraction.
 - Remaining required findings: None.
 - Accepted commit: `309fa33987f81fd5c029c6cb087911befb84705a`
+
+### Whole-feature correction
+
+- Finding dispositions: Accepted all frontend write-safety findings. Coordinator-backed settings
+  and button-profile controls are disabled whenever coordinator live state is unsynchronized, and
+  both write owners reject attempted commits at that same boundary. Console mutations now use
+  TanStack Query's `always` network mode with retries disabled, so a mutation already submitted
+  when connectivity fails executes once and fails instead of pausing for reconnect replay. The
+  four duplicated button-profile presentation comments now point to `hosts/src`.
+- Simplification/deletion pass: Removed the settings promise-chain queue entirely. Settings admit
+  at most one active revisioned mutation through TanStack's existing mutation state, then derive
+  the next request from the latest cached revision; no queue, offline wrapper, compatibility flag
+  or generic connectivity layer was added. The shared console mutation behavior is a direct
+  `QueryClient` option extracted only so its no-replay contract can be tested without importing
+  the application entry point.
+- Verification: Focused settings and button-profile tests cover synchronization loss, an attempted
+  write, restored synchronization and zero delayed coordinator calls. A focused QueryClient test
+  proves an offline mutation is attempted once, rejects and is not replayed on reconnect; the
+  settings test also proves concurrent edits cannot race one revision. Console typecheck, focused
+  tests, the full console suite and build, coordinator presentation tests, lint and
+  `git diff --check` passed.
