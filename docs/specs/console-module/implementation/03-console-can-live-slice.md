@@ -1,6 +1,6 @@
 # Workstream 3: Prove the console CAN activity path end to end
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -197,4 +197,4 @@ their final committed paths.
   role-named proxies and one small path constant introduce no compatibility route, generalized
   runtime or speculative routing machinery.
 - Remaining required findings: None.
-- Accepted commit: Pending post-closure implementation commit.
+- Accepted commit: `5013093ba80fa22a03f405482248a3212c21e5d8`
