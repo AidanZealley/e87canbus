@@ -1,6 +1,6 @@
 # Coordinator and console split
 
-- **Status:** Draft for review
+- **Status:** Approved for implementation
 - **Date:** 2026-08-10
 
 ## Summary
@@ -194,7 +194,8 @@ content are normal product work and do not need to be classified by this infrast
 Move existing routes and components to their owning application. Do not create a frontend platform,
 micro-frontend system, runtime extension mechanism or generalized application shell. Do not create
 a shared design-system package.
-The exisiting `/` route that links to the two individual sections will beredundant and can be removed.
+The existing `/` route that links to the two individual sections will be redundant and can be
+removed.
 
 The console frontend has two explicit connections: local Socket.IO for the complete K-CAN activity
 snapshot, and coordinator HTTP and Socket.IO over Ethernet. Copy and trim the existing singleton
