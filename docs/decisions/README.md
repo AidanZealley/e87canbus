@@ -14,6 +14,8 @@ complete.
 | [0006](0006-evidence-gated-hardware-behavior.md) | Evidence-gated hardware behavior | Accepted |
 | [0007](0007-servotronic-controller-owns-assistance-mapping.md) | Servotronic-controller-owned assistance mapping | Proposed |
 | [0008](0008-unified-controller-architecture.md) | Unified modular controller and transport ownership | Accepted |
+| [0009](0009-isolate-coordinator-accessories-from-control.md) | Isolated coordinator accessories | Accepted |
+| [0010](0010-constrain-hotspot-ui-exposure.md) | Constrained hotspot UI exposure | Accepted |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old
