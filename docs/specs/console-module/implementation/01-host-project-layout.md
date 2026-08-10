@@ -1,6 +1,6 @@
 # Workstream 1: Establish the role-neutral host project
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -132,4 +132,4 @@ workstream 5.
   resolves successfully. Focused diff inspection and `git diff --check` found no release-blocking
   defect introduced by the record-only remediation.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `5c1afaf1a73457ebc04f01060ffceaa9ac0befe7`
