@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=E87 Console Kiosk
+Exec=/usr/local/bin/e87canbus-console-kiosk
+X-GNOME-Autostart-enabled=true

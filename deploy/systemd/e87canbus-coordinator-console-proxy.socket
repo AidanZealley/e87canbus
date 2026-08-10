@@ -1,0 +1,12 @@
+[Unit]
+Description=E87 coordinator console-link web access
+
+[Socket]
+ListenStream=10.43.0.1:80
+BindToDevice=eth0
+FreeBind=yes
+NoDelay=yes
+Service=e87canbus-coordinator-console-proxy.service
+
+[Install]
+WantedBy=sockets.target

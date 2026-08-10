@@ -1,6 +1,6 @@
 [Unit]
-Description=E87 hotspot web proxy
-Requires=e87canbus-web-proxy.socket
+Description=E87 coordinator hotspot web proxy
+Requires=e87canbus-coordinator-hotspot-proxy.socket
 After=e87canbus-controller.service
 
 [Service]
@@ -11,4 +11,3 @@ PrivateDevices=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
-

@@ -1,0 +1,2 @@
+# The console uses only the HAT+ first controller. No rule names the unused spi1.2 channel.
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", KERNELS=="spi1.1", NAME="kcan"

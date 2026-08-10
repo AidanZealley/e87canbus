@@ -1,12 +1,12 @@
 [Unit]
-Description=E87 hotspot web access
+Description=E87 coordinator hotspot web access
 
 [Socket]
 ListenStream=10.42.0.1:80
 BindToDevice=wlan0
 FreeBind=yes
 NoDelay=yes
+Service=e87canbus-coordinator-hotspot-proxy.service
 
 [Install]
 WantedBy=sockets.target
-

@@ -1,0 +1,13 @@
+[Unit]
+Description=E87 coordinator console-link web proxy
+Requires=e87canbus-coordinator-console-proxy.socket
+After=e87canbus-controller.service
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:8000
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
