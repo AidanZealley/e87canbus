@@ -3,8 +3,14 @@ import { readdir, readFile, rm } from "node:fs/promises"
 import { promisify } from "node:util"
 
 const run = promisify(execFile)
-const generatedDirectory = new URL("../src/api/http/", import.meta.url)
-const checkDirectory = new URL("../src/api/http.check/", import.meta.url)
+const generatedDirectory = new URL(
+  "../packages/coordinator-client/src/api/http/",
+  import.meta.url
+)
+const checkDirectory = new URL(
+  "../packages/coordinator-client/src/api/http.check/",
+  import.meta.url
+)
 
 const readTree = async (directory, prefix = "") => {
   const files = new Map()
@@ -25,12 +31,17 @@ const readTree = async (directory, prefix = "") => {
 
 await rm(checkDirectory, { force: true, recursive: true })
 try {
-  await run("pnpm", ["exec", "openapi-ts", "-o", "src/api/http.check"])
+  await run("pnpm", [
+    "exec",
+    "openapi-ts",
+    "-o",
+    "packages/coordinator-client/src/api/http.check",
+  ])
   await run("pnpm", [
     "exec",
     "prettier",
     "--write",
-    "src/api/http.check/**/*.ts",
+    "packages/coordinator-client/src/api/http.check/**/*.ts",
   ])
 
   const [generated, expected] = await Promise.all([

@@ -1,0 +1,34 @@
+{
+  "name": "@e87canbus/coordinator-client",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "exports": {
+    "./api/http": "./src/api/http/index.ts",
+    "./api/http/*": "./src/api/http/*.ts",
+    "./api/*": "./src/api/*.ts",
+    "./live/*": "./src/live/*.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "socket.io-client": "^4.8.3",
+    "zustand": "^5.0.14",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "jsdom": "^29.1.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "typescript": "~6",
+    "vite": "^8",
+    "vitest": "^4.1.10"
+  }
+}

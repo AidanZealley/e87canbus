@@ -5,7 +5,10 @@ import { compileFromFile } from "json-schema-to-typescript"
 const root = fileURLToPath(new URL("../..", import.meta.url))
 const schema = `${root}/protocol/live-events-v1.schema.json`
 const output = fileURLToPath(
-  new URL("../src/api/live-contract.gen.ts", import.meta.url)
+  new URL(
+    "../packages/coordinator-client/src/api/live-contract.gen.ts",
+    import.meta.url
+  )
 )
 const check = process.argv.includes("--check")
 const schemaDocument = JSON.parse(await readFile(schema, "utf8"))

@@ -3,7 +3,7 @@ import { format } from "prettier"
 
 const input = new URL("../../protocol/openapi.json", import.meta.url)
 const output = new URL(
-  "../src/api/button-command-catalogue.gen.ts",
+  "../packages/coordinator-client/src/api/button-command-catalogue.gen.ts",
   import.meta.url
 )
 const check = process.argv.includes("--check")
