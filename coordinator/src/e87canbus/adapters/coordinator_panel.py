@@ -8,7 +8,7 @@ import serial  # type: ignore[import-untyped]
 
 from e87canbus.panel import PanelDisplay
 
-UART_DEVICE = "/dev/serial0"
+UART_DEVICE = "/dev/ttyAMA3"
 UART_BAUD_RATE = 115_200
 MAXIMUM_LINE_LENGTH = 64
 

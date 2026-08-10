@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
   <title id="title">Raspberry Pi 4 to coordinator panel wiring</title>
-  <desc id="desc">Four-wire harness from Raspberry Pi physical pins 2, 6, 8 and 10 to the QT Py RP2040. The five volt wire includes a fuse and Schottky diode. UART transmit and receive are crossed.</desc>
+  <desc id="desc">Four-wire harness from Raspberry Pi physical pins 2, 6, 7 and 29 to the QT Py RP2040. The five volt wire includes a fuse and Schottky diode. UART transmit and receive are crossed.</desc>
   <defs>
     <style>
       text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #172033; }
@@ -35,8 +35,8 @@
     <circle cx="300" cy="230" r="7" class="pin"/><circle cx="340" cy="230" r="9" class="active" stroke="#d6293e"/>
     <circle cx="300" cy="247" r="7" class="pin"/><circle cx="340" cy="247" r="7" class="pin"/>
     <circle cx="300" cy="264" r="7" class="pin"/><circle cx="340" cy="264" r="9" class="active" stroke="#20242c"/>
-    <circle cx="300" cy="281" r="7" class="pin"/><circle cx="340" cy="281" r="9" class="active" stroke="#2878d0"/>
-    <circle cx="300" cy="298" r="7" class="pin"/><circle cx="340" cy="298" r="9" class="active" stroke="#15966c"/>
+    <circle cx="300" cy="281" r="9" class="active" stroke="#2878d0"/><circle cx="340" cy="281" r="7" class="pin"/>
+    <circle cx="300" cy="298" r="7" class="pin"/><circle cx="340" cy="298" r="7" class="pin"/>
     <circle cx="300" cy="315" r="7" class="pin"/><circle cx="340" cy="315" r="7" class="pin"/>
     <circle cx="300" cy="332" r="7" class="pin"/><circle cx="340" cy="332" r="7" class="pin"/>
     <circle cx="300" cy="349" r="7" class="pin"/><circle cx="340" cy="349" r="7" class="pin"/>
@@ -46,7 +46,7 @@
     <circle cx="300" cy="417" r="7" class="pin"/><circle cx="340" cy="417" r="7" class="pin"/>
     <circle cx="300" cy="434" r="7" class="pin"/><circle cx="340" cy="434" r="7" class="pin"/>
     <circle cx="300" cy="451" r="7" class="pin"/><circle cx="340" cy="451" r="7" class="pin"/>
-    <circle cx="300" cy="468" r="7" class="pin"/><circle cx="340" cy="468" r="7" class="pin"/>
+    <circle cx="300" cy="468" r="9" class="active" stroke="#15966c"/><circle cx="340" cy="468" r="7" class="pin"/>
     <circle cx="300" cy="485" r="7" class="pin"/><circle cx="340" cy="485" r="7" class="pin"/>
     <circle cx="300" cy="502" r="7" class="pin"/><circle cx="340" cy="502" r="7" class="pin"/>
     <circle cx="300" cy="519" r="7" class="pin"/><circle cx="340" cy="519" r="7" class="pin"/>
@@ -55,8 +55,8 @@
   </g>
   <text x="195" y="235" class="label">Pin 2 · 5 V</text>
   <text x="184" y="269" class="label">Pin 6 · GND</text>
-  <text x="121" y="286" class="label">Pin 8 · BCM14 / TXD</text>
-  <text x="109" y="303" class="label">Pin 10 · BCM15 / RXD</text>
+  <text x="103" y="286" class="label">Pin 7 · BCM4 / TXD3</text>
+  <text x="89" y="473" class="label">Pin 29 · BCM5 / RXD3</text>
 
   <rect x="855" y="160" width="285" height="410" rx="22" class="device"/>
   <text x="890" y="204" class="device-title">QT Py RP2040 + BFF</text>
@@ -82,9 +82,9 @@
 
   <path d="M340 264 H740 V350 H845" class="wire" stroke="#20242c"/>
   <text x="465" y="342" class="label">common ground</text>
-  <path d="M340 281 H715 V420 H845" class="wire" stroke="#2878d0"/>
+  <path d="M300 281 H274 V272 H715 V420 H845" class="wire" stroke="#2878d0"/>
   <text x="465" y="401" class="label" fill="#2878d0">Pi TXD → QT Py RX</text>
-  <path d="M340 298 H690 V490 H845" class="wire" stroke="#15966c"/>
+  <path d="M300 468 H274 V459 H690 V490 H845" class="wire" stroke="#15966c"/>
   <text x="465" y="471" class="label" fill="#15966c">Pi RXD ← QT Py TX</text>
 
   <rect x="60" y="621" width="1080" height="60" rx="12" class="note"/>

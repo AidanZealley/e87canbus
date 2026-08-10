@@ -86,8 +86,8 @@ On Linux, the port is commonly `/dev/ttyACM0` or similar.
 
 The `car` and `bench` profiles require a Raspberry Pi 4 Model B and provision the physical panel
 transport and its fixed `e87canbus-hotspot` NetworkManager connection. Pi 5 and other models are
-outside this fixed deployment because `/dev/serial0` does not use the documented BCM14/15 header
-pins on Pi 5. Setup validates `/proc/device-tree/model` before making physical-profile changes. On
+outside this fixed deployment because the UART3 overlay and GPIO allocation are specific to the
+Pi 4. Setup validates `/proc/device-tree/model` before making physical-profile changes. On
 the post-reboot setup run, the script asks twice for the WPA password without echoing it:
 
 ```bash
@@ -107,17 +107,17 @@ rerun without the option preserves the stored password. Supplying the option aga
 replaces it. The `simulator` profile does not request a password or configure UART, NetworkManager,
 or panel permissions.
 
-Physical setup enables `/dev/serial0`, removes the Linux console from the Pi UART, adds the
-`e87canbus` service account to `dialout`, and installs NetworkManager plus `iw`. It backs up changed
-boot files with the `.e87canbus-before-setup` suffix and requires a reboot before the physical
-profile starts. The fixed access point uses built-in `wlan0`, is left down with autoconnect disabled,
-and uses a dedicated policy-routing blackhole so client traffic cannot be forwarded through an
-Ethernet default route. A root-owned helper exposes only `activate`, `deactivate`, `state`, and
-`stations`; exact sudoers entries let the nologin service account call those actions without a
-password. The helper hard-codes `e87canbus-hotspot`, `wlan0`, and every underlying command, rejects
-all extra arguments, and provides no connection editing or unrelated networking operation. The
-controller unit permits this sudo transition while retaining its other filesystem and process
-hardening; the sudoers allowlist remains the effective privilege boundary.
+Physical setup enables UART3 as `/dev/ttyAMA3` on BCM4/5, removes the Linux console from the primary
+Pi UART, adds the `e87canbus` service account to `dialout`, and installs NetworkManager plus `iw`.
+It backs up changed boot files with the `.e87canbus-before-setup` suffix and requires a reboot before
+the physical profile starts. The fixed access point uses built-in `wlan0`, is left down with
+autoconnect disabled, and uses a dedicated policy-routing blackhole so client traffic cannot be
+forwarded through an Ethernet default route. A root-owned helper exposes only `activate`,
+`deactivate`, `state`, and `stations`; exact sudoers entries let the nologin service account call
+those actions without a password. The helper hard-codes `e87canbus-hotspot`, `wlan0`, and every
+underlying command, rejects all extra arguments, and provides no connection editing or unrelated
+networking operation. The controller unit permits this sudo transition while retaining its other
+filesystem and process hardening; the sudoers allowlist remains the effective privilege boundary.
 
 Build the QT Py firmware with PlatformIO:
 
@@ -145,7 +145,7 @@ After the Pi has rebooted and setup has completed a second time, confirm the dep
 printing the stored password:
 
 ```bash
-test -e /dev/serial0
+test -e /dev/ttyAMA3
 id e87canbus
 tr -d '\0' < /proc/device-tree/model; echo
 sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state

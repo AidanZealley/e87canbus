@@ -45,6 +45,13 @@ solder changes. It must remain configured for:
 - CAN0: SPI1 CE1 and interrupt BCM22
 - CAN1: SPI1 CE2 and interrupt BCM13
 
+The original HAT's unused RS485 transceiver occupies the primary UART on BCM14/15, so those pins
+cannot also carry the bidirectional coordinator-panel link. The panel instead uses UART3 on BCM4/5.
+On the original HAT's factory automatic-direction configuration, the optional BCM4 `RSE` link is
+not populated; do not fit that link or enable UART3 CTS/RTS. The BTT TFT50 DSI touch path remains on
+the separate internal I2C0 allocation; setup continues to remove the conflicting header `i2c0`
+overlay.
+
 The HAT+ goes directly on the Pi and the original HAT stacks above it. Correct spacers are required
 to prevent terminal blocks or solder joints touching another board or the Pi connectors.
 

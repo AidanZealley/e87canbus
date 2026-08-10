@@ -97,7 +97,7 @@ No separate stopping animation is needed.
 
 ## UART
 
-Production uses `/dev/serial0` at 115,200 baud over 3.3 V UART. The panel service sends its final
+Production uses `/dev/ttyAMA3` at 115,200 baud over 3.3 V UART. The panel service sends its final
 semantic display state using a fixed newline-delimited ASCII protocol:
 
 ```text
@@ -134,7 +134,7 @@ Connections are:
 
 | Function | Connection |
 |---|---|
-| UART | Pi BCM14/TXD to QT Py RX; Pi BCM15/RXD to QT Py TX |
+| UART | Pi BCM4/TXD3 to QT Py RX; Pi BCM5/RXD3 to QT Py TX |
 | Button | QT Py A0 to ground, using its internal pull-up |
 | NeoPixel data | QT Py A3 through the BFF level shifter |
 | Power | Pi regulated 5 V and ground to QT Py/BFF |
@@ -165,7 +165,7 @@ system observation to distinguish no associated client from at least one.
 
 Setup must also:
 
-- Enable `/dev/serial0` and remove the Linux serial console from it.
+- Enable UART3 as `/dev/ttyAMA3`; leave the Linux serial console disabled on the primary UART.
 - Give the existing `e87canbus` account UART access.
 - Install the minimal serial, NetworkManager, and client-observation dependencies.
 - Give the unprivileged service account the practical permission needed to operate the fixed

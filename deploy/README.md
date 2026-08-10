@@ -22,7 +22,7 @@ security decision.
 You need:
 
 - A Raspberry Pi 4 Model B, microSD card, and suitable official-quality power supply. Other Pi
-  models are not supported by the fixed `/dev/serial0` on BCM14/15 panel transport.
+  models are not supported by the fixed UART3 overlay and GPIO allocation.
 - The Waveshare 2-CH CAN HAT+.
 - The original Waveshare RS485 CAN HAT v2.1 with its `12000` oscillator marking.
 - Correct standoffs and spacers.
@@ -345,7 +345,7 @@ database, controller, and publisher have started; it returns `503` during fatal 
 
 ## Bench and car profiles
 
-Both physical profiles require the same complete three-interface stack, `/dev/serial0`, and fixed
+Both physical profiles require the same complete three-interface stack, `/dev/ttyAMA3`, and fixed
 coordinator-panel hotspot. The bench profile opens all three physical networks, exposes synthetic
 vehicle development controls, and retains a K-CAN-only application transmit grant. The car profile
 exposes no development controls and grants no application CAN output. The simulator profile uses no
