@@ -62,36 +62,5 @@ act. The same-origin frontend boundary falls back to `index.html` only for clien
 `/dev` and `/car`; missing assets and unknown `/api`, `/health` or `/socket.io` paths remain real
 404 responses.
 
-## Soak and restart evidence — 2026-07-15
-
-The T3 browser ran the development frontend against isolated simulated backends and a temporary
-SQLite database for more than 13 minutes through a deliberate backend restart. Two 42-second
-generated windows each sent 600 telemetry commands (14.3 commands/s), interleaved 30
-settings/profile read pairs, and the second window added 100 alternating semantic steering
-commands. Trace was opened, closed by route navigation, reopened, and exercised across reconnect.
-
-- The controller inbox stayed within depth 1 of 1,024; maximum observed queue latency was 1.920 ms,
-  with no warning or overflow latch.
-- Final publisher diagnostics reported zero publication failures, drops or transport saturations.
-  Health intermediates were coalesced (2,228 at the sampled point), the trace ring remained within
-  1 of 2,000 at that point, and trace subscribers moved exactly 1 → 0 → 1 with route ownership.
-- The replacement backend reported 2,305 received/decoded F-CAN frames, no malformed/ignored
-  frames, 41 sent and 59 rate-limited K-CAN effects, and 2,120 successful simulated steering
-  effects with no failures.
-- Backend RSS was 55.1 MB during warm-up, fell to 39.6 MB and was 42.3 MB after 3 minutes 39 seconds;
-  the preceding process was 39.7 MB after 4 minutes 35 seconds. Browser heap observations moved
-  from 61.3 MB through 50.7 MB to 53.0 MB, with 777 DOM nodes and 25 rendered virtual trace rows
-  after reopening the trace.
-- The browser replaced state on the new boot ID, returned to `Connected`, retained no
-  `Reconnecting` badge, and durable settings revision 2 (`kmh`) survived the backend restart.
-  A discovered trace re-subscription omission was fixed so an open trace owner subscribes again on
-  every transport connection epoch; a transport regression test covers it.
-- Final liveness/readiness were both HTTP 200; controller health was ready and non-fatal, with no
-  fatal/non-fatal fault summary. The user's longer-running application tabs also remained stable
-  well beyond the former 5–10 minute crash window.
-
-This is simulated software evidence only. Real CAN TX and physical steering output were not enabled,
-and no physical safe-state or vehicle behavior is claimed.
-
 For the canonical loopback, same-origin `systemd` deployment and operator commands, see
 [Pi controller operation](../deploy/README.md).
