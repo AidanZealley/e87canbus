@@ -1,20 +1,20 @@
 # Coordinator and console split implementation plan
 
-Status: draft; implementation has not started.
+Status: implementation in progress.
 
 ## Orchestration record
 
 - Integration branch: `feature/coordinator-console-split`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Starting commit: `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5`
+- Orchestrator: Codex (`/root`)
+- Specification approved at commit: `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5`
+- Started: `2026-08-10`
 
 ## Workstream order
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Role-neutral host project](01-host-project-layout.md) | Approved spec | Not started | — |
+| 1 | [Role-neutral host project](01-host-project-layout.md) | Approved spec | Closure review | — |
 | 2 | [Two-app frontend workspace](02-frontend-workspace-split.md) | Workstream 1 | Not started | — |
 | 3 | [Console CAN activity vertical slice](03-console-can-live-slice.md) | Workstreams 1–2 | Not started | — |
 | 4 | [Coordinator and console deployment](04-host-deployment.md) | Workstreams 1–3 | Not started | — |
@@ -101,4 +101,3 @@ Before final review:
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
 | — | None | — | — | — |
-

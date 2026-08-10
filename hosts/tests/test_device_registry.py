@@ -148,7 +148,7 @@ def test_controller_session_is_seeded_randomly_per_process() -> None:
         cwd=repository_root,
         env={
             **os.environ,
-            "PYTHONPATH": str(repository_root / "coordinator" / "src"),
+            "PYTHONPATH": str(repository_root / "hosts" / "src"),
         },
         check=True,
         capture_output=True,
