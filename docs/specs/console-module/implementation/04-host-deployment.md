@@ -1,6 +1,6 @@
 # Workstream 4: Deploy the coordinator and console as separate hosts
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -202,4 +202,4 @@ isolation, kiosk/touch startup, combined Pi/screen current demand and vehicle po
   the expected absent target-host executable warning) and `git diff --check`. No live state was
   touched.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `8008b568fea474baf31db2a4f9bac59d7aefced5`
