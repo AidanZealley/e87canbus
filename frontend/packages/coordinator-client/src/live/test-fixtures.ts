@@ -1,0 +1,162 @@
+import type {
+  ButtonsState,
+  ServerEventPayload,
+  SteeringCurveDefinition,
+} from "@e87canbus/coordinator-client/api/live-contract.gen"
+
+export const staticButtonPadProgram = (
+  rgb: readonly (readonly [number, number, number])[],
+  generation: number
+): ButtonsState["program"] => ({
+  encoding: "e87-button-pad-v2",
+  generation,
+  commands: ([
+    [2, 1, 1, 0, 1, ...rgb[0], 0, 0, 0, 0, 0, ...rgb[0]],
+    ...rgb
+      .slice(1)
+      .map((colour, offset) => [
+        2,
+        2,
+        (1 << (offset + 1)) & 0xff,
+        (1 << (offset + 1)) >> 8,
+        1,
+        ...colour,
+        0,
+        0,
+        0,
+        0,
+        0,
+        ...colour,
+      ]),
+  ] as number[][]).map((command, index, commands) =>
+    index === commands.length - 1
+      ? [command[0], command[1] | 0x80, ...command.slice(2)]
+      : command
+  ) as ButtonsState["program"]["commands"],
+})
+
+const steering = {
+  mode: "auto" as const,
+  manual_assistance_level: 0,
+  manual_assistance_level_count: 11,
+  maximum_assistance_active: false,
+  active_curve: {
+    definition: {
+      schema_version: 1 as const,
+      points: [0, 100, 200, 300, 600, 1000, 1600, 2500].map(
+        (speed_deci_kph, index) => ({
+          speed_deci_kph,
+          assistance_per_mille: Math.max(0, 1000 - index * 140),
+        })
+      ) as SteeringCurveDefinition["points"],
+    },
+    fingerprint: "curve",
+    activation_revision: 1,
+    status: "active" as const,
+    saved_profile_id: null,
+    saved_profile_revision: null,
+  },
+  servotronic: null,
+  curve_activation_available: true,
+}
+
+export const snapshot = (
+  bootId: string,
+  revision: number
+): ServerEventPayload<"controller.snapshot"> => ({
+  protocol_version: 1,
+  boot_id: bootId,
+  revision,
+  emitted_at: "2026-07-15T00:00:00Z",
+  data: {
+    topic_revisions: {
+      vehicle: revision,
+      engine: revision,
+      steering: revision,
+      buttons: revision,
+      lighting: revision,
+      devices: revision,
+      health: revision,
+    },
+    simulation_session_id: revision,
+    vehicle: { speed_kph: revision, speed_valid: true },
+    engine: {
+      rpm: { value: 1000, status: "valid" },
+      oil_temperature_c: { value: 90, status: "valid" },
+      coolant_temperature_c: { value: 80, status: "valid" },
+    },
+    steering,
+    buttons: {
+      active_profile_id: "00000000-0000-4000-8000-000000000002",
+      active_profile_revision: revision || null,
+      program: staticButtonPadProgram(
+        Array.from(
+          { length: 16 },
+          () => [revision, revision, revision] as const
+        ),
+        revision
+      ),
+    },
+    lighting: {
+      high_beam_enabled: false,
+      high_beam_strobe_active: false,
+      high_beam_strobe_cycles_remaining: 0,
+      observed_high_beam_enabled: false,
+    },
+    devices: {
+      registry: {
+        button_pad: {
+          role: "button_pad",
+          label: "Button pad",
+          device_id: 1,
+          source_mode: "emulated",
+          status: "not_found",
+          protocol_version: null,
+          device_session_id: null,
+          last_status_code: null,
+          last_transition_monotonic_s: null,
+        },
+        servotronic_controller: {
+          role: "servotronic_controller",
+          label: "Servotronic controller",
+          device_id: 1,
+          source_mode: "emulated",
+          status: "not_found",
+          protocol_version: null,
+          device_session_id: null,
+          last_status_code: null,
+          last_transition_monotonic_s: null,
+        },
+      },
+      networks: [],
+    },
+    health: {
+      ready: true,
+      fatal: false,
+      networks: [],
+      inbox: {
+        depth: 0,
+        capacity: 1024,
+        current_latency_s: 0,
+        latency_warning: false,
+        overflow_latched: false,
+      },
+      devices: [
+        { role: "button_pad", fault: null },
+        { role: "servotronic_controller", fault: null },
+      ],
+      steering: {
+        fault: null,
+      },
+      persistence: { available: true, fault: null },
+      publisher: {
+        running: true,
+        failures: 0,
+        trace_rows_dropped: 0,
+        resource_changes_dropped: 0,
+        transport_queue_saturations: 0,
+        fault: null,
+      },
+    },
+  },
+})

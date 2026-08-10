@@ -3,14 +3,15 @@ import { defineConfig } from "@hey-api/openapi-ts"
 export default defineConfig({
   input: "../protocol/openapi.json",
   output: {
-    path: "src/api/http",
+    path: "packages/coordinator-client/src/api/http",
     postProcess: ["prettier"],
   },
   plugins: [
     "@hey-api/typescript",
     {
       name: "@hey-api/client-fetch",
-      runtimeConfigPath: "./src/api/http-client-config.ts",
+      runtimeConfigPath:
+        "./packages/coordinator-client/src/api/http-client-config.ts",
       throwOnError: true,
     },
     "zod",

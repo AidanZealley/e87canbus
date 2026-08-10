@@ -15,7 +15,7 @@ Status: implementation in progress.
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
 | 1 | [Role-neutral host project](01-host-project-layout.md) | Approved spec | Accepted | `5c1afaf1a73457ebc04f01060ffceaa9ac0befe7` |
-| 2 | [Two-app frontend workspace](02-frontend-workspace-split.md) | Workstream 1 | Not started | — |
+| 2 | [Two-app frontend workspace](02-frontend-workspace-split.md) | Workstream 1 | Closure review | — |
 | 3 | [Console CAN activity vertical slice](03-console-can-live-slice.md) | Workstreams 1–2 | Not started | — |
 | 4 | [Coordinator and console deployment](04-host-deployment.md) | Workstreams 1–3 | Not started | — |
 | 5 | [Documentation and architectural record](05-documentation.md) | Workstreams 1–4 | Not started | — |
