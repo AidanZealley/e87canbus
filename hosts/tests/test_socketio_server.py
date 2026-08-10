@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from e87canbus.api.internal.socketio_server import BoundedEngineIoServer
+from e87canbus.adapters.socketio_server import BoundedEngineIoServer
 from engineio import packet  # type: ignore[import-untyped]
 from engineio.async_socket import AsyncSocket  # type: ignore[import-untyped]
 

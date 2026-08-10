@@ -16,10 +16,16 @@ Two independently built React applications: the coordinator workbench and the in
 
 ## Development
 
-Start the simulator API from the repository root, then the frontend:
+Start the simulator API and local console service from the repository root, then the frontend:
 
 ```bash
+# Terminal 1
 uv run e87canbus run --profile simulator --reload
+
+# Terminal 2
+uv run e87canbus-console --port 8001
+
+# Terminal 3
 cd frontend
 pnpm install
 pnpm dev
@@ -34,7 +40,9 @@ The coordinator app defaults to `http://localhost:5173`; the console app default
 same-origin and proxies it to `http://127.0.0.1:8000`, rewriting only that local proxy hop to the
 backend's existing allowed coordinator development origin. Override the console's independent
 coordinator origin with `VITE_COORDINATOR_ORIGIN`; production builds otherwise retain their
-serving origin.
+serving origin. Its distinct `/console/socket.io` path proxies only to the local console service at
+`http://127.0.0.1:8001`; production uses that same path on the loopback console host. Without a
+local `kcan` interface, the development service remains live and reports the expected CAN fault.
 Socket.IO owns reconnection and the UI remains unsynchronized until the backend's complete
 protocol-v1 snapshot arrives. Unknown protocol versions fail visibly. Strict Mode and route changes
 reuse the same client and listener set. If the trace view remains logically open across a transport
