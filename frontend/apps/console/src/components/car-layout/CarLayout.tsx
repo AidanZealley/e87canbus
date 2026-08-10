@@ -7,6 +7,7 @@ import {
 import { Link, Outlet } from "@tanstack/react-router"
 
 import { buttonVariants } from "@/components/ui/button"
+import { CanActivityStatus } from "@/components/can-activity-status"
 import { cn } from "@/lib/utils"
 // import { CarStatusBanners } from "./CarStatusBanners"
 
@@ -47,6 +48,7 @@ export const CarLayout = () => (
       <main className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border bg-muted/20">
         <Outlet />
       </main>
+      <CanActivityStatus />
     </div>
   </div>
 )

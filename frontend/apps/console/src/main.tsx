@@ -13,6 +13,7 @@ import {
 import { Toaster } from "@/components/ui/sonner"
 import { startLiveTransport } from "@e87canbus/coordinator-client/live/transport"
 import { router } from "@/router"
+import { startConsoleLiveTransport } from "@/local-live/transport"
 
 if (import.meta.env.DEV) {
   window.setInterval(() => performance.clearMeasures(), 60_000)
@@ -46,6 +47,7 @@ queryClient.setQueryDefaults(
 )
 
 startLiveTransport(queryClient)
+startConsoleLiveTransport()
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

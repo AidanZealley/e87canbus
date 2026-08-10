@@ -6,24 +6,21 @@ import asyncio
 import os
 import time
 from collections.abc import Callable, Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import socketio  # type: ignore[import-untyped]
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHttpException
-from starlette.responses import Response
-from starlette.types import Scope
 
+from e87canbus.adapters.socketio_server import BoundedSocketIoServer
 from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
+from e87canbus.adapters.web import SpaStaticFiles
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
-from e87canbus.api.internal.socketio_server import BoundedSocketIoServer
 from e87canbus.api.routes import button_profiles, health, settings, steering
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
@@ -44,28 +41,6 @@ DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 )
-
-
-class SpaStaticFiles(StaticFiles):
-    """Serve the built SPA entry for client routes while preserving asset 404s."""
-
-    async def get_response(self, path: str, scope: Scope) -> Response:
-        server_prefixes = ("api", "health", "socket.io", "ws")
-        first_segment = path.split("/", maxsplit=1)[0]
-        fallback = (
-            first_segment not in server_prefixes
-            and first_segment != "assets"
-            and PurePosixPath(path).suffix == ""
-        )
-        try:
-            response = await super().get_response(path, scope)
-        except StarletteHttpException as exc:
-            if exc.status_code != 404 or not fallback:
-                raise
-            return await super().get_response("index.html", scope)
-        if response.status_code == 404 and fallback:
-            return await super().get_response("index.html", scope)
-        return response
 
 
 def socket_origin_policy(

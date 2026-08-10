@@ -1,0 +1,137 @@
+{
+  "$id": "https://e87canbus.local/protocol/console-live-v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "ConsoleCanState": {
+      "additionalProperties": false,
+      "properties": {
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "fault": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Fault"
+        },
+        "frames_received": {
+          "minimum": 0,
+          "title": "Frames Received",
+          "type": "integer"
+        },
+        "interface": {
+          "const": "kcan",
+          "default": "kcan",
+          "title": "Interface",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connected",
+        "fault",
+        "frames_received",
+        "interface"
+      ],
+      "title": "ConsoleCanState",
+      "type": "object"
+    },
+    "ConsoleSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "minLength": 1,
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/ConsoleSnapshotData"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "boot_id",
+        "data",
+        "emitted_at",
+        "protocol_version",
+        "revision"
+      ],
+      "title": "ConsoleSnapshot",
+      "type": "object"
+    },
+    "ConsoleSnapshotData": {
+      "additionalProperties": false,
+      "properties": {
+        "can": {
+          "$ref": "#/definitions/ConsoleCanState"
+        }
+      },
+      "required": [
+        "can"
+      ],
+      "title": "ConsoleSnapshotData",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "protocol_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "server_to_client_event": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "additionalItems": false,
+          "items": [
+            {
+              "$ref": "#/definitions/ConsoleSnapshot"
+            }
+          ],
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Args",
+          "type": "array"
+        },
+        "event": {
+          "const": "console.snapshot",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "event"
+      ],
+      "title": "ConsoleSnapshotEvent",
+      "type": "object"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "server_to_client_event"
+  ],
+  "title": "ConsoleLiveSocketContract",
+  "type": "object"
+}
