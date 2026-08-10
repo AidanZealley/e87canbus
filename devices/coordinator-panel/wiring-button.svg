@@ -44,7 +44,7 @@
   <path d="M775 360 H838 M932 360 H995" fill="none" stroke="#56637a" stroke-width="4"/>
   <path d="M838 342 L928 305" fill="none" stroke="#56637a" stroke-width="5" stroke-linecap="round"/>
   <text x="746" y="252" class="small">internally common pair</text>
-  <text x="900" y="489" class="small">internally common pair</text>
+  <text x="860" y="489" class="small">internally common pair</text>
   <text x="800" y="570" class="label">Pressing bridges the two sides</text>
 
   <!-- Opposite corners guarantee one connection from each internal pair. -->

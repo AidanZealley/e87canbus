@@ -78,9 +78,7 @@
   <path d="M640 210 L690 230 L640 250 Z" fill="#fff" stroke="#d6293e" stroke-width="3"/>
   <line x1="697" y1="207" x2="697" y2="253" stroke="#d6293e" stroke-width="7"/>
   <path d="M697 230 H770 V280 H845" class="wire" stroke="#d6293e" marker-end="url(#arrow-red)"/>
-  <text x="623" y="190" class="small">1N5817 / 1N5819</text>
-  <text x="617" y="273" class="small">anode</text>
-  <text x="684" y="273" class="small">striped cathode</text>
+  <text x="560" y="190" class="small">1N5817 / 1N5819 · stripe toward QT Py →</text>
 
   <path d="M340 264 H740 V350 H845" class="wire" stroke="#20242c"/>
   <text x="465" y="342" class="label">common ground</text>
