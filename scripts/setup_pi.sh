@@ -11,6 +11,8 @@ DEPLOYMENT_PROFILE="car"
 HOTSPOT_PASSWORD_FILE=""
 HOTSPOT_CONNECTION="e87canbus-hotspot"
 HOTSPOT_SSID="e87canbus"
+HOTSPOT_ADDRESS="10.42.0.1/24"
+HOTSPOT_HOSTNAME="e87"
 PANEL_UART_DEVICE="/dev/ttyAMA3"
 CAN_INTERFACES=(kcan ptcan fcan)
 CAN_SERVICES=(
@@ -132,7 +134,7 @@ PACKAGES="can-utils build-essential python3 python3-pip python3-venv nodejs npm 
 if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     # NetworkManager supplies the fixed access point and iw provides the target's station view.
     # pyserial is installed in the application environment by uv.
-    PACKAGES="${PACKAGES} network-manager iw"
+    PACKAGES="${PACKAGES} avahi-daemon network-manager iw"
 fi
 
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
@@ -377,6 +379,14 @@ done
 sudo install -o root -g root -m 0644 \
     "${REPO_ROOT}/deploy/systemd/e87canbus-controller.service" \
     /etc/systemd/system/e87canbus-controller.service
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
+    sudo install -o root -g root -m 0644 \
+        "${REPO_ROOT}/deploy/systemd/e87canbus-web-proxy.service" \
+        /etc/systemd/system/e87canbus-web-proxy.service
+    sudo install -o root -g root -m 0644 \
+        "${REPO_ROOT}/deploy/systemd/e87canbus-web-proxy.socket" \
+        /etc/systemd/system/e87canbus-web-proxy.socket
+fi
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/controller.env.example" \
     /etc/e87canbus/controller.env
@@ -440,8 +450,9 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
             >/dev/null
     fi
 
-    # The shared method provides addressing and DHCP. Policy routing blackholes forwarded client
-    # traffic, so the access point cannot use an Ethernet default route as an internet uplink.
+    # The shared method provides DHCP around the fixed coordinator address. Policy routing
+    # blackholes forwarded client traffic, so the access point cannot use an Ethernet default
+    # route as an internet uplink.
     sudo nmcli connection modify id "${HOTSPOT_CONNECTION}" \
         connection.interface-name wlan0 \
         connection.autoconnect no \
@@ -450,10 +461,24 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
         802-11-wireless.ssid "${HOTSPOT_SSID}" \
         802-11-wireless-security.key-mgmt wpa-psk \
         ipv4.method shared \
+        ipv4.addresses "${HOTSPOT_ADDRESS}" \
         ipv4.never-default yes \
         ipv4.routes "0.0.0.0/0 type=blackhole table=500" \
         ipv4.routing-rules "priority 100 iif wlan0 table 500" \
         ipv6.method disabled
+
+    # Publish a memorable mDNS name without changing the Pi's system hostname. The fixed address
+    # remains available when a client does not support mDNS.
+    if sudo grep -Eq '^[#[:space:]]*host-name=' /etc/avahi/avahi-daemon.conf; then
+        sudo sed -E -i \
+            "0,/^[#[:space:]]*host-name=.*/s//host-name=${HOTSPOT_HOSTNAME}/" \
+            /etc/avahi/avahi-daemon.conf
+    else
+        sudo sed -i \
+            "/^\[server\]$/a host-name=${HOTSPOT_HOSTNAME}" \
+            /etc/avahi/avahi-daemon.conf
+    fi
+    sudo systemctl restart avahi-daemon.service
 
     if [[ "${REPLACE_HOTSPOT_PASSWORD}" -eq 1 ]]; then
         # Feed the secret to nmcli's editor over stdin and disable its command-history file. The
@@ -553,6 +578,7 @@ if [[ "${DEPLOYMENT_PROFILE}" == "simulator" ]]; then
     sudo systemctl disable --now "${CAN_SERVICES[@]}" 2>/dev/null || true
 else
     sudo systemctl enable "${CAN_SERVICES[@]}"
+    sudo systemctl enable --now e87canbus-web-proxy.socket
     # Do not allow the application to start at boot until the post-reboot run
     # has proved that Linux assigned each CAN name to the expected SPI device.
     sudo systemctl disable e87canbus-controller.service 2>/dev/null || true
@@ -608,6 +634,7 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     echo "  candump fcan"
     echo "  test -e ${PANEL_UART_DEVICE} && id e87canbus"
     echo "  sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state"
+    echo "  hotspot web UI: http://${HOTSPOT_HOSTNAME}.local/ (fallback: http://${HOTSPOT_ADDRESS%/*}/)"
 fi
 echo
 if [[ "${KIOSK_MODE}" == "desktop" ]]; then

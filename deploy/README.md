@@ -14,8 +14,9 @@ The finished Pi runs one controller service and three SocketCAN interfaces:
 | `fcan` | 2-CH CAN HAT+ CAN1 | `spi1.2` | 500 kbit/s |
 
 The service binds to loopback and serves the frontend, HTTP API, and Socket.IO transport from the
-same origin. It is unauthenticated and must not be changed to a non-loopback bind without a separate
-security decision.
+same origin. On physical profiles, a socket-activated proxy exposes it only at the coordinator
+hotspot address: `http://e87.local/`, with `http://10.42.0.1/` as the non-mDNS fallback. It remains
+unavailable through the Pi's other network addresses.
 
 ## 1. Prepare the hardware
 
