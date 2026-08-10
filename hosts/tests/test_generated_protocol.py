@@ -91,7 +91,7 @@ def test_markdown_generation_preserves_surrounding_prose() -> None:
 @pytest.mark.parametrize(
     "relative_path",
     [
-        Path("coordinator/src/e87canbus/protocol/generated.py"),
+        Path("hosts/src/e87canbus/protocol/generated.py"),
         Path("devices/button-pad/include/can_ids.h"),
         Path("protocol/custom_ids.md"),
     ],

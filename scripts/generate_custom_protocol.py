@@ -382,7 +382,7 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
         markdown_path.read_text(), render_markdown_section(definition)
     )
     return {
-        root / "coordinator" / "src" / "e87canbus" / "protocol" / "generated.py": render_python(
+        root / "hosts" / "src" / "e87canbus" / "protocol" / "generated.py": render_python(
             definition
         ),
         root / "devices" / "button-pad" / "include" / "can_ids.h": render_header(definition),

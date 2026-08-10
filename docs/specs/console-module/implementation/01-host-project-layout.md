@@ -1,6 +1,6 @@
 # Workstream 1: Establish the role-neutral host project
 
-Status: not started.
+Status: closure review.
 
 ## Task packet
 
@@ -77,30 +77,59 @@ workstream 5.
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5`
+- Outcome: Moved the unchanged `e87canbus` package and host tests from `coordinator/` to `hosts/`
+  and updated every owned executable path edge; the obsolete directory is absent.
+- Files changed: Renamed the complete tracked `coordinator/**` tree to `hosts/**`; updated
+  `pyproject.toml`, `.github/workflows/ci.yml`, `scripts/generate_custom_protocol.py`,
+  `scripts/watch_frontend_contracts.py`, the reload path and two path-sensitive tests.
+- Decisions: Kept the distribution, imports, compositions and generated artifacts unchanged. Left
+  documentation and two frontend source comments with old path wording for their assigned streams.
+- Verification: Existing environment equivalents passed: 823 Python tests; strict mypy over 123
+  files; Ruff; both import-linter contracts; custom protocol check; OpenAPI, HTTP and live contract
+  checks; frontend typecheck; 158 frontend tests; production build. `pnpm install
+  --frozen-lockfile` also passed. Diff inspection recognizes the source/test tree as renames and
+  executable configuration outside documentation/frontend contains no old source/test path.
+- Known limitations or external checks: Literal `uv sync --locked`, `uv run ...` and therefore the
+  wrapper `pnpm api:check` could not run because `uv` is unavailable in this shell. Their Python
+  and contract checks passed directly with the existing virtual environment and `hosts/src` on
+  `PYTHONPATH`; rerun the literal commands in a `uv`-enabled environment.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD`
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Codex (`/root/ws1_reviewer`)
+- Verdict: Changes required in the durable workflow record only; the Workstream 1 implementation
+  itself satisfies its frozen packet. Independent checks passed: 823 tests, strict mypy over 123
+  source files, Ruff, both import-linter contracts, custom-protocol generation, OpenAPI/live
+  contract generation, import discovery from `hosts/src`, and `git diff --check`. Rename inspection
+  found only the three necessary path-sensitive source/test edits, and no stale executable
+  `coordinator/src` or `coordinator/tests` reference remains outside documentation/frontend text
+  assigned to later workstreams.
+- Required findings: The recorded base
+  `ec0ae8d428af230f347070bee37e5f532a092712` in this handoff and `plan.md` does not resolve to a
+  commit. The branch's unchanged HEAD is
+  `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5` (`Approve coordinator and console split
+  implementation plan`). Correct both durable base records before acceptance so later branch and
+  whole-feature diffs have an auditable starting point.
+- Optional observations: None.
+- Questions for orchestrator: None.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted and corrected the invalid full base hash in the plan's starting
+  and specification-approved records and in this implementation handoff.
+- Simplification/deletion pass: Kept remediation record-only; no implementation, compatibility
+  path or additional workflow machinery was added.
+- Final verification: `git rev-parse` resolves every corrected record to
+  `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5`; focused diff inspection confirms only the three base
+  fields and this resolution record changed during remediation. `git diff --check` passes.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Pass. The accepted base-record finding is resolved: all three durable records now use
+  the actual approved branch HEAD, `ec0ae8db772f7f1ef84edd0e3059f02d06dcb6e5`, and the hash
+  resolves successfully. Focused diff inspection and `git diff --check` found no release-blocking
+  defect introduced by the record-only remediation.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

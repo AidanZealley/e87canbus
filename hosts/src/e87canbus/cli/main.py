@@ -121,7 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             port=args.port,
             log_level=args.log_level,
             reload=True,
-            reload_dirs=["coordinator/src"],
+            reload_dirs=["hosts/src"],
         )
         return 0
 

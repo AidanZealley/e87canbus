@@ -10,7 +10,7 @@ from watchfiles import PythonFilter, watch
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
-WATCH_PATHS = (ROOT / "coordinator" / "src" / "e87canbus", ROOT / "scripts")
+WATCH_PATHS = (ROOT / "hosts" / "src" / "e87canbus", ROOT / "scripts")
 
 
 def generate() -> None:
