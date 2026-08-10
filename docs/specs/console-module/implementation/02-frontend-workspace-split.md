@@ -1,6 +1,6 @@
 # Workstream 2: Split the frontend into two ordinary applications
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -179,4 +179,4 @@ chunks to confirm the prohibited cross-app feature sets are absent.
   only one app-local Vite proxy helper and its development environment value; it introduces no
   backend exception, compatibility route or shared abstraction.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `309fa33987f81fd5c029c6cb087911befb84705a`
