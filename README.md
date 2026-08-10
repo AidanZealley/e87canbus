@@ -7,21 +7,24 @@ exercised through the visual simulator's bounded, single-owner command path. Neo
 toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
 manual level, and button `3` toggles a reversible maximum-assistance override. Button `4` starts a
 simulator-only, bounded high-beam flash-to-pass strobe. BMW CAN IDs, DSC replay, live high-beam
-actuation, Servotronic output, physical Trellis integration, and the in-car touchscreen UI remain
+actuation, Servotronic output, physical Trellis integration, and decoded in-car telemetry remain
 out of scope.
 
-The coordinator is configured for three isolated physical networks: K-CAN (`kcan`, 100 kbit/s),
+The headless coordinator is configured for three isolated physical networks: K-CAN (`kcan`, 100 kbit/s),
 PT-CAN (`ptcan`, 500 kbit/s), and F-CAN (`fcan`, 500 kbit/s). The Pi and simulated vehicle have an
 endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated Servotronic
 controller is a direct actuator capability because no physical wire protocol is verified. The
-simulator does not forward traffic between networks.
+simulator does not forward traffic between networks. A separate console Pi owns the driver screen,
+its locally served frontend, and receive-only K-CAN observation. It reaches the coordinator over a
+fixed, non-routing Ethernet link; either host can fail without becoming the other's control owner.
 
 ## Layout
 
-- `coordinator/` - central Raspberry Pi application and its tests.
+- `hosts/` - role-neutral Linux host package, coordinator/console compositions, and tests.
 - `devices/` - one independently buildable firmware project per physical device.
 - `embedded-libs/` - repository-owned libraries shared by device firmware projects.
-- `frontend/` - React UI shared by the development simulator and future in-car display.
+- `frontend/` - pnpm workspace containing separate coordinator and console Vite applications plus
+  their UI-free coordinator client package.
 - `protocol/` - cross-device CAN IDs, payload documentation, and BMW DBC notes.
 - `docs/` - setup, wiring, decoded-message, architecture-decision, and remaining-work notes.
 - `scripts/` - device upload and CAN helpers.
@@ -29,7 +32,7 @@ simulator does not forward traffic between networks.
 
 The Python package uses the conventional `src` layout, with one architectural layer per
 top-level folder (dependencies point inward: `api`/`cli`/runners → `service` → `kernel` →
-`domain`). Start in `coordinator/src/e87canbus/domain/` for system behaviour, `kernel/` for the
+`domain`). Start in `hosts/src/e87canbus/domain/` for system behaviour, `kernel/` for the
 state machine, `service/` for the owner lifecycle, `protocol/` for CAN encoding, `adapters/` for
 real hardware, `runners/` for the live/simulated compositions (including `runners/simulation/`
 virtual hardware), and `api/` for the frontend interface.
@@ -53,11 +56,11 @@ implied by local send success.
 
 ## Raspberry Pi deployment
 
-For a blank microSD card and unconfigured Pi, follow the
-[fresh Raspberry Pi deployment runbook](deploy/README.md). It covers HAT assembly, OS imaging, SSH,
-repository ownership and cloning, both setup-script runs, expected CAN mappings and bitrates,
-service/health confirmation, and initial bench-bus checks. The electrical and device-tree rationale
-for combining the two Waveshare boards is recorded in the
+For blank coordinator and console Pi 4s, follow the
+[fresh Raspberry Pi deployment runbook](deploy/README.md). It covers both role-specific installers,
+CAN mappings and services, console kiosk ownership, the `10.43.0.0/30` Ethernet link, health checks,
+and the hardware validation that remains pending. The electrical and device-tree rationale for the
+coordinator's combined Waveshare boards is recorded in the
 [three-channel CAN stack design](docs/waveshare-three-channel-stack.md).
 
 ## Local Setup
@@ -75,7 +78,13 @@ uv run e87canbus run --profile car --dry-run
 Run the visual simulator workbench:
 
 ```bash
+# Terminal 1
 uv run e87canbus run --profile simulator --reload
+
+# Terminal 2
+uv run e87canbus-console --port 8001
+
+# Terminal 3
 cd frontend
 pnpm install
 pnpm dev
@@ -83,8 +92,8 @@ pnpm dev
 
 Default URLs:
 
-- Backend: `http://127.0.0.1:8000`
-- Frontend: `http://127.0.0.1:5173`
+- Coordinator backend/workbench: `http://127.0.0.1:8000` / `http://localhost:5173`
+- Console backend/frontend: `http://127.0.0.1:8001` / `http://localhost:5174`
 
 Process liveness is exposed at `/health/live`; `/health/ready` becomes successful only after the
 database, controller and publisher have started and returns `503` on persistence or fatal controller
@@ -116,18 +125,24 @@ the [architecture decision index](docs/decisions/README.md).
 ## Verification
 
 ```bash
-uv run pytest
-uv run ruff check .
-uv run mypy coordinator/src/e87canbus
+uv sync --locked
 uv run python scripts/generate_custom_protocol.py --check
-bash -n scripts/*.sh
+uv run pytest -q
+uv run mypy
+uv run ruff check hosts scripts/watch_frontend_contracts.py
+bash -n scripts/*.sh deploy/bin/* deploy/kiosk/*.sh
+uv run lint-imports
 ```
 
-Build the frontend:
+Run the frontend checks:
 
 ```bash
 cd frontend
+pnpm install --frozen-lockfile
 pnpm api:check
+pnpm typecheck
+pnpm lint
+pnpm test
 pnpm build
 ```
 

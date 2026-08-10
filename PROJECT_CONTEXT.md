@@ -145,42 +145,50 @@ promoting either value.
 
 | Device | Role | Bus connection |
 |---|---|---|
-| Raspberry Pi Zero 2W + CAN interfaces | Central hub, runs all logic | K-CAN, PT-CAN, and F-CAN |
+| Coordinator Raspberry Pi 4 | Headless controller, authoritative APIs, settings and diagnostics | K-CAN, PT-CAN, and F-CAN |
+| Console Raspberry Pi 4 | Driver screen, local UI and receive-only activity observation | K-CAN only |
 | Arduino (small CAN board) | Button matrix node | K-CAN |
 | Adafruit NeoTrellis | RGB button matrix input/output | Via Arduino (I2C) |
 | Future steering actuation boundary | Unknown pending hardware evidence | Not selected |
 
 ### CAN HAT Notes
 
-- The supported physical Pi topology is an original Waveshare RS485 CAN HAT v2.1 plus a
-  Waveshare 2-CH CAN HAT+, providing three MCP2515 controllers.
+- The coordinator uses an original Waveshare RS485 CAN HAT v2.1 plus a Waveshare 2-CH CAN HAT+,
+  providing three MCP2515 controllers.
 - The original 12 MHz controller uses SPI0 CE0 and BCM25 for `kcan` / K-CAN at 100 kbit/s.
 - The HAT+ 16 MHz controllers use SPI1 CE1/BCM22 and SPI1 CE2/BCM13 for `ptcan` / PT-CAN and
   `fcan` / F-CAN at 500 kbit/s.
 - Both `bench` and `car` require this complete physical topology; `simulator` uses no physical CAN.
-- `python-can` treats them as separate named interfaces (`kcan`, `ptcan`, and `fcan`)
+- The console uses only the HAT+ first controller as `kcan` in kernel listen-only mode. Its second
+  controller is disconnected and has no overlay, stable name or service.
+- `python-can` treats the coordinator controllers as separate named interfaces (`kcan`, `ptcan`,
+  and `fcan`).
 
 ### Power
 
-- Pi needs stable 5V — use an automotive-grade DC-DC converter (Pololu or DROK) with input capacitance
-- Do not power Pi directly from ignition-switched line until tested — brownout during boot can corrupt SD card
+- Both Pis need stable power; the coordinator supply and the console HAT+ 7–36 V input require
+  vehicle transient validation before installation.
+- Confirm the HAT+ can supply the console Pi 4 and selected screen at peak demand. Avoid simultaneous
+  USB and HAT power until the power path is verified.
 - Steering actuation power and protection are not designed; they depend on the verified actuator
   boundary and electrical safe state
 
 ### Physical CAN Topology
 
+```text
+Console Pi 4                              Coordinator Pi 4
+------------                              ----------------
+Console frontend + kiosk                  Coordinator frontend + controller
+Receive-only kcan                         kcan + ptcan + fcan
+       |                                          |
+       +---------------- K-CAN -------------------+
+       +---- 10.43.0.0/30 direct Ethernet --------+
 ```
-K-CAN  (100k) ──── Pi ──── Arduino + NeoTrellis
-                   │
-                   └─────── Vehicle K-CAN nodes
 
-PT-CAN (500k) ──── Pi ──── Vehicle PT-CAN nodes
-
-F-CAN  (500k) ──── Pi ──── Vehicle F-CAN nodes
-```
-
-These are three independent physical networks. The coordinator does not automatically forward
-frames between them; future domain-level bridging must be explicit application behavior.
+The coordinator's three CAN connections are independent physical networks. It does not
+automatically forward frames between them; future domain-level bridging must be explicit
+application behavior. The console receives K-CAN without transmission authority and talks to the
+coordinator through narrowly exposed HTTP and Socket.IO, not a raw-CAN network API.
 The physical steering actuation topology is deliberately omitted because it has not been selected
 or verified.
 
@@ -192,20 +200,25 @@ or verified.
 
 ```
 e87canbus/
-├── coordinator/                   # Central Raspberry Pi application
+├── hosts/                         # Linux host Python project
 │   ├── src/e87canbus/             # Project-specific Python import package
-│   │   ├── application/           # Authoritative state and decisions
-│   │   ├── features/              # Pure steering-assistance calculations
+│   │   ├── console/               # Small receive-only console composition
+│   │   ├── domain/                 # Pure state and decisions
+│   │   ├── kernel/                 # Single-owner state transition boundary
+│   │   ├── service/                # Coordinator lifecycle and publication
 │   │   ├── protocol/              # Generated wire values and CAN codecs
 │   │   ├── adapters/              # Real hardware and OS integrations
-│   │   ├── simulation/            # Virtual CAN and device implementations
+│   │   ├── runners/                # Live and simulated compositions
 │   │   ├── api/                   # FastAPI and Socket.IO interface
 │   │   └── cli/                   # Executable entry points
 │   └── tests/
 ├── devices/
 │   ├── button-pad/                # NeoTrellis/CAN PlatformIO project
 │   └── servotronic-controller/    # Future actuator-controller firmware
-├── frontend/                      # Simulator and in-car React UI
+├── frontend/
+│   ├── apps/coordinator/          # Coordinator workbench
+│   ├── apps/console/              # Driver console
+│   └── packages/coordinator-client/ # Shared generated contracts and client transport
 ├── protocol/                      # Protocol source TOML, generated docs, and DBC notes
 ├── docs/
 ├── scripts/
@@ -229,6 +242,12 @@ the same decode, transition, commit, effect, and policy path through simulated e
 Verified speed decoding and an isolated actuator boundary are prerequisites for the later steering
 failsafe. No speed ID, DSC replay, strobe command, or Servotronic output is executable without
 capture or hardware evidence.
+
+The console has no controller kernel or durable state. Its separate host service reads one
+receive-only `kcan`, coalesces complete `console.snapshot` activity updates to at most 1 Hz, and
+serves its local frontend. The snapshot exposes connection, frame count and fault status only; raw
+CAN identifiers and payloads never reach the browser. The console frontend separately consumes the
+coordinator's authoritative APIs over the fixed `10.43.0.0/30` Ethernet link.
 
 ### Arduino — PlatformIO
 
@@ -290,16 +309,18 @@ No BMW DBC definition is verified or active in the current milestone.
 
 1. **Verify ISTA laptop is working** — needed for E87 wiring diagrams and OEM connector part numbers
 2. **Identify iDrive connector part number** from ISTA — source matching male plug
-3. **Connect Pi HAT to K-CAN via iDrive connector** — verify bus access with `candump`
+3. **Bench the console HAT on K-CAN** — verify kernel listen-only mode, CAN0 traffic reception and
+   that the disconnected CAN1 controller remains inactive
 4. **Sniff K-CAN session:** press every MFL button (short and long), operate lights. Log everything.
 5. **Cross-reference with E90 DBC files** — confirm message IDs match. Community sources: search GitHub for `e90_can` or `bmw_dbc`
-6. **Connect second CAN interface to F-CAN** — capture candidate vehicle-speed traffic and verify
+6. **Connect the coordinator F-CAN interface** — capture candidate vehicle-speed traffic and verify
    its identity and payload from evidence rather than a placeholder ID
 7. **Sniff F-CAN session:** drive at various speeds, hold DSC button for full duration, log DSC-off event
 8. **Characterize the steering actuator boundary safely** — document command transport, range,
    polarity, feedback, failure behavior, and electrical safe state before selecting hardware
-9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages Pi ↔ Arduino in loopback
-10. **Integrate** — bring all systems together once each component is bench-tested
+9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages coordinator ↔ Arduino
+10. **Validate the two-host edge** — run both blank-Pi installers, direct Ethernet/proxies,
+    console kiosk and Pi-plus-screen peak-load tests before integration
 
 Before connecting any project hardware to the car, verify custom-ID collisions, K-CAN-compatible
 transceivers, the termination strategy, actual vehicle bitrate, all firmware automatic-transmit

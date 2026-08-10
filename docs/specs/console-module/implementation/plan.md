@@ -18,7 +18,7 @@ Status: implementation in progress.
 | 2 | [Two-app frontend workspace](02-frontend-workspace-split.md) | Workstream 1 | Accepted | `309fa33987f81fd5c029c6cb087911befb84705a` |
 | 3 | [Console CAN activity vertical slice](03-console-can-live-slice.md) | Workstreams 1–2 | Accepted | `5013093ba80fa22a03f405482248a3212c21e5d8` |
 | 4 | [Coordinator and console deployment](04-host-deployment.md) | Workstreams 1–3 | Accepted | `8008b568fea474baf31db2a4f9bac59d7aefced5` |
-| 5 | [Documentation and architectural record](05-documentation.md) | Workstreams 1–4 | Not started | — |
+| 5 | [Documentation and architectural record](05-documentation.md) | Workstreams 1–4 | Closure review | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` and `Accepted`.
 At most one workstream may be active. This deliberate sequence avoids path-move and generated-file

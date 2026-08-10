@@ -1,8 +1,9 @@
-# Coordinator
+# Linux host applications
 
-The Python application that runs on a Raspberry Pi in an E87 BMW. It reads the car's CAN
-networks, drives a custom button pad and a Servotronic steering controller, and serves the
-web UI. It owns the authoritative application state: everything else asks it or watches it.
+This Python project installs both Raspberry Pi host applications. The coordinator reads the car's
+CAN networks, drives supported devices, serves its management UI and owns authoritative application
+state. The separate console application serves the driver UI and reports bounded activity from one
+receive-only K-CAN connection; it has no control or durable-state authority.
 
 The code layout is explained in the `e87canbus.domain` package docstring, which is the
 best starting point for how the system is put together. This file covers what it does,
@@ -46,7 +47,7 @@ which API routes exist are fixed by the profile and cannot be recombined with ot
 | CAN transport | SocketCAN | SocketCAN | in-memory |
 | Button pad / Servotronic | physical | physical | emulated |
 | Vehicle | physical | emulated | emulated |
-| Networks opened | all three | K-CAN only | none |
+| Networks opened | all three | all three | none |
 | **Transmit granted** | **none** | K-CAN | K-CAN |
 | Simulation API | absent (404) | vehicle only | full |
 
@@ -59,11 +60,12 @@ CAN transmission stays denied until it is separately validated.
 uv run e87canbus run --profile simulator        # development, no hardware
 uv run e87canbus run --profile car              # on the Pi
 uv run e87canbus run --profile car --dry-run    # print the selection, open nothing
+uv run e87canbus-console                        # local console service, requires kcan
 ```
 
 Bring up the SocketCAN interfaces the profile needs, at their configured bitrates, before
 starting a SocketCAN profile. For the Pi, use the checked-in
-[systemd template](../deploy/README.md).
+[role-specific deployment runbook](../deploy/README.md).
 
 Useful flags: `--profile-database PATH` (defaults to `steering-profiles.sqlite3` in the
 working directory, or `E87CANBUS_PROFILE_DATABASE`), `--frontend-directory` to serve a

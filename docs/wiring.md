@@ -37,13 +37,14 @@ data protection, or live-USB isolation unless the bench demonstrates a problem.
 
 ## K-CAN iDrive Connector
 
-Pending connector identification and pinout confirmation.
+Pending connector identification and pinout confirmation. The console taps this bus receive-only;
+leave the HAT+ CAN0 120-ohm termination disabled because vehicle K-CAN is already terminated.
 
 ## PT-CAN and F-CAN Connectors
 
 Pending PT-CAN and DSC/F-CAN connector pinout confirmation.
 
-## Pi CAN Bring-Up
+## Coordinator CAN bring-up
 
 The hardware allocation, overlay mechanics, electrical domains, and stacking rationale are
 documented in [Waveshare three-channel CAN stack](waveshare-three-channel-stack.md).
@@ -68,6 +69,29 @@ Wire CAN-H to CAN-H, CAN-L to CAN-L, and ensure the bench bus has correct termin
 Setup verifies `kcan` → `spi0.0`, `ptcan` → `spi1.1`, and `fcan` → `spi1.2`. Actual vehicle bitrate,
 compatible transceivers, grounding, isolation, and termination must be verified before physical
 connection.
+
+## Console CAN and Ethernet
+
+The console Pi 4 uses only Waveshare 2-CH CAN HAT+ CAN0 on SPI1 CE1, with its 16 MHz controller and
+interrupt BCM `22`. The console udev rule names that controller `kcan`; its systemd service applies
+100 kbit/s and kernel `listen-only on`. Application code also receives only a CAN receiver
+capability.
+
+Leave HAT+ CAN1 physically disconnected. The console configuration intentionally has no `spi1.2`
+overlay, udev name or service. Do not fit termination on the unused channel or treat it as a spare
+transmit path.
+
+Connect the two Pi `eth0` ports directly. The coordinator is `10.43.0.1/30` and the console is
+`10.43.0.2/30`; neither side has a gateway or DNS on this link. This cable carries coordinator HTTP
+and Socket.IO traffic, not CAN frames, and must not be configured for forwarding or internet
+sharing.
+
+The checked-in scripts and tests verify these intended settings only. Before vehicle installation,
+physically confirm K-CAN polarity, 100 kbit/s operation, listen-only behavior, disabled termination,
+the inactive second controller, grounding and transceiver compatibility. Separately validate the
+direct Ethernet link and isolation, console Pi plus screen peak current, and the HAT power input
+against reverse battery, cranking and load-dump transients. Avoid simultaneous USB and HAT power
+until the power path is verified.
 
 ## Servotronic Solenoid Driver
 

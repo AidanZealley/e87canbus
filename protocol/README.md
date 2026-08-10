@@ -62,14 +62,15 @@ BMW message definitions remain unverified until backed by a named capture in
 
 ## Frontend contracts
 
-Python is the source of truth for both frontend transport contracts. FastAPI routes and Pydantic
-models generate the canonical simulator-superset `openapi.json`; the backend event registry owns
-every Socket.IO event name, direction and exact argument type and generates
-`live-events-v1.schema.json`. Runtime publication and handlers consume that same event registry.
+Python is the source of truth for the frontend transport contracts. FastAPI routes and Pydantic
+models generate the canonical simulator-superset `openapi.json`; the coordinator event registry
+generates `live-events-v1.schema.json`, and the console's bounded local snapshot model generates
+`console-live-v1.schema.json`. Runtime publication and handlers consume those same definitions.
 
-The schemas in this directory and the TypeScript outputs in `frontend/src/api/http/` and
-`frontend/src/api/live-contract.gen.ts` are committed generated artifacts. Never edit them by hand.
-From `frontend/`, use `pnpm api:generate` to regenerate all four artifacts in dependency order and
+The schemas in this directory and the TypeScript outputs under
+`frontend/packages/coordinator-client/src/api/` and
+`frontend/apps/console/src/local-live/contract.gen.ts` are committed generated artifacts. Never
+edit them by hand. From `frontend/`, use `pnpm api:generate` to regenerate the artifacts in dependency order and
 `pnpm api:check` to check them without changing the worktree. The narrower `http:*` and `live:*`
 commands are available when working on only one contract. No backend process or hardware is needed.
 
