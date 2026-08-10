@@ -16,8 +16,8 @@ Use the standalone wiring diagrams for assembly:
 |---|---|
 | Button | A0 to ground; firmware enables the internal pull-up |
 | NeoPixel data | A3 through the NeoPixel Driver BFF level shifter |
-| UART from Pi | Pi BCM14/TXD to the QT Py pin labelled RX |
-| UART to Pi | Pi BCM15/RXD from the QT Py pin labelled TX |
+| UART from Pi | Pi BCM4/TXD3, physical pin 7, to the QT Py pin labelled RX |
+| UART to Pi | Pi BCM5/RXD3, physical pin 29, from the QT Py pin labelled TX |
 | Power | Pi regulated 5 V and ground to QT Py/BFF |
 
 The UART is 3.3 V at 115,200 baud. Never connect vehicle 12 V or 5 V to a UART signal. Feed the

@@ -10,8 +10,8 @@ Connect the detachable four-wire Pi 4 harness as follows:
 
 | Function | Pi | QT Py / BFF |
 |---|---|---|
-| Pi transmit | BCM14 / TXD, physical pin 8 | RX |
-| Pi receive | BCM15 / RXD, physical pin 10 | TX |
+| Pi transmit | BCM4 / TXD3, physical pin 7 | RX |
+| Pi receive | BCM5 / RXD3, physical pin 29 | TX |
 | Power | Regulated 5 V, physical pin 2 or 4 | BFF/QT Py 5 V |
 | Ground | Ground, for example physical pin 6 | Ground |
 
@@ -29,7 +29,7 @@ Use a 1N5817 or 1N5819 with its anode toward the Pi and striped cathode toward t
 diode, UART, and ground must all be part of the detachable harness. Disconnect the complete harness
 before attaching QT Py USB-C for upload or service; never power it from the Pi and USB together.
 
-Before installation, bench-check harness polarity and continuity, `/dev/serial0` TX/RX, the five
+Before installation, bench-check harness polarity and continuity, `/dev/ttyAMA3` TX/RX, the five
 pixel order and colours, brightness, button debounce, heartbeat fault/recovery, graceful off,
 hotspot association/cancellation/disconnect, and the Ethernet forwarding block. These checks remain
 pending until the assembled hardware is available. Do not add further power switching, capacitors,

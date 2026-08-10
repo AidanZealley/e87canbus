@@ -194,6 +194,8 @@ def test_pi_setup_owns_and_validates_the_complete_three_channel_can_stack() -> N
     setup = (root / "scripts/setup_pi.sh").read_text()
 
     assert "dtoverlay=spi1-3cs" in setup
+    assert "dtoverlay=uart3" in setup
+    assert 'PANEL_UART_DEVICE="/dev/ttyAMA3"' in setup
     assert (
         "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000"
         in setup
@@ -277,5 +279,4 @@ def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     assert "StandardOutput=journal" in unit
     assert "StandardError=journal" in unit
     assert "ExecStartPre=+/usr/bin/chvt 7" in unit
-
 

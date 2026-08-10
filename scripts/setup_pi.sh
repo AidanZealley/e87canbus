@@ -11,6 +11,7 @@ DEPLOYMENT_PROFILE="car"
 HOTSPOT_PASSWORD_FILE=""
 HOTSPOT_CONNECTION="e87canbus-hotspot"
 HOTSPOT_SSID="e87canbus"
+PANEL_UART_DEVICE="/dev/ttyAMA3"
 CAN_INTERFACES=(kcan ptcan fcan)
 CAN_SERVICES=(
     e87canbus-kcan.service
@@ -202,6 +203,11 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
         sudo sed -E -i '/^[[:space:]]*dtoverlay=i2c0([,[:space:]]|$)/d' "${CONFIG_FILE}"
         REBOOT_REQUIRED=1
     fi
+    # UART3 uses BCM4/5 and leaves the primary UART to the RS485 transceiver on the original HAT.
+    # Do not enable CTS/RTS: the panel needs only TX/RX and the extra pins broaden collision risk.
+    reconcile_boot_line \
+        '^[[:space:]]*dtoverlay=uart3([,[:space:]]|$)' \
+        'dtoverlay=uart3'
     reconcile_boot_line \
         '^[[:space:]]*dtoverlay=spi1-(1|2|3)cs([,[:space:]]|$)' \
         'dtoverlay=spi1-3cs'
@@ -298,6 +304,12 @@ if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
         fi
     fi
     exit 0
+fi
+
+if [[ "${DEPLOYMENT_PROFILE}" != "simulator" && ! -e "${PANEL_UART_DEVICE}" ]]; then
+    echo "Panel UART ${PANEL_UART_DEVICE} is unavailable; leaving the controller uninstalled." >&2
+    echo "Check dtoverlay=uart3 in ${CONFIG_FILE}, reboot, then rerun setup." >&2
+    exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -594,7 +606,7 @@ if [[ "${DEPLOYMENT_PROFILE}" != "simulator" ]]; then
     echo "  candump kcan"
     echo "  candump ptcan"
     echo "  candump fcan"
-    echo "  test -e /dev/serial0 && id e87canbus"
+    echo "  test -e ${PANEL_UART_DEVICE} && id e87canbus"
     echo "  sudo -u e87canbus sudo -n /usr/local/libexec/e87canbus-hotspot state"
 fi
 echo
