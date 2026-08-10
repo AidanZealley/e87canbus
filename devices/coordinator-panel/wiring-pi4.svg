@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Raspberry Pi 4 to coordinator panel wiring</title>
+  <desc id="desc">Four-wire harness from Raspberry Pi physical pins 2, 6, 8 and 10 to the QT Py RP2040. The five volt wire includes a fuse and Schottky diode. UART transmit and receive are crossed.</desc>
+  <defs>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #172033; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #526078; }
+      .device { fill: #f5f7fb; stroke: #29354d; stroke-width: 3; }
+      .device-title { font-size: 22px; font-weight: 700; }
+      .label { font-size: 16px; font-weight: 600; }
+      .small { font-size: 14px; fill: #526078; }
+      .pin { fill: #d9deea; stroke: #56637a; stroke-width: 1.5; }
+      .active { fill: #fff; stroke-width: 4; }
+      .wire { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+      .note { fill: #fff8df; stroke: #c59018; stroke-width: 2; }
+    </style>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d6293e"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="60" y="58" class="title">Raspberry Pi 4 → coordinator panel</text>
+  <text x="60" y="87" class="subtitle">Top view of the Pi header. Pin 1 is marked. Disconnect this entire harness before using QT Py USB-C.</text>
+
+  <rect x="60" y="130" width="360" height="455" rx="22" class="device"/>
+  <text x="90" y="171" class="device-title">Raspberry Pi 4 Model B</text>
+  <text x="90" y="198" class="small">40-pin GPIO header, top view</text>
+  <circle cx="286" cy="225" r="5" fill="#ffb000"/>
+  <text x="90" y="561" class="small">USB / Ethernet connector end</text>
+
+  <!-- 2 × 20 header: odd pins left, even pins right. -->
+  <g>
+    <circle cx="300" cy="230" r="7" class="pin"/><circle cx="340" cy="230" r="9" class="active" stroke="#d6293e"/>
+    <circle cx="300" cy="247" r="7" class="pin"/><circle cx="340" cy="247" r="7" class="pin"/>
+    <circle cx="300" cy="264" r="7" class="pin"/><circle cx="340" cy="264" r="9" class="active" stroke="#20242c"/>
+    <circle cx="300" cy="281" r="7" class="pin"/><circle cx="340" cy="281" r="9" class="active" stroke="#2878d0"/>
+    <circle cx="300" cy="298" r="7" class="pin"/><circle cx="340" cy="298" r="9" class="active" stroke="#15966c"/>
+    <circle cx="300" cy="315" r="7" class="pin"/><circle cx="340" cy="315" r="7" class="pin"/>
+    <circle cx="300" cy="332" r="7" class="pin"/><circle cx="340" cy="332" r="7" class="pin"/>
+    <circle cx="300" cy="349" r="7" class="pin"/><circle cx="340" cy="349" r="7" class="pin"/>
+    <circle cx="300" cy="366" r="7" class="pin"/><circle cx="340" cy="366" r="7" class="pin"/>
+    <circle cx="300" cy="383" r="7" class="pin"/><circle cx="340" cy="383" r="7" class="pin"/>
+    <circle cx="300" cy="400" r="7" class="pin"/><circle cx="340" cy="400" r="7" class="pin"/>
+    <circle cx="300" cy="417" r="7" class="pin"/><circle cx="340" cy="417" r="7" class="pin"/>
+    <circle cx="300" cy="434" r="7" class="pin"/><circle cx="340" cy="434" r="7" class="pin"/>
+    <circle cx="300" cy="451" r="7" class="pin"/><circle cx="340" cy="451" r="7" class="pin"/>
+    <circle cx="300" cy="468" r="7" class="pin"/><circle cx="340" cy="468" r="7" class="pin"/>
+    <circle cx="300" cy="485" r="7" class="pin"/><circle cx="340" cy="485" r="7" class="pin"/>
+    <circle cx="300" cy="502" r="7" class="pin"/><circle cx="340" cy="502" r="7" class="pin"/>
+    <circle cx="300" cy="519" r="7" class="pin"/><circle cx="340" cy="519" r="7" class="pin"/>
+    <circle cx="300" cy="536" r="7" class="pin"/><circle cx="340" cy="536" r="7" class="pin"/>
+    <circle cx="300" cy="553" r="7" class="pin"/><circle cx="340" cy="553" r="7" class="pin"/>
+  </g>
+  <text x="195" y="235" class="label">Pin 2 · 5 V</text>
+  <text x="184" y="269" class="label">Pin 6 · GND</text>
+  <text x="121" y="286" class="label">Pin 8 · BCM14 / TXD</text>
+  <text x="109" y="303" class="label">Pin 10 · BCM15 / RXD</text>
+
+  <rect x="855" y="160" width="285" height="410" rx="22" class="device"/>
+  <text x="890" y="204" class="device-title">QT Py RP2040 + BFF</text>
+  <text x="890" y="231" class="small">Use the labels printed on the board</text>
+  <circle cx="855" cy="280" r="10" class="active" stroke="#d6293e"/>
+  <circle cx="855" cy="350" r="10" class="active" stroke="#20242c"/>
+  <circle cx="855" cy="420" r="10" class="active" stroke="#2878d0"/>
+  <circle cx="855" cy="490" r="10" class="active" stroke="#15966c"/>
+  <text x="887" y="286" class="label">5V</text>
+  <text x="887" y="356" class="label">GND</text>
+  <text x="887" y="426" class="label">RX</text>
+  <text x="887" y="496" class="label">TX</text>
+
+  <path d="M340 230 H470" class="wire" stroke="#d6293e"/>
+  <rect x="460" y="213" width="130" height="34" rx="7" fill="#fff" stroke="#d6293e" stroke-width="3"/>
+  <text x="484" y="236" class="label" fill="#d6293e">500 mA fuse</text>
+  <path d="M590 230 H640" class="wire" stroke="#d6293e"/>
+  <!-- Schottky diode: triangle-like direction cue plus cathode stripe. -->
+  <path d="M640 210 L690 230 L640 250 Z" fill="#fff" stroke="#d6293e" stroke-width="3"/>
+  <line x1="697" y1="207" x2="697" y2="253" stroke="#d6293e" stroke-width="7"/>
+  <path d="M697 230 H770 V280 H845" class="wire" stroke="#d6293e" marker-end="url(#arrow-red)"/>
+  <text x="623" y="190" class="small">1N5817 / 1N5819</text>
+  <text x="617" y="273" class="small">anode</text>
+  <text x="684" y="273" class="small">striped cathode</text>
+
+  <path d="M340 264 H740 V350 H845" class="wire" stroke="#20242c"/>
+  <text x="465" y="342" class="label">common ground</text>
+  <path d="M340 281 H715 V420 H845" class="wire" stroke="#2878d0"/>
+  <text x="465" y="401" class="label" fill="#2878d0">Pi TXD → QT Py RX</text>
+  <path d="M340 298 H690 V490 H845" class="wire" stroke="#15966c"/>
+  <text x="465" y="471" class="label" fill="#15966c">Pi RXD ← QT Py TX</text>
+
+  <rect x="60" y="621" width="1080" height="60" rx="12" class="note"/>
+  <text x="84" y="648" class="label">UART is 3.3 V logic at 115,200 baud.</text>
+  <text x="84" y="670" class="small">Never put 5 V or vehicle 12 V on RX or TX. Do not power the QT Py from this harness and USB-C at the same time.</text>
+</svg>

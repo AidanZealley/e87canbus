@@ -6,6 +6,12 @@ panel's fixed newline-delimited UART protocol.
 
 ## Connections
 
+Use the standalone wiring diagrams for assembly:
+
+- [Raspberry Pi 4 harness](wiring-pi4.svg)
+- [RGB strip](wiring-rgb-strip.svg)
+- [Four-pin tactile button](wiring-button.svg)
+
 | Function | QT Py connection |
 |---|---|
 | Button | A0 to ground; firmware enables the internal pull-up |

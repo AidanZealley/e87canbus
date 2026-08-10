@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">Coordinator panel four-pin tactile button wiring</title>
+  <desc id="desc">QT Py A0 and ground connect to diagonally opposite pins of a normally open four-pin tactile switch. Each pair of pins on one side of the switch is internally connected.</desc>
+  <defs>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #172033; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #526078; }
+      .device { fill: #f5f7fb; stroke: #29354d; stroke-width: 3; }
+      .device-title { font-size: 22px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 650; }
+      .small { font-size: 14px; fill: #526078; }
+      .wire { fill: none; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+      .terminal { fill: #fff; stroke-width: 4; }
+      .note { fill: #fff8df; stroke: #c59018; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="680" fill="#ffffff"/>
+  <text x="60" y="58" class="title">Coordinator panel → four-pin tactile button</text>
+  <text x="60" y="87" class="subtitle">Top view. The firmware uses A0 with its internal pull-up, so no external resistor is needed.</text>
+
+  <rect x="70" y="155" width="310" height="360" rx="22" class="device"/>
+  <text x="105" y="200" class="device-title">QT Py RP2040</text>
+  <text x="105" y="228" class="small">Use the labels printed on the board</text>
+  <circle cx="380" cy="300" r="11" class="terminal" stroke="#8b5fc6"/>
+  <circle cx="380" cy="430" r="11" class="terminal" stroke="#20242c"/>
+  <text x="270" y="306" class="label">A0</text>
+  <text x="250" y="436" class="label">GND</text>
+
+  <text x="745" y="151" class="device-title">Normally-open tactile switch</text>
+  <text x="811" y="178" class="small">6 mm “clicky” button, top view</text>
+  <rect x="720" y="205" width="330" height="310" rx="42" class="device"/>
+  <circle cx="885" cy="360" r="77" fill="#d9deea" stroke="#56637a" stroke-width="3"/>
+  <circle cx="885" cy="360" r="47" fill="#b7bfce" stroke="#56637a" stroke-width="2"/>
+  <circle cx="720" cy="275" r="13" class="terminal" stroke="#8b5fc6"/>
+  <circle cx="720" cy="445" r="13" class="terminal" stroke="#8b5fc6"/>
+  <circle cx="1050" cy="275" r="13" class="terminal" stroke="#20242c"/>
+  <circle cx="1050" cy="445" r="13" class="terminal" stroke="#20242c"/>
+
+  <!-- The two pins on each side are permanently common inside the switch. -->
+  <path d="M742 275 H775 V445 H742" fill="none" stroke="#8b5fc6" stroke-width="5"/>
+  <path d="M1028 275 H995 V445 H1028" fill="none" stroke="#20242c" stroke-width="5"/>
+  <path d="M775 360 H838 M932 360 H995" fill="none" stroke="#56637a" stroke-width="4"/>
+  <path d="M838 342 L928 305" fill="none" stroke="#56637a" stroke-width="5" stroke-linecap="round"/>
+  <text x="746" y="252" class="small">internally common pair</text>
+  <text x="900" y="489" class="small">internally common pair</text>
+  <text x="800" y="570" class="label">Pressing bridges the two sides</text>
+
+  <!-- Opposite corners guarantee one connection from each internal pair. -->
+  <path d="M391 300 H560 V275 H707" class="wire" stroke="#8b5fc6"/>
+  <path d="M391 430 H610 V535 H1100 V445 H1063" class="wire" stroke="#20242c"/>
+  <text x="455" y="288" class="label" fill="#8b5fc6">A0</text>
+  <text x="455" y="454" class="label">GND</text>
+
+  <rect x="70" y="605" width="1060" height="48" rx="12" class="note"/>
+  <text x="94" y="636" class="label">Connect opposite corners. Do not use two pins from the same side or the input will be permanently held low.</text>
+</svg>
