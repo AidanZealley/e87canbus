@@ -8,7 +8,7 @@ import {
 } from "./button-led-presentation"
 
 describe("backend colour constants", () => {
-  // Pinned against coordinator/src/e87canbus/domain/events.py (RGB_*) and
+  // Pinned against hosts/src/e87canbus/domain/events.py (RGB_*) and
   // domain/controller/button_leds.py (SOFT_*). Changing a colour there must
   // break this test rather than silently leave the editor preview wrong.
   it("matches the values named in the coordinator LED modules", () => {

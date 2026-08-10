@@ -36,15 +36,18 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   }
 })
 
-vi.mock("@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen", () => ({
-  getSavedButtonProfileQueryKey: () => ["saved-button-profile"],
-  getSavedButtonProfileOptions: () => ({
-    queryKey: ["saved-button-profile"],
-    queryFn: vi.fn(),
-    staleTime: Number.POSITIVE_INFINITY,
-  }),
-  updateButtonProfileMutation: () => ({ mutationFn: mocks.update }),
-}))
+vi.mock(
+  "@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen",
+  () => ({
+    getSavedButtonProfileQueryKey: () => ["saved-button-profile"],
+    getSavedButtonProfileOptions: () => ({
+      queryKey: ["saved-button-profile"],
+      queryFn: vi.fn(),
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+    updateButtonProfileMutation: () => ({ mutationFn: mocks.update }),
+  })
+)
 
 vi.mock("sonner", () => ({
   toast: {
@@ -94,6 +97,10 @@ const profile = (revision: number, level: number): ButtonProfileResponse =>
     },
   }) as ButtonProfileResponse
 
+const synchronize = (revision = 1) => {
+  useLiveStore.getState().applySnapshot(snapshot("boot", revision))
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -138,7 +145,7 @@ it("commits a binding as soon as it is applied", async () => {
   })
   mocks.profile = profile(1, 2)
   mocks.update.mockResolvedValue(profile(2, 5))
-  useLiveStore.setState({ steering: snapshot("boot", 1).data.steering })
+  synchronize()
   render(
     <QueryClientProvider client={queryClient}>
       <ButtonProfileEditor profile={mocks.profile!} />
@@ -214,6 +221,7 @@ it("surfaces revision conflicts through the existing error detail", async () => 
       },
     },
   })
+  synchronize()
   render(
     <QueryClientProvider client={queryClient}>
       <ButtonProfileEditor profile={mocks.profile!} />
@@ -227,4 +235,41 @@ it("surfaces revision conflicts through the existing error detail", async () => 
       "Button profile is at revision 2, not 1"
     )
   })
+})
+
+it("does not defer a disconnected edit until coordinator synchronization returns", async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  mocks.profile = profile(1, 2)
+  mocks.update.mockResolvedValue(profile(2, 5))
+  synchronize()
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ButtonProfileEditor profile={mocks.profile!} />
+    </QueryClientProvider>
+  )
+
+  act(() => useLiveStore.getState().transportDisconnected())
+  const clearButton = await screen.findByRole("button", {
+    name: "Clear button 0",
+  })
+  expect((clearButton as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(clearButton)
+  expect(mocks.update).not.toHaveBeenCalled()
+
+  act(() => {
+    useLiveStore.getState().transportConnected(true)
+    useLiveStore.getState().applySnapshot(snapshot("boot", 2))
+  })
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Clear button 0",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(false)
+  )
+  expect(mocks.update).not.toHaveBeenCalled()
 })

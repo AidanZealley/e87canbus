@@ -33,7 +33,7 @@ const PANEL_CLASS = "grid content-start gap-8 p-4 sm:grid-cols-2"
 export const CarSettings = () => {
   const { settings, isAuthoritative, error, isLoading, isRefetching, refetch } =
     useEffectiveApplicationSettings()
-  const { commit } = useSettingsCommit(settings)
+  const { commit, canCommit } = useSettingsCommit(settings)
   const values = settingsToValues(settings)
 
   const unavailable = (
@@ -76,6 +76,7 @@ export const CarSettings = () => {
         {isAuthoritative ? (
           <UnitsPanel
             values={values}
+            disabled={!canCommit}
             onChange={(patch) => void commit(patch)}
           />
         ) : (
@@ -85,7 +86,11 @@ export const CarSettings = () => {
 
       <TabsContent value="temperature" className={PANEL_CLASS}>
         {isAuthoritative ? (
-          <TemperaturePanel values={values} onCommit={commit} />
+          <TemperaturePanel
+            values={values}
+            disabled={!canCommit}
+            onCommit={commit}
+          />
         ) : (
           unavailable
         )}
@@ -93,7 +98,7 @@ export const CarSettings = () => {
 
       <TabsContent value="shift" className={PANEL_CLASS}>
         {isAuthoritative ? (
-          <ShiftPanel values={values} onCommit={commit} />
+          <ShiftPanel values={values} disabled={!canCommit} onCommit={commit} />
         ) : (
           unavailable
         )}
@@ -103,6 +108,7 @@ export const CarSettings = () => {
         {isAuthoritative ? (
           <DisplayPanel
             values={values}
+            disabled={!canCommit}
             onChange={(patch) => void commit(patch)}
           />
         ) : (
