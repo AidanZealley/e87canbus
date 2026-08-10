@@ -111,7 +111,11 @@ Physical setup enables UART3 as `/dev/ttyAMA3` on BCM4/5, removes the Linux cons
 Pi UART, adds the `e87canbus` service account to `dialout`, and installs NetworkManager plus `iw`.
 It backs up changed boot files with the `.e87canbus-before-setup` suffix and requires a reboot before
 the physical profile starts. The fixed access point uses built-in `wlan0`, is left down with
-autoconnect disabled, and uses a dedicated policy-routing blackhole so client traffic cannot be
+autoconnect disabled, and assigns the coordinator `10.42.0.1`. Avahi publishes it as `e87.local`.
+Once the hotspot is active, a connected laptop can open `http://e87.local/`, or
+`http://10.42.0.1/` when mDNS is unavailable, to use any frontend route. A socket-activated proxy
+accepts port 80 only on the hotspot address and forwards it to the otherwise loopback-only
+controller. The hotspot uses a dedicated policy-routing blackhole so client traffic cannot be
 forwarded through an Ethernet default route. A root-owned helper exposes only `activate`,
 `deactivate`, `state`, and `stations`; exact sudoers entries let the nologin service account call
 those actions without a password. The helper hard-codes `e87canbus-hotspot`, `wlan0`, and every

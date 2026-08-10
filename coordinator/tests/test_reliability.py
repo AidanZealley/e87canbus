@@ -256,6 +256,21 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
         assert result.returncode == 2
 
 
+def test_hotspot_web_proxy_exposes_only_the_fixed_wifi_address() -> None:
+    root = Path(__file__).resolve().parents[2]
+    setup = (root / "scripts/setup_pi.sh").read_text()
+    socket = (root / "deploy/systemd/e87canbus-web-proxy.socket").read_text()
+    service = (root / "deploy/systemd/e87canbus-web-proxy.service").read_text()
+
+    assert 'HOTSPOT_ADDRESS="10.42.0.1/24"' in setup
+    assert 'HOTSPOT_HOSTNAME="e87"' in setup
+    assert 'ipv4.addresses "${HOTSPOT_ADDRESS}"' in setup
+    assert "ListenStream=10.42.0.1:80" in socket
+    assert "BindToDevice=wlan0" in socket
+    assert "FreeBind=yes" in socket
+    assert "systemd-socket-proxyd 127.0.0.1:8000" in service
+
+
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     """Pin the VT ownership settings that took a long bench session to find.
 
@@ -279,4 +294,3 @@ def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
     assert "StandardOutput=journal" in unit
     assert "StandardError=journal" in unit
     assert "ExecStartPre=+/usr/bin/chvt 7" in unit
-

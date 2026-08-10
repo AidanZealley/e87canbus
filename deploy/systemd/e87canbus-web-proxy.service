@@ -1,0 +1,14 @@
+[Unit]
+Description=E87 hotspot web proxy
+Requires=e87canbus-web-proxy.socket
+After=e87canbus-controller.service
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:8000
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+

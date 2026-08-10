@@ -156,8 +156,10 @@ assembled hardware demonstrates a problem.
 
 `scripts/setup_pi.sh` provisions one NetworkManager connection named `e87canbus-hotspot` for the
 physical `car` and `bench` profiles. It uses the Pi's built-in Wi-Fi, does not autoconnect, does not
-route internet from Ethernet, and starts disabled. Runtime may inspect, activate, and deactivate
-this connection but may not create or edit connections.
+route internet from Ethernet, assigns the coordinator `10.42.0.1`, and starts disabled. Avahi
+publishes `e87.local`, and a systemd socket bound only to the hotspot address proxies port 80 to the
+loopback controller. Runtime may inspect, activate, and deactivate this connection but may not
+create or edit connections.
 
 The hotspot is intended for one client. Do not add custom maximum-client enforcement, client
 identity, MAC filtering, remembered clients, or a general Wi-Fi API. Use the simplest available
