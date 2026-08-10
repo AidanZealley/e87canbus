@@ -1,6 +1,7 @@
 [Unit]
-Description=E87 kiosk display (cage)
-After=e87canbus-controller.service systemd-logind.service systemd-user-sessions.service
+Description=E87 console kiosk display (cage)
+After=e87canbus-console.service systemd-logind.service systemd-user-sessions.service
+Requires=e87canbus-console.service
 Conflicts=getty@tty7.service
 
 [Service]
@@ -17,10 +18,8 @@ StandardInput=tty-fail
 StandardOutput=journal
 StandardError=journal
 ExecStartPre=-/usr/bin/plymouth quit --retain-splash
-# systemd attaches the service to tty7 but does not make that VT active. Cage's DRM backend times
-# out unless logind marks its session active before startup.
 ExecStartPre=+/usr/bin/chvt 7
-ExecStart=/usr/bin/cage -s -- /usr/local/bin/e87canbus-kiosk
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/e87canbus-console-kiosk
 Restart=on-failure
 RestartSec=5s
 

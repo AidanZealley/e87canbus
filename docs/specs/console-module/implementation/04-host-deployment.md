@@ -1,6 +1,6 @@
 # Workstream 4: Deploy the coordinator and console as separate hosts
 
-Status: not started.
+Status: closure review.
 
 ## Task packet
 
@@ -108,31 +108,98 @@ isolation, kiosk/touch startup, combined Pi/screen current demand and vehicle po
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Hardware/external validation pending: `TBD`
-- Specification drift: `TBD`
+- Base commit: `927b4a3fe6313e7401bab21797f1c1335cec5cd7`
+- Outcome: Replaced the combined Pi installer with direct coordinator and console installers. The
+  coordinator retains its three validated CAN interfaces, controller profiles, persistence,
+  panel and hardened hotspot while running headless behind interface-bound hotspot and console-link
+  proxies. The console installs one kernel-listen-only `kcan`, its local service/frontend and its
+  own kiosk on the fixed non-routing Ethernet link.
+- Files changed: Added `scripts/setup_coordinator.sh`, `scripts/setup_console.sh` and one small
+  shared host-setup helper; updated the adjacent capture hint and CI shell parsing. Split CAN udev
+  naming by host; added console service/CAN/environment/kiosk files and explicit coordinator proxy
+  pairs; updated the controller environment/unit for the coordinator artifact and fixed console
+  origin. Removed `scripts/setup_pi.sh` and the obsolete generic kiosk, CAN-naming and proxy files.
+  Updated focused deployment assertions in `hosts/tests/test_reliability.py` and added
+  `hosts/tests/test_host_deployment.py` for the complete static role boundary.
+- Decisions: Kept controller `car`/`bench`/`simulator` as coordinator runtime profiles rather than
+  introducing host-role configuration. Shared only checkout, package, account, boot-line and fixed
+  Ethernet mechanics. Used NetworkManager manual `/30` connections with empty gateway/DNS,
+  `never-default` and ingress-policy blackholes; the existing hotspot ingress blackhole and the new
+  Ethernet rule prevent forwarding between interfaces. The console HAT+ exposes only `spi1.1` as
+  `kcan`; its `spi1.2` overlay, udev name and service are absent. The console build fixes the
+  coordinator origin at `http://10.43.0.1`, while its kiosk remains rooted at
+  `http://127.0.0.1:8000/` and that exact document origin is the coordinator CORS/Socket.IO grant.
+- Verification: `bash -n scripts/*.sh deploy/bin/* deploy/kiosk/*.sh` passed. The packet tests plus
+  the new deployment and inherited reliability tests passed, 121 total, using
+  `PYTHONPATH=hosts/src .venv/bin/pytest` because `uv` is unavailable in this shell. Ruff passed for
+  `hosts` and `scripts`; both filtered production frontend builds passed, and output inspection
+  confirmed only the console build embeds `http://10.43.0.1`. `systemd-analyze verify` accepted the
+  units and reported only the expected absent target-host executables (`cage` and `/opt/e87canbus`
+  entry points) in this development environment. `git diff --check` passed.
+- Hardware/external validation pending: Both blank-Pi installer runs; Pi 4 boot-overlay and HAT+
+  `spi1.1` mapping validation; physical kernel listen-only observation and confirmation that the
+  unused channel stays inactive; direct-Ethernet addressing, isolation and both constrained
+  proxies; kiosk/touch startup; combined Pi/screen peak-current capacity; and vehicle power,
+  grounding, transceiver, termination and wiring checks.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD`
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Codex (`/root/ws4_reviewer`)
+- Verdict: Changes required. The role-specific installers, exact installed service sets, frontend
+  artifacts, loopback application binds, interface-bound proxies, fixed non-routing `/30` link,
+  coordinator hotspot boundary, console `spi1.1` naming and kernel listen-only command, absent
+  `spi1.2` overlay/name/service, unit ordering and service-user boundaries otherwise satisfy the
+  packet. Independent checks passed 121 focused deployment/configuration/reliability tests, Ruff,
+  shell parsing, both role-filtered production builds, `systemd-analyze verify` (apart from the
+  expected target-host executables absent in this checkout), and `git diff --check`. Output
+  inspection found `http://10.43.0.1` only in the configured console build. No live service,
+  network, CAN or hardware command was run.
+- Required findings: The controller unit's fixed console-origin argument removes the two existing
+  approved development origins instead of adding the console origin to them. The unit always
+  supplies `--cors-origin ${E87CANBUS_CONSOLE_ORIGIN}`, and `create_app` treats any explicit origin
+  sequence as a complete replacement for `DEFAULT_CORS_ORIGINS`. Consequently deployed `bench`
+  and `simulator` profiles no longer accept their existing `http://localhost:5173` or
+  `http://127.0.0.1:5173` HTTP/Socket.IO clients, contrary to the frozen requirement to permit the
+  fixed console origin *in addition to* approved development origins and to preserve controller
+  profile semantics. A direct preflight check against an explicitly configured simulator app
+  accepted `http://127.0.0.1:8000` but returned `400` with no allow-origin header for both approved
+  development origins. Preserve exactly those two existing development origins plus the exact
+  production console document origin, without a wildcard or another interface exposure, and add a
+  focused configuration/behaviour test that protects both the allowed set and rejection of an
+  unrelated origin.
+- Optional observations: None.
+- Questions for orchestrator: None.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted and resolved the origin regression. The deployed controller now
+  repeats `--cors-origin` for exactly `http://localhost:5173`,
+  `http://127.0.0.1:5173` and the fixed console document origin
+  `http://127.0.0.1:8000`, preserving the approved development clients while adding production
+  console access for both HTTP and Socket.IO.
+- Simplification/deletion pass: Kept the correction in the existing controller environment and
+  unit rather than adding runtime defaults, origin parsing, a wildcard or another policy layer.
+  One focused test reads that deployed environment as the single source for the exact set and
+  exercises the existing HTTP and Socket.IO origin policies.
+- Final verification: Shell parsing, Ruff and `git diff --check` passed. The complete focused
+  deployment/configuration set passed all 125 tests through the accepted local environment
+  equivalent. For each of the three deployed origins, real HTTP preflight and Engine.IO polling
+  handshake requests succeeded; an unrelated origin returned `400` with no HTTP allow-origin
+  header and its Engine.IO handshake also returned `400`. `systemd-analyze verify` accepted the
+  changed unit and reported only the previously recorded target-host executables absent locally.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Pass. The deployed controller now repeats the existing CLI option for exactly the two
+  approved development origins and the fixed console document origin. The focused tests derive the
+  deployed values from the environment file, separately pin the exact three-value set and argument
+  count, and prove successful HTTP preflights and Engine.IO polling handshakes for every allowed
+  origin while rejecting an unrelated origin through both transports. The fix changes only the
+  existing environment/unit seam and its focused tests: it adds no wildcard, new interface bind,
+  runtime origin parser or policy abstraction. Independent closure checks passed all 54 focused
+  host-deployment and simulator-API tests, Ruff, shell parsing, `systemd-analyze verify` (with only
+  the expected absent target-host executable warning) and `git diff --check`. No live state was
+  touched.
+- Remaining required findings: None.
 - Accepted commit: `TBD`
-

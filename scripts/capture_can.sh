@@ -15,7 +15,7 @@ fail() {
 }
 
 command -v candump >/dev/null 2>&1 ||
-    fail "candump is not installed. Run scripts/setup_pi.sh to install can-utils."
+    fail "candump is not installed. Run scripts/setup_coordinator.sh to install can-utils."
 command -v ip >/dev/null 2>&1 || fail "the ip command is not installed."
 command -v systemctl >/dev/null 2>&1 || fail "systemd is required."
 command -v sudo >/dev/null 2>&1 || fail "sudo is required."

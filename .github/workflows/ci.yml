@@ -30,6 +30,7 @@ jobs:
       - run: uv run pytest -q
       - run: uv run mypy
       - run: uv run ruff check hosts scripts/watch_frontend_contracts.py
+      - run: bash -n scripts/*.sh deploy/bin/* deploy/kiosk/*.sh
       - run: uv run lint-imports
       - run: pnpm typecheck
         working-directory: frontend

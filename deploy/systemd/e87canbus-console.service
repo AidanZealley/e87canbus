@@ -1,0 +1,25 @@
+[Unit]
+Description=E87 receive-only console service
+After=e87canbus-console-kcan.service network.target
+Requires=e87canbus-console-kcan.service
+
+[Service]
+Type=simple
+User=e87canbus
+Group=e87canbus
+WorkingDirectory=/opt/e87canbus
+EnvironmentFile=/etc/e87canbus/console.env
+ExecStart=/opt/e87canbus/.venv/bin/e87canbus-console --host 127.0.0.1 --port ${E87CANBUS_CONSOLE_PORT} --frontend-directory ${E87CANBUS_CONSOLE_FRONTEND}
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

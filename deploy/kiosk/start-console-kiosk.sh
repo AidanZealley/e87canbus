@@ -2,14 +2,14 @@
 set -euo pipefail
 
 CHROMIUM=""
-for bin in chromium-browser chromium /snap/bin/chromium; do
-    if command -v "$bin" >/dev/null 2>&1; then
-        CHROMIUM="$bin"
+for binary in chromium-browser chromium /snap/bin/chromium; do
+    if command -v "${binary}" >/dev/null 2>&1; then
+        CHROMIUM="${binary}"
         break
     fi
 done
 if [[ -z "${CHROMIUM}" ]]; then
-    echo "e87canbus-kiosk: chromium not found" >&2
+    echo "e87canbus-console-kiosk: chromium not found" >&2
     exit 1
 fi
 
@@ -25,4 +25,4 @@ exec "${CHROMIUM}" \
     --disable-translate \
     --disable-features=TranslateUI \
     --ozone-platform-hint=auto \
-    http://127.0.0.1:8000/car
+    http://127.0.0.1:8000/
