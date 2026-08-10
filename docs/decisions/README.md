@@ -16,6 +16,7 @@ complete.
 | [0008](0008-unified-controller-architecture.md) | Unified modular controller and transport ownership | Accepted |
 | [0009](0009-isolate-coordinator-accessories-from-control.md) | Isolated coordinator accessories | Accepted |
 | [0010](0010-constrain-hotspot-ui-exposure.md) | Constrained hotspot UI exposure | Accepted |
+| [0011](0011-separate-coordinator-and-console-hosts.md) | Separate coordinator and console hosts | Accepted |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old

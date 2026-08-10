@@ -56,11 +56,17 @@ also fails the controller start. Setup validates their SPI parents before starti
 That keeps transport stable across reboot and makes device reconnects independent from any manual
 bench script.
 
+The console has an independent, smaller lifecycle. `e87canbus-console-kcan.service` raises only
+`kcan` at 100 kbit/s with kernel listen-only mode before `e87canbus-console.service` starts. Its
+health and complete `console.snapshot` report local CAN connection, frame activity and faults
+without changing coordinator readiness or exposing raw frames. Coordinator or Ethernet failure
+affects coordinator-backed console state but does not stop local K-CAN observation; console failure
+does not affect coordinator control.
+
 The canonical CLI exits nonzero for fatal controller termination, unexpected owner/timer/shutdown
 failure, or failure to complete Uvicorn startup, allowing the bounded `systemd` restart policy to
-act. The same-origin frontend boundary falls back to `index.html` only for client routes such as
-`/dev` and `/car`; missing assets and unknown `/api`, `/health` or `/socket.io` paths remain real
-404 responses.
+act. Each role's same-origin frontend boundary falls back to its `index.html` only for client
+routes. Missing assets and unknown `/api`, `/health` or Socket.IO paths remain real 404 responses.
 
 For the canonical loopback, same-origin `systemd` deployment and operator commands, see
-[Pi controller operation](../deploy/README.md).
+[coordinator and console operation](../deploy/README.md#routine-operation).

@@ -18,7 +18,7 @@ Run lint and type checks:
 
 ```bash
 uv run ruff check .
-uv run mypy coordinator/src/e87canbus
+uv run mypy
 uv run python scripts/generate_custom_protocol.py --check
 ```
 
@@ -39,8 +39,9 @@ The closed deployment profiles are:
 Profiles choose the complete composition; they cannot be combined with per-device or per-network
 CLI overrides.
 
-In the `bench` profile, vehicle readings can be driven from another terminal while the Pi kiosk
-continues to display `/car`:
+In the `bench` profile, vehicle readings can be driven from another terminal while the coordinator
+workbench displays them. The physical coordinator is headless; a deployed driver kiosk belongs to
+the separate console host:
 
 ```bash
 curl -X PUT http://127.0.0.1:8000/api/dev/simulation/vehicle/speed \
@@ -91,7 +92,7 @@ Pi 4. Setup validates `/proc/device-tree/model` before making physical-profile c
 the post-reboot setup run, the script asks twice for the WPA password without echoing it:
 
 ```bash
-./scripts/setup_pi.sh --profile bench
+./scripts/setup_coordinator.sh --profile bench
 ```
 
 For unattended first provisioning, put only the password in a file outside the checkout and pass
@@ -99,7 +100,8 @@ its path. The file is read directly; the secret is not placed in the command lin
 environment:
 
 ```bash
-./scripts/setup_pi.sh --profile bench --hotspot-password-file /secure/path/hotspot-password
+./scripts/setup_coordinator.sh --profile bench \
+  --hotspot-password-file /secure/path/hotspot-password
 ```
 
 The password must be a single line of 8–63 characters, or exactly 64 hexadecimal digits. A normal
@@ -170,8 +172,8 @@ behaviour. Also verify that a client cannot reach an Ethernet uplink.
 
 ## Coordinator CAN
 
-The `car` and `bench` Pi profiles require the same three-channel Waveshare stack, configured by
-`scripts/setup_pi.sh`:
+The `car` and `bench` coordinator profiles require the same three-channel Waveshare stack,
+configured by `scripts/setup_coordinator.sh`:
 
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - `dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000`
@@ -180,11 +182,27 @@ The `car` and `bench` Pi profiles require the same three-channel Waveshare stack
 - `ptcan` / PT-CAN and `fcan` / F-CAN at `500000`
 
 The script also enables SPI1 with three chip selects. It deliberately removes Waveshare's optional
-I2C0 overlay because CAN uses SPI and that overlay conflicts with the BTT TFT50 V2.1 touchscreen.
+header I2C0 overlay because the CAN controllers do not use it; the coordinator is headless.
 Dedicated service units apply each bitrate and raise all three interfaces automatically at boot.
 After a boot configuration change, reboot and rerun setup; it fails closed unless `kcan`, `ptcan`,
 and `fcan` map to `spi0.0`, `spi1.1`, and `spi1.2` respectively. The controller remains disabled
 during the required reboot and is enabled only after that validation succeeds.
+
+## Console host
+
+The console is a separate Raspberry Pi 4 and is not a controller profile. Follow the canonical
+[deployment runbook](../deploy/README.md#console-installation) and run:
+
+```bash
+./scripts/setup_console.sh
+```
+
+The console installer builds only `frontend/apps/console`, installs the local
+`e87canbus-console.service` and kiosk, configures direct Ethernet as `10.43.0.2/30`, and exposes
+only the HAT+ first controller as `kcan` at 100 kbit/s with kernel listen-only mode. The second HAT+
+controller remains disconnected and has no enabled interface service. These configuration facts
+are statically checked in the repository; Pi boot, physical listen-only behavior, Ethernet,
+touchscreen, power and vehicle wiring still require hardware validation.
 
 ## Capture physical CAN traffic
 

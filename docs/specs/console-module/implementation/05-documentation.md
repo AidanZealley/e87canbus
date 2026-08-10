@@ -1,6 +1,6 @@
 # Workstream 5: Synchronize documentation and architectural records
 
-Status: not started.
+Status: closure review.
 
 ## Task packet
 
@@ -88,30 +88,74 @@ and its reason must be recorded in the handoff.
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `52cdd72f0ce5f71f813d2be751791198e665f24c`
+- Outcome: Synchronized maintained documentation to the accepted two-host implementation. The
+  coordinator is consistently headless and authoritative; the console owns its local driver
+  frontend, kiosk and receive-only K-CAN diagnostic path; and one canonical runbook now covers both
+  blank-Pi installations and their fixed, non-routing Ethernet link. Added ADR 0011 and indexed it.
+- Files changed: Updated `README.md`, `PROJECT_CONTEXT.md`, `hosts/README.md`, `protocol/README.md`,
+  `deploy/README.md`, `docs/setup.md`, `docs/wiring.md`, `docs/reliability.md`,
+  `docs/waveshare-three-channel-stack.md` and `docs/decisions/README.md`; added
+  `docs/decisions/0011-separate-coordinator-and-console-hosts.md`; updated only this Implementation
+  handoff in the frozen workstream records.
+- Decisions: Replaced the combined deployment runbook instead of preserving a migration path.
+  Kept detailed application behavior in its existing canonical docs and linked the runbook from
+  shorter overviews. ADR 0011 records only the durable host, frontend, receive-only CAN and
+  constrained Ethernet boundaries, referencing ADRs 0008-0010 rather than repeating their
+  ownership and exposure reasoning. Described `console.snapshot` only as a bounded end-to-end
+  activity proof.
+- Verification: Shell parsing passed for `scripts/*.sh`, `deploy/bin/*` and `deploy/kiosk/*.sh`.
+  The custom-protocol drift check passed directly through the existing locked virtual environment.
+  The packet's two focused tests plus the host-deployment assertions passed, 28 total. Frontend
+  lockfile installation, every constituent OpenAPI/HTTP/coordinator-live/console-live contract
+  check and the aggregate two-app production build passed. All local targets in every maintained
+  Markdown link exist; exhaustive maintained-document searches found no `coordinator/src`,
+  `coordinator/tests`, `setup_pi.sh`, combined `frontend/dist`, obsolete kiosk/proxy/file names or
+  coordinator-owned driver-kiosk instruction. `git diff --check` passed.
+- Known limitations or external checks: `uv` is unavailable in this shell, so the literal
+  `uv run` commands and `pnpm api:check` wrapper could not run; their Python and frontend
+  constituents passed through `.venv` with `hosts/src` on `PYTHONPATH`. Blank-Pi installer runs,
+  Pi 4 overlay/HAT mapping, physical kernel listen-only behavior, inactive console CAN1,
+  direct-Ethernet addresses/isolation and both constrained proxies, kiosk/touchscreen operation,
+  console Pi/screen peak current, and vehicle CAN/power/grounding/termination/transient checks
+  remain pending hardware validation. Old paths remain only in the approved feature specification
+  and durable implementation history where they describe the pre-split state or completed move;
+  the frontend README retains `/dev` and `/car` only to state that those old prefixes were removed.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD`
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Codex (`/root/ws5_reviewer_3`)
+- Verdict: Pass. The maintained documentation consistently describes the accepted two-host system:
+  final `hosts` and frontend paths, separate role installers and artifacts, exact service and kiosk
+  ownership, loopback applications, interface-bound coordinator proxies, fixed non-routing
+  `10.43.0.0/30` link, coordinator three-CAN topology, and console `spi1.1` receive-only K-CAN with
+  no configured `spi1.2` channel. The blank-Pi runbook gives distinct complete installation and
+  verification paths without retaining the unsupported combined deployment. ADR 0011 is indexed,
+  agrees with ADRs 0008-0010 and explicitly supersedes no unrelated decision. Hardware-dependent
+  installer, CAN, Ethernet, kiosk, power and vehicle checks remain clearly pending rather than
+  being inferred from static verification. Independent checks found every local Markdown target
+  present and no stale maintained-document reference to `coordinator/src`, `coordinator/tests`,
+  `setup_pi.sh`, combined `frontend/dist`, obsolete deployment units or coordinator-owned driver
+  kiosk instructions. Shell parsing, custom-protocol drift, 28 focused architecture/deployment
+  tests and `git diff --check` passed.
+- Required findings: None.
+- Optional observations: None.
+- Questions for orchestrator: None.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No findings; no remediation required.
+- Simplification/deletion pass: The implementation pass removed stale combined-role instructions
+  and kept one canonical deployment runbook rather than duplicating setup procedures.
+- Final verification: Independent review checks passed without changes.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
-- Accepted commit: `TBD`
+- Verdict: Pass. No remediation was required because independent review found no defects. Focused
+  closure confirms the no-remediation Resolution record is accurate and the reviewed documentation
+  still has no release-blocking mismatch in paths, role ownership, deployment topology, CAN wiring,
+  architectural decisions or pending hardware validation. All local Markdown targets still exist,
+  the focused stale-term search remains clean and `git diff --check` passes.
+- Remaining required findings: None.
+- Accepted commit: Pending.
