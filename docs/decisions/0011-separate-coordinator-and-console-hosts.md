@@ -39,14 +39,16 @@ coordinator application stays loopback-bound and is exposed to this link only by
 
 - The coordinator continues operating when the console or Ethernet link fails. Local console
   K-CAN observation remains independent when the coordinator is unavailable.
-- Host roles are direct deployment compositions, not new controller profiles or a generic role
-  framework. The existing `car`, `bench` and `simulator` profiles remain coordinator concerns.
+- Host roles are direct deployment compositions, not a generic role framework. The console's
+  `car`/`bench` setup choice controls only physical CAN acknowledgement; controller behavior remains
+  owned by the coordinator profile.
 - Console activity is an end-to-end diagnostic proof, not a decoded vehicle feature. Future
   signals still require capture-backed, network-specific evidence and one authoritative owner.
-- The console's application receive-only boundary is reinforced by kernel listen-only mode. Its
+- The console's application receive-only boundary is reinforced by kernel listen-only mode in the
+  car profile. Bench mode permits controller ACKs without granting application transmission. Its
   unused HAT+ channel has no overlay, interface name or service and remains disconnected.
 - Static repository checks can verify configuration and ownership, but blank-Pi installation,
-  physical CAN/listen-only behavior, direct Ethernet, display, power and vehicle wiring remain
+  physical console CAN behavior, direct Ethernet, display, power and vehicle wiring remain
   pending hardware validation.
 
 This decision extends ADRs 0008-0010 and supersedes no unrelated decision.

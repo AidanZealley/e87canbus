@@ -206,9 +206,10 @@ def test_console_link_has_fixed_non_routing_network_policy() -> None:
     assert "ipv6.method disabled" in common
 
 
-def test_console_can_is_exactly_one_listen_only_hat_controller() -> None:
+def test_console_can_is_one_profile_controlled_hat_controller() -> None:
     setup = read(SCRIPTS / "setup_console.sh")
     can_unit = read(SYSTEMD / "e87canbus-console-kcan.service")
+    console_env = read(SYSTEMD / "console.env.example")
     console_unit = read(SYSTEMD / "e87canbus-console.service")
     rules = read(ROOT / "deploy/udev/70-e87canbus-console-can.rules")
 
@@ -216,8 +217,12 @@ def test_console_can_is_exactly_one_listen_only_hat_controller() -> None:
     assert "mcp2515,.*spi1-2" in setup  # removal only
     assert 'KERNELS=="spi1.1", NAME="kcan"' in rules
     assert rules.count("NAME=") == 1
-    assert "bitrate 100000 listen-only on" in can_unit
-    assert "listen-only off" not in can_unit
+    assert "bitrate 100000 listen-only ${E87CANBUS_CONSOLE_CAN_LISTEN_ONLY}" in can_unit
+    assert "EnvironmentFile=/etc/e87canbus/console.env" in can_unit
+    assert "E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on" in console_env
+    assert 'DEPLOYMENT_PROFILE="car"' in setup
+    assert 'bench) CONSOLE_CAN_LISTEN_ONLY="off"' in setup
+    assert "systemctl restart e87canbus-console-kcan.service" in setup
     assert "Before=e87canbus-console.service" in can_unit
     assert "After=e87canbus-console-kcan.service" in console_unit
     assert "Requires=e87canbus-console-kcan.service" in console_unit
