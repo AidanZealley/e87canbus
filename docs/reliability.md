@@ -57,7 +57,8 @@ That keeps transport stable across reboot and makes device reconnects independen
 bench script.
 
 The console has an independent, smaller lifecycle. `e87canbus-console-kcan.service` raises only
-`kcan` at 100 kbit/s with kernel listen-only mode before `e87canbus-console.service` starts. Its
+`kcan` at 100 kbit/s before `e87canbus-console.service` starts. The car console profile uses kernel
+listen-only mode; the bench profile permits ACKs without granting application transmission. Its
 health and complete `console.snapshot` report local CAN connection, frame activity and faults
 without changing coordinator readiness or exposing raw frames. Coordinator or Ethernet failure
 affects coordinator-backed console state but does not stop local K-CAN observation; console failure

@@ -10,14 +10,27 @@ CMDLINE_FILE=""
 REBOOT_REQUESTED=0
 REBOOT_REQUIRED=0
 KIOSK_MODE="headless"
+DEPLOYMENT_PROFILE="car"
+CONSOLE_CAN_LISTEN_ONLY="on"
 
 require_deployment_checkout "${REPO_ROOT}"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
+        --profile)
+            [[ "$#" -ge 2 ]] || { echo "--profile requires car or bench" >&2; exit 2; }
+            DEPLOYMENT_PROFILE="$2"
+            shift 2
+            ;;
         --reboot) REBOOT_REQUESTED=1; shift ;;
-        *) echo "Usage: $0 [--reboot]" >&2; exit 2 ;;
+        *) echo "Usage: $0 [--profile car|bench] [--reboot]" >&2; exit 2 ;;
     esac
 done
+case "${DEPLOYMENT_PROFILE}" in
+    car) ;;
+    bench) CONSOLE_CAN_LISTEN_ONLY="off" ;;
+    *) echo "Unsupported console profile: ${DEPLOYMENT_PROFILE}" >&2; exit 2 ;;
+esac
+echo "Console CAN profile: ${DEPLOYMENT_PROFILE} (listen-only ${CONSOLE_CAN_LISTEN_ONLY})"
 require_pi_4 "console"
 find_boot_files
 
@@ -91,7 +104,7 @@ if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
         sudo reboot
     else
         echo "  sudo reboot"
-        echo "  cd ${REPO_ROOT} && ./scripts/setup_console.sh"
+        echo "  cd ${REPO_ROOT} && ./scripts/setup_console.sh --profile ${DEPLOYMENT_PROFILE}"
     fi
     exit 0
 fi
@@ -150,6 +163,9 @@ sudo install -o root -g root -m 0644 \
     /etc/systemd/system/e87canbus-console.service
 sudo install -o root -g e87canbus -m 0640 \
     "${REPO_ROOT}/deploy/systemd/console.env.example" /etc/e87canbus/console.env
+sudo sed -i \
+    "s/^E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=.*/E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=${CONSOLE_CAN_LISTEN_ONLY}/" \
+    /etc/e87canbus/console.env
 
 sudo install -o root -g root -m 0755 "${REPO_ROOT}/deploy/kiosk/start-console-kiosk.sh" \
     /usr/local/bin/e87canbus-console-kiosk
@@ -169,13 +185,13 @@ fi
 
 sudo systemctl daemon-reload
 sudo systemctl enable e87canbus-console-kcan.service e87canbus-console.service
-sudo systemctl start e87canbus-console-kcan.service
+sudo systemctl restart e87canbus-console-kcan.service
 sudo systemctl restart e87canbus-console.service
 if [[ "${KIOSK_MODE}" == "headless" ]]; then
     sudo systemctl enable --now e87canbus-console-kiosk.service
 fi
 
-echo "Console setup complete."
+echo "Console setup complete (${DEPLOYMENT_PROFILE}; listen-only ${CONSOLE_CAN_LISTEN_ONLY})."
 echo "  systemctl status e87canbus-console.service"
 echo "  ip -details link show kcan"
 echo "  local console: http://127.0.0.1:8000/"

@@ -7,7 +7,7 @@ coordinator is headless near the junction box; the console owns the screen and k
 | Host | CAN hardware | Frontend | Main service | Setup command |
 |---|---|---|---|---|
 | Coordinator | Original RS485 CAN HAT plus 2-CH CAN HAT+: `kcan`, `ptcan`, `fcan` | `frontend/apps/coordinator/dist` | `e87canbus-controller.service` | `./scripts/setup_coordinator.sh --profile car` |
-| Console | 2-CH CAN HAT+ CAN0 only: receive-only `kcan`; CAN1 disconnected | `frontend/apps/console/dist` | `e87canbus-console.service` | `./scripts/setup_console.sh` |
+| Console | 2-CH CAN HAT+ CAN0 only: application receive-only `kcan`; CAN1 disconnected | `frontend/apps/console/dist` | `e87canbus-console.service` | `./scripts/setup_console.sh --profile car` |
 
 The hosts use `10.43.0.0/30`: coordinator `10.43.0.1`, console `10.43.0.2`. The NetworkManager
 connection has no gateway or DNS, is never a default route, and uses an ingress blackhole to
@@ -109,16 +109,18 @@ CAN1.
 
 ```bash
 cd /opt/e87canbus
-./scripts/setup_console.sh
+./scripts/setup_console.sh --profile car
 sudo reboot
 cd /opt/e87canbus
-./scripts/setup_console.sh
+./scripts/setup_console.sh --profile car
 ```
 
 The post-reboot run validates `kcan -> spi1.1`, builds only the console frontend, configures the
 fixed Ethernet link, and installs the local CAN, application and kiosk services. Kernel
-listen-only mode is part of the CAN service, independent of the application's receive-only
-capability.
+listen-only mode is the default `car` profile and is independent of the application's receive-only
+capability. On an isolated coordinator-console bench, select `--profile bench` on both setup runs.
+This keeps the console application receive-only but lets its CAN controller acknowledge valid
+frames; never use the bench console profile as a passive vehicle-bus tap.
 
 Confirm the console:
 
@@ -132,7 +134,8 @@ curl --fail http://127.0.0.1:8000/health/ready
 curl --fail http://10.43.0.1/health/live
 ```
 
-`ip -details link show kcan` must report bitrate `100000` and `listen-only on`. The local health
+`ip -details link show kcan` must report bitrate `100000`; it reports `listen-only on` for `car` and
+omits that flag for `bench`. The local health
 endpoint proves the console process is responsive; readiness requires its CAN reader to be
 connected. The K-CAN activity display is an end-to-end diagnostic proof only: it publishes
 connection state, a bounded frame count and faults, never arbitration IDs, payload bytes or decoded
@@ -176,7 +179,7 @@ candump -tz ptcan
 candump -tz fcan
 ```
 
-On the console, keep the managed listen-only service active and observe K-CAN:
+On a car-profile console, keep the managed listen-only service active and observe K-CAN:
 
 ```bash
 ip -details link show kcan
@@ -213,7 +216,7 @@ script. Before coordinator updates that affect persistence, stop the controller 
 Inspect failed units with `systemctl --no-pager --full status UNIT` and `journalctl -b -u UNIT`.
 If a CAN mapping is wrong, leave the application stopped, check HAT seating, jumper and oscillator
 markings, inspect the boot overlays and `dmesg`, then power-cycle and rerun setup. The coordinator
-requires all three CAN services in a physical profile; the console requires only its listen-only
+requires all three CAN services in a physical profile; the console requires only its profile-aware
 `kcan` service.
 
 If setup rejects the checkout, confirm `/opt/e87canbus` is owned by the invoking user and rerun the
@@ -222,7 +225,7 @@ role-specific command without `sudo`.
 ## External validation still required
 
 Repository checks statically verify scripts, units, file ownership, addresses and policy. They do
-not validate either installer on a blank Pi, HAT discovery on Pi 4, the physical listen-only bus,
+not validate either installer on a blank Pi, HAT discovery on Pi 4, the physical console CAN mode,
 the unused console channel, touchscreen/kiosk behavior, the direct-Ethernet link and isolation, or
 either proxy on real hosts. Before vehicle installation also validate CAN polarity, bitrate,
 termination, grounding and transceiver compatibility; console Pi plus screen peak demand; and the

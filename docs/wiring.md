@@ -74,7 +74,8 @@ connection.
 
 The console Pi 4 uses only Waveshare 2-CH CAN HAT+ CAN0 on SPI1 CE1, with its 16 MHz controller and
 interrupt BCM `22`. The console udev rule names that controller `kcan`; its systemd service applies
-100 kbit/s and kernel `listen-only on`. Application code also receives only a CAN receiver
+100 kbit/s. The default `car` profile sets kernel `listen-only on`. The `bench` profile permits ACKs
+for an isolated coordinator-console bus while the application still receives only a CAN receiver
 capability.
 
 Leave HAT+ CAN1 physically disconnected. The console configuration intentionally has no `spi1.2`
@@ -87,8 +88,8 @@ and Socket.IO traffic, not CAN frames, and must not be configured for forwarding
 sharing.
 
 The checked-in scripts and tests verify these intended settings only. Before vehicle installation,
-physically confirm K-CAN polarity, 100 kbit/s operation, listen-only behavior, disabled termination,
-the inactive second controller, grounding and transceiver compatibility. Separately validate the
+physically confirm K-CAN polarity, 100 kbit/s operation, the selected listen-only behavior,
+disabled termination, the inactive second controller, grounding and transceiver compatibility. Separately validate the
 direct Ethernet link and isolation, console Pi plus screen peak current, and the HAT power input
 against reverse battery, cranking and load-dump transients. Avoid simultaneous USB and HAT power
 until the power path is verified.

@@ -190,18 +190,22 @@ during the required reboot and is enabled only after that validation succeeds.
 
 ## Console host
 
-The console is a separate Raspberry Pi 4 and is not a controller profile. Follow the canonical
+The console is a separate Raspberry Pi 4 and does not run a controller profile. Follow the canonical
 [deployment runbook](../deploy/README.md#console-installation) and run:
 
 ```bash
 ./scripts/setup_console.sh
 ```
 
+The optional `--profile car|bench` flag controls only the console CAN controller's electrical
+participation. `car` is the default and enables kernel listen-only mode. `bench` permits CAN ACKs
+while leaving the console application receive-only.
+
 The console installer builds only `frontend/apps/console`, installs the local
 `e87canbus-console.service` and kiosk, configures direct Ethernet as `10.43.0.2/30`, and exposes
-only the HAT+ first controller as `kcan` at 100 kbit/s with kernel listen-only mode. The second HAT+
+only the HAT+ first controller as `kcan` at 100 kbit/s. The second HAT+
 controller remains disconnected and has no enabled interface service. These configuration facts
-are statically checked in the repository; Pi boot, physical listen-only behavior, Ethernet,
+are statically checked in the repository; Pi boot, physical CAN behavior, Ethernet,
 touchscreen, power and vehicle wiring still require hardware validation.
 
 ## Capture physical CAN traffic
