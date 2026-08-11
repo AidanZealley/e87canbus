@@ -6,7 +6,6 @@ import { afterEach, expect, it } from "vitest"
 import { DriveTemperatureGauge } from "@/components/drive-temperature-gauge"
 import { RpmBar } from "@/components/rpm-bar"
 import { TelemetryValue } from "@/components/telemetry-value"
-import { TemperatureGauge } from "@/components/temperature-gauge"
 
 afterEach(cleanup)
 
@@ -14,10 +13,14 @@ it("never renders a manufactured numeric zero for unavailable values", () => {
   render(
     <div>
       <TelemetryValue label="Speed" value={null} unit="mph" />
-      <TemperatureGauge
+      <DriveTemperatureGauge
+        icon={DropletIcon}
         label="Oil temperature"
         value={null}
+        valueC={null}
         unit="°C"
+        operatingTemperatureC={110}
+        maximumTemperatureC={150}
         status="never_observed"
         severity="unavailable"
       />
@@ -33,10 +36,14 @@ it("never renders a manufactured numeric zero for unavailable values", () => {
 it("renders severity and RPM stage as text in addition to color", () => {
   render(
     <div>
-      <TemperatureGauge
+      <DriveTemperatureGauge
+        icon={DropletIcon}
         label="Coolant temperature"
         value={116}
+        valueC={116}
         unit="°C"
+        operatingTemperatureC={90}
+        maximumTemperatureC={120}
         status="valid"
         severity="critical"
       />

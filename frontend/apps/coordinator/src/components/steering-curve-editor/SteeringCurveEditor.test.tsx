@@ -15,7 +15,7 @@ import type {
   ActiveSteeringCurveState,
   SteeringCurveDefinition,
 } from "@e87canbus/coordinator-client/api/live-contract.gen"
-import { SteeringCurveCard } from "@/components/simulator-workbench/components/steering-curve-card"
+import { SteeringCurveEditor } from "./SteeringCurveEditor"
 
 vi.mock("./components/curve-chart", () => ({
   CurveChart: ({
@@ -116,7 +116,7 @@ const renderEditor = (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   )
   const result = render(
-    <SteeringCurveCard
+    <SteeringCurveEditor
       activeCurve={activeCurve}
       mode={steering.mode ?? "auto"}
       manualAssistanceLevel={steering.manualAssistanceLevel ?? 0}
@@ -171,7 +171,9 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Increase assistance" }))
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(
+        /api\/steering\/manual-assistance-adjustment$/
+      ),
       body: { delta: 1 },
     })
 
@@ -208,7 +210,9 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(
+        /api\/steering\/manual-assistance-adjustment$/
+      ),
       body: { delta: -1 },
     })
   })
@@ -230,13 +234,12 @@ describe("SteeringCurveEditor", () => {
     expect(decrease.disabled).toBe(true)
   })
 
-  it("always presents a smooth curve without an interpolation control", async () => {
+  it("does not offer an interpolation mode control", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse([]))
     )
     renderEditor(active(definition([1000, 800, 780, 670, 380, 0, 0, 0]), 2))
-    expect(await screen.findByText(/smooth assistance/)).toBeTruthy()
     expect(
       screen.queryByRole("button", {
         name: /linear|convert|smooth unavailable/i,
@@ -356,9 +359,9 @@ describe("SteeringCurveEditor", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Reset" }))
     await waitFor(() =>
-      expect(
-        requests.some((r) => r.url.includes("activate-profile"))
-      ).toBe(true)
+      expect(requests.some((r) => r.url.includes("activate-profile"))).toBe(
+        true
+      )
     )
   })
 
