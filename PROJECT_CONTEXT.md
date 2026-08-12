@@ -19,12 +19,19 @@ The E87 shares the same CAN architecture as the E90. E90 documentation, DBC file
 
 | Bus | Speed | Key Modules |
 |---|---|---|
-| K-CAN (Komfort) | 100 kbit/s | Body, lighting, MFL steering wheel buttons, iDrive, JB (junction box) |
-| PT-CAN (Powertrain) | 500 kbit/s | DME (engine), EGS (gearbox), instrument cluster |
+| K-CAN (Komfort) | 100 kbit/s | Body, lighting, MFL steering wheel buttons, iDrive, JBBF (junction box), KOMBI (instrument cluster) |
+| PT-CAN (Powertrain) | 500 kbit/s | DME (engine), EGS (gearbox), JBBF gateway |
 | F-CAN (Chassis) | 500 kbit/s | DSC (ABS/traction control), wheel speed sensors |
 | MOST | Optical | Infotainment — not used in this project |
 
-**Important:** The OBD-II port is gated behind a ZGW (central gateway module) which filters traffic. Do not rely on it for raw bus access. Tap buses directly at module connectors.
+The KOMBI is a K-CAN node, not a PT-CAN node. It receives powertrain values such as engine speed
+and vehicle speed on K-CAN after the JBBF has bridged the required information from PT-CAN. A
+future K-CAN cockpit display should therefore observe and decode the existing K-CAN presentation
+of those values where captures from this vehicle verify it; it does not inherently require its own
+PT-CAN connection or coordinator-republished copies of those live signals.
+
+**Important:** The OBD-II port is behind the vehicle's diagnostic gateway path, which can filter
+traffic. Do not rely on it for raw bus access. Tap buses directly at module connectors.
 
 ---
 
@@ -34,7 +41,7 @@ The E87 shares the same CAN architecture as the E90. E90 documentation, DBC file
 |---|---|---|
 | K-CAN | Dangling iDrive connector behind dash | Already disconnected, clean access, twisted pair visible |
 | K-CAN (alternative) | Junction Box (JB) main harness connector | JB is a primary K-CAN node |
-| PT-CAN | Junction Box area / engine bay near DME | JB bridges PT-CAN; also accessible at DME connector |
+| PT-CAN | Junction Box area / engine bay near DME | JBBF gateways selected PT-CAN information onto K-CAN; PT-CAN is also accessible at the DME connector |
 | F-CAN | DSC module connector in engine bay | Candidate tap for vehicle-speed capture |
 
 ### Wiring / Tap Method
@@ -186,9 +193,10 @@ Receive-only kcan                         kcan + ptcan + fcan
 ```
 
 The coordinator's three CAN connections are independent physical networks. It does not
-automatically forward frames between them; future domain-level bridging must be explicit
-application behavior. The console receives K-CAN without transmission authority and talks to the
-coordinator through narrowly exposed HTTP and Socket.IO, not a raw-CAN network API.
+automatically forward frames between them. The vehicle's JBBF already gateways selected vehicle
+information between PT-CAN and K-CAN; any additional coordinator-owned domain projection must be
+explicit application behavior. The console receives K-CAN without transmission authority and
+talks to the coordinator through narrowly exposed HTTP and Socket.IO, not a raw-CAN network API.
 The physical steering actuation topology is deliberately omitted because it has not been selected
 or verified.
 
