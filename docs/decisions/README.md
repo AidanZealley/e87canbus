@@ -17,6 +17,7 @@ complete.
 | [0009](0009-isolate-coordinator-accessories-from-control.md) | Isolated coordinator accessories | Accepted |
 | [0010](0010-constrain-hotspot-ui-exposure.md) | Constrained hotspot UI exposure | Accepted |
 | [0011](0011-separate-coordinator-and-console-hosts.md) | Separate coordinator and console hosts | Accepted |
+| [0012](0012-kcan-cockpit-display.md) | K-CAN cockpit display with coordinator-owned configuration | Proposed |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old
