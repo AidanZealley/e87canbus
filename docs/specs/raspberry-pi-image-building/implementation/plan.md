@@ -14,7 +14,7 @@ Status: approved; implementation started.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Docker builder](01-docker-builder.md) | Approved spec | Not started | TBD |
+| 1 | [Docker builder](01-docker-builder.md) | Approved spec | Closure review | TBD |
 | 2 | [Common host image](02-common-host.md) | 1 accepted | Not started | TBD |
 | 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Not started | TBD |
 | 4 | [Console image](04-console-image.md) | 3 accepted | Not started | TBD |
@@ -76,4 +76,4 @@ provisioning bundle formats.
 
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
-| TBD | None recorded | TBD | TBD | TBD |
+| 2026-08-20 | Pin `rpi-image-gen` v2.8.0 at `262d4df5a9f9d4133370465399a7958a7c22cdc7`; pin the arm64 `debian:trixie-slim` manifest at `sha256:c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0`; use Debian and Debian Security snapshots at `20260813T000000Z`. Keep the upstream Raspberry Pi archive fixed to the `trixie` suite and `main` component. | These are the newest tagged builder and matching arm64 Trixie base at implementation start. Debian supports immutable dated snapshots. The Raspberry Pi archive has no equivalent snapshot endpoint, so its Trixie packages remain rolling and the manifest records the resulting image digest. | Approved specification delegated exact pins to workstream 1 | 1-5 |
