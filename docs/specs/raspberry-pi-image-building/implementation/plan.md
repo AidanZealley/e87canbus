@@ -1,14 +1,14 @@
 # Raspberry Pi image-building implementation plan
 
-Status: draft; implementation has not started.
+Status: approved; implementation started.
 
 ## Orchestration record
 
 - Integration branch: `feature/pi-image-building`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Starting commit: `f2601794236cca66d71d7b6389a820fc5064312b`
+- Orchestrator: Codex (`gpt-5.6-sol`, T3 Code)
+- Specification approved at commit: `f2601794236cca66d71d7b6389a820fc5064312b`
+- Started: `2026-08-20`
 
 ## Workstream order
 
