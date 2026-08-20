@@ -1,0 +1,20 @@
+# The checkpoint uses only upstream layers. Role configs replace this after the base image boots.
+device:
+  layer: rpi4
+
+image:
+  layer: image-rpios
+  boot_part_size: 200%
+  root_part_size: 300%
+
+layer:
+  - debian-trixie-arm64-minbase-snapshot
+  - rpi-debian-trixie
+  - rpi-misc-utils
+  - rpi-essential-base
+  - rpi-misc-skel
+  - systemd-net-min
+  - openssh-server
+  - systemd-timesyncd
+  - wireless-regulatory
+  - iwd
