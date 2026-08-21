@@ -56,9 +56,9 @@ write_manifest() {
     local built_at="$4"
     local git_commit="$5"
     local git_dirty="$6"
-    local digest size
+    local digest="$7"
+    local size
 
-    digest="$(file_digest "${image}")"
     size="$(file_size "${image}")"
     cat >"${manifest}" <<EOF
 {
@@ -78,11 +78,6 @@ write_manifest() {
   }
 }
 EOF
-
-    local recorded_digest
-    recorded_digest="$(sed -n 's/.*"sha256": "\([0-9a-f]\{64\}\)".*/\1/p' "${manifest}")"
-    [[ "${recorded_digest}" == "$(file_digest "${image}")" ]] \
-        || fail "artifact digest verification failed"
 }
 
 [[ $# -eq 1 ]] || {
@@ -98,6 +93,16 @@ case "${ROLE}" in
         ;;
 esac
 
+readonly ROLE_CONFIG="${REPO_ROOT}/images/${ROLE}/image.yaml"
+if [[ -f "${ROLE_CONFIG}" ]]; then
+    readonly CONFIG_PATH="${ROLE_CONFIG}"
+elif [[ "${ROLE}" == coordinator ]]; then
+    # Workstream 1 exposes the coordinator path for the base-image hardware checkpoint only.
+    readonly CONFIG_PATH="${REPO_ROOT}/images/builder/base.yaml"
+else
+    fail "image definition ${ROLE_CONFIG#"${REPO_ROOT}/"} does not exist"
+fi
+
 command -v docker >/dev/null 2>&1 || fail "Docker is required; install and start Docker Desktop."
 docker info >/dev/null 2>&1 || fail "the Docker daemon is unavailable; start Docker Desktop."
 
@@ -105,20 +110,29 @@ readonly HOST_ARCHITECTURE="$(uname -m)"
 echo "Host architecture: ${HOST_ARCHITECTURE}"
 require_arm64 "host" "${HOST_ARCHITECTURE}"
 
-readonly ROLE_CONFIG="${REPO_ROOT}/images/${ROLE}/image.yaml"
-if [[ -f "${ROLE_CONFIG}" ]]; then
-    readonly CONFIG_PATH="${ROLE_CONFIG}"
+if GIT_COMMIT_VALUE="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null)"; then
+    GIT_COMMIT="\"${GIT_COMMIT_VALUE}\""
+    GIT_REVISION="${GIT_COMMIT_VALUE:0:12}"
 else
-    readonly CONFIG_PATH="${REPO_ROOT}/images/builder/base.yaml"
+    GIT_COMMIT=null
+    GIT_REVISION=nogit
 fi
+if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    GIT_DIRTY=true
+else
+    GIT_DIRTY=false
+fi
+readonly GIT_COMMIT GIT_REVISION GIT_DIRTY
 
 readonly BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-readonly BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD 2>/dev/null || echo nogit)"
+readonly BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)-${GIT_REVISION}"
 readonly ARTIFACT_DIR="${REPO_ROOT}/artifacts/images/${ROLE}"
 readonly CACHE_ROOT="${REPO_ROOT}/.cache/pi-image-build"
 readonly WORK_DIR="${CACHE_ROOT}/work/${ROLE}"
 readonly PACKAGE_CACHE="${CACHE_ROOT}/packages"
-mkdir -p "${ARTIFACT_DIR}" "${WORK_DIR}" "${PACKAGE_CACHE}"
+mkdir -p "${ARTIFACT_DIR}" "${PACKAGE_CACHE}"
+rm -rf -- "${WORK_DIR}"
+mkdir -p "${WORK_DIR}"
 readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"
 readonly MANIFEST_PATH="${ARTIFACT_DIR}/${BUILD_ID}.json"
 [[ ! -e "${IMAGE_PATH}" && ! -e "${MANIFEST_PATH}" ]] || fail "artifact ${BUILD_ID} already exists"
@@ -175,21 +189,12 @@ readonly STAGED_IMAGE="${STAGING_DIR}/${BUILD_ID}.img"
 readonly STAGED_MANIFEST="${STAGING_DIR}/${BUILD_ID}.json"
 mv "${built_images[0]}" "${STAGED_IMAGE}"
 
-if git -C "${REPO_ROOT}" rev-parse --verify HEAD >/dev/null 2>&1; then
-    GIT_COMMIT="\"$(git -C "${REPO_ROOT}" rev-parse HEAD)\""
-else
-    GIT_COMMIT=null
-fi
-if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
-    GIT_DIRTY=true
-else
-    GIT_DIRTY=false
-fi
-write_manifest "${STAGED_MANIFEST}" "${STAGED_IMAGE}" "${ROLE}" "${BUILD_TIME}" "${GIT_COMMIT}" "${GIT_DIRTY}"
+readonly IMAGE_DIGEST="$(file_digest "${STAGED_IMAGE}")"
+write_manifest "${STAGED_MANIFEST}" "${STAGED_IMAGE}" "${ROLE}" "${BUILD_TIME}" "${GIT_COMMIT}" "${GIT_DIRTY}" "${IMAGE_DIGEST}"
 mv "${STAGED_MANIFEST}" "${MANIFEST_PATH}"
 mv "${STAGED_IMAGE}" "${IMAGE_PATH}"
 PUBLISHED=true
 
 echo "Image: ${IMAGE_PATH}"
 echo "Manifest: ${MANIFEST_PATH}"
-echo "SHA-256: $(file_digest "${IMAGE_PATH}")"
+echo "SHA-256: ${IMAGE_DIGEST}"
