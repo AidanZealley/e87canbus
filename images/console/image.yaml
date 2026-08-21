@@ -1,0 +1,8 @@
+include:
+  file: ../common/image.yaml
+
+layer:
+  console: e87-console
+
+nm:
+  cmds: ${@SRCROOT}/console/network-manager.cmds

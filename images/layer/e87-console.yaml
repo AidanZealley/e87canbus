@@ -1,0 +1,18 @@
+# METABEGIN
+# X-Env-Layer-Name: e87-console
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: application
+# X-Env-Layer-Desc: Stable Raspberry Pi 4 console host configuration
+# X-Env-Layer-Requires: e87-common
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - cage
+    - chromium
+    - chromium-sandbox
+    - libpam-systemd
+    - plymouth
+  customize-hooks:
+    - '"$SRCROOT/console/customize.sh" "$1" "$SRCROOT/../deploy"'
+    - $BDEBSTRAP_HOOKS/enable-units "$1" e87canbus-console-kcan.service
