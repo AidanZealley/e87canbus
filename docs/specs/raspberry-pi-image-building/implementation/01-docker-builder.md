@@ -69,8 +69,8 @@ On the M1 Pro checkpoint:
 - Outcome: Added the shared arm64 Docker builder, the two-role shell entry point, a temporary
   upstream-only Pi 4 base definition, digest-backed manifests and ignored local build state.
   Until the real role definitions land, only the coordinator command may use the base checkpoint;
-  a missing console definition fails without producing build state. Each build starts with an
-  empty role work directory while preserving the shared package cache.
+  a missing console definition fails without producing build state. Each build receives a fresh
+  Docker-managed work volume while preserving downloaded packages in a named Docker volume.
 - Files changed: `.gitignore`, `images/builder/Dockerfile`, `images/builder/base.yaml`,
   `images/builder/debian.sources`, `scripts/build-pi-image`,
   `hosts/tests/test_pi_image_build.py` and this workstream record. The decision log in `plan.md`
@@ -82,8 +82,9 @@ On the M1 Pro checkpoint:
   its upstream `trixie`/`main` source. The two Snapshot sources use HTTP so the slim base can
   install `ca-certificates`; both retain their Debian archive `Signed-By` keyring and APT Release
   metadata verification. The root container receives `CAP_SYS_ADMIN`, which upstream requires for
-  mount namespaces. Repository source is read-only. Only `/work`, `/cache`, `/output` and an
-  executable `/tmp` tmpfs are writable.
+  mount namespaces. Repository source is read-only. Docker supplies an ephemeral Linux volume for
+  `/work`, a persistent named volume for `/cache`, a host bind for `/output` and an executable
+  `/tmp` tmpfs. This keeps target filesystem construction off Docker Desktop's macOS file share.
 - Verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py`, `git diff --check`, YAML parsing and confirmation that every
@@ -93,8 +94,10 @@ On the M1 Pro checkpoint:
   image's first `apt-get update`, before `rpi-image-gen` ran or an image artifact existed. The slim
   base could not verify the HTTPS Snapshot certificates before installing `ca-certificates`, so
   APT reported no installation candidate for `ca-certificates` and could not locate Git. Imager
-  and Pi boot checks did not run. A focused bootstrap correction and replacement candidate are
-  pending.
+  and Pi boot checks did not run. Candidate `bc0eed2` cleared that failure and reached target
+  filesystem construction, then the macOS-backed `/work` bind returned an I/O error while `dpkg`
+  installed `libpam-runtime`. The next candidate moves work and package-cache I/O into
+  Docker-managed Linux volumes. Imager and Pi boot checks remain pending.
 - Known limitations: The Raspberry Pi Trixie archive is URL, suite and component pinned but remains
   rolling because Raspberry Pi does not publish an immutable snapshot endpoint. The image digest
   identifies the exact result. The checkpoint contains no test login credentials; supply temporary
@@ -160,11 +163,18 @@ On the M1 Pro checkpoint:
   install `ca-certificates`. The sources retain `Signed-By` and `Check-Valid-Until`, and the focused
   static check rejects a `Trusted: yes` bypass. No pin, base image, package, privilege or wrapper
   behavior changed.
+- MacBook checkpoint attempt 2 disposition: Candidate `bc0eed2` proved the certificate correction,
+  then failed when `dpkg` received `EIO` while trying to stat a PAM manual page in the target root.
+  Moved `/work` from the macOS bind mount to an anonymous Docker volume removed by `--rm`. The
+  persistent package cache now uses the named `e87canbus-pi-image-packages` volume. `/output`
+  remains a host bind so the completed artifact reaches the Mac.
 - Simplification/deletion pass: Publication still uses the existing staging directory, one success
   bit and one cleanup function. Role selection has one narrow checkpoint exception rather than a
-  fallback mode. The work reset operates on the already validated role path and adds no cleanup
-  policy or cache controls. The bootstrap fix changes only the two source URIs and needs no
-  Dockerfile workaround or temporary trust configuration.
+  fallback mode. Docker removes the anonymous work volume with the container, so the wrapper needs
+  no work reset or cleanup policy. The bootstrap fix changes only the two source URIs and needs no
+  Dockerfile workaround or temporary trust configuration. Docker now owns the two high-I/O build
+  locations. The legacy `.cache` ignore remains so state from earlier checkpoint attempts does not
+  dirty existing checkouts, but the wrapper no longer creates or uses that tree.
 - Final verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` pass. The exact `uv run` equivalents,
@@ -212,3 +222,8 @@ On the M1 Pro checkpoint:
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` passed. Docker is unavailable in this
   environment, so the replacement MacBook checkpoint remains the required runtime proof.
+- MacBook checkpoint attempt 2: Candidate `bc0eed2` reached `mmdebstrap`. `libpam-runtime`
+  unpacked, then `dpkg` failed to stat `usr/share/man/man7/PAM.7.gz` with `EIO` inside the
+  macOS-backed `/work` bind. Dependency messages around `util-linux` were expected forced-unpack
+  warnings, not the failure. The next candidate uses Docker-managed Linux volumes for work and
+  package cache; only source and finished artifacts cross the Docker Desktop file-sharing boundary.

@@ -5,6 +5,7 @@ set -euo pipefail
 readonly RPI_IMAGE_GEN_REVISION="262d4df5a9f9d4133370465399a7958a7c22cdc7"
 readonly PACKAGE_SNAPSHOT_EPOCH="1786579200"
 readonly BUILDER_IMAGE="e87canbus/pi-image-builder:${RPI_IMAGE_GEN_REVISION:0:12}"
+readonly PACKAGE_CACHE_VOLUME="e87canbus-pi-image-packages"
 readonly SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -127,12 +128,7 @@ readonly GIT_COMMIT GIT_REVISION GIT_DIRTY
 readonly BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 readonly BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)-${GIT_REVISION}"
 readonly ARTIFACT_DIR="${REPO_ROOT}/artifacts/images/${ROLE}"
-readonly CACHE_ROOT="${REPO_ROOT}/.cache/pi-image-build"
-readonly WORK_DIR="${CACHE_ROOT}/work/${ROLE}"
-readonly PACKAGE_CACHE="${CACHE_ROOT}/packages"
-mkdir -p "${ARTIFACT_DIR}" "${PACKAGE_CACHE}"
-rm -rf -- "${WORK_DIR}"
-mkdir -p "${WORK_DIR}"
+mkdir -p "${ARTIFACT_DIR}"
 readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"
 readonly MANIFEST_PATH="${ARTIFACT_DIR}/${BUILD_ID}.json"
 [[ ! -e "${IMAGE_PATH}" && ! -e "${MANIFEST_PATH}" ]] || fail "artifact ${BUILD_ID} already exists"
@@ -164,8 +160,8 @@ docker run --rm \
     --platform linux/arm64 \
     --cap-add SYS_ADMIN \
     --mount "type=bind,src=${REPO_ROOT},dst=/source,readonly" \
-    --mount "type=bind,src=${WORK_DIR},dst=/work" \
-    --mount "type=bind,src=${PACKAGE_CACHE},dst=/cache" \
+    --volume /work \
+    --mount "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" \
     --mount "type=bind,src=${STAGING_DIR},dst=/output" \
     --tmpfs /tmp:exec \
     --env "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
