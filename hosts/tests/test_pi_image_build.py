@@ -191,7 +191,7 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
     }
 
 
-def test_build_uses_linux_volume_for_work_and_persistent_package_cache(tmp_path: Path) -> None:
+def test_build_uses_linux_volumes_for_temporary_state_and_package_cache(tmp_path: Path) -> None:
     repo = make_test_repo(tmp_path)
     tools = arm64_tools(tmp_path, successful_docker())
 
@@ -306,9 +306,10 @@ def test_container_has_only_explicit_writable_build_locations() -> None:
     assert "--privileged" not in script
     assert 'dst=/source,readonly"' in script
     assert "--volume /work" in script
+    assert "--volume /tmp" in script
     assert "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" in script
     assert 'dst=/output"' in script
-    assert "--tmpfs /tmp:exec" in script
+    assert "--tmpfs" not in script
 
 
 def test_role_artifacts_have_a_verified_manifest() -> None:
