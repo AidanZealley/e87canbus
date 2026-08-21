@@ -1,6 +1,6 @@
 # Workstream 3: Coordinator image
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -155,4 +155,4 @@ uv run ruff check \
   hosts/tests/test_pi_image_build.py hosts/tests/test_host_deployment.py
   hosts/tests/test_reliability.py` passed (`50 passed`); Ruff, shell syntax and `git diff --check`
   passed.
-- Accepted commit: `TBD`
+- Accepted commit: `7edb861` (`Add coordinator Raspberry Pi image`).
