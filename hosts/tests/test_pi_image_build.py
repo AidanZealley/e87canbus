@@ -191,15 +191,9 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
     }
 
 
-def test_build_resets_role_work_and_preserves_package_cache(tmp_path: Path) -> None:
+def test_build_uses_linux_volume_for_work_and_persistent_package_cache(tmp_path: Path) -> None:
     repo = make_test_repo(tmp_path)
     tools = arm64_tools(tmp_path, successful_docker())
-    stale_work = repo / ".cache/pi-image-build/work/coordinator/stale"
-    package = repo / ".cache/pi-image-build/packages/cached-package"
-    stale_work.parent.mkdir(parents=True)
-    package.parent.mkdir(parents=True)
-    stale_work.write_text("partial build")
-    package.write_text("cached package")
 
     result = subprocess.run(
         ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
@@ -210,8 +204,7 @@ def test_build_resets_role_work_and_preserves_package_cache(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0, result.stderr
-    assert not stale_work.exists()
-    assert package.read_text() == "cached package"
+    assert not (repo / ".cache").exists()
 
 
 @pytest.mark.parametrize("failing_move", [2, 3])
@@ -312,8 +305,8 @@ def test_container_has_only_explicit_writable_build_locations() -> None:
     assert '--cap-add SYS_ADMIN' in script
     assert "--privileged" not in script
     assert 'dst=/source,readonly"' in script
-    assert 'dst=/work"' in script
-    assert 'dst=/cache"' in script
+    assert "--volume /work" in script
+    assert "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" in script
     assert 'dst=/output"' in script
     assert "--tmpfs /tmp:exec" in script
 
@@ -345,4 +338,3 @@ def test_generated_image_state_is_ignored() -> None:
     ignored = read(ROOT / ".gitignore")
 
     assert "/artifacts/images/" in ignored
-    assert "/.cache/pi-image-build/" in ignored
