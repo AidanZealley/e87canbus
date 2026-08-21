@@ -1,0 +1,8 @@
+include:
+  file: ../common/image.yaml
+
+layer:
+  coordinator: e87-coordinator
+
+nm:
+  cmds: ${@SRCROOT}/coordinator/network-manager.cmds
