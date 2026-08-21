@@ -1,6 +1,6 @@
 # Workstream 1: Docker builder and base-image proof
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -185,8 +185,8 @@ On the M1 Pro checkpoint:
   dirty existing checkouts, but the wrapper no longer creates or uses that tree.
 - Final verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
-  hosts/tests/test_pi_image_build.py` and `git diff --check` pass. The exact `uv run` equivalents,
-  real Docker build and hardware checkpoint remain pending in the recorded environments.
+  hosts/tests/test_pi_image_build.py` and `git diff --check` pass. Aidan's M1 Pro produced and
+  Raspberry Pi Imager wrote the accepted artifact; the Pi 4 booted it to a login prompt.
 
 ## Closure review
 
@@ -200,7 +200,7 @@ On the M1 Pro checkpoint:
 - Evidence: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (15 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` passed during closure review.
-- Accepted commit: Pending checkpoint candidate and hardware result.
+- Accepted commit: `7f78f3f` (`Keep Pi image assembly on Docker storage`).
 - Pre-checkpoint correction closure: Accepted. No required finding remains from Aidan's
   adversarial review, and the corrections introduced no release-blocking regression. A missing
   console definition exits before Docker, artifact directories or role cleanup; only coordinator
@@ -240,3 +240,9 @@ On the M1 Pro checkpoint:
   `genimage --tmppath`; `genimage` then failed because `cp -a` could not preserve metadata for
   `var/log/journal` on the tmpfs. The next candidate uses an anonymous Docker volume for `/tmp`,
   keeping image assembly on Docker-managed Linux storage with automatic removal on container exit.
+- MacBook checkpoint attempt 4: Passed at candidate `7f78f3f`. The M1 Pro built
+  `20260821T213003Z-7f78f3fc2f8e.img` (1,837,105,152 bytes) with SHA-256
+  `fd765de34be4382f5ce79bdae7ea3cf1a7a9a20db45ed690f5ef9df98d850181`.
+  Raspberry Pi Imager wrote the image successfully. Aidan's photograph shows the Raspberry Pi 4
+  reaching Debian GNU/Linux 13 on `tty1`, starting SSH, reaching `multi-user.target` and presenting
+  the `pi4-aubzwc` login prompt with no failed units visible. Workstream 1 is accepted.
