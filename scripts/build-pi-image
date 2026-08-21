@@ -161,9 +161,9 @@ docker run --rm \
     --cap-add SYS_ADMIN \
     --mount "type=bind,src=${REPO_ROOT},dst=/source,readonly" \
     --volume /work \
+    --volume /tmp \
     --mount "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" \
     --mount "type=bind,src=${STAGING_DIR},dst=/output" \
-    --tmpfs /tmp:exec \
     --env "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
     "${BUILDER_IMAGE}" build \
     -S /source/images \

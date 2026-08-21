@@ -82,9 +82,9 @@ On the M1 Pro checkpoint:
   its upstream `trixie`/`main` source. The two Snapshot sources use HTTP so the slim base can
   install `ca-certificates`; both retain their Debian archive `Signed-By` keyring and APT Release
   metadata verification. The root container receives `CAP_SYS_ADMIN`, which upstream requires for
-  mount namespaces. Repository source is read-only. Docker supplies an ephemeral Linux volume for
-  `/work`, a persistent named volume for `/cache`, a host bind for `/output` and an executable
-  `/tmp` tmpfs. This keeps target filesystem construction off Docker Desktop's macOS file share.
+  mount namespaces. Repository source is read-only. Docker supplies ephemeral Linux volumes for
+  `/work` and `/tmp`, a persistent named volume for `/cache` and a host bind for `/output`. This
+  keeps target filesystem construction and image assembly off incompatible Docker Desktop mounts.
 - Verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py`, `git diff --check`, YAML parsing and confirmation that every
@@ -97,7 +97,10 @@ On the M1 Pro checkpoint:
   and Pi boot checks did not run. Candidate `bc0eed2` cleared that failure and reached target
   filesystem construction, then the macOS-backed `/work` bind returned an I/O error while `dpkg`
   installed `libpam-runtime`. The next candidate moves work and package-cache I/O into
-  Docker-managed Linux volumes. Imager and Pi boot checks remain pending.
+  Docker-managed Linux volumes. Candidate `30a068a` completed rootfs construction and the SBOM,
+  then `genimage` could not preserve rootfs metadata while copying it into the `/tmp` tmpfs. The
+  next candidate also gives image assembly a disposable Docker volume. Imager and Pi boot checks
+  remain pending.
 - Known limitations: The Raspberry Pi Trixie archive is URL, suite and component pinned but remains
   rolling because Raspberry Pi does not publish an immutable snapshot endpoint. The image digest
   identifies the exact result. The checkpoint contains no test login credentials; supply temporary
@@ -168,11 +171,16 @@ On the M1 Pro checkpoint:
   Moved `/work` from the macOS bind mount to an anonymous Docker volume removed by `--rm`. The
   persistent package cache now uses the named `e87canbus-pi-image-packages` volume. `/output`
   remains a host bind so the completed artifact reaches the Mac.
+- MacBook checkpoint attempt 3 disposition: Candidate `30a068a` completed rootfs construction and
+  SBOM generation, then `genimage` failed when `cp -a` could not preserve metadata for
+  `var/log/journal` in its `/tmp` staging tree. Pinned upstream uses that tree to copy the complete
+  rootfs before assembling the image. Replaced the tmpfs with a second anonymous Docker volume;
+  `--rm` removes both disposable volumes when the build container exits.
 - Simplification/deletion pass: Publication still uses the existing staging directory, one success
   bit and one cleanup function. Role selection has one narrow checkpoint exception rather than a
   fallback mode. Docker removes the anonymous work volume with the container, so the wrapper needs
   no work reset or cleanup policy. The bootstrap fix changes only the two source URIs and needs no
-  Dockerfile workaround or temporary trust configuration. Docker now owns the two high-I/O build
+  Dockerfile workaround or temporary trust configuration. Docker now owns the high-I/O build
   locations. The legacy `.cache` ignore remains so state from earlier checkpoint attempts does not
   dirty existing checkouts, but the wrapper no longer creates or uses that tree.
 - Final verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
@@ -227,3 +235,8 @@ On the M1 Pro checkpoint:
   macOS-backed `/work` bind. Dependency messages around `util-linux` were expected forced-unpack
   warnings, not the failure. The next candidate uses Docker-managed Linux volumes for work and
   package cache; only source and finished artifacts cross the Docker Desktop file-sharing boundary.
+- MacBook checkpoint attempt 3: Candidate `30a068a` completed `mmdebstrap`, all layer hooks and
+  SBOM generation. During image assembly, pinned upstream passed a directory below `/tmp` as
+  `genimage --tmppath`; `genimage` then failed because `cp -a` could not preserve metadata for
+  `var/log/journal` on the tmpfs. The next candidate uses an anonymous Docker volume for `/tmp`,
+  keeping image assembly on Docker-managed Linux storage with automatic removal on container exit.
