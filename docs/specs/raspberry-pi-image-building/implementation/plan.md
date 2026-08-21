@@ -18,7 +18,7 @@ Status: approved; implementation started.
 | 2 | [Common host image](02-common-host.md) | 1 accepted | Accepted | `bc38ac6` |
 | 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Accepted | `7edb861` |
 | 4 | [Console image](04-console-image.md) | 3 accepted | Accepted | `677c3ae` |
-| 5 | [Hardware acceptance](05-hardware-acceptance.md) | 3 and 4 accepted | Implementing | TBD |
+| 5 | [Hardware acceptance](05-hardware-acceptance.md) | 3 and 4 accepted | Closure review | TBD |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.
