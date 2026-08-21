@@ -1,0 +1,35 @@
+# METABEGIN
+# X-Env-Layer-Name: e87-common
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: application
+# X-Env-Layer-Desc: Shared runtime and filesystem state for E87 Raspberry Pi hosts
+# X-Env-Layer-Requires: rpi-essential-base,network-manager,openssh-server
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - ca-certificates
+    - can-utils
+    - curl
+    - iproute2
+    - python3
+  customize-hooks:
+    - |-
+      set -eu
+      if chroot "$1" id "$IGconf_device_user1" >/dev/null 2>&1; then
+        chroot "$1" userdel --remove "$IGconf_device_user1"
+      fi
+      if chroot "$1" getent group "$IGconf_device_user1" >/dev/null 2>&1; then
+        chroot "$1" groupdel "$IGconf_device_user1"
+      fi
+      chroot "$1" sh -c '
+        getent group e87canbus >/dev/null || groupadd --system e87canbus
+        id e87canbus >/dev/null 2>&1 || useradd --system --gid e87canbus \
+          --home-dir /var/lib/e87canbus --no-create-home \
+          --shell /usr/sbin/nologin e87canbus
+        install -d -o root -g e87canbus -m 0750 /opt/e87canbus
+        install -d -o e87canbus -g e87canbus -m 0750 /etc/e87canbus /var/lib/e87canbus
+        install -d -o root -g root -m 0700 /var/lib/e87canbus-provisioning
+        install -o root -g root -m 0644 /dev/null \
+          /var/lib/e87canbus-provisioning/unprovisioned
+      '
