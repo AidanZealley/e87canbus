@@ -292,8 +292,14 @@ def test_builder_and_package_sources_are_immutable_where_upstream_allows() -> No
     arm64_image = "sha256:c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0"
     assert revision in dockerfile and revision in script
     assert arm64_image in dockerfile
-    assert "snapshot.debian.org/archive/debian/20260813T000000Z" in sources
-    assert "snapshot.debian.org/archive/debian-security/20260813T000000Z" in sources
+    assert "URIs: http://snapshot.debian.org/archive/debian/20260813T000000Z" in sources
+    assert (
+        "URIs: http://snapshot.debian.org/archive/debian-security/20260813T000000Z"
+        in sources
+    )
+    assert sources.count("Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg") == 2
+    assert sources.count("Check-Valid-Until: no") == 2
+    assert "Trusted: yes" not in sources
     assert "debian-trixie-arm64-minbase-snapshot" in config
     assert "rpi-debian-trixie" in config
     assert 'PACKAGE_SNAPSHOT_EPOCH="1786579200"' in script

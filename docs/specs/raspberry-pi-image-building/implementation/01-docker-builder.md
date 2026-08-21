@@ -79,19 +79,22 @@ On the M1 Pro checkpoint:
   `262d4df5a9f9d4133370465399a7958a7c22cdc7`; arm64 `debian:trixie-slim` manifest
   `sha256:c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0`;
   Debian and Debian Security snapshots at `20260813T000000Z`; Raspberry Pi archive restricted to
-  its upstream `trixie`/`main` source. The root container receives `CAP_SYS_ADMIN`, which upstream
-  requires for mount namespaces. Repository source is read-only. Only `/work`, `/cache`, `/output`
-  and an executable `/tmp` tmpfs are writable.
+  its upstream `trixie`/`main` source. The two Snapshot sources use HTTP so the slim base can
+  install `ca-certificates`; both retain their Debian archive `Signed-By` keyring and APT Release
+  metadata verification. The root container receives `CAP_SYS_ADMIN`, which upstream requires for
+  mount namespaces. Repository source is read-only. Only `/work`, `/cache`, `/output` and an
+  executable `/tmp` tmpfs are writable.
 - Verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py`, `git diff --check`, YAML parsing and confirmation that every
   configured layer exists at the pinned revision. `uv` and Docker are unavailable in this
   environment, so the exact `uv run` commands and a real container build remain pending.
-- MacBook, Imager and Pi checkpoint: Pending focused closure of the pre-checkpoint corrections and
-  a replacement checkpoint candidate. On
-  the M1 Pro, run `./scripts/build-pi-image coordinator`, verify the printed manifest digest, flash
-  the printed `.img` with Raspberry Pi Imager and confirm a Raspberry Pi 4 Model B reaches a normal
-  boot. Record the command, artifact SHA-256, Imager result and boot result here before acceptance.
+- MacBook, Imager and Pi checkpoint: Candidate `a767497` failed on the M1 Pro during the builder
+  image's first `apt-get update`, before `rpi-image-gen` ran or an image artifact existed. The slim
+  base could not verify the HTTPS Snapshot certificates before installing `ca-certificates`, so
+  APT reported no installation candidate for `ca-certificates` and could not locate Git. Imager
+  and Pi boot checks did not run. A focused bootstrap correction and replacement candidate are
+  pending.
 - Known limitations: The Raspberry Pi Trixie archive is URL, suite and component pinned but remains
   rolling because Raspberry Pi does not publish an immutable snapshot endpoint. The image digest
   identifies the exact result. The checkpoint contains no test login credentials; supply temporary
@@ -152,10 +155,16 @@ On the M1 Pro checkpoint:
   optional observations, including the function parameters, file-size helper, argument handling,
   repeated config-relative path, snapshot comment, output glob and broader source-assertion test
   changes.
+- MacBook checkpoint attempt 1 disposition: Accepted the focused bootstrap correction. Both dated
+  Debian Snapshot URIs now use Snapshot's supported HTTP transport so the pinned slim base can
+  install `ca-certificates`. The sources retain `Signed-By` and `Check-Valid-Until`, and the focused
+  static check rejects a `Trusted: yes` bypass. No pin, base image, package, privilege or wrapper
+  behavior changed.
 - Simplification/deletion pass: Publication still uses the existing staging directory, one success
   bit and one cleanup function. Role selection has one narrow checkpoint exception rather than a
   fallback mode. The work reset operates on the already validated role path and adds no cleanup
-  policy or cache controls.
+  policy or cache controls. The bootstrap fix changes only the two source URIs and needs no
+  Dockerfile workaround or temporary trust configuration.
 - Final verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
   hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` pass. The exact `uv run` equivalents,
@@ -188,4 +197,18 @@ On the M1 Pro checkpoint:
   does not follow a role-directory symlink, the package cache survives, the digest helper runs
   once, and the manifest commit and build-ID suffix come from the same single commit lookup. Static
   inspection found no shell feature newer than macOS Bash 3.2. `uv` and Docker are unavailable in
-  this environment, so the exact `uv run` commands and MacBook checkpoint remain pending.
+  this environment.
+- MacBook checkpoint attempt 1: Failed at candidate `a767497`. Docker resolved the pinned arm64
+  Debian base, then both pinned HTTPS Snapshot sources failed certificate verification during
+  `apt-get update`. The subsequent `apt-get install` found neither `ca-certificates` nor Git and
+  exited 100. No artifact was produced, so Imager and Pi checks remain pending. The accepted
+  correction is to use Snapshot's supported HTTP transport for the bootstrap while retaining
+  `Signed-By` and APT's Release-file verification.
+- MacBook checkpoint attempt 1 correction closure: Accepted. Both dated Snapshot `InRelease`
+  files were fetched over HTTP and contained signed Release metadata. The sources still select the
+  Debian archive keyring with `Signed-By`; no trusted, insecure or TLS-verification bypass was
+  added. The builder revision, base digest, snapshot dates, package list and build behavior are
+  unchanged. `bash -n scripts/build-pi-image`, `.venv/bin/pytest
+  hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
+  hosts/tests/test_pi_image_build.py` and `git diff --check` passed. Docker is unavailable in this
+  environment, so the replacement MacBook checkpoint remains the required runtime proof.
