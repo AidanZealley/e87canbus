@@ -28,3 +28,7 @@ node_modules/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Local Raspberry Pi image builds
+/artifacts/images/
+/.cache/pi-image-build/

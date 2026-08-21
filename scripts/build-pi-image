@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly RPI_IMAGE_GEN_REVISION="262d4df5a9f9d4133370465399a7958a7c22cdc7"
+readonly PACKAGE_SNAPSHOT_EPOCH="1786579200"
+readonly BUILDER_IMAGE="e87canbus/pi-image-builder:${RPI_IMAGE_GEN_REVISION:0:12}"
+readonly PACKAGE_CACHE_VOLUME="e87canbus-pi-image-packages"
+readonly SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+usage() {
+    echo "Usage: $0 coordinator|console" >&2
+}
+
+fail() {
+    echo "build-pi-image: $*" >&2
+    exit 1
+}
+
+require_arm64() {
+    local description="$1"
+    local architecture="$2"
+
+    case "${architecture}" in
+        arm64 | aarch64) ;;
+        *) fail "${description} architecture is ${architecture}; native arm64 is required (x86 emulation is not supported)." ;;
+    esac
+}
+
+file_digest() {
+    local path="$1"
+
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "${path}" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "${path}" | awk '{print $1}'
+    else
+        fail "neither shasum nor sha256sum is available"
+    fi
+}
+
+file_size() {
+    local path="$1"
+
+    if stat -f %z "${path}" >/dev/null 2>&1; then
+        stat -f %z "${path}"
+    else
+        stat -c %s "${path}"
+    fi
+}
+
+write_manifest() {
+    local manifest="$1"
+    local image="$2"
+    local role="$3"
+    local built_at="$4"
+    local git_commit="$5"
+    local git_dirty="$6"
+    local digest="$7"
+    local size
+
+    size="$(file_size "${image}")"
+    cat >"${manifest}" <<EOF
+{
+  "format_version": 1,
+  "role": "${role}",
+  "raspberry_pi_model": "Raspberry Pi 4 Model B",
+  "os_release": "Raspberry Pi OS Lite Trixie",
+  "architecture": "arm64",
+  "builder_revision": "${RPI_IMAGE_GEN_REVISION}",
+  "built_at": "${built_at}",
+  "git_commit": ${git_commit},
+  "git_dirty": ${git_dirty},
+  "image": {
+    "filename": "${image##*/}",
+    "size_bytes": ${size},
+    "sha256": "${digest}"
+  }
+}
+EOF
+}
+
+[[ $# -eq 1 ]] || {
+    usage
+    exit 2
+}
+readonly ROLE="$1"
+case "${ROLE}" in
+    coordinator | console) ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
+
+readonly ROLE_CONFIG="${REPO_ROOT}/images/${ROLE}/image.yaml"
+if [[ -f "${ROLE_CONFIG}" ]]; then
+    readonly CONFIG_PATH="${ROLE_CONFIG}"
+elif [[ "${ROLE}" == coordinator ]]; then
+    # Workstream 1 exposes the coordinator path for the base-image hardware checkpoint only.
+    readonly CONFIG_PATH="${REPO_ROOT}/images/builder/base.yaml"
+else
+    fail "image definition ${ROLE_CONFIG#"${REPO_ROOT}/"} does not exist"
+fi
+
+command -v docker >/dev/null 2>&1 || fail "Docker is required; install and start Docker Desktop."
+docker info >/dev/null 2>&1 || fail "the Docker daemon is unavailable; start Docker Desktop."
+
+readonly HOST_ARCHITECTURE="$(uname -m)"
+echo "Host architecture: ${HOST_ARCHITECTURE}"
+require_arm64 "host" "${HOST_ARCHITECTURE}"
+
+if GIT_COMMIT_VALUE="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null)"; then
+    GIT_COMMIT="\"${GIT_COMMIT_VALUE}\""
+    GIT_REVISION="${GIT_COMMIT_VALUE:0:12}"
+else
+    GIT_COMMIT=null
+    GIT_REVISION=nogit
+fi
+if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    GIT_DIRTY=true
+else
+    GIT_DIRTY=false
+fi
+readonly GIT_COMMIT GIT_REVISION GIT_DIRTY
+
+readonly BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+readonly BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)-${GIT_REVISION}"
+readonly ARTIFACT_DIR="${REPO_ROOT}/artifacts/images/${ROLE}"
+mkdir -p "${ARTIFACT_DIR}"
+readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"
+readonly MANIFEST_PATH="${ARTIFACT_DIR}/${BUILD_ID}.json"
+[[ ! -e "${IMAGE_PATH}" && ! -e "${MANIFEST_PATH}" ]] || fail "artifact ${BUILD_ID} already exists"
+readonly STAGING_DIR="$(mktemp -d "${ARTIFACT_DIR}/.build.XXXXXX")"
+PUBLISHED=false
+cleanup() {
+    rm -rf -- "${STAGING_DIR}"
+    if [[ "${PUBLISHED}" != true ]]; then
+        rm -f -- "${IMAGE_PATH}" "${MANIFEST_PATH}"
+    fi
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+echo "Building ${BUILDER_IMAGE} for linux/arm64..."
+docker build \
+    --platform linux/arm64 \
+    --file "${REPO_ROOT}/images/builder/Dockerfile" \
+    --tag "${BUILDER_IMAGE}" \
+    "${REPO_ROOT}/images/builder"
+
+readonly CONTAINER_ARCHITECTURE="$(docker run --rm --platform linux/arm64 --entrypoint uname "${BUILDER_IMAGE}" -m)"
+echo "Container architecture: ${CONTAINER_ARCHITECTURE}"
+require_arm64 "container" "${CONTAINER_ARCHITECTURE}"
+
+readonly CONTAINER_CONFIG="/source/${CONFIG_PATH#"${REPO_ROOT}/"}"
+echo "Building ${ROLE} from ${CONFIG_PATH#"${REPO_ROOT}/"}..."
+docker run --rm \
+    --platform linux/arm64 \
+    --cap-add SYS_ADMIN \
+    --mount "type=bind,src=${REPO_ROOT},dst=/source,readonly" \
+    --volume /work \
+    --volume /tmp \
+    --mount "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" \
+    --mount "type=bind,src=${STAGING_DIR},dst=/output" \
+    --env "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
+    "${BUILDER_IMAGE}" build \
+    -S /source/images \
+    -B /work \
+    -c "${CONTAINER_CONFIG}" \
+    -- \
+    "IGconf_artefact_version=${BUILD_ID}" \
+    "IGconf_image_name=e87-${ROLE}" \
+    "IGconf_sys_apt_cachedir=/cache" \
+    "IGconf_deploy_dir=/output" \
+    "IGconf_deploy_compression=none"
+
+shopt -s nullglob
+built_images=("${STAGING_DIR}"/*.img)
+[[ ${#built_images[@]} -eq 1 ]] \
+    || fail "expected one .img output, found ${#built_images[@]} in ${STAGING_DIR}"
+
+readonly STAGED_IMAGE="${STAGING_DIR}/${BUILD_ID}.img"
+readonly STAGED_MANIFEST="${STAGING_DIR}/${BUILD_ID}.json"
+mv "${built_images[0]}" "${STAGED_IMAGE}"
+
+readonly IMAGE_DIGEST="$(file_digest "${STAGED_IMAGE}")"
+write_manifest "${STAGED_MANIFEST}" "${STAGED_IMAGE}" "${ROLE}" "${BUILD_TIME}" "${GIT_COMMIT}" "${GIT_DIRTY}" "${IMAGE_DIGEST}"
+mv "${STAGED_MANIFEST}" "${MANIFEST_PATH}"
+mv "${STAGED_IMAGE}" "${IMAGE_PATH}"
+PUBLISHED=true
+
+echo "Image: ${IMAGE_PATH}"
+echo "Manifest: ${MANIFEST_PATH}"
+echo "SHA-256: ${IMAGE_DIGEST}"

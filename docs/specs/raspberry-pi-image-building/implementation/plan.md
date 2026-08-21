@@ -1,24 +1,24 @@
 # Raspberry Pi image-building implementation plan
 
-Status: draft; implementation has not started.
+Status: approved; implementation started.
 
 ## Orchestration record
 
 - Integration branch: `feature/pi-image-building`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Starting commit: `f2601794236cca66d71d7b6389a820fc5064312b`
+- Orchestrator: Codex (`gpt-5.6-sol`, T3 Code)
+- Specification approved at commit: `f2601794236cca66d71d7b6389a820fc5064312b`
+- Started: `2026-08-20`
 
 ## Workstream order
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Docker builder](01-docker-builder.md) | Approved spec | Not started | TBD |
-| 2 | [Common host image](02-common-host.md) | 1 accepted | Not started | TBD |
-| 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Not started | TBD |
-| 4 | [Console image](04-console-image.md) | 3 accepted | Not started | TBD |
-| 5 | [Hardware acceptance](05-hardware-acceptance.md) | 3 and 4 accepted | Not started | TBD |
+| 1 | [Docker builder](01-docker-builder.md) | Approved spec | Accepted | `7f78f3f` |
+| 2 | [Common host image](02-common-host.md) | 1 accepted | Accepted | `bc38ac6` |
+| 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Accepted | `7edb861` |
+| 4 | [Console image](04-console-image.md) | 3 accepted | Accepted | `677c3ae` |
+| 5 | [Hardware acceptance](05-hardware-acceptance.md) | 3 and 4 accepted | Closure review | TBD |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.
@@ -76,4 +76,4 @@ provisioning bundle formats.
 
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
-| TBD | None recorded | TBD | TBD | TBD |
+| 2026-08-20 | Pin `rpi-image-gen` v2.8.0 at `262d4df5a9f9d4133370465399a7958a7c22cdc7`; pin the arm64 `debian:trixie-slim` manifest at `sha256:c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0`; use Debian and Debian Security snapshots at `20260813T000000Z`. Keep the upstream Raspberry Pi archive fixed to the `trixie` suite and `main` component. | These are the newest tagged builder and matching arm64 Trixie base at implementation start. Debian supports immutable dated snapshots. The Raspberry Pi archive has no equivalent snapshot endpoint, so its Trixie packages remain rolling and the manifest records the resulting image digest. | Approved specification delegated exact pins to workstream 1 | 1-5 |
