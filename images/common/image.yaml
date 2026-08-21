@@ -1,0 +1,24 @@
+device:
+  layer: rpi4
+
+image:
+  layer: image-rpios
+  boot_part_size: 200%
+  root_part_size: 300%
+
+layer:
+  base: debian-trixie-arm64-minbase-snapshot
+  rpi: rpi-debian-trixie
+  rpi_utils: rpi-misc-utils
+  rpi_essential: rpi-essential-base
+  rpi_skeleton: rpi-misc-skel
+  network: network-manager
+  ssh: openssh-server
+  time: systemd-timesyncd
+  regulatory: wireless-regulatory
+  wifi: iwd
+  wifi_backend: network-manager-iwd
+  e87: e87-common
+
+ssh:
+  pubkey_only: y

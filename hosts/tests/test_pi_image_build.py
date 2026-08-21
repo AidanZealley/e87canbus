@@ -12,6 +12,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = ROOT / "scripts/build-pi-image"
 BUILDER = ROOT / "images/builder"
+COMMON_CONFIG = ROOT / "images/common/image.yaml"
+COMMON_LAYER = ROOT / "images/layer/e87-common.yaml"
+COMMON_OVERLAY = ROOT / "images/layer/e87-common.rootfs-overlay"
 
 
 def read(path: Path) -> str:
@@ -339,3 +342,93 @@ def test_generated_image_state_is_ignored() -> None:
     ignored = read(ROOT / ".gitignore")
 
     assert "/artifacts/images/" in ignored
+
+
+def test_common_image_exposes_one_role_agnostic_definition() -> None:
+    config = read(COMMON_CONFIG)
+
+    assert "layer: rpi4" in config
+    assert "e87: e87-common" in config
+    assert "pubkey_only: y" in config
+    for role_specific_value in (
+        "coordinator",
+        "console",
+        "kcan",
+        "ptcan",
+        "fcan",
+        "uart",
+        "chromium",
+        "cage",
+        "10.42.",
+        "10.43.",
+    ):
+        assert role_specific_value not in config
+
+    for credential_setting in (
+        "user1:",
+        "user1pass:",
+        "user1passhash:",
+        "pubkey_user1:",
+        "host_keydir:",
+    ):
+        assert credential_setting not in config
+
+
+def test_common_layer_contains_runtime_dependencies_without_build_tools() -> None:
+    layer = read(COMMON_LAYER)
+    config = read(COMMON_CONFIG)
+
+    for package in (
+        "ca-certificates",
+        "can-utils",
+        "curl",
+        "iproute2",
+        "python3",
+    ):
+        assert f"    - {package}\n" in layer
+    assert "network: network-manager" in config
+    assert "wifi_backend: network-manager-iwd" in config
+    for prohibited in (
+        "apt ",
+        "apt-get",
+        "build-essential",
+        "git",
+        "nodejs",
+        "npm",
+        "pip",
+        "pnpm",
+        "uv ",
+    ):
+        assert prohibited not in layer.lower()
+
+
+def test_common_layer_creates_service_state_and_versioned_provisioning_boundary() -> None:
+    layer = read(COMMON_LAYER)
+    interface_version = read(
+        COMMON_OVERLAY / "usr/share/e87canbus/provisioning-interface"
+    )
+
+    assert "groupadd --system e87canbus" in layer
+    assert "useradd --system --gid e87canbus" in layer
+    assert 'userdel --remove "$IGconf_device_user1"' in layer
+    assert 'groupdel "$IGconf_device_user1"' in layer
+    assert "--home-dir /var/lib/e87canbus --no-create-home" in layer
+    assert "--shell /usr/sbin/nologin e87canbus" in layer
+    assert "install -d -o root -g e87canbus -m 0750 /opt/e87canbus" in layer
+    assert (
+        "install -d -o e87canbus -g e87canbus -m 0750 "
+        "/etc/e87canbus /var/lib/e87canbus"
+    ) in layer
+    assert "install -d -o root -g root -m 0700 /var/lib/e87canbus-provisioning" in layer
+    assert "/var/lib/e87canbus-provisioning/unprovisioned" in layer
+    assert interface_version == "1\n"
+
+
+def test_common_overlay_contains_only_the_public_interface_version() -> None:
+    overlay_files = {
+        path.relative_to(COMMON_OVERLAY).as_posix()
+        for path in COMMON_OVERLAY.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+
+    assert overlay_files == {"usr/share/e87canbus/provisioning-interface"}
