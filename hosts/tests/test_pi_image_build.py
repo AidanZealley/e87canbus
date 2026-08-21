@@ -15,6 +15,9 @@ BUILDER = ROOT / "images/builder"
 COMMON_CONFIG = ROOT / "images/common/image.yaml"
 COMMON_LAYER = ROOT / "images/layer/e87-common.yaml"
 COMMON_OVERLAY = ROOT / "images/layer/e87-common.rootfs-overlay"
+COORDINATOR = ROOT / "images/coordinator"
+COORDINATOR_CONFIG = COORDINATOR / "image.yaml"
+COORDINATOR_LAYER = ROOT / "images/layer/e87-coordinator.yaml"
 
 
 def read(path: Path) -> str:
@@ -432,3 +435,114 @@ def test_common_overlay_contains_only_the_public_interface_version() -> None:
     }
 
     assert overlay_files == {"usr/share/e87canbus/provisioning-interface"}
+
+
+def test_coordinator_image_extends_common_with_one_role_layer() -> None:
+    config = read(COORDINATOR_CONFIG)
+
+    assert "file: ../common/image.yaml" in config
+    assert "coordinator: e87-coordinator" in config
+    assert "${@SRCROOT}/coordinator/network-manager.cmds" in config
+    for prohibited in ("e87-console", "chromium", "cage", "simulator"):
+        assert prohibited not in config
+
+
+def test_coordinator_boot_configuration_matches_the_pi4_hardware() -> None:
+    customize = read(COORDINATOR / "customize.sh")
+
+    expected_lines = (
+        "dtparam=spi=on",
+        "dtoverlay=uart3",
+        "dtoverlay=spi1-3cs",
+        "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000",
+        "dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000",
+        "dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000",
+        "enable_uart=1",
+    )
+    for line in expected_lines:
+        assert customize.count(f"\n{line}\n") == 1
+    assert "dtoverlay=i2c0" in customize
+    assert "console=(serial0|ttyAMA0|ttyS0)" in customize
+    assert customize.index("\n[pi4]\n") < customize.index("\ndtoverlay=uart3\n")
+
+
+def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() -> None:
+    layer = read(COORDINATOR_LAYER)
+    customize = read(COORDINATOR / "customize.sh")
+
+    assert "X-Env-Layer-Requires: e87-common" in layer
+    for package in ("avahi-daemon", "iw", "sudo"):
+        assert f"    - {package}\n" in layer
+    for prohibited in ("git", "nodejs", "npm", "pnpm", "uv ", "build-essential"):
+        assert prohibited not in layer.lower()
+
+    canonical_assets = (
+        "e87canbus-controller.service",
+        "e87canbus-kcan.service",
+        "e87canbus-ptcan.service",
+        "e87canbus-fcan.service",
+        "e87canbus-coordinator-hotspot-proxy.service",
+        "e87canbus-coordinator-hotspot-proxy.socket",
+        "e87canbus-coordinator-console-proxy.service",
+        "e87canbus-coordinator-console-proxy.socket",
+        "70-e87canbus-coordinator-can.rules",
+        "e87canbus-hotspot",
+        "controller.env.example",
+    )
+    for asset in canonical_assets:
+        assert asset in customize
+    assert '"$SRCROOT/../deploy"' in layer
+    assert "usermod -aG dialout e87canbus" in customize
+    assert "visudo -cf /etc/sudoers.d/e87canbus-hotspot" in customize
+
+
+def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
+    commands = read(COORDINATOR / "network-manager.cmds")
+
+    assert commands.count("--offline connection add") == 2
+    assert "con-name e87canbus-console-link" in commands
+    assert "ipv4.addresses 10.43.0.1/30" in commands
+    assert "priority 101 iif eth0 table 501" in commands
+    assert "con-name e87canbus-hotspot" in commands
+    assert "connection.autoconnect no" in commands
+    assert "802-11-wireless.mode ap" in commands
+    assert "802-11-wireless-security.key-mgmt wpa-psk" in commands
+    assert "ipv4.addresses 10.42.0.1/24" in commands
+    assert "priority 100 iif wlan0 table 500" in commands
+    for secret_input in (".psk ", "password", "secret"):
+        assert secret_input not in commands.lower()
+
+
+def test_coordinator_application_is_gated_until_provisioning_installs_it() -> None:
+    condition = read(COORDINATOR / "e87canbus-controller-provisioning.conf")
+    layer = read(COORDINATOR_LAYER)
+
+    assert "Requires=dev-ttyAMA3.device" in condition
+    assert "After=dev-ttyAMA3.device" in condition
+    assert "ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned" in condition
+    assert "ConditionFileIsExecutable=/opt/e87canbus/.venv/bin/e87canbus" in condition
+    assert "e87canbus-controller.service" not in next(
+        line for line in layer.splitlines() if "enable-units" in line
+    )
+    for proxy in (
+        "e87canbus-coordinator-hotspot-proxy.socket",
+        "e87canbus-coordinator-console-proxy.socket",
+    ):
+        assert proxy not in next(
+            line for line in layer.splitlines() if "enable-units" in line
+        )
+
+
+def test_coordinator_role_files_do_not_duplicate_deploy_assets() -> None:
+    role_files = {
+        path.relative_to(COORDINATOR).as_posix()
+        for path in COORDINATOR.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+
+    assert role_files == {
+        "customize.sh",
+        "e87canbus-controller-provisioning.conf",
+        "image.yaml",
+        "network-manager.cmds",
+    }
