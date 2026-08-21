@@ -1,6 +1,6 @@
 # Workstream 4: Console image
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -167,4 +167,4 @@ uv run ruff check \
   hosts/tests/test_pi_image_build.py hosts/tests/test_host_deployment.py
   hosts/tests/test_reliability.py` (`57 passed`); Ruff on those files; and `git diff --check`
   passed.
-- Accepted commit: `TBD`, pending the implementation commit.
+- Accepted commit: `677c3ae` (`Add console Raspberry Pi image`).
