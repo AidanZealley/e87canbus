@@ -21,6 +21,7 @@ COORDINATOR_LAYER = ROOT / "images/layer/e87-coordinator.yaml"
 CONSOLE = ROOT / "images/console"
 CONSOLE_CONFIG = CONSOLE / "image.yaml"
 CONSOLE_LAYER = ROOT / "images/layer/e87-console.yaml"
+IMAGE_RUNBOOK = ROOT / "images/README.md"
 
 
 def read(path: Path) -> str:
@@ -374,6 +375,55 @@ def test_generated_image_state_is_ignored() -> None:
     ignored = read(ROOT / ".gitignore")
 
     assert "/artifacts/images/" in ignored
+
+
+def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None:
+    runbook = read(IMAGE_RUNBOOK)
+
+    assert "./scripts/build-pi-image coordinator" in runbook
+    assert "./scripts/build-pi-image console" in runbook
+    assert 'manifest=$(ls -t "artifacts/images/${role}"/*.json | head -n 1)' in runbook
+    assert 'test "$actual" = "$expected"' in runbook
+    assert "Raspberry Pi Imager did not offer OS customisation" in runbook
+    assert "systemd.debug_shell=1" in runbook
+    assert "changes only the flashed test card" in runbook
+    assert "It creates no user or credential" in runbook
+    assert "Do not treat a card as safe to deploy" in runbook
+    assert "test -z \"$(getent passwd 1000 || true)\"" in runbook
+    assert "/var/lib/e87canbus-provisioning/unprovisioned" in runbook
+
+
+def test_hardware_runbook_covers_both_role_boundaries() -> None:
+    runbook = read(IMAGE_RUNBOOK)
+
+    for expected in (
+        "Raspberry Pi 4 Model B",
+        "VERSION_CODENAME=trixie",
+        "systemctl --failed",
+        "/dev/ttyAMA3",
+        "/spi0.0/",
+        "/spi1.1/",
+        "/spi1.2/",
+        "bitrate 500000",
+        "10.43.0.1/30",
+        "listen-only on",
+        "10.43.0.2/30",
+        "/dev/dri",
+        "touchscreen",
+        "e87canbus-console-kiosk.service",
+    ):
+        assert expected in runbook
+
+    assert (
+        "The checkpoint cannot exercise the application health check or launch the kiosk"
+        in runbook
+    )
+    assert "The later provisioning CLI supplies" in runbook
+    assert 'udevadm info --query=property --name="$device"' in runbook
+    assert "grep -qx 'ID_INPUT_TOUCHSCREEN=1'" in runbook
+    assert "ft5|goodix" not in runbook
+    assert "../images/README.md" in read(ROOT / "docs/setup.md")
+    assert "../images/README.md" in read(ROOT / "deploy/README.md")
 
 
 def test_common_image_exposes_one_role_agnostic_definition() -> None:

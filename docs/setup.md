@@ -1,5 +1,16 @@
 # Setup
 
+## Raspberry Pi host images
+
+Reusable coordinator and console host images move stable OS, package, boot, CAN, network and kiosk
+setup out of the per-installation scripts. See the [image build and hardware-checkpoint
+runbook](../images/README.md) for the two Docker build commands, manifest verification, Raspberry
+Pi Imager steps and exact Pi 4 checks.
+
+The images are not complete installations. They contain no application bundle, operator account,
+installation identity or secrets. Until the provisioning CLI supplies those inputs, use the
+existing setup paths below for working deployments.
+
 ## Python
 
 Install dependencies:
