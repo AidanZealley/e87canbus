@@ -1,6 +1,6 @@
 # Workstream 2: Common host image
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -160,4 +160,4 @@ uv run ruff check hosts/tests/test_pi_image_build.py hosts/tests/test_host_deplo
   hosts/tests/test_pi_image_build.py hosts/tests/test_host_deployment.py`; `git diff --check`;
   pinned layer metadata lint; and pinned focused pipeline resolution confirming the remediation
   order and empty SSH credential inputs.
-- Accepted commit: Pending implementation commit.
+- Accepted commit: `bc38ac6` (`Add common Raspberry Pi host image`).
