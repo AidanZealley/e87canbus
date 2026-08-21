@@ -16,8 +16,8 @@ Status: approved; implementation started.
 |---:|---|---|---|---|
 | 1 | [Docker builder](01-docker-builder.md) | Approved spec | Accepted | `7f78f3f` |
 | 2 | [Common host image](02-common-host.md) | 1 accepted | Accepted | `bc38ac6` |
-| 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Implementing | TBD |
-| 4 | [Console image](04-console-image.md) | 3 accepted | Not started | TBD |
+| 3 | [Coordinator image](03-coordinator-image.md) | 2 accepted | Accepted | `7edb861` |
+| 4 | [Console image](04-console-image.md) | 3 accepted | Implementing | TBD |
 | 5 | [Hardware acceptance](05-hardware-acceptance.md) | 3 and 4 accepted | Not started | TBD |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
