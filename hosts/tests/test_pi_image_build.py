@@ -18,6 +18,9 @@ COMMON_OVERLAY = ROOT / "images/layer/e87-common.rootfs-overlay"
 COORDINATOR = ROOT / "images/coordinator"
 COORDINATOR_CONFIG = COORDINATOR / "image.yaml"
 COORDINATOR_LAYER = ROOT / "images/layer/e87-coordinator.yaml"
+CONSOLE = ROOT / "images/console"
+CONSOLE_CONFIG = CONSOLE / "image.yaml"
+CONSOLE_LAYER = ROOT / "images/layer/e87-console.yaml"
 
 
 def read(path: Path) -> str:
@@ -58,7 +61,11 @@ case "$1" in
                 type=bind,src=*,dst=/output)
                     output=${{argument#type=bind,src=}}
                     output=${{output%,dst=/output}}
-                    printf 'fake image bytes' >"$output/e87-coordinator.img"
+                    case " $* " in
+                        *" IGconf_image_name=e87-console "*) role=console ;;
+                        *) role=coordinator ;;
+                    esac
+                    printf 'fake image bytes' >"$output/e87-$role.img"
                     exit 0
                     ;;
             esac
@@ -195,6 +202,28 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
             "sha256": hashlib.sha256(images[0].read_bytes()).hexdigest(),
         },
     }
+
+
+def test_console_build_manifest_identifies_only_the_pi4_console_role(tmp_path: Path) -> None:
+    repo = make_test_repo(tmp_path)
+    (repo / "images/console").mkdir()
+    (repo / "images/console/image.yaml").write_text("console: true\n")
+    tools = arm64_tools(tmp_path, successful_docker())
+
+    result = subprocess.run(
+        ["bash", str(repo / "scripts/build-pi-image"), "console"],
+        env={"PATH": f"{tools}:{os.environ['PATH']}"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    manifests = list((repo / "artifacts/images/console").glob("*.json"))
+    assert len(manifests) == 1
+    manifest = json.loads(manifests[0].read_text())
+    assert manifest["role"] == "console"
+    assert manifest["raspberry_pi_model"] == "Raspberry Pi 4 Model B"
 
 
 def test_build_uses_linux_volumes_for_temporary_state_and_package_cache(tmp_path: Path) -> None:
@@ -543,6 +572,141 @@ def test_coordinator_role_files_do_not_duplicate_deploy_assets() -> None:
     assert role_files == {
         "customize.sh",
         "e87canbus-controller-provisioning.conf",
+        "image.yaml",
+        "network-manager.cmds",
+    }
+
+
+def test_console_image_extends_common_with_one_role_layer() -> None:
+    config = read(CONSOLE_CONFIG)
+
+    assert "file: ../common/image.yaml" in config
+    assert "console: e87-console" in config
+    assert "${@SRCROOT}/console/network-manager.cmds" in config
+    for prohibited in ("e87-coordinator", "ptcan", "fcan", "simulator", "pi5"):
+        assert prohibited not in config
+
+
+def test_console_boot_configuration_has_only_the_first_hat_controller() -> None:
+    customize = read(CONSOLE / "customize.sh")
+
+    expected_lines = (
+        "dtparam=spi=on",
+        "dtoverlay=spi1-3cs",
+        "dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000",
+        "disable_splash=1",
+    )
+    for line in expected_lines:
+        assert customize.count(f"\n{line}\n") == 1
+    assert "dtoverlay=mcp2515,spi1-2" not in customize
+    assert "dtoverlay=mcp2515-can0," not in customize
+    assert "\ndtoverlay=uart3\n" not in customize
+    assert customize.index("\n[pi4]\n") < customize.index("\ndtoverlay=spi1-3cs\n")
+    for parameter in ("quiet", "splash", "loglevel=3", "logo.nologo"):
+        assert parameter in customize
+    assert "vt.global_cursor_default=0" in customize
+
+
+def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> None:
+    layer = read(CONSOLE_LAYER)
+    customize = read(CONSOLE / "customize.sh")
+
+    assert "X-Env-Layer-Requires: e87-common" in layer
+    for package in (
+        "cage",
+        "chromium",
+        "chromium-sandbox",
+        "libpam-systemd",
+        "plymouth",
+    ):
+        assert f"    - {package}\n" in layer
+    for prohibited in (
+        "avahi-daemon",
+        "desktop",
+        "git",
+        "nodejs",
+        "npm",
+        "pnpm",
+        "sudo",
+        "uv ",
+    ):
+        assert prohibited not in layer.lower()
+
+    canonical_assets = (
+        "e87canbus-console-kcan.service",
+        "e87canbus-console.service",
+        "e87canbus-console-kiosk.service",
+        "console.env.example",
+        "70-e87canbus-console-can.rules",
+        "71-e87canbus-kiosk-input.rules",
+        "start-console-kiosk.sh",
+    )
+    for asset in canonical_assets:
+        assert asset in customize
+    assert '"$SRCROOT/../deploy"' in layer
+    for coordinator_asset in (
+        "e87canbus-controller.service",
+        "e87canbus-ptcan.service",
+        "e87canbus-fcan.service",
+        "e87canbus-hotspot",
+    ):
+        assert coordinator_asset not in customize
+
+
+def test_console_network_prerequisite_is_fixed_and_non_routing() -> None:
+    commands = read(CONSOLE / "network-manager.cmds")
+
+    assert commands.count("--offline connection add") == 1
+    assert "con-name e87canbus-console-link" in commands
+    assert "connection.autoconnect yes" in commands
+    assert "ipv4.addresses 10.43.0.2/30" in commands
+    assert "ipv4.gateway ''" in commands
+    assert "ipv4.dns ''" in commands
+    assert "ipv4.never-default yes" in commands
+    assert "0.0.0.0/0 type=blackhole table=501" in commands
+    assert "priority 101 iif eth0 table 501" in commands
+    assert "ipv6.method disabled" in commands
+    for prohibited in ("10.43.0.1/30", "10.42.", "wifi", "password", "secret"):
+        assert prohibited not in commands.lower()
+
+
+def test_console_application_and_kiosk_wait_for_provisioning() -> None:
+    application_condition = read(CONSOLE / "e87canbus-console-provisioning.conf")
+    kiosk_condition = read(CONSOLE / "e87canbus-console-kiosk-provisioning.conf")
+    layer = read(CONSOLE_LAYER)
+    enabled_units = next(
+        line for line in layer.splitlines() if "enable-units" in line
+    )
+
+    marker_condition = (
+        "ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned"
+    )
+    assert marker_condition in application_condition
+    assert marker_condition in kiosk_condition
+    assert (
+        "ConditionFileIsExecutable=/opt/e87canbus/.venv/bin/e87canbus-console"
+        in application_condition
+    )
+    assert (
+        "ConditionPathExists=/opt/e87canbus/frontend/apps/console/dist/index.html"
+        in kiosk_condition
+    )
+    assert "e87canbus-console-kcan.service" in enabled_units
+    assert "e87canbus-console.service" not in enabled_units
+    assert "e87canbus-console-kiosk.service" not in enabled_units
+
+
+def test_console_role_files_do_not_duplicate_deploy_assets() -> None:
+    role_files = {
+        path.relative_to(CONSOLE).as_posix()
+        for path in CONSOLE.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+
+    assert role_files == {
+        "customize.sh",
+        "e87canbus-console-kiosk-provisioning.conf",
+        "e87canbus-console-provisioning.conf",
         "image.yaml",
         "network-manager.cmds",
     }
