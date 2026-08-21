@@ -68,6 +68,9 @@ On the M1 Pro checkpoint:
 - Base commit: `fa9d2fe` (`Record Pi image workflow start`).
 - Outcome: Added the shared arm64 Docker builder, the two-role shell entry point, a temporary
   upstream-only Pi 4 base definition, digest-backed manifests and ignored local build state.
+  Until the real role definitions land, only the coordinator command may use the base checkpoint;
+  a missing console definition fails without producing build state. Each build starts with an
+  empty role work directory while preserving the shared package cache.
 - Files changed: `.gitignore`, `images/builder/Dockerfile`, `images/builder/base.yaml`,
   `images/builder/debian.sources`, `scripts/build-pi-image`,
   `hosts/tests/test_pi_image_build.py` and this workstream record. The decision log in `plan.md`
@@ -80,11 +83,12 @@ On the M1 Pro checkpoint:
   requires for mount namespaces. Repository source is read-only. Only `/work`, `/cache`, `/output`
   and an executable `/tmp` tmpfs are writable.
 - Verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
-  hosts/tests/test_pi_image_build.py` (15 passed), `.venv/bin/ruff check
+  hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py`, `git diff --check`, YAML parsing and confirmation that every
   configured layer exists at the pinned revision. `uv` and Docker are unavailable in this
   environment, so the exact `uv run` commands and a real container build remain pending.
-- MacBook, Imager and Pi checkpoint: Pending focused closure and the checkpoint candidate. On
+- MacBook, Imager and Pi checkpoint: Pending focused closure of the pre-checkpoint corrections and
+  a replacement checkpoint candidate. On
   the M1 Pro, run `./scripts/build-pi-image coordinator`, verify the printed manifest digest, flash
   the printed `.img` with Raspberry Pi Imager and confirm a Raspberry Pi 4 Model B reaches a normal
   boot. Record the command, artifact SHA-256, Imager result and boot result here before acceptance.
@@ -131,16 +135,29 @@ On the M1 Pro checkpoint:
 
 ## Resolution
 
-- Finding dispositions: Accepted both required findings. The exit cleanup now removes both final
+- Original review dispositions: Accepted both required findings. The exit cleanup now removes both final
   names until publication completes, including failed first or second moves and handled
   interruptions. Focused tests cover both move failures, a `TERM` between moves, Docker daemon
   failure and rejection of an x86_64 builder container. The source-string brittleness observation
   remains optional and did not expand this workstream.
-- Simplification/deletion pass: Publication uses the existing staging directory, one success bit
-  and one cleanup function. It adds no lock, transaction wrapper or compatibility path. Test setup
-  now shares the small fake-repository and fake-Docker helpers instead of repeating them.
+- External pre-checkpoint review dispositions: Corrections start from candidate `d8ca86c`. Accepted
+  both required findings from Aidan's adversarial review. Missing role definitions now fail, with
+  one explicit exception for the coordinator base-image checkpoint. A build removes only
+  `.cache/pi-image-build/work/<validated-role>` before recreating it and leaves the package cache
+  intact. Focused tests cover both behaviors.
+- External optional triage: Accepted the adjacent digest and Git-context simplifications because
+  they remove repeated work before and after a long build. The script hashes the image once and
+  reuses that digest for the manifest and output. It resolves the commit and dirty state once
+  before building and reuses the commit in the build ID and manifest. Deferred the remaining
+  optional observations, including the function parameters, file-size helper, argument handling,
+  repeated config-relative path, snapshot comment, output glob and broader source-assertion test
+  changes.
+- Simplification/deletion pass: Publication still uses the existing staging directory, one success
+  bit and one cleanup function. Role selection has one narrow checkpoint exception rather than a
+  fallback mode. The work reset operates on the already validated role path and adds no cleanup
+  policy or cache controls.
 - Final verification: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
-  hosts/tests/test_pi_image_build.py` (15 passed), `.venv/bin/ruff check
+  hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` pass. The exact `uv run` equivalents,
   real Docker build and hardware checkpoint remain pending in the recorded environments.
 
@@ -157,3 +174,18 @@ On the M1 Pro checkpoint:
   hosts/tests/test_pi_image_build.py` (15 passed), `.venv/bin/ruff check
   hosts/tests/test_pi_image_build.py` and `git diff --check` passed during closure review.
 - Accepted commit: Pending checkpoint candidate and hardware result.
+- Pre-checkpoint correction closure: Accepted. No required finding remains from Aidan's
+  adversarial review, and the corrections introduced no release-blocking regression. A missing
+  console definition exits before Docker, artifact directories or role cleanup; only coordinator
+  has the explicit base-checkpoint exception. The validated coordinator work directory resets on
+  each build while the package cache remains intact. The image is hashed once, and that digest is
+  reused in the manifest and command output. One pre-build commit read and one dirty-state read
+  supply the build ID and manifest.
+- Pre-checkpoint closure evidence: `bash -n scripts/build-pi-image`, `.venv/bin/pytest
+  hosts/tests/test_pi_image_build.py` (17 passed), `.venv/bin/ruff check
+  hosts/tests/test_pi_image_build.py` and `git diff --check` passed. Focused temporary probes also
+  proved that missing-role failure does not invoke Docker or alter existing work state, work reset
+  does not follow a role-directory symlink, the package cache survives, the digest helper runs
+  once, and the manifest commit and build-ID suffix come from the same single commit lookup. Static
+  inspection found no shell feature newer than macOS Bash 3.2. `uv` and Docker are unavailable in
+  this environment, so the exact `uv run` commands and MacBook checkpoint remain pending.

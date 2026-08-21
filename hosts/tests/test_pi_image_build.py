@@ -140,6 +140,21 @@ def test_build_rejects_non_arm64_container(tmp_path: Path) -> None:
     assert "native arm64 is required" in result.stderr
 
 
+def test_build_rejects_role_without_an_image_definition(tmp_path: Path) -> None:
+    repo = make_test_repo(tmp_path)
+
+    result = subprocess.run(
+        ["bash", str(repo / "scripts/build-pi-image"), "console"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "image definition images/console/image.yaml does not exist" in result.stderr
+    assert not (repo / "artifacts").exists()
+
+
 def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> None:
     repo = make_test_repo(tmp_path)
     tools = arm64_tools(tmp_path, successful_docker())
@@ -174,6 +189,29 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
             "sha256": hashlib.sha256(images[0].read_bytes()).hexdigest(),
         },
     }
+
+
+def test_build_resets_role_work_and_preserves_package_cache(tmp_path: Path) -> None:
+    repo = make_test_repo(tmp_path)
+    tools = arm64_tools(tmp_path, successful_docker())
+    stale_work = repo / ".cache/pi-image-build/work/coordinator/stale"
+    package = repo / ".cache/pi-image-build/packages/cached-package"
+    stale_work.parent.mkdir(parents=True)
+    package.parent.mkdir(parents=True)
+    stale_work.write_text("partial build")
+    package.write_text("cached package")
+
+    result = subprocess.run(
+        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        env={"PATH": f"{tools}:{os.environ['PATH']}"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not stale_work.exists()
+    assert package.read_text() == "cached package"
 
 
 @pytest.mark.parametrize("failing_move", [2, 3])
@@ -295,8 +333,6 @@ def test_role_artifacts_have_a_verified_manifest() -> None:
         "sha256",
     ):
         assert f'"{field}"' in script
-    assert 'recorded_digest="$(sed' in script
-    assert '"${recorded_digest}" == "$(file_digest "${image}")"' in script
 
 
 def test_generated_image_state_is_ignored() -> None:
