@@ -90,7 +90,10 @@ systemctl --failed --no-pager
   check` for the same files; and `git diff --check` passed.
 - Coordinator artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
 - Console artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
-- Corrections routed to prior owners: None before the checkpoint.
+- Corrections routed to prior owners: During checkpoint preparation, Aidan approved a builder
+  filename usability correction. Artifacts now use
+  `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
+  dirty state and digest. Focused builder and runbook checks cover the format.
 - Known limitations: The unprovisioned image has no application bundle or operator account. The
   console checkpoint can prove that the display stack, DRM and touchscreen input exist and that
   application units stay gated. It cannot launch the kiosk or exercise application health checks
