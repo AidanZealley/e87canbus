@@ -113,7 +113,7 @@ require_arm64 "host" "${HOST_ARCHITECTURE}"
 
 if GIT_COMMIT_VALUE="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null)"; then
     GIT_COMMIT="\"${GIT_COMMIT_VALUE}\""
-    GIT_REVISION="${GIT_COMMIT_VALUE:0:12}"
+    GIT_REVISION="${GIT_COMMIT_VALUE:0:7}"
 else
     GIT_COMMIT=null
     GIT_REVISION=nogit
@@ -126,7 +126,14 @@ fi
 readonly GIT_COMMIT GIT_REVISION GIT_DIRTY
 
 readonly BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-readonly BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)-${GIT_REVISION}"
+readonly BUILD_DATE="${BUILD_TIME:0:10}"
+readonly BUILD_HHMM="${BUILD_TIME:11:2}${BUILD_TIME:14:2}"
+if [[ "${GIT_DIRTY}" == true ]]; then
+    readonly DIRTY_SUFFIX="-dirty"
+else
+    readonly DIRTY_SUFFIX=""
+fi
+readonly BUILD_ID="e87-${ROLE}_${BUILD_DATE}_${BUILD_HHMM}Z_${GIT_REVISION}${DIRTY_SUFFIX}"
 readonly ARTIFACT_DIR="${REPO_ROOT}/artifacts/images/${ROLE}"
 mkdir -p "${ARTIFACT_DIR}"
 readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"

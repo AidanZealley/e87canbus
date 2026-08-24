@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -186,6 +187,11 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
     images = list(artifact_dir.glob("*.img"))
     manifests = list(artifact_dir.glob("*.json"))
     assert len(images) == len(manifests) == 1
+    assert re.fullmatch(
+        r"e87-coordinator_\d{4}-\d{2}-\d{2}_\d{4}Z_nogit\.img",
+        images[0].name,
+    )
+    assert manifests[0].stem == images[0].stem
     manifest = json.loads(manifests[0].read_text())
     assert manifest == {
         "format_version": 1,
@@ -354,6 +360,8 @@ def test_role_artifacts_have_a_verified_manifest() -> None:
     assert 'artifacts/images/${ROLE}' in script
     assert 'readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"' in script
     assert 'readonly MANIFEST_PATH="${ARTIFACT_DIR}/${BUILD_ID}.json"' in script
+    assert 'BUILD_ID="e87-${ROLE}_${BUILD_DATE}_${BUILD_HHMM}Z_' in script
+    assert 'readonly DIRTY_SUFFIX="-dirty"' in script
     for field in (
         "format_version",
         "role",

@@ -31,11 +31,15 @@ Each command prints its image path, manifest path and SHA-256 digest. Outputs ar
 by Git:
 
 ```text
-artifacts/images/coordinator/<build>.img
-artifacts/images/coordinator/<build>.json
-artifacts/images/console/<build>.img
-artifacts/images/console/<build>.json
+artifacts/images/coordinator/e87-coordinator_<date>_<time>Z_<commit>.img
+artifacts/images/coordinator/e87-coordinator_<date>_<time>Z_<commit>.json
+artifacts/images/console/e87-console_<date>_<time>Z_<commit>.img
+artifacts/images/console/e87-console_<date>_<time>Z_<commit>.json
 ```
+
+For example, `e87-coordinator_2026-08-24_1432Z_b3c3206.img`. A build from a dirty
+working tree ends in `<commit>-dirty`; the manifest still records the full commit, dirty state and
+image digest.
 
 Inspect the newest artifact for a role without assuming a build identifier:
 
