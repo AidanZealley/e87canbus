@@ -90,6 +90,11 @@ systemctl --failed --no-pager
   check` for the same files; and `git diff --check` passed.
 - Coordinator artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
 - Console artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
+- Console hardware evidence, 2026-09-09: Aidan booted the console image on its Pi 4 with the
+  intended CAN HAT+, DSI display and touchscreen. The common and console checks passed apart from
+  two false negatives in the checkpoint script. Raw output confirmed that `kcan` resolves to
+  `spi1.1`, runs at 100 kbit/s and reports `can <LISTEN-ONLY>`. The environment also sets
+  `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. The corrected script still needs one final run.
 - Corrections routed to prior owners: During checkpoint preparation, Aidan approved a builder
   filename usability correction. Artifacts now use
   `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
@@ -99,6 +104,10 @@ systemctl --failed --no-pager
   The script is not part of the reusable image and is removed with the debug-shell option. The
   script passed `sh -n`; the focused image and host suite passed (`60 passed`); Ruff and
   `git diff --check` passed.
+  The first hardware run exposed two checker assumptions rather than image defects: sysfs ends the
+  resolved device path at `spi1.1`, and this iproute2 version prints `LISTEN-ONLY` rather than
+  `listen-only on`. The checks now accept the observed canonical forms without weakening the
+  expected SPI device or CAN mode.
 - Known limitations: The unprovisioned image has no application bundle or operator account. The
   console checkpoint can prove that the display stack, DRM and touchscreen input exist and that
   application units stay gated. It cannot launch the kiosk or exercise application health checks
