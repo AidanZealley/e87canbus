@@ -23,6 +23,7 @@ CONSOLE = ROOT / "images/console"
 CONSOLE_CONFIG = CONSOLE / "image.yaml"
 CONSOLE_LAYER = ROOT / "images/layer/e87-console.yaml"
 IMAGE_RUNBOOK = ROOT / "images/README.md"
+IMAGE_CHECK = ROOT / "images/e87canbus-image-check"
 
 
 def read(path: Path) -> str:
@@ -394,11 +395,33 @@ def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None
     assert 'test "$actual" = "$expected"' in runbook
     assert "Raspberry Pi Imager did not offer OS customisation" in runbook
     assert "systemd.debug_shell=1" in runbook
+    assert "cp images/e87canbus-image-check /Volumes/BOOT/" in runbook
+    assert "sh /boot/firmware/e87canbus-image-check coordinator" in runbook
+    assert "sh /boot/firmware/e87canbus-image-check console" in runbook
     assert "changes only the flashed test card" in runbook
     assert "It creates no user or credential" in runbook
     assert "Do not treat a card as safe to deploy" in runbook
     assert "test -z \"$(getent passwd 1000 || true)\"" in runbook
     assert "/var/lib/e87canbus-provisioning/unprovisioned" in runbook
+
+
+def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
+    script = read(IMAGE_CHECK)
+
+    for expected in (
+        "coordinator | console",
+        "no failed systemd units",
+        "kcan maps to spi0.0",
+        "ptcan maps to spi1.1",
+        "fcan maps to spi1.2",
+        "hotspot sudo policy has four actions",
+        "kcan is the only CAN interface",
+        "kcan is listen-only",
+        "touchscreen present",
+        "application and kiosk disabled",
+    ):
+        assert expected in script
+    subprocess.run(["sh", "-n", str(IMAGE_CHECK)], check=True)
 
 
 def test_hardware_runbook_covers_both_role_boundaries() -> None:

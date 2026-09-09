@@ -1,0 +1,110 @@
+#!/bin/sh
+
+set -u
+
+role=${1:-}
+case "$role" in
+    coordinator | console) ;;
+    *)
+        echo "Usage: $0 coordinator|console" >&2
+        exit 2
+        ;;
+esac
+
+failures=0
+
+check() {
+    description=$1
+    shift
+    if output=$("$@" 2>&1); then
+        printf 'PASS  %s\n' "$description"
+    else
+        printf 'FAIL  %s\n' "$description"
+        if [ -n "$output" ]; then
+            printf '%s\n' "$output" | sed 's/^/      /'
+        fi
+        failures=$((failures + 1))
+    fi
+}
+
+check_shell() {
+    description=$1
+    command=$2
+    check "$description" sh -c "$command"
+}
+
+check "arm64 architecture" test "$(uname -m)" = aarch64
+check_shell "Raspberry Pi OS Trixie" "grep -qx 'VERSION_CODENAME=trixie' /etc/os-release"
+check_shell "Raspberry Pi 4 Model B" "tr -d '\\0' </proc/device-tree/model | grep -q '^Raspberry Pi 4 Model B'"
+check_shell "no failed systemd units" 'failed=$(systemctl --failed --no-legend --plain); [ -z "$failed" ] || { printf "%s\n" "$failed"; exit 1; }'
+check "SSH service active" systemctl is-active --quiet ssh.service
+check_shell "SSH accepts public keys only" "/usr/sbin/sshd -T | grep -qx 'authenticationmethods publickey'"
+check_shell "no operator account at UID 1000" '! getent passwd 1000 >/dev/null'
+check "unprovisioned marker present" test -e /var/lib/e87canbus-provisioning/unprovisioned
+check "application absent" test ! -e /opt/e87canbus/.venv/bin/e87canbus
+
+if [ "$role" = coordinator ]; then
+    check "panel UART present" test -e /dev/ttyAMA3
+    check "coordinator base services active" systemctl is-active --quiet \
+        avahi-daemon.service e87canbus-kcan.service \
+        e87canbus-ptcan.service e87canbus-fcan.service
+    check_shell "kcan maps to spi0.0" "readlink -f /sys/class/net/kcan/device | grep -q '/spi0.0/'"
+    check_shell "ptcan maps to spi1.1" "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1.1/'"
+    check_shell "fcan maps to spi1.2" "readlink -f /sys/class/net/fcan/device | grep -q '/spi1.2/'"
+    check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
+    check_shell "ptcan is 500 kbit/s" "ip -details link show ptcan | grep -q 'bitrate 500000'"
+    check_shell "fcan is 500 kbit/s" "ip -details link show fcan | grep -q 'bitrate 500000'"
+    check_shell "Ethernet uses 10.43.0.1/30 without a default route" '
+        [ "$(nmcli -g connection.interface-name connection show e87canbus-console-link)" = eth0 ] &&
+        [ "$(nmcli -g connection.autoconnect connection show e87canbus-console-link)" = yes ] &&
+        [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-link)" = 10.43.0.1/30 ] &&
+        [ "$(nmcli -g ipv4.never-default connection show e87canbus-console-link)" = yes ]'
+    check_shell "hotspot inactive" '! nmcli -t -f NAME connection show --active | grep -qx e87canbus-hotspot'
+    check_shell "hotspot has no password" 'test -z "$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show e87canbus-hotspot)"'
+    check_shell "application and proxies disabled" '
+        for unit in e87canbus-controller.service e87canbus-coordinator-hotspot-proxy.socket e87canbus-coordinator-console-proxy.socket; do
+            [ "$(systemctl is-active "$unit")" = inactive ] &&
+            [ "$(systemctl is-enabled "$unit")" = disabled ] || exit 1
+        done'
+    check_shell "hotspot sudo policy has four actions" '
+        listing=$(sudo -u e87canbus sudo -n -l) || exit 1
+        for action in activate deactivate state stations; do
+            printf "%s\n" "$listing" | grep -Fq "/usr/local/libexec/e87canbus-hotspot $action" || exit 1
+        done
+        [ "$(printf "%s\n" "$listing" | grep -oF /usr/local/libexec/e87canbus-hotspot | wc -l | tr -d " ")" = 4 ]'
+else
+    check "console CAN service active" systemctl is-active --quiet e87canbus-console-kcan.service
+    check_shell "kcan is the only CAN interface" '
+        interfaces=$(for interface in /sys/class/net/*; do
+            [ "$(cat "$interface/type")" = 280 ] && basename "$interface"
+        done)
+        [ "$interfaces" = kcan ]'
+    check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1.1/'"
+    check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
+    check_shell "kcan is listen-only" "ip -details link show kcan | grep -q 'listen-only on'"
+    check_shell "Ethernet uses 10.43.0.2/30 without a default route" '
+        [ "$(nmcli -g connection.interface-name connection show e87canbus-console-link)" = eth0 ] &&
+        [ "$(nmcli -g connection.autoconnect connection show e87canbus-console-link)" = yes ] &&
+        [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-link)" = 10.43.0.2/30 ] &&
+        [ "$(nmcli -g ipv4.never-default connection show e87canbus-console-link)" = yes ]'
+    check_shell "Cage and Chromium installed" 'command -v cage >/dev/null && command -v chromium >/dev/null'
+    check_shell "DRM card present" 'test -n "$(find /dev/dri -maxdepth 1 -name "card*" -print -quit)"'
+    check_shell "touchscreen present" '
+        for device in /dev/input/event*; do
+            [ -e "$device" ] || continue
+            udevadm info --query=property --name="$device" | grep -qx ID_INPUT_TOUCHSCREEN=1 && exit 0
+        done
+        exit 1'
+    check_shell "application and kiosk disabled" '
+        for unit in e87canbus-console.service e87canbus-console-kiosk.service; do
+            [ "$(systemctl is-active "$unit")" = inactive ] &&
+            [ "$(systemctl is-enabled "$unit")" = disabled ] || exit 1
+        done'
+fi
+
+if [ "$failures" -ne 0 ]; then
+    printf '\n%d check(s) failed.\n' "$failures" >&2
+    exit 1
+fi
+
+printf '\nAll %s image checks passed.\n' "$role"

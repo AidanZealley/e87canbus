@@ -79,10 +79,12 @@ for this hardware checkpoint. This changes only the flashed test card. It does n
 `.img`, its manifest or repository source. It creates no user or credential.
 
 After Imager has verified the card, eject and reinsert it so macOS mounts its `BOOT` partition.
-Append the debug-shell option to the existing single line in `cmdline.txt`:
+Copy the checkpoint script onto the card and append the debug-shell option to the existing single
+line in `cmdline.txt`:
 
 ```bash
 cmdline=/Volumes/BOOT/cmdline.txt
+cp images/e87canbus-image-check /Volumes/BOOT/
 grep -qw systemd.debug_shell=1 "$cmdline" || \
   perl -0pi -e 's/\s*\z/ systemd.debug_shell=1\n/' "$cmdline"
 grep -n systemd.debug_shell=1 "$cmdline"
@@ -98,6 +100,7 @@ Before reusing or handing over the card, remove the debug shell and power off:
 
 ```bash
 sed -i 's/[[:space:]]systemd\.debug_shell=1//g' /boot/firmware/cmdline.txt
+rm -f /boot/firmware/e87canbus-image-check
 ! grep -qw systemd.debug_shell=1 /boot/firmware/cmdline.txt
 sync
 systemctl poweroff
@@ -108,7 +111,17 @@ card from the verified image also removes all test-card changes.
 
 ## Checks on both roles
 
-Run these commands from the debug shell:
+The checkpoint script runs the common checks and the selected role checks in one pass. From the
+debug shell, run one of:
+
+```bash
+sh /boot/firmware/e87canbus-image-check coordinator
+sh /boot/firmware/e87canbus-image-check console
+```
+
+It prints `PASS` or `FAIL` for every check and exits nonzero if anything fails. The commands below
+document what it checks and remain useful for investigating a failure; you do not need to type
+them during a successful run.
 
 ```bash
 test "$(uname -m)" = aarch64
