@@ -1,6 +1,6 @@
 # Workstream 5: Role-image hardware acceptance
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -88,14 +88,21 @@ systemctl --failed --no-pager
 - Verification: `uv run pytest hosts/tests/test_pi_image_build.py
   hosts/tests/test_host_deployment.py hosts/tests/test_reliability.py` (`59 passed`); `uv run ruff
   check` for the same files; and `git diff --check` passed.
-- Coordinator artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
-- Console artifact, digest, flash and boot result: Pending Aidan's hardware checkpoint.
-- Console hardware evidence, 2026-09-09: Aidan booted the console image on its Pi 4 with the
-  intended CAN HAT+, DSI display and touchscreen. The common and console checks passed apart from
-  two false negatives in the checkpoint script. Raw output confirmed that `kcan` resolves to
-  `spi1.1`, runs at 100 kbit/s and reports `can <LISTEN-ONLY>`. The environment also sets
-  `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. Together with the remaining passing checker output, this
-  accepts the console hardware behavior. Its artifact filename and digest remain to be recorded.
+- Coordinator artifact, digest, flash and boot result: Aidan built
+  `e87-coordinator_2026-09-09_2048Z_c80a9f6.img` from clean commit `c80a9f6` on the MacBook at
+  `2026-09-09T20:48:34Z`. The image is 1,937,768,448 bytes with SHA-256
+  `9a70e1e3c10f0a1e8d73cca0b6a8e9eb1b4ab1b5a09961047b079082aa43dbbb`. Raspberry Pi Imager
+  wrote and verified the card. Aidan booted it on a Pi 4 with the three-channel CAN stack and
+  reported that every corrected checkpoint-script check passed.
+- Console artifact, digest, flash and boot result: Aidan built
+  `e87-console_2026-09-09_2039Z_c80a9f6.img` from clean commit `c80a9f6` on the MacBook at
+  `2026-09-09T20:39:21Z`. The image is 4,194,304,000 bytes with SHA-256
+  `ad8577e6ca56bbe571200d54447454d8086d495d69c944c13899475d144acb2e`. Raspberry Pi Imager
+  wrote and verified the card. Aidan booted it on a Pi 4 with the intended CAN HAT+, DSI display
+  and touchscreen. The first script run passed every check apart from two false negatives. Raw
+  output confirmed that `kcan` resolves to `spi1.1`, runs at 100 kbit/s and reports
+  `can <LISTEN-ONLY>`; the environment sets `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. After the
+  checker correction, Aidan reported that every check passed.
 - Corrections routed to prior owners: During checkpoint preparation, Aidan approved a builder
   filename usability correction. Artifacts now use
   `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
@@ -177,6 +184,7 @@ systemctl --failed --no-pager
   --query=property --name=/dev/null` confirmed the documented command form. `uv run pytest
   hosts/tests/test_pi_image_build.py hosts/tests/test_host_deployment.py
   hosts/tests/test_reliability.py` passed (`59 passed`); Ruff on the same files and `git
-  diff --check` passed. Coordinator and console builds, flashes and Pi checks remain the external
-  acceptance gate.
-- Accepted commit: Pending the checkpoint candidate and successful external hardware evidence.
+  diff --check` passed. Aidan then built both role artifacts from clean commit `c80a9f6`, verified
+  their manifests and image digests, flashed them through Raspberry Pi Imager and passed every
+  corrected checkpoint-script check on Pi 4 hardware.
+- Accepted commit: `aedfc4eaf25d99b6b0d89a2d2dac8ad37be02235`.
