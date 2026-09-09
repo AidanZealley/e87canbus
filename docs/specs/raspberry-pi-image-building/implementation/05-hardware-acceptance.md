@@ -83,8 +83,8 @@ systemctl --failed --no-pager
 - Outcome: Added the clean-M1 build, artifact inspection, Imager and physical Pi 4 checkpoint
   runbook for both accepted role images. It uses a local systemd debug shell for temporary test
   access, then requires its removal before the card is reused.
-- Files changed: `images/README.md`, image references in `docs/setup.md` and `deploy/README.md`,
-  `hosts/tests/test_pi_image_build.py` and this record.
+- Files changed: `images/README.md`, `images/e87canbus-image-check`, image references in
+  `docs/setup.md` and `deploy/README.md`, `hosts/tests/test_pi_image_build.py` and this record.
 - Verification: `uv run pytest hosts/tests/test_pi_image_build.py
   hosts/tests/test_host_deployment.py hosts/tests/test_reliability.py` (`59 passed`); `uv run ruff
   check` for the same files; and `git diff --check` passed.
@@ -94,6 +94,11 @@ systemctl --failed --no-pager
   filename usability correction. Artifacts now use
   `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
   dirty state and digest. Focused builder and runbook checks cover the format.
+  During hardware testing, the manual command list proved impractical. Added one test-card script
+  copied through the `BOOT` partition, so each Pi runs all common and role checks with one command.
+  The script is not part of the reusable image and is removed with the debug-shell option. The
+  script passed `sh -n`; the focused image and host suite passed (`60 passed`); Ruff and
+  `git diff --check` passed.
 - Known limitations: The unprovisioned image has no application bundle or operator account. The
   console checkpoint can prove that the display stack, DRM and touchscreen input exist and that
   application units stay gated. It cannot launch the kiosk or exercise application health checks
