@@ -48,9 +48,9 @@ if [ "$role" = coordinator ]; then
     check "coordinator base services active" systemctl is-active --quiet \
         avahi-daemon.service e87canbus-kcan.service \
         e87canbus-ptcan.service e87canbus-fcan.service
-    check_shell "kcan maps to spi0.0" "readlink -f /sys/class/net/kcan/device | grep -q '/spi0.0/'"
-    check_shell "ptcan maps to spi1.1" "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1.1/'"
-    check_shell "fcan maps to spi1.2" "readlink -f /sys/class/net/fcan/device | grep -q '/spi1.2/'"
+    check_shell "kcan maps to spi0.0" "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'"
+    check_shell "ptcan maps to spi1.1" "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'"
+    check_shell "fcan maps to spi1.2" "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
     check_shell "ptcan is 500 kbit/s" "ip -details link show ptcan | grep -q 'bitrate 500000'"
     check_shell "fcan is 500 kbit/s" "ip -details link show fcan | grep -q 'bitrate 500000'"
@@ -79,9 +79,9 @@ else
             [ "$(cat "$interface/type")" = 280 ] && basename "$interface"
         done)
         [ "$interfaces" = kcan ]'
-    check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1.1/'"
+    check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
-    check_shell "kcan is listen-only" "ip -details link show kcan | grep -q 'listen-only on'"
+    check_shell "kcan is listen-only" "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'"
     check_shell "Ethernet uses 10.43.0.2/30 without a default route" '
         [ "$(nmcli -g connection.interface-name connection show e87canbus-console-link)" = eth0 ] &&
         [ "$(nmcli -g connection.autoconnect connection show e87canbus-console-link)" = yes ] &&

@@ -148,9 +148,9 @@ according to the [wiring guide](../docs/wiring.md) before booting. Run:
 test -e /dev/ttyAMA3
 systemctl is-active avahi-daemon.service e87canbus-kcan.service \
   e87canbus-ptcan.service e87canbus-fcan.service
-readlink -f /sys/class/net/kcan/device | grep -q '/spi0.0/'
-readlink -f /sys/class/net/ptcan/device | grep -q '/spi1.1/'
-readlink -f /sys/class/net/fcan/device | grep -q '/spi1.2/'
+readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'
+readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'
+readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'
 ip -details link show kcan | grep -q 'bitrate 100000'
 ip -details link show ptcan | grep -q 'bitrate 500000'
 ip -details link show fcan | grep -q 'bitrate 500000'
@@ -184,9 +184,9 @@ can_interfaces=$(for interface in /sys/class/net/*; do
   test "$(cat "$interface/type")" = 280 && basename "$interface"
 done)
 test "$can_interfaces" = kcan
-readlink -f /sys/class/net/kcan/device | grep -q '/spi1.1/'
+readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'
 ip -details link show kcan | grep -q 'bitrate 100000'
-ip -details link show kcan | grep -q 'listen-only on'
+ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'
 nmcli -g connection.interface-name,connection.autoconnect,ipv4.addresses,ipv4.never-default \
   connection show e87canbus-console-link
 command -v cage chromium
