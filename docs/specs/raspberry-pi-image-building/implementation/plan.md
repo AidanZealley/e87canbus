@@ -1,6 +1,6 @@
 # Raspberry Pi image-building implementation plan
 
-Status: approved; implementation started.
+Status: approved; implementation complete.
 
 ## Orchestration record
 

@@ -103,6 +103,8 @@ systemctl --failed --no-pager
   output confirmed that `kcan` resolves to `spi1.1`, runs at 100 kbit/s and reports
   `can <LISTEN-ONLY>`; the environment sets `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. After the
   checker correction, Aidan reported that every check passed.
+- Test-card cleanup, 2026-09-09: Aidan confirmed that both cards were returned to their original
+  flashed state. Neither card retains `systemd.debug_shell=1` or the copied checkpoint script.
 - Corrections routed to prior owners: During checkpoint preparation, Aidan approved a builder
   filename usability correction. Artifacts now use
   `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
@@ -186,5 +188,6 @@ systemctl --failed --no-pager
   hosts/tests/test_reliability.py` passed (`59 passed`); Ruff on the same files and `git
   diff --check` passed. Aidan then built both role artifacts from clean commit `c80a9f6`, verified
   their manifests and image digests, flashed them through Raspberry Pi Imager and passed every
-  corrected checkpoint-script check on Pi 4 hardware.
+  corrected checkpoint-script check on Pi 4 hardware. Aidan then returned both test cards to their
+  original flashed state, removing the temporary debug shell and copied checker.
 - Accepted commit: `aedfc4eaf25d99b6b0d89a2d2dac8ad37be02235`.

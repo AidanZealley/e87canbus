@@ -1,8 +1,12 @@
 # Raspberry Pi host images
 
-This repository builds reusable Raspberry Pi 4 host images for the coordinator and console. The
-images contain stable operating-system and role setup. They do not contain the application,
-installation identity, secrets, Wi-Fi credentials or an operator account.
+This repository builds the validated v1 Raspberry Pi 4 host-image prototypes for the coordinator
+and console. They contain stable operating-system and role setup, but no application, installation
+identity, secrets, Wi-Fi credentials or operator account. Copying future installation inputs onto
+a card will not provision it. The provisioning feature must add the image-side consumer and unique
+host identity behavior, then rebuild both roles with this builder and repeat the relevant hardware
+checks. Cards flashed from one prototype artifact share its build-time hostname and are not
+deployable hosts.
 
 ## Build on Apple silicon
 
@@ -119,103 +123,59 @@ sh /boot/firmware/e87canbus-image-check coordinator
 sh /boot/firmware/e87canbus-image-check console
 ```
 
-It prints `PASS` or `FAIL` for every check and exits nonzero if anything fails. The commands below
-document what it checks and remain useful for investigating a failure; you do not need to type
-them during a successful run.
-
-```bash
-test "$(uname -m)" = aarch64
-grep -qx 'VERSION_CODENAME=trixie' /etc/os-release
-tr -d '\0' </proc/device-tree/model | grep -q '^Raspberry Pi 4 Model B'
-test -z "$(systemctl --failed --no-legend --plain)"
-systemctl is-active ssh.service
-/usr/sbin/sshd -T | grep -qx 'authenticationmethods publickey'
-test -z "$(getent passwd 1000 || true)"
-test -e /var/lib/e87canbus-provisioning/unprovisioned
-test ! -e /opt/e87canbus/.venv/bin/e87canbus
-```
-
-These checks should produce no error. They prove the expected board and OS booted, the image has
-no baked-in operator, SSH remains key-only, and the application is still blocked on later
-provisioning.
+It prints `PASS` or `FAIL` for every assertion and exits nonzero if anything fails. The script is
+the executable source of checkpoint assertions. It checks that the expected Pi 4 and Trixie arm64
+system booted without failed units, SSH accepts public keys only, no operator account or application
+was baked into the image, and the unprovisioned marker remains present.
 
 ## Coordinator checks
 
 Fit the [three-channel CAN stack](../docs/waveshare-three-channel-stack.md) and coordinator panel
-according to the [wiring guide](../docs/wiring.md) before booting. Run:
-
-```bash
-test -e /dev/ttyAMA3
-systemctl is-active avahi-daemon.service e87canbus-kcan.service \
-  e87canbus-ptcan.service e87canbus-fcan.service
-readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'
-readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'
-readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'
-ip -details link show kcan | grep -q 'bitrate 100000'
-ip -details link show ptcan | grep -q 'bitrate 500000'
-ip -details link show fcan | grep -q 'bitrate 500000'
-nmcli -g connection.interface-name,connection.autoconnect,ipv4.addresses,ipv4.never-default \
-  connection show e87canbus-console-link
-! nmcli -t -f NAME connection show --active | grep -qx e87canbus-hotspot
-test -z "$(nmcli --show-secrets -g 802-11-wireless-security.psk \
-  connection show e87canbus-hotspot)"
-for unit in e87canbus-controller.service \
-  e87canbus-coordinator-hotspot-proxy.socket \
-  e87canbus-coordinator-console-proxy.socket; do
-  test "$(systemctl is-active "$unit")" = inactive
-  test "$(systemctl is-enabled "$unit")" = disabled
-done
-sudo -u e87canbus sudo -n -l
-```
-
-The Ethernet profile must report `eth0`, `yes`, `10.43.0.1/30` and `yes`. The sudo listing must
-contain only the four exact `e87canbus-hotspot` actions: `activate`, `deactivate`, `state` and
-`stations`. The hotspot remains inactive and has no password. The controller and both proxy
-sockets remain disabled until provisioning installs the application and installation inputs.
+according to the [wiring guide](../docs/wiring.md) before booting. A passing coordinator run confirms
+that the panel UART exists and all three CAN interfaces use their intended SPI controllers and bit
+rates. It also checks the fixed `10.43.0.1/30` Ethernet profile, inactive password-free hotspot,
+four-action hotspot sudo policy, and provisioning gates on the application and proxy sockets.
 
 ## Console checks
 
 Fit the 2-CH CAN HAT+, with only its first CAN channel in use, and the intended DSI display and
-touchscreen before booting. Run:
+touchscreen before booting. A passing console run confirms that `kcan` is the only CAN interface,
+mapped to `spi1.1` at 100 kbit/s in listen-only mode. It also checks the fixed `10.43.0.2/30`
+Ethernet profile, Cage, Chromium, DRM, touchscreen input, and provisioning gates on the application
+and kiosk.
+
+## Investigate a failure
+
+The failed assertion names the area to inspect. These commands expose the useful raw state without
+duplicating the checker's assertions:
 
 ```bash
-systemctl is-active e87canbus-console-kcan.service
-can_interfaces=$(for interface in /sys/class/net/*; do
-  test "$(cat "$interface/type")" = 280 && basename "$interface"
-done)
-test "$can_interfaces" = kcan
-readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'
-ip -details link show kcan | grep -q 'bitrate 100000'
-ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'
-nmcli -g connection.interface-name,connection.autoconnect,ipv4.addresses,ipv4.never-default \
-  connection show e87canbus-console-link
-command -v cage chromium
-test -n "$(find /dev/dri -maxdepth 1 -name 'card*' -print -quit)"
-touchscreen=
+systemctl --failed --no-legend --plain
+systemctl list-units --all 'e87canbus-*' ssh.service avahi-daemon.service --no-pager
+systemctl list-unit-files 'e87canbus-*' --no-pager
+journalctl -b -u 'e87canbus-*' --no-pager
+for interface in kcan ptcan fcan; do
+  test -e "/sys/class/net/$interface" || continue
+  printf '\n%s -> %s\n' "$interface" "$(readlink -f "/sys/class/net/$interface/device")"
+  ip -details link show "$interface"
+done
+nmcli connection show
 for device in /dev/input/event*; do
   test -e "$device" || continue
-  if udevadm info --query=property --name="$device" | \
-    grep -qx 'ID_INPUT_TOUCHSCREEN=1'; then
-    touchscreen=$device
-    break
-  fi
+  udevadm info --query=property --name="$device" | \
+    sed -n '/^DEVNAME=/p; /^ID_INPUT/p'
 done
-test -n "$touchscreen"
-printf 'Touchscreen: %s\n' "$touchscreen"
-test "$(systemctl is-active e87canbus-console.service)" = inactive
-test "$(systemctl is-active e87canbus-console-kiosk.service)" = inactive
-test "$(systemctl is-enabled e87canbus-console.service)" = disabled
-test "$(systemctl is-enabled e87canbus-console-kiosk.service)" = disabled
 ```
 
-The Ethernet profile must report `eth0`, `yes`, `10.43.0.2/30` and `yes`. The image should expose
-only `kcan`, mapped to `spi1.1` at 100 kbit/s in listen-only mode. Cage, Chromium, DRM and the
-touchscreen input must be present. The application and kiosk must remain inactive and disabled.
+These commands report services, boot logs, existing CAN interfaces, NetworkManager profiles and
+input-device classification on either role. Do not add credentials or enable application units to
+make the reusable-image checkpoint pass.
 
-The checkpoint cannot exercise the application health check or launch the kiosk. That requires
-the application bundle and operator account. The later provisioning CLI supplies both. It also
-does not prove CAN traffic, hotspot credentials, paired-host Ethernet reachability or vehicle-safe
-wiring. Those are installation acceptance checks, not reusable-image checks.
+The checkpoint cannot exercise the application health check or launch the kiosk. The future
+provisioning work must add the missing image-side consumer before it can install the application,
+operator account and unique host identity. The checkpoint also does not prove CAN traffic, hotspot
+credentials, paired-host Ethernet reachability or vehicle-safe wiring. Those are installation
+acceptance checks, not reusable-image checks.
 
 ## Record the checkpoint
 
@@ -225,5 +185,5 @@ For each role, record:
 - Raspberry Pi Imager write and verification result;
 - Pi model and OS checks;
 - failed-unit output;
-- every role-specific command result; and
+- the checkpoint script's complete `PASS` or `FAIL` output; and
 - confirmation that `systemd.debug_shell=1` was removed or the card was reflashed.

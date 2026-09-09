@@ -4,11 +4,13 @@ This is the canonical blank-Pi runbook for the two supported hosts. Both use Ras
 B hardware, Raspberry Pi OS, the repository at `/opt/e87canbus`, and a direct Ethernet cable. The
 coordinator is headless near the junction box; the console owns the screen and kiosk.
 
-The repository also builds reusable role images. Their [build and hardware-checkpoint
-runbook](../images/README.md) covers stable machine setup and verifies the unprovisioned image on a
-Pi 4. Those images deliberately lack the application bundle, operator account, installation
-identity and secrets. This document remains the deployment fallback until the provisioning CLI
-turns a flashed role image into a complete installation.
+The repository also builds validated v1 role-image prototypes. Their [build and hardware-checkpoint
+runbook](../images/README.md) covers stable machine setup and verifies each unprovisioned image on a
+Pi 4. These artifacts lack the application bundle, operator account, installation identity,
+secrets and an image-side provisioning consumer. Copying future inputs onto a card cannot complete
+the installation. The provisioning feature must add that consumer and unique host identity
+behavior, rebuild through the existing image builder, and repeat the relevant hardware checks.
+Until then, this document remains the deployment path.
 
 | Host | CAN hardware | Frontend | Main service | Setup command |
 |---|---|---|---|---|
