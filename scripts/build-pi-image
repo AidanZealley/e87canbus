@@ -95,14 +95,9 @@ case "${ROLE}" in
 esac
 
 readonly ROLE_CONFIG="${REPO_ROOT}/images/${ROLE}/image.yaml"
-if [[ -f "${ROLE_CONFIG}" ]]; then
-    readonly CONFIG_PATH="${ROLE_CONFIG}"
-elif [[ "${ROLE}" == coordinator ]]; then
-    # Workstream 1 exposes the coordinator path for the base-image hardware checkpoint only.
-    readonly CONFIG_PATH="${REPO_ROOT}/images/builder/base.yaml"
-else
-    fail "image definition ${ROLE_CONFIG#"${REPO_ROOT}/"} does not exist"
-fi
+[[ -f "${ROLE_CONFIG}" ]] \
+    || fail "image definition ${ROLE_CONFIG#"${REPO_ROOT}/"} does not exist"
+readonly CONFIG_PATH="${ROLE_CONFIG}"
 
 command -v docker >/dev/null 2>&1 || fail "Docker is required; install and start Docker Desktop."
 docker info >/dev/null 2>&1 || fail "the Docker daemon is unavailable; start Docker Desktop."

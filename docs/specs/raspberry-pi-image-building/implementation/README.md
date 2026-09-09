@@ -1,6 +1,6 @@
 # Raspberry Pi image-building implementation workflow
 
-Status: draft orchestration instructions.
+Status: completed on 2026-09-10; retained as the implementation record.
 
 This directory is the complete handoff for a fresh orchestration agent. Execute it only after the
 specification and workflow have been committed to a clean starting branch.

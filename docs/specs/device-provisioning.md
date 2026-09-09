@@ -173,9 +173,18 @@ explicit path elsewhere.
 
 ## Raspberry Pi image inputs
 
-The CLI consumes completed coordinator and console host images produced by the separate
-[Raspberry Pi image building](raspberry-pi-image-building.md) task. It does not own the image build
-implementation.
+The completed [Raspberry Pi image-building](raspberry-pi-image-building.md) artifacts validate the
+host setup, role configuration and fail-closed provisioning boundary. They do not yet contain a
+first-boot provisioning consumer, so they are prototypes rather than provisionable image inputs.
+They also retain the hostname generated during the upstream image build, so every card flashed
+from one artifact starts with that same hostname.
+
+Before Pi provisioning ships, this feature must decide the bundle format, validation rules and
+secret lifecycle, then implement the image-side consumer in the image-building source. That source
+change must replace the prototype hostname with unique host identity and go through the existing
+image builder. The rebuilt images must pass the relevant automated and Raspberry Pi hardware checks
+before the CLI treats them as provisioning inputs. The provisioning implementation does not
+otherwise own the image builder.
 
 Provisioning validates the selected image manifest, writes the image and adds the current
 application and device-specific provisioning bundles. It must not depend on undocumented details
@@ -426,8 +435,8 @@ check PlatformIO and system-command invocation without accessing hardware.
 
 ## First CLI implementation milestone
 
-After the separate image-building task passes, the first CLI milestone covers the current devices
-and repository-local workflow:
+After the image-side provisioning consumer has been added, rebuilt and validated, the first CLI
+milestone covers the current devices and repository-local workflow:
 
 1. Add interactive command dispatch and explicit non-interactive inputs.
 2. Generate and return an installation key, ID and public trust key without storing them.

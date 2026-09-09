@@ -2,14 +2,16 @@
 
 ## Raspberry Pi host images
 
-Reusable coordinator and console host images move stable OS, package, boot, CAN, network and kiosk
-setup out of the per-installation scripts. See the [image build and hardware-checkpoint
+The validated v1 coordinator and console host-image prototypes move stable OS, package, boot, CAN,
+network and kiosk setup out of the per-installation scripts. See the [image build and hardware-checkpoint
 runbook](../images/README.md) for the two Docker build commands, manifest verification, Raspberry
 Pi Imager steps and exact Pi 4 checks.
 
-The images are not complete installations. They contain no application bundle, operator account,
-installation identity or secrets. Until the provisioning CLI supplies those inputs, use the
-existing setup paths below for working deployments.
+The prototypes are not complete installations. They contain no application bundle, operator
+account, installation identity or secrets, and they have no image-side consumer for future
+provisioning inputs. The provisioning feature must add that consumer and unique host identity
+behavior, rebuild through the existing image builder, and repeat the relevant hardware checks.
+Until then, use the existing setup paths below for working deployments.
 
 ## Python
 

@@ -38,6 +38,9 @@ def write_executable(path: Path, contents: str) -> None:
 def make_test_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     shutil.copytree(BUILDER, repo / "images/builder")
+    shutil.copytree(COMMON_CONFIG.parent, repo / "images/common")
+    shutil.copytree(COORDINATOR, repo / "images/coordinator")
+    shutil.copytree(CONSOLE, repo / "images/console")
     (repo / "scripts").mkdir()
     shutil.copy2(BUILD_SCRIPT, repo / "scripts/build-pi-image")
     return repo
@@ -156,18 +159,22 @@ def test_build_rejects_non_arm64_container(tmp_path: Path) -> None:
     assert "native arm64 is required" in result.stderr
 
 
-def test_build_rejects_role_without_an_image_definition(tmp_path: Path) -> None:
+@pytest.mark.parametrize("role", ["coordinator", "console"])
+def test_build_rejects_role_without_an_image_definition(
+    tmp_path: Path, role: str
+) -> None:
     repo = make_test_repo(tmp_path)
+    (repo / f"images/{role}/image.yaml").unlink()
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "console"],
+        ["bash", str(repo / "scripts/build-pi-image"), role],
         text=True,
         capture_output=True,
         check=False,
     )
 
     assert result.returncode == 1
-    assert "image definition images/console/image.yaml does not exist" in result.stderr
+    assert f"image definition images/{role}/image.yaml does not exist" in result.stderr
     assert not (repo / "artifacts").exists()
 
 
@@ -214,8 +221,6 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
 
 def test_console_build_manifest_identifies_only_the_pi4_console_role(tmp_path: Path) -> None:
     repo = make_test_repo(tmp_path)
-    (repo / "images/console").mkdir()
-    (repo / "images/console/image.yaml").write_text("console: true\n")
     tools = arm64_tools(tmp_path, successful_docker())
 
     result = subprocess.run(
@@ -321,7 +326,8 @@ exec "{real_mv}" "$@"
 def test_builder_and_package_sources_are_immutable_where_upstream_allows() -> None:
     dockerfile = read(BUILDER / "Dockerfile")
     sources = read(BUILDER / "debian.sources")
-    config = read(BUILDER / "base.yaml")
+    common_config = read(COMMON_CONFIG)
+    role_configs = (read(COORDINATOR_CONFIG), read(CONSOLE_CONFIG))
     script = read(BUILD_SCRIPT)
 
     revision = "262d4df5a9f9d4133370465399a7958a7c22cdc7"
@@ -336,8 +342,9 @@ def test_builder_and_package_sources_are_immutable_where_upstream_allows() -> No
     assert sources.count("Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg") == 2
     assert sources.count("Check-Valid-Until: no") == 2
     assert "Trusted: yes" not in sources
-    assert "debian-trixie-arm64-minbase-snapshot" in config
-    assert "rpi-debian-trixie" in config
+    assert "debian-trixie-arm64-minbase-snapshot" in common_config
+    assert "rpi-debian-trixie" in common_config
+    assert all("file: ../common/image.yaml" in config for config in role_configs)
     assert 'PACKAGE_SNAPSHOT_EPOCH="1786579200"' in script
 
 
@@ -401,8 +408,8 @@ def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None
     assert "changes only the flashed test card" in runbook
     assert "It creates no user or credential" in runbook
     assert "Do not treat a card as safe to deploy" in runbook
-    assert "test -z \"$(getent passwd 1000 || true)\"" in runbook
-    assert "/var/lib/e87canbus-provisioning/unprovisioned" in runbook
+    assert "the executable source of checkpoint assertions" in runbook
+    assert "complete `PASS` or `FAIL` output" in runbook
 
 
 def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
@@ -410,15 +417,38 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
 
     for expected in (
         "coordinator | console",
-        "no failed systemd units",
-        "kcan maps to spi0.0",
-        "ptcan maps to spi1.1",
-        "fcan maps to spi1.2",
-        "hotspot sudo policy has four actions",
-        "kcan is the only CAN interface",
-        "kcan is listen-only",
-        "touchscreen present",
-        "application and kiosk disabled",
+        'test "$(uname -m)" = aarch64',
+        "grep -qx 'VERSION_CODENAME=trixie' /etc/os-release",
+        "tr -d '\\\\0' </proc/device-tree/model | grep -q '^Raspberry Pi 4 Model B'",
+        "systemctl --failed --no-legend --plain",
+        "systemctl is-active --quiet ssh.service",
+        "authenticationmethods publickey",
+        "! getent passwd 1000 >/dev/null",
+        "test -e /var/lib/e87canbus-provisioning/unprovisioned",
+        "test ! -e /opt/e87canbus/.venv/bin/e87canbus",
+        "test -e /dev/ttyAMA3",
+        "avahi-daemon.service e87canbus-kcan.service",
+        "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'",
+        "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'",
+        "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'",
+        "ip -details link show kcan | grep -q 'bitrate 100000'",
+        "ip -details link show ptcan | grep -q 'bitrate 500000'",
+        "ip -details link show fcan | grep -q 'bitrate 500000'",
+        "10.43.0.1/30",
+        "nmcli -t -f NAME connection show --active",
+        "802-11-wireless-security.psk",
+        "e87canbus-coordinator-hotspot-proxy.socket",
+        "e87canbus-coordinator-console-proxy.socket",
+        "/usr/local/libexec/e87canbus-hotspot $action",
+        "systemctl is-active --quiet e87canbus-console-kcan.service",
+        '[ "$interfaces" = kcan ]',
+        "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'",
+        "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'",
+        "10.43.0.2/30",
+        "command -v cage >/dev/null && command -v chromium >/dev/null",
+        'find /dev/dri -maxdepth 1 -name "card*"',
+        "ID_INPUT_TOUCHSCREEN=1",
+        "e87canbus-console.service e87canbus-console-kiosk.service",
     ):
         assert expected in script
     subprocess.run(["sh", "-n", str(IMAGE_CHECK)], check=True)
@@ -429,19 +459,16 @@ def test_hardware_runbook_covers_both_role_boundaries() -> None:
 
     for expected in (
         "Raspberry Pi 4 Model B",
-        "VERSION_CODENAME=trixie",
-        "systemctl --failed",
-        "/dev/ttyAMA3",
-        "/spi0[.]0$",
-        "/spi1[.]1$",
-        "/spi1[.]2$",
-        "bitrate 500000",
+        "Trixie arm64",
+        "panel UART",
+        "three CAN interfaces",
         "10.43.0.1/30",
-        "listen-only on|LISTEN-ONLY",
+        "kcan",
+        "listen-only mode",
         "10.43.0.2/30",
-        "/dev/dri",
+        "DRM",
         "touchscreen",
-        "e87canbus-console-kiosk.service",
+        "provisioning gates",
     ):
         assert expected in runbook
 
@@ -449,9 +476,14 @@ def test_hardware_runbook_covers_both_role_boundaries() -> None:
         "The checkpoint cannot exercise the application health check or launch the kiosk"
         in runbook
     )
-    assert "The later provisioning CLI supplies" in runbook
-    assert 'udevadm info --query=property --name="$device"' in runbook
-    assert "grep -qx 'ID_INPUT_TOUCHSCREEN=1'" in runbook
+    for boundary in (
+        "validated v1 Raspberry Pi 4 host-image prototypes",
+        "must add the missing image-side consumer",
+        "unique host identity",
+        "rebuild both roles with this builder",
+        "repeat the relevant hardware",
+    ):
+        assert boundary in runbook
     assert "ft5|goodix" not in runbook
     assert "../images/README.md" in read(ROOT / "docs/setup.md")
     assert "../images/README.md" in read(ROOT / "deploy/README.md")
