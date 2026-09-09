@@ -94,7 +94,8 @@ systemctl --failed --no-pager
   intended CAN HAT+, DSI display and touchscreen. The common and console checks passed apart from
   two false negatives in the checkpoint script. Raw output confirmed that `kcan` resolves to
   `spi1.1`, runs at 100 kbit/s and reports `can <LISTEN-ONLY>`. The environment also sets
-  `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. The corrected script still needs one final run.
+  `E87CANBUS_CONSOLE_CAN_LISTEN_ONLY=on`. Together with the remaining passing checker output, this
+  accepts the console hardware behavior. Its artifact filename and digest remain to be recorded.
 - Corrections routed to prior owners: During checkpoint preparation, Aidan approved a builder
   filename usability correction. Artifacts now use
   `e87-<role>_<YYYY-MM-DD>_<HHMM>Z_<commit>[-dirty]`, while the manifest retains the full commit,
