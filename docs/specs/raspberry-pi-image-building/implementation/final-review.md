@@ -152,8 +152,9 @@ dependencies solely for review.
 
 ## Orchestrator completion record
 
-- Final head and verification: Accepted remediation is ready for its implementation commit. Final
-  verification passed: `uv run pytest` (`883 passed`), `uv run ruff check .`, `uv run mypy`
+- Final head and verification: Accepted implementation commit
+  `5ec8ba8fbab0097f74ff019a3b606a27946e13b0`. Final verification passed: `uv run pytest`
+  (`883 passed`), `uv run ruff check .`, `uv run mypy`
   (`130 source files`), `uv run python scripts/generate_custom_protocol.py --check`, frontend API
   and lint checks, all frontend typechecks, frontend tests (`18`, `101` and `89` passed), builder
   and checkpoint shell syntax, and `git diff --check`.
@@ -163,4 +164,4 @@ dependencies solely for review.
 - Specification drift: Aidan approved the documented v1 prototype boundary. The first-boot
   consumer and unique host identity move to the provisioning feature, which must rebuild both
   images and repeat the relevant hardware checks before treating them as provisionable.
-- Completion report delivered: Pending the accepted remediation commit and final handoff.
+- Completion report delivered: 2026-09-10.
