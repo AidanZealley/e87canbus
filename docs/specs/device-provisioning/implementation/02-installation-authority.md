@@ -1,6 +1,6 @@
 # Workstream 2: Create the installation authority and recovery package
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -135,4 +135,4 @@ uv run e87ctl installation create --help
   documentation-only correction needed no implementation remediation. It introduces no
   release-blocking defect, and `git diff --check` passes.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `11fae1dc10680678987d1db6fbfed03b921e2b1e`
