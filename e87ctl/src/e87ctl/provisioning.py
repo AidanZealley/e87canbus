@@ -9,7 +9,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -44,6 +44,7 @@ from e87ctl.recovery import RecoveryPackage
 _DEVICE_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 _DEVICE_PASSWORD_LENGTH = 32
 _ProvisioningEntry = bytes | Path
+DeploymentProfile: TypeAlias = Literal["car", "bench"]
 _HOSTNAME = StringConstraints(
     min_length=1,
     max_length=63,
@@ -60,6 +61,7 @@ class DeviceConfiguration(BaseModel):
 
     format_version: Literal[1]
     role: Role
+    deployment_profile: DeploymentProfile
     installation_id: Annotated[str, StringConstraints(pattern=r"^[a-z2-7]{52}$")]
     device_id: Annotated[str, StringConstraints(pattern=r"^[0-9a-f-]{36}$")]
     hostname: Annotated[str, _HOSTNAME]
@@ -88,6 +90,7 @@ def build_provisioning_bundle(
     image: ImageManifest,
     application: ApplicationArtifact,
     output: Path,
+    deployment_profile: DeploymentProfile,
     hostname: str | None = None,
     created_at: datetime | None = None,
 ) -> ProvisioningArtifact:
@@ -111,6 +114,7 @@ def build_provisioning_bundle(
         configuration = DeviceConfiguration(
             format_version=1,
             role=role,
+            deployment_profile=deployment_profile,
             installation_id=recovery.installation_id,
             device_id=device_id,
             hostname=resolved_hostname,

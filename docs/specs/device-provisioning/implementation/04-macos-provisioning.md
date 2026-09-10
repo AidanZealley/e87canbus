@@ -109,4 +109,3 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
 - Accepted commit: `TBD`
-
