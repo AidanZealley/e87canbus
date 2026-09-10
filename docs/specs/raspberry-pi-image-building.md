@@ -1,15 +1,15 @@
-# Raspberry Pi image building
+# Raspberry Pi host images
 
-- **Status:** Implemented as v1 host-image prototypes
-- **Date:** 2026-08-20
+- **Status:** V1 host-image prototypes accepted; provisionable successors pending
+- **Date:** 2026-09-10
 
-## Goal
+## Purpose and lifecycle boundary
 
 Build reusable coordinator and console host-image prototypes before implementing the provisioning
 CLI. The images must boot on the current Raspberry Pi 4 hardware and contain the stable
 machine-level setup needed by each role.
 
-The output of this task is two image artifacts that Raspberry Pi Imager can flash:
+The output is two image artifacts that Raspberry Pi Imager or `e87ctl` can flash:
 
 ```text
 artifacts/images/coordinator/<build>.img
@@ -19,13 +19,19 @@ artifacts/images/console/<build>.img
 Generated images remain local and are ignored by Git. External artifact storage can be added later
 without changing the image definitions.
 
-This task proves image construction and boot behaviour. It does not implement the provisioning
-CLI, write SD cards itself or turn a flashed card into an installation-specific device.
+The completed v1 task proved image construction and boot behaviour. It did not implement the
+provisioning CLI, write SD cards itself or turn a flashed card into an installation-specific
+device.
 
 The validated v1 artifacts are not yet provisionable images. They expose the handoff described
-below, but they do not contain a first-boot provisioning consumer.
+below, but they do not contain a first-boot provisioning consumer. The approved
+[device lifecycle feature](device-provisioning.md) owns that successor work: it adds the consumer,
+rebuilds both images and proves the complete provisioning path.
 
-## Initial targets
+The shared image design and accepted v1 evidence remain here because they constrain that successor.
+Requirements labelled as provisionable successors are not claims about the accepted v1 artifacts.
+
+## Accepted v1 baseline
 
 Both images use Raspberry Pi OS Lite 64-bit Trixie and initially target the Raspberry Pi 4 Model B.
 
@@ -33,16 +39,18 @@ The coordinator and console share a common image definition. Each role adds only
 configuration and services. The build should keep the target board explicit so a Raspberry Pi 5
 definition can be added later. Pi 5 support is not part of this task.
 
-## Build interface
+## Provisionable build interface
 
-Docker is the only supported build interface. The repository provides these commands:
+Docker remains the only build implementation. The provisioning feature replaces the public shell
+entry point with these repository-local commands:
 
 ```text
-./scripts/build-pi-image coordinator
-./scripts/build-pi-image console
+uv run e87ctl image build coordinator
+uv run e87ctl image build console
 ```
 
-The wrapper invokes a pinned version of
+`e87ctl` invokes the existing shell wrapper after it moves to `e87ctl/scripts/build-pi-image`. The
+wrapper invokes a pinned version of
 [`rpi-image-gen`](https://github.com/raspberrypi/rpi-image-gen) inside an arm64 Debian container. It
 checks that Docker is available, reports the host and container architectures and fails with a
 useful message when the host cannot run the supported builder.
@@ -59,20 +67,21 @@ The build requires a network connection. It downloads packages from the configur
 Raspberry Pi repositories at build time and reuses a persistent local cache. The repository does
 not contain or require a manually downloaded base OS image.
 
-## Repository structure
+## Provisionable repository structure
 
-The initial implementation should stay small:
+The provisionable implementation keeps this structure:
 
 ```text
+e87ctl/
+  scripts/
+    build-pi-image
+
 images/
   builder/
     Dockerfile
   common/
   coordinator/
   console/
-
-scripts/
-  build-pi-image
 
 artifacts/
   images/
@@ -86,10 +95,10 @@ rather than adding a project-specific configuration system. Common configuration
 
 The host needs Docker and, for physical testing, Raspberry Pi Imager. Build dependencies such as
 `rpi-image-gen`, `bdebstrap`, `mmdebstrap` and `genimage` stay inside the pinned container. The
-wrapper should use the Docker CLI directly. This task does not need a Python package or another
-command framework.
+wrapper uses the Docker CLI directly. `e87ctl` only supplies the common repository command and does
+not reproduce the builder.
 
-## Image contents
+## Shared image contents and successor changes
 
 Each role image contains everything stable enough to avoid repeating machine setup after flashing:
 
@@ -103,9 +112,11 @@ Each role image contains everything stable enough to avoid repeating machine set
 - a versioned provisioning-interface marker; and
 - protected unprovisioned state that keeps role services disabled.
 
-The v1 images do not contain a first-boot provisioning unit or consumer. The later provisioning
-feature owns that implementation after it decides the bundle format, validation rules and secret
-lifecycle.
+The validated v1 images do not contain a first-boot provisioning unit or consumer. The approved
+provisioning feature adds one root-owned systemd consumer for the fixed
+`e87canbus-provisioning-v1.zip` contract. It validates and stages the bundle, installs identity,
+configuration, secrets and the application, records non-secret status, removes staged secrets and
+clears `unprovisioned` last. The role services remain fail-closed until that transition succeeds.
 
 The image build performs package installation and other slow machine-level work. First boot must
 not clone the repository, install build tools, run `apt`, resolve application dependencies or build
@@ -113,12 +124,13 @@ the frontend.
 
 The reusable images do not contain an installation key, device credential, Wi-Fi password,
 operator password, installation-specific certificate or installation-specific host identity. They
-also do not contain a repository clone.
+also do not contain a repository clone. Provisionable successors contain no reusable
+`/etc/machine-id` or SSH host keys.
 
-The validated prototypes do contain the hostname generated by the upstream image builder. Every
-card flashed from one artifact therefore starts with the same hostname. This value is not an
-installation identity or secret, but a provisioning-compatible successor must replace it with
-unique host identity before enabling the role services.
+The validated prototypes contain the hostname generated by the upstream image builder. Every card
+flashed from one artifact therefore starts with the same hostname. This value is not an installation
+identity or secret. The provisionable successors remove that reusable identity and let the
+first-boot consumer install the assigned hostname before enabling role services.
 
 Normal Python and frontend edits should not require a new host image. Those changes belong in the
 application bundle described by the provisioning specification. Rebuild a host image when its OS
@@ -136,10 +148,13 @@ Each image has a machine-readable manifest beside it. The manifest records:
 - whether the working tree was dirty; and
 - image size and digest.
 
-The later provisioning CLI uses this manifest to reject an incompatible image. The image digest is
+The provisionable successor also records its provisioning-interface version and the boot and root
+storage limits enforced for application and provisioning bundles.
+
+`e87ctl` uses this manifest to reject an incompatible image. The image digest is
 its identity. Git information explains where it came from but does not replace the digest.
 
-## What happens after flashing
+## V1 behavior after flashing
 
 During this task, Raspberry Pi Imager writes the image to an SD card. Temporary test access, such
 as a user and SSH key, must be supplied during imaging or through a documented test-only input. It
@@ -150,21 +165,20 @@ the documented systemd state. A flashed host image is not yet a fully provisione
 It lacks the current application bundle, installation identity, device secrets and operator
 configuration.
 
-The later provisioning feature must define the application and provisioning bundles, their
-validation and the secret lifecycle. It must then add the image-side consumer to this repository,
-including creation of unique host identity, build new images through the image builder and rerun
-the relevant image and hardware checks. The resulting provisioning path must not require cloning
-the repository or running the current setup script. Any remaining parts of that script must move
-into the image build, the application build or the one-time provisioning service according to
-their responsibility.
+The provisioning feature uses the fixed application and provisioning bundles defined in the
+[device lifecycle specification](device-provisioning.md). It adds the consumer and unique host
+identity, builds new images through `e87ctl image build` and reruns the relevant image and hardware
+checks. The resulting path does not clone the repository or run the current setup script. Any
+remaining parts of that script move into the image build, application build or one-time consumer
+according to their responsibility.
 
-## Verification and handoff
+## Hardware evidence and successor handoff
 
 Image building crosses a hardware boundary that a remote agent may not be able to test. An agent
 can implement the container, image definitions and automated checks elsewhere, but it must not
 claim macOS or Pi compatibility without the physical tests.
 
-The work has two checkpoints.
+The completed prototype work had two checkpoints. The provisioning feature adds a third.
 
 ### Checkpoint one: prove the builder
 
@@ -186,12 +200,26 @@ The work has two checkpoints.
 Failure at either checkpoint returns to this task. The image-building task is complete only after
 both role images pass the MacBook build, Raspberry Pi Imager flash and Raspberry Pi 4 boot checks.
 
+### Checkpoint three: prove provisionable successors
+
+1. Add the fixed first-boot consumer and remove reusable host identity.
+2. Build both roles on the M1 Pro MacBook through `e87ctl image build`.
+3. Provision and boot one coordinator and one console through the new card workflow.
+4. Confirm successful bundle consumption, unique host identity, secret cleanup, marker transition,
+   role services and the Wi-Fi checks owned by the network specification.
+5. Confirm the non-secret boot-partition status remains useful when a deliberately invalid bundle
+   fails before networking starts.
+
+The provisioning feature is incomplete until checkpoint three passes. A failure returns to that
+feature rather than changing the accepted evidence for the v1 prototypes.
+
 Automated checks should validate the wrapper, manifests and configuration without Docker or
-hardware where practical. They do not replace the two checkpoints.
+hardware where practical. They do not replace the applicable physical checkpoints.
 
-## Acceptance criteria
+## V1 prototype acceptance criteria
 
-- Both repository commands build through the same Docker implementation.
+- Both historical `./scripts/build-pi-image coordinator|console` commands build through the same
+  Docker implementation.
 - The build runs as arm64 on the M1 Pro MacBook without CPU emulation.
 - The builder downloads OS packages at build time and reuses a local cache.
 - No generated image or package cache is committed to Git.
@@ -205,6 +233,30 @@ hardware where practical. They do not replace the two checkpoints.
 - Both role images pass checkpoint two.
 - The test instructions state what the image proves and what later provisioning must still supply.
 
+These criteria describe the accepted prototype artifacts recorded in the
+[final review](raspberry-pi-image-building/implementation/final-review.md).
+
+## Provisionable successor owned by device lifecycle tooling
+
+The [device lifecycle tooling](device-provisioning.md) workflow owns the implementation and
+acceptance of every item in this section. The completed image-building workflow must remain closed.
+
+### Acceptance criteria
+
+- `e87ctl image build` is the only public image-build interface and still uses the accepted Docker
+  implementation.
+- Each image contains the fixed first-boot consumer and keeps role services gated while
+  `unprovisioned` exists.
+- Neither image contains reusable machine identity, SSH host keys or installation secrets.
+- The consumer validates all bundle contents before changing installed state.
+- A power interruption cannot enable a partial installation and can resume from durable staging.
+- Success removes the boot bundle and staged secrets, records non-secret status and clears
+  `unprovisioned` last.
+- Invalid input records a safe failure while leaving role services disabled.
+- First boot installs a ready application without package installation, dependency resolution or
+  frontend compilation.
+- Both rebuilt roles pass checkpoint three on the target hardware.
+
 ## Out of scope
 
 - Provisioning or deployment CLI commands.
@@ -215,23 +267,16 @@ hardware where practical. They do not replace the two checkpoints.
 - Raspberry Pi 5 support.
 - Tagged releases and external artifact storage.
 
-## Open decisions
-
-1. The exact pinned `rpi-image-gen` revision and Debian container version.
-2. The package repository snapshots or pinning needed for repeatable builds.
-3. The precise common, coordinator and console package lists.
-4. The test-only method used to gain first-boot access without embedding credentials.
-5. The systemd checks that prove each role image booted correctly before provisioning exists.
-
 ## Related specifications
 
-The [implementation workflow](raspberry-pi-image-building/implementation/README.md) turns this
-specification into sequential implementation, review and hardware-validation workstreams.
+The accepted [implementation workflow](raspberry-pi-image-building/implementation/README.md)
+records the v1 prototype work. Do not reopen or reuse that workflow for the provisionable
+successors.
 
-The [device provisioning CLI](device-provisioning.md) will consume rebuilt successors to these
-validated prototypes after that feature adds the image-side consumer. It will write them to SD
-cards and supply the application and installation-specific data.
+The [device lifecycle tooling](device-provisioning.md) specification owns the successor consumer,
+rebuild and hardware checkpoint. It writes the images to SD cards and supplies the application and
+installation-specific data.
 
-The [Wi-Fi device network](wifi-device-network.md) defines the network behaviour enabled by later
+The [Wi-Fi device network](wifi-device-network.md) defines the network behavior enabled by
 provisioning. Image building installs its stable system requirements but does not create network
 credentials.
