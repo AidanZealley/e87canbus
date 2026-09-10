@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -237,6 +237,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "e87ctl" },
     { name = "httpx2" },
     { name = "import-linter" },
     { name = "mypy" },
@@ -259,6 +260,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "e87ctl", editable = "e87ctl" },
     { name = "httpx2", specifier = ">=2.0" },
     { name = "import-linter", specifier = ">=2.0" },
     { name = "mypy", specifier = ">=1.10" },
@@ -267,6 +269,11 @@ dev = [
     { name = "ruff", specifier = ">=0.5" },
     { name = "watchfiles", specifier = "==1.2.0" },
 ]
+
+[[package]]
+name = "e87ctl"
+version = "0.1.0"
+source = { editable = "e87ctl" }
 
 [[package]]
 name = "fastapi"

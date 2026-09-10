@@ -7,7 +7,7 @@ readonly PACKAGE_SNAPSHOT_EPOCH="1786579200"
 readonly BUILDER_IMAGE="e87canbus/pi-image-builder:${RPI_IMAGE_GEN_REVISION:0:12}"
 readonly PACKAGE_CACHE_VOLUME="e87canbus-pi-image-packages"
 readonly SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 usage() {
     echo "Usage: $0 coordinator|console" >&2
