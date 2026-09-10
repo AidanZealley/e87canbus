@@ -30,4 +30,5 @@ node_modules/
 .claude/worktrees/
 
 # Local Raspberry Pi image builds
+/.cache/pi-image-build/
 /artifacts/images/
