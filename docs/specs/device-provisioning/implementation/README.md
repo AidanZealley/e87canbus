@@ -121,11 +121,13 @@ the workstream or whole-feature review record and continue the same bounded loop
 
 ## External validation gates
 
-Workstream 4 has a macOS writer gate. After its automated review closes, push one candidate and
-give Aidan the commands in that record. Evidence must cover structured disk discovery, rejection
-of protected/internal/partition targets, target-identity recheck, one successful spare-card write,
-image-region readback and boot-only mounting. Resume when the result and candidate hash are
-recorded.
+Workstream 4 has a macOS writer gate after workstream 6 and before workstream 7. Workstream 4's
+reviewed implementation may be accepted before the gate because workstream 6 produces the first
+truthful compatible image. After workstream 6 is accepted, push one combined candidate and give
+Aidan the commands in the workstream 4 record. Evidence must cover structured disk discovery,
+rejection of protected/internal/partition targets, target-identity recheck, one successful
+spare-card write, image-region readback and boot-only mounting. Start workstream 7 only after the
+result and combined candidate hash are recorded.
 
 Workstream 7 has the final MacBook and two-Pi gate. Its candidate must build, provision and boot one
 coordinator and one console, exercise failure reporting with a separate disposable card or fixture,

@@ -1,6 +1,6 @@
 # Workstream 4: Provision SD cards safely on macOS
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -70,10 +70,11 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 
 ## External validation
 
-- Gate and placement: macOS writer safety, after closure and before acceptance.
-- Status: `Testing`
-- Candidate and instructions: Candidate `3d01f300aee37d9cf0b3818143877083522c4374`. On the M1 Pro
-  MacBook, check out that exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
+- Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
+- Status: `Pending`
+- Candidate and instructions: The orchestrator records and pushes the combined workstream 4 and 6
+  candidate after workstream 6 acceptance. On the M1 Pro MacBook, check out that exact commit and
+  confirm it with `git rev-parse HEAD`. Record `sw_vers`,
   then run `uv sync --locked`. Keep the recovery package outside the checkout and use a compatible
   coordinator image manifest produced by the provisionable image builder.
 
@@ -109,10 +110,10 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Required evidence: candidate hash and macOS version; discovery output; safe rejection of an
   internal disk, system-backing disk and partition; resolved spare-card identity; successful raw
   write; matching image-region readback; boot-only injection/readback; final unmount.
-- Attempts and lasting decisions: No attempt yet. The current accepted image builder emits the v1
-  prototype manifest, not the strict provisionable manifest consumed here. Workstream 6 owns that
-  producer but depends on workstream 4 acceptance, so the orchestrator must resolve the gate-order
-  conflict or identify an existing truthful compatible image before this gate can pass.
+- Attempts and lasting decisions: No attempt yet. Aidan approved moving the gate after workstream 6
+  because that stream produces the first truthful strict compatible image. Workstream 4 acceptance
+  covers the reviewed writer implementation only and does not claim macOS or removable-media
+  validation.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 
@@ -143,11 +144,9 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   external, mounted and replacement property lists. Writer tests inject fake privileged and
   readback calls and never address a real device.
 - Known limitations or external checks: No macOS command or real disk write ran in this Linux
-  environment. The external gate remains pending. Its current workflow placement precedes the
-  workstream that produces a truthful strict compatible image, as recorded above.
-- Specification drift: None in the implementation. The unresolved external-gate ordering conflict
-  is workflow drift and does not justify accepting a legacy image manifest or weakening artifact
-  validation.
+  environment. The external gate remains pending after workstream 6 and before workstream 7.
+- Specification drift: None in the implementation. Aidan approved the gate-placement correction;
+  image validation remains strict.
 
 ## Independent review
 
@@ -188,10 +187,10 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   behavior to the real macOS gate. Retained the minor `Path` conversion and current bounded public
   error text because neither affects acceptance.
 - Question dispositions: Workstream 6's task packet now freezes `bootfs` as the exact FAT boot
-  partition label. The compatible-image gate-order conflict remains open for Aidan at the gate and
-  validation stays strict. Non-interactive callers must derive the exact identifier, model and
-  capacity confirmation from `diskutil`; adding a separate inspect command remains an explicit
-  non-goal.
+  partition label. Aidan resolved the compatible-image ordering conflict by moving the gate after
+  workstream 6 and before workstream 7; validation stays strict. Non-interactive callers must
+  derive the exact identifier, model and capacity confirmation from `diskutil`; adding a separate
+  inspect command remains an explicit non-goal.
 - Simplification/deletion pass: Removed the second boot-reserve comparison and constructor token.
   Reused one partition-mount enumeration for discovery reporting and the boot-only proof. Added no
   alternate mount path, cache-control mode or confirmation bypass.
@@ -215,4 +214,4 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   e87ctl/tests/test_macos_provisioning.py`; `uv run mypy` (`140 source files`); and `git diff
   --check` passed. The real macOS and removable-media checks remain at the documented external
   validation gate.
-- Accepted commit: `TBD`
+- Accepted commit: `3d01f300aee37d9cf0b3818143877083522c4374`
