@@ -1,7 +1,6 @@
 # Device lifecycle tooling implementation workflow
 
-Status: draft orchestration instructions; implementation must not start until Aidan approves this
-workflow.
+Status: approved and in progress.
 
 This directory is the complete handoff for a fresh orchestration agent.
 
