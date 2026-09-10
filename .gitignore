@@ -32,3 +32,4 @@ node_modules/
 # Local Raspberry Pi image builds
 /.cache/pi-image-build/
 /artifacts/images/
+/artifacts/applications/
