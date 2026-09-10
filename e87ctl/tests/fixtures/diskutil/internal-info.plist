@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>DeviceIdentifier</key><string>disk0</string><key>DeviceNode</key><string>/dev/disk0</string><key>Whole</key><true/><key>Internal</key><true/><key>VirtualOrPhysical</key><string>Physical</string>
+<key>BusProtocol</key><string>PCI-Express</string><key>TotalSize</key><integer>1000204886016</integer><key>MediaName</key><string>APPLE SSD</string>
+<key>SerialNumber</key><string>INTERNAL001</string><key>DeviceTreePath</key><string>IODeviceTree:/internal</string>
+</dict></plist>

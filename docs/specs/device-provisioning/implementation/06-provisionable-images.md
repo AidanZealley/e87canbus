@@ -46,6 +46,7 @@ valid bundle is fully installed.
   authorization table.
 - Preserve the accepted Docker builder and command from workstream 1.
 - Produce both root and boot status documents consumed by workstream 7.
+- Preserve the exact `bootfs` boot-partition label consumed by workstream 4's safe writer.
 
 ### Acceptance criteria
 

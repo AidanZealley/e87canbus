@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>AllDisksAndPartitions</key><array>
+<dict><key>DeviceIdentifier</key><string>disk0</string><key>Partitions</key><array><dict><key>DeviceIdentifier</key><string>disk0s2</string></dict></array></dict>
+<dict><key>DeviceIdentifier</key><string>disk3</string><key>Partitions</key><array><dict><key>DeviceIdentifier</key><string>disk3s1</string><key>MountPoint</key><string>/System/Volumes/Data</string></dict></array></dict>
+<dict><key>DeviceIdentifier</key><string>disk4</string><key>Partitions</key><array><dict><key>DeviceIdentifier</key><string>disk4s1</string><key>MountPoint</key><string>/Volumes/OLD</string></dict></array></dict>
+</array></dict></plist>
