@@ -1,6 +1,6 @@
 # Workstream 1: Establish the CLI boundary and preserve image building
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -126,4 +126,4 @@ bash -n e87ctl/scripts/build-pi-image
   accurately records that no remediation was required, and the status updates introduce no
   release-blocking defect.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`
