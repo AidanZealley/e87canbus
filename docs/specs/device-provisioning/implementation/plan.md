@@ -16,7 +16,7 @@ Status: implementation in progress.
 |---:|---|---|---|---|
 | 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb` |
 | 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
-| 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Closure review | `fff702367bed156640f52085d6cc5c48ba196815` |
+| 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Not started | — |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Not started | — |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Not started | — |
