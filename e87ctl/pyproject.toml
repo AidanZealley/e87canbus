@@ -3,6 +3,11 @@ name = "e87ctl"
 version = "0.1.0"
 description = "Workstation tooling for e87canbus device lifecycle operations."
 requires-python = ">=3.11"
+dependencies = [
+    "argon2-cffi>=25.1",
+    "cryptography>=46.0",
+    "pydantic>=2.12",
+]
 
 [project.scripts]
 e87ctl = "e87ctl.cli:main"
