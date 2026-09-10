@@ -27,8 +27,8 @@ uname -m
 `uname -m` must print `arm64`. Build each role from the repository root:
 
 ```bash
-./scripts/build-pi-image coordinator
-./scripts/build-pi-image console
+uv run e87ctl image build coordinator
+uv run e87ctl image build console
 ```
 
 Each command prints its image path, manifest path and SHA-256 digest. Outputs are local and ignored

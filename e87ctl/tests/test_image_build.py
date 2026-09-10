@@ -10,8 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from e87ctl import cli
+
 ROOT = Path(__file__).resolve().parents[2]
-BUILD_SCRIPT = ROOT / "scripts/build-pi-image"
+BUILD_SCRIPT = ROOT / "e87ctl/scripts/build-pi-image"
 BUILDER = ROOT / "images/builder"
 COMMON_CONFIG = ROOT / "images/common/image.yaml"
 COMMON_LAYER = ROOT / "images/layer/e87-common.yaml"
@@ -41,8 +43,8 @@ def make_test_repo(tmp_path: Path) -> Path:
     shutil.copytree(COMMON_CONFIG.parent, repo / "images/common")
     shutil.copytree(COORDINATOR, repo / "images/coordinator")
     shutil.copytree(CONSOLE, repo / "images/console")
-    (repo / "scripts").mkdir()
-    shutil.copy2(BUILD_SCRIPT, repo / "scripts/build-pi-image")
+    (repo / "e87ctl/scripts").mkdir(parents=True)
+    shutil.copy2(BUILD_SCRIPT, repo / "e87ctl/scripts/build-pi-image")
     return repo
 
 
@@ -80,6 +82,31 @@ case "$1" in
         ;;
 esac
 """
+
+
+@pytest.mark.parametrize("role", ["coordinator", "console"])
+def test_cli_builds_each_public_image_role(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    command: list[object] = []
+
+    def run(arguments: list[object], *, check: bool) -> subprocess.CompletedProcess[str]:
+        command.extend(arguments)
+        assert check is False
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert cli.main(["image", "build", role]) == 0
+    assert command == [BUILD_SCRIPT, role]
+
+
+def test_cli_rejects_an_unknown_image_role(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as error:
+        cli.main(["image", "build", "base"])
+
+    assert error.value.code == 2
+    assert "invalid choice: 'base'" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("arguments", [[], ["base"], ["coordinator", "extra"]])
@@ -146,7 +173,7 @@ def test_build_rejects_non_arm64_container(tmp_path: Path) -> None:
     tools = arm64_tools(tmp_path, successful_docker(container_architecture="x86_64"))
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -167,7 +194,7 @@ def test_build_rejects_role_without_an_image_definition(
     (repo / f"images/{role}/image.yaml").unlink()
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), role],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), role],
         text=True,
         capture_output=True,
         check=False,
@@ -183,7 +210,7 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
     tools = arm64_tools(tmp_path, successful_docker())
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -224,7 +251,7 @@ def test_console_build_manifest_identifies_only_the_pi4_console_role(tmp_path: P
     tools = arm64_tools(tmp_path, successful_docker())
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "console"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "console"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -244,7 +271,7 @@ def test_build_uses_linux_volumes_for_temporary_state_and_package_cache(tmp_path
     tools = arm64_tools(tmp_path, successful_docker())
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -278,7 +305,7 @@ exec "{real_mv}" "$@"
     )
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -311,7 +338,7 @@ exec "{real_mv}" "$@"
     )
 
     result = subprocess.run(
-        ["bash", str(repo / "scripts/build-pi-image"), "coordinator"],
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
         env={"PATH": f"{tools}:{os.environ['PATH']}"},
         text=True,
         capture_output=True,
@@ -396,8 +423,8 @@ def test_generated_image_state_is_ignored() -> None:
 def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None:
     runbook = read(IMAGE_RUNBOOK)
 
-    assert "./scripts/build-pi-image coordinator" in runbook
-    assert "./scripts/build-pi-image console" in runbook
+    assert "uv run e87ctl image build coordinator" in runbook
+    assert "uv run e87ctl image build console" in runbook
     assert 'manifest=$(ls -t "artifacts/images/${role}"/*.json | head -n 1)' in runbook
     assert 'test "$actual" = "$expected"' in runbook
     assert "Raspberry Pi Imager did not offer OS customisation" in runbook

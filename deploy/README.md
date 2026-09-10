@@ -9,7 +9,7 @@ runbook](../images/README.md) covers stable machine setup and verifies each unpr
 Pi 4. These artifacts lack the application bundle, operator account, installation identity,
 secrets and an image-side provisioning consumer. Copying future inputs onto a card cannot complete
 the installation. The provisioning feature must add that consumer and unique host identity
-behavior, rebuild through the existing image builder, and repeat the relevant hardware checks.
+behavior, rebuild through `e87ctl image build`, and repeat the relevant hardware checks.
 Until then, this document remains the deployment path.
 
 | Host | CAN hardware | Frontend | Main service | Setup command |
