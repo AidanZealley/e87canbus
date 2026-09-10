@@ -71,11 +71,11 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after closure and before acceptance.
-- Status: `Pending`
-- Candidate and instructions: The orchestrator records and pushes the candidate after closure. On
-  the M1 Pro MacBook, check out that exact commit and confirm it with `git rev-parse HEAD`. Record
-  `sw_vers`, then run `uv sync --locked`. Keep the recovery package outside the checkout and use a
-  compatible coordinator image manifest produced by the provisionable image builder.
+- Status: `Testing`
+- Candidate and instructions: Candidate `3d01f300aee37d9cf0b3818143877083522c4374`. On the M1 Pro
+  MacBook, check out that exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
+  then run `uv sync --locked`. Keep the recovery package outside the checkout and use a compatible
+  coordinator image manifest produced by the provisionable image builder.
 
   First capture the structured topology with `diskutil list -plist`, `diskutil apfs list -plist`
   and `diskutil info -plist /`. From those property lists, record the root volume's physical store,
