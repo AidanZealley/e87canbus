@@ -1,6 +1,6 @@
 # Workstream 3: Build and validate provisioning artifacts
 
-Status: accepted.
+Status: closure review.
 
 ## Task packet
 
@@ -188,3 +188,29 @@ cd frontend && pnpm api:check && pnpm build
   api:check && pnpm build`; and `git diff --check` passed. Docker and a full ARM64 application build
   remain the already recorded non-gate limitation.
 - Accepted commit: `fff702367bed156640f52085d6cc5c48ba196815`
+
+## Reopened contract correction
+
+- Trigger: Workstream 4 found that the approved provisioning flow requires the operator to select
+  `car` or `bench`, but the accepted strict device configuration had no field that could carry the
+  selection. This changes the public bundle contract and met the documented reopening condition.
+- Correction: `DeviceConfiguration.deployment_profile` is required and accepts exactly `car` or
+  `bench`. `build_provisioning_bundle()` requires the typed value and writes it to
+  `configuration/device.json`. The existing provisioning-manifest size and SHA-256 record for that
+  entry binds the selection without duplicating it in the manifest or adding a profile framework.
+- Files changed: `e87ctl/src/e87ctl/provisioning.py`,
+  `e87ctl/tests/test_provisioning_artifacts.py`, this record and the plan status. Workstream 4's
+  reset record remains orchestrator-owned.
+- Verification: `uv run pytest e87ctl/tests -q` passed (`88 passed`); `uv run ruff check e87ctl`,
+  `uv run mypy` (`138 source files`) and `git diff --check` passed. Focused role-bundle cases cover
+  both profiles and prove that a missing or unknown profile fails strict model validation.
+- Specification drift: None. The correction carries an already approved required selection and
+  introduces no new profile behavior.
+- Focused closure: Codex (`/root/ws3_review`), original independent reviewer. Accepted. The public
+  builder now requires `deployment_profile`, the strict configuration accepts only `car` or
+  `bench`, and both roles serialize both accepted values into `configuration/device.json`.
+  Provisioning validation checks that entry against its manifest size and SHA-256 before parsing
+  the strict model, so missing, unknown or changed values fail without a duplicate profile field.
+  No release blocker was introduced. The focused artifact tests passed (`29 passed`), the full
+  `e87ctl` suite passed (`88 passed`), Ruff and mypy passed, all Python call sites supply the
+  required value and `git diff --check` passed.

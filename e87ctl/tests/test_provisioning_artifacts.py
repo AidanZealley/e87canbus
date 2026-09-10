@@ -310,8 +310,12 @@ def test_packaged_entry_point_runs_after_release_relocation(tmp_path: Path) -> N
     assert result.stdout == "relocated entry point\n"
 
 
-def test_role_bundles_have_exact_entries_and_no_secret_manifest_values(
-    tmp_path: Path, recovery: RecoveryPackage, role: str
+@pytest.mark.parametrize("deployment_profile", ["car", "bench"])
+def test_role_bundles_bind_exact_deployment_profile_and_entries(
+    tmp_path: Path,
+    recovery: RecoveryPackage,
+    role: str,
+    deployment_profile: str,
 ) -> None:
     application = application_artifact(tmp_path, role)
     output = tmp_path / role / "e87canbus-provisioning-v1.zip"
@@ -319,6 +323,7 @@ def test_role_bundles_have_exact_entries_and_no_secret_manifest_values(
     artifact = build_provisioning_bundle(
         role,  # type: ignore[arg-type]
         recovery=recovery,
+        deployment_profile=deployment_profile,  # type: ignore[arg-type]
         image=image_manifest(role),
         application=application,
         output=output,
@@ -332,6 +337,7 @@ def test_role_bundles_have_exact_entries_and_no_secret_manifest_values(
         device_text = archive.read("configuration/device.json").decode()
         frontend = application.manifest.files["frontend/index.html"]
         assert frontend.size_bytes == len(b"<html>release</html>\n")
+        assert json.loads(device_text)["deployment_profile"] == deployment_profile
     for secret in (
         recovery.wifi_password.get_secret_value(),
         recovery.operator_password.get_secret_value(),
@@ -341,7 +347,15 @@ def test_role_bundles_have_exact_entries_and_no_secret_manifest_values(
         assert secret not in manifest_text
         assert secret not in device_text
     assert artifact.configuration.role == role
+    assert artifact.configuration.deployment_profile == deployment_profile
     assert artifact.configuration.hostname.startswith(f"e87-{role}-")
+    configuration = artifact.configuration.model_dump()
+    del configuration["deployment_profile"]
+    with pytest.raises(ValidationError):
+        type(artifact.configuration).model_validate(configuration)
+    configuration["deployment_profile"] = "road"
+    with pytest.raises(ValidationError):
+        type(artifact.configuration).model_validate(configuration)
 
 
 def test_provisioning_streams_application_archive(
@@ -361,6 +375,7 @@ def test_provisioning_streams_application_archive(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("coordinator"),
         application=application,
         output=tmp_path / "streamed.zip",
@@ -375,6 +390,7 @@ def test_coordinator_leaf_has_exact_identity_role_and_server_names(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("coordinator"),
         application=application_artifact(tmp_path, "coordinator"),
         output=tmp_path / "coordinator.zip",
@@ -411,6 +427,7 @@ def test_explicit_hostname_is_validated_and_bound_into_certificate(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image,
         application=application,
         output=tmp_path / "named.zip",
@@ -422,6 +439,7 @@ def test_explicit_hostname_is_validated_and_bound_into_certificate(
         build_provisioning_bundle(
             "coordinator",
             recovery=recovery,
+            deployment_profile="car",
             image=image,
             application=application,
             output=tmp_path / "invalid-name.zip",
@@ -436,6 +454,7 @@ def test_console_pkcs12_contains_only_its_client_identity(
     artifact = build_provisioning_bundle(
         "console",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("console"),
         application=application_artifact(tmp_path, "console"),
         output=tmp_path / "console.zip",
@@ -478,6 +497,7 @@ def test_provisioning_archive_rejects_unknown_and_unsafe_entries(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("coordinator"),
         application=application_artifact(tmp_path, "coordinator"),
         output=tmp_path / "valid.zip",
@@ -496,6 +516,7 @@ def test_provisioning_archive_rejects_duplicate_and_link_entries(
     artifact = build_provisioning_bundle(
         "console",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("console"),
         application=application_artifact(tmp_path, "console"),
         output=tmp_path / "valid.zip",
@@ -522,6 +543,7 @@ def test_provisioning_archive_rejects_corruption_and_incompatible_role(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("coordinator"),
         application=application_artifact(tmp_path, "coordinator"),
         output=tmp_path / "valid.zip",
@@ -545,6 +567,7 @@ def test_provisioning_archive_enforces_both_free_space_reserves(
     artifact = build_provisioning_bundle(
         "coordinator",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("coordinator"),
         application=application_artifact(tmp_path, "coordinator"),
         output=tmp_path / "valid.zip",
@@ -571,6 +594,7 @@ def test_semantic_validation_rejects_manifest_configuration_disagreement(
     artifact = build_provisioning_bundle(
         "console",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("console"),
         application=application_artifact(tmp_path, "console"),
         output=tmp_path / "valid.zip",
@@ -595,6 +619,7 @@ def test_manifests_never_accept_password_or_private_key_fields(
     artifact = build_provisioning_bundle(
         "console",
         recovery=recovery,
+        deployment_profile="car",
         image=image_manifest("console"),
         application=application_artifact(tmp_path, "console"),
         output=tmp_path / "valid.zip",
