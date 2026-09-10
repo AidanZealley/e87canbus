@@ -89,7 +89,7 @@ environment where available. Do not claim Pi radio compatibility from these chec
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (use the review command in `README.md`)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

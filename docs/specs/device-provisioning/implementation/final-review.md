@@ -24,7 +24,7 @@ the final diff. Record unavailable platform checks honestly rather than substitu
 
 ## Initial whole-feature review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (use the review command in `README.md`)
 - Branch, base and reviewed head: `TBD`
 - Verification run: `TBD`
 - Acceptance-criteria audit: `TBD`
@@ -57,4 +57,3 @@ when the original is unavailable, and record why.
 - External validation pending: `TBD`
 - Specification drift: `TBD`
 - Completion report delivered: `TBD`
-

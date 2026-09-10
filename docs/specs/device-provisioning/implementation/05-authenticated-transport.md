@@ -82,7 +82,7 @@ Add focused route-table tests and run any narrower existing API tests touched by
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (use the review command in `README.md`)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

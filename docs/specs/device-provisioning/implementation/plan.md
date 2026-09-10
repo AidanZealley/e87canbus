@@ -7,6 +7,8 @@ Status: implementation in progress.
 - Integration branch: `feature/device-lifecycle-tooling`
 - Starting commit: `7d7c2387c0d6b1135eeec842b08cc8ee9a827ef3`
 - Orchestrator: Codex primary agent (`/root`)
+- Review command: `claude -p "<prompt>" --model opus --effort medium --permission-mode plan`
+- Review command validation: Passed on 2026-09-10 with Claude Code 2.1.263; exit 0 and no effort warning.
 - Specification approved at commit: `622a9d6d62e98b84d4f25152bb5ee525486f98b7`
 - Started: `2026-09-10`
 
@@ -112,3 +114,4 @@ workstream status.
 | 2026-09-10 | One workflow; Wi-Fi supports and images depend. | Shared contracts. | Aidan | 1-7 |
 | 2026-09-10 | Use the one sufficient security path. | Avoid marginal machinery. | Aidan | 2-7 |
 | 2026-09-10 | Reopen workstream 3 for the missing `car` or `bench` deployment-profile contract. | Workstream 4 found that the accepted strict device configuration could not carry an approved provisioning input. | Orchestrator | 3-4 |
+| 2026-09-10 | Run independent reviews with Claude Code Opus at medium effort. | Aidan requested an explicit external reviewer after workstream 3; the validated command is read-only. | Aidan | 4-7 and whole-feature review |

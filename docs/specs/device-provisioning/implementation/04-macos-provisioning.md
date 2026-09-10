@@ -92,7 +92,7 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (use the review command in `README.md`)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
