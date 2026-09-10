@@ -1,143 +1,241 @@
-# Device provisioning CLI
+# Device lifecycle tooling
 
-- **Status:** Draft
-- **Date:** 2026-08-20
+- **Status:** Approved for implementation
+- **Date:** 2026-09-10
 
-## Goals
+## Goal
 
-Provide one repository-owned CLI that prepares every project device and gets the project software
-running on it. The CLI consumes Raspberry Pi image artifacts, writes SD cards and handles the
-existing microcontroller projects without hiding their different flashing mechanisms behind a
-plugin system.
+Provide one repository-owned workstation tool that builds Raspberry Pi images and prepares a
+coordinator and console from blank SD cards. A completed pair must boot the current application,
+connect over the coordinator's private Wi-Fi network and authenticate each other without a manual
+device login.
 
-The same work prepares the installation for a secure Wi-Fi connection between project devices and
-for operator access through the coordinator hotspot. Wi-Fi is an optional capability of a device,
-not a requirement for using the common provisioning workflow.
+The first implementation is one complete coordinator-to-console path. It does not attempt to cover
+every project device or every later lifecycle operation.
 
-The intended lifecycle is:
+The tool is called `e87ctl`. It is separate from the two programs that run on the Pis:
 
 ```text
-provision       host image or firmware + device inputs -> prepared device running current software
-deploy          current working tree or supplied artifact -> updated provisioned device
-verify          expected state + target -> structured result
+e87ctl             workstation image, provisioning and verification tool
+e87canbus          coordinator runtime
+e87canbus-console  console runtime
 ```
 
-A Raspberry Pi is normally provisioned once. Routine application changes use deployment and
-preserve its machine configuration and identity. Reprovisioning is an explicit replacement
-operation.
+## Scope
 
-## Supported devices
+The first implementation must:
 
-The current provisioning targets are:
+- build the reusable coordinator and console images through the existing Docker builder;
+- create an explicit installation recovery package;
+- build self-contained ARM64 application bundles from the current checkout;
+- discover, write and verify SD cards safely on macOS;
+- provision one coordinator and one console;
+- create unique device and Linux host identity;
+- install the application and secrets through a one-time first-boot consumer;
+- configure the isolated coordinator Wi-Fi network;
+- authenticate console HTTP and Socket.IO traffic with mutual TLS; and
+- report offline preparation and online first-boot verification separately.
 
-- `coordinator`, a Raspberry Pi 4 Model B;
-- `console`, a Raspberry Pi 4 Model B;
-- `button-pad`, the current Pro Micro firmware project;
-- `servotronic-controller`, the current Pro Micro fan-bench prototype; and
-- `coordinator-panel`, the current QT Py RP2040 firmware project.
+Routine deployment and microcontroller support are later milestones. They must not add unused
+abstractions to this implementation.
 
-The Servotronic controller remains bench-only and is not vehicle-safe. Provisioning it does not
-change that status.
+## Simplicity and security boundary
 
-The ESP32-P4 cockpit is planned but does not exist. It is not a supported target and must not shape
-the first implementation. It can adopt the same provisioning and Wi-Fi identity model later.
+Meet the stated threat model with standard protocols and existing operating-system facilities.
+Do not add competing implementations, configurable cryptographic suites or recovery machinery for
+hypothetical failures.
 
-The current Wi-Fi participants are the coordinator and console. The three current
-microcontrollers use the common build, flash and verification workflow but do not receive unused
-Wi-Fi configuration or credentials.
+The first implementation accepts these limits:
+
+- Physical control of an unencrypted SD card grants access to secrets installed on that card.
+- Deleting a file from flash media is not secure erasure.
+- A reusable image cannot authenticate its first provisioning bundle because it contains no
+  installation-specific trust anchor. Physical control of the card authorizes initial
+  provisioning.
+- There is no credential revocation or rotation. Loss or compromise of a device or the recovery
+  package is handled by creating a new installation and reprovisioning both Pis.
+- Certificate expiry is handled by reprovisioning.
+
+Disk encryption, secure boot, verified boot, hardware-backed device keys, remote access and an
+online enrollment service are outside this milestone.
+
+## Repository and package boundary
+
+`e87ctl` is a top-level Python package with its own source and tests:
+
+```text
+e87ctl/
+  pyproject.toml
+  src/e87ctl/
+  scripts/
+    build-pi-image
+  tests/
+
+hosts/
+  src/e87canbus/
+
+images/
+deploy/
+devices/
+artifacts/
+```
+
+The root development environment exposes `e87ctl` as an editable local dependency, so commands run
+from the checkout as `uv run e87ctl ...`. The `e87ctl` distribution and its workstation-only
+dependencies are not included in either Pi application bundle.
+
+Move the existing `scripts/build-pi-image` implementation and its tests under `e87ctl`. Do not
+rewrite the proven Docker orchestration merely to replace shell with Python. The old public script
+path is removed after documentation and tests use `e87ctl image build`.
+
+The root `images/` directory remains the source for reusable image definitions. `deploy/` remains
+the canonical source for files installed on the Pis.
+
+## Command interface
+
+The first public commands are:
+
+```text
+uv run e87ctl image build coordinator
+uv run e87ctl image build console
+
+uv run e87ctl installation create --output <recovery-package>
+
+uv run e87ctl provision coordinator --installation <recovery-package>
+uv run e87ctl provision console --installation <recovery-package>
+
+uv run e87ctl verify coordinator --installation <recovery-package>
+uv run e87ctl verify console --installation <recovery-package>
+```
+
+Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
+profile and requires confirmation of the resolved destructive action. Every interactive selection
+has an explicit non-interactive input. `--non-interactive` fails if any required value is absent.
+
+Secrets are read from the recovery package, standard input or a protected file. They never appear
+in process arguments, prompts with echo enabled, logs, generated frontend assets or repository
+files. Machine-readable output contains no interactive prompts.
+
+Separate `devices` and `inspect` commands are not part of the first implementation. Provisioning
+already performs the discovery and inspection it needs.
 
 ## Terms
 
-- An **installation** is this car and the project devices prepared for it.
-- The **installation key** is a generated, high-entropy signing key kept outside the CLI. It is
-  never installed on a device.
-- The **installation ID** is a stable, non-secret identifier derived from the installation key.
-- The **installation trust key** is the public key corresponding to the installation key. The
-  coordinator and other verifiers may store it.
-- A **device identity** contains an installation ID, a fixed role and a unique device ID.
-- A **device credential** binds a Wi-Fi device public key to its identity using the installation
-  key. The device stores the corresponding private key.
-- A **host image** is a reusable Raspberry Pi image containing OS and machine-level software but no
-  installation secrets.
-- An **application bundle** contains application code and built frontend assets from one working
-  tree state.
-- A **provisioning bundle** contains the identity, secrets and machine-specific configuration
-  needed by one target.
+- An **installation** is one car and the project devices prepared for it.
+- The **installation authority** is a private X.509 certificate authority created for one
+  installation and kept in its recovery package.
+- The **installation ID** is a stable public identifier derived from the authority's public key.
+- The **installation trust certificate** is the public CA certificate installed on devices and
+  imported by service clients where needed.
+- A **device identity** contains the installation ID, a fixed role and a unique device ID.
+- A **device certificate** binds a device public key to that identity.
+- A **host image** is a reusable Raspberry Pi image with no installation-specific secrets.
+- An **application bundle** is a complete role-specific ARM64 Linux application release.
+- A **provisioning bundle** contains one application bundle and the identity, secrets and
+  machine-specific configuration for one Pi.
 
-The Wi-Fi password and operator password are independent inputs. Neither derives from the
-installation key.
+The Wi-Fi password, operator password and SSH management key are independent credentials. None is
+derived from the installation authority.
 
-## Stateless operation
+## Installation recovery package
 
-The CLI does not own an installation profile, device inventory, key store or credential registry.
-It does not remember installation values between commands. Every operation receives its desired
-state from command-line arguments, environment variables, standard input or interactive prompts.
+`e87ctl installation create` writes one versioned JSON document, normally named
+`e87canbus-installation-v1.json`. It contains:
 
-Interactive input is temporary process state. It does not make the CLI stateful.
+- its format version and creation time;
+- the installation ID;
+- the installation CA private key and public certificate;
+- the generated Wi-Fi SSID and password;
+- the fixed operator username and generated operator password; and
+- a generated Ed25519 SSH management key pair.
 
-The caller owns long-lived data such as:
+The JSON stores the CA private key as unencrypted PKCS#8 PEM, the CA certificate as PEM, the SSH
+private key as unencrypted OpenSSH PEM and the SSH public key in its one-line OpenSSH form. The
+format has no alternate key encodings in v1.
 
-- the installation key;
-- operator details and the Wi-Fi password;
-- optional device names and records; and
-- image, firmware and application artifacts.
+The operator username is `operator`. Generated passwords use cryptographically secure randomness
+and alphabets accepted by their consumers.
 
-Arguments override environment variables. Interactive prompts fill only missing values. A
-`--non-interactive` invocation fails with a useful error when a required value is missing.
-Machine-readable output must not contain human prompts.
+The CLI creates the file with mode `0600`, refuses to overwrite an existing path and prints only a
+non-secret summary. It also writes the public CA certificate beside the package as
+`<package-stem>-ca.pem` for service-laptop import. The public sidecar contains no secret and may be
+recreated from the recovery package.
 
-Secrets must not appear in process arguments, logs, generated frontend assets or repository
-files. Interactive use reads them without echo. Automation may provide them through environment
-variables or standard input.
+The operator stores the JSON document in a password manager or equivalent backed-up secret store.
+The document is plaintext because encrypting it would create another recovery secret; the chosen
+secret store owns encryption.
 
-Commands may write an explicitly requested artifact or target. They return generated values and
-verification results but do not become the owner of those values.
+The CLI keeps no hidden profile, key store or device inventory. It reads the caller-owned recovery
+package for each operation that needs installation authority. Provisioning-generated device
+private keys exist only in process memory, the target bundle and the installed target. They are not
+added to the recovery package.
 
-## Installation creation and device trust
+## Installation and device identity
 
-`e87canbus provision init` generates an installation key and derives its installation ID and
-public trust key. It stores nothing and does not create a local profile. The operator saves the
-installation key in a password manager, hardware-backed key store or equivalent backed-up
-location.
+The installation authority and TLS certificates use ECDSA with the P-256 curve. The CA certificate
+is valid for 20 years. Coordinator and console certificates are valid for 10 years without
+exceeding the CA expiry. Certificates become valid 24 hours before their creation timestamp. The
+provisioning manifest records its creation time, and the first-boot consumer moves a stale system
+clock forward to at least that time before installing or using certificates. It never moves the
+clock backward.
 
-The first implementation uses an encoded random key rather than a mnemonic recovery phrase. A
-mnemonic adds transcription work but does not improve recovery when a key manager is the system
-of record.
-
-Running `init` again creates a different installation. The CLI must make that clear before showing
-or returning the new key.
-
-Provisioning does not require a device list. A Wi-Fi device can be provisioned at any time with a
-unique key pair and a signed credential containing its installation ID, role and device ID. The
-coordinator stores the installation trust key and verifies the credential without receiving the
-installation key or a prior allowlist.
-
-Authentication must prove possession of the device private key. Presenting its public credential
-alone is insufficient. The signed role controls authorization and cannot be changed by the
-device.
-
-The credential includes a stable device ID so revocation can be added later. The first
-implementation does not include a denylist, credential rotation, expiry, generations or revocation
-commands. Losing a credential may require replacing installation trust during this phase.
-
-The exact credential format, signing algorithm and proof protocol remain open. The selected
-construction must use established cryptographic libraries and include an explicit format version
-and project-specific domain separation.
-
-## Local artifacts and development workflow
-
-The first implementation runs from a repository checkout:
+Derive the installation ID from:
 
 ```text
-cd /path/to/e87canbus
-uv run e87canbus <command>
+SHA-256("e87canbus-installation-v1\0" || DER SubjectPublicKeyInfo)
 ```
 
-`uv run` is the normal prefix for each command. An operator may instead activate `.venv` and call
-`e87canbus` directly. A standalone installation that works without the repository may be added
-after the workflow is proven.
+Encode the complete digest as unpadded lowercase base32 for stored identity. Short prefixes may be
+used for display, SSIDs and hostnames, but authorization always compares the complete identity.
 
-Generated artifacts consumed by the CLI have fixed locations:
+Each Pi receives a random UUID device ID. Its certificate carries this signed URI subject
+alternative name:
+
+```text
+urn:e87canbus:device:v1:<installation-id>:<role>:<device-id>
+```
+
+Extended key usage restricts the coordinator certificate to TLS server authentication and the
+console certificate to TLS client authentication. The CA certificate has critical CA basic
+constraints and key-cert-sign usage. Leaf certificates cannot sign certificates.
+
+The coordinator stores the public installation trust certificate, its own server private key and
+certificate. It never stores the CA private key or the console private key. The console stores its
+own private key and certificate plus the public installation trust certificate.
+
+TLS certificate verification provides proof of private-key possession. Do not add JWTs, bearer
+tokens, request signing or a separate challenge protocol.
+
+## Host and local account identity
+
+Provisioning chooses hostnames in these forms unless the operator supplies a valid explicit name:
+
+```text
+e87-coordinator-<device-id-prefix>
+e87-console-<device-id-prefix>
+```
+
+The first-boot consumer sets the hostname before enabling role services. The rebuilt images contain
+no reusable `/etc/machine-id`, SSH host keys or other cloned host identity. The Pi generates its
+machine ID and SSH host keys locally.
+
+The installed accounts are:
+
+- `e87canbus`, the existing non-login service account;
+- `e87-kiosk`, a fixed non-login console display account; and
+- `e87-admin`, a key-only SSH maintenance account on both Pis.
+
+The recovery package's SSH public key is authorized for `e87-admin`. SSH password login and root
+login remain disabled. `e87-admin` has passwordless sudo and the private SSH key is therefore
+root-equivalent. This direct maintenance path is simpler and more useful than an incomplete sudo
+allowlist. Protecting the recovery package is the security boundary.
+
+The web operator account is unrelated to Linux accounts. The coordinator stores an Argon2id hash
+of its password, while the recovery package retains the plaintext value for the operator.
+
+## Artifact locations and provenance
+
+Generated artifacts use fixed Git-ignored locations:
 
 ```text
 artifacts/
@@ -147,356 +245,274 @@ artifacts/
   applications/
     coordinator/
     console/
-  firmware/
 ```
 
-`artifacts/` is local build output and must be ignored by Git. Raspberry Pi images are expected to
-be large. External artifact storage may replace the local directory later without changing the
-provisioning operations.
+The project does not require a clean working tree, tag or semantic version. Image and application
+manifests record:
 
-The project does not require tagged releases or semantic versions for development deployment.
-Image and application manifests record enough automatic provenance to identify what was used:
-
-- target role and artifact format version;
+- format version and role;
+- target architecture and compatibility versions;
 - build time;
 - Git commit when available;
-- whether the working tree was dirty;
-- compatibility information; and
-- the artifact digest.
+- whether tracked or untracked build inputs were dirty;
+- byte sizes; and
+- SHA-256 digests.
 
-The digest is the artifact identity. Git metadata is diagnostic context. A dirty or untracked
-working-tree change included in the build remains identified by the artifact digest even though it
-does not match the recorded commit exactly.
+The digest identifies the artifact. Git metadata is diagnostic context.
 
-Interactive commands list compatible artifacts from these directories by default and allow an
-explicit path elsewhere.
+## Host image contract
 
-## Raspberry Pi image inputs
+The current validated Pi images are non-provisionable prototypes. They have a versioned interface
+marker and fail-closed role services, but no consumer. Cards written from one artifact also share
+the upstream builder hostname.
 
-The completed [Raspberry Pi image-building](raspberry-pi-image-building.md) artifacts validate the
-host setup, role configuration and fail-closed provisioning boundary. They do not yet contain a
-first-boot provisioning consumer, so they are prototypes rather than provisionable image inputs.
-They also retain the hostname generated during the upstream image build, so every card flashed
-from one artifact starts with that same hostname.
+This feature adds the consumer and unique-host-identity behavior to the image source, then rebuilds
+both images through `e87ctl image build`. Rebuilt images must repeat the relevant automated,
+MacBook, Raspberry Pi Imager and Pi 4 checks before provisioning accepts them.
 
-Before Pi provisioning ships, this feature must decide the bundle format, validation rules and
-secret lifecycle, then implement the image-side consumer in the image-building source. That source
-change must replace the prototype hostname with unique host identity and go through the existing
-image builder. The rebuilt images must pass the relevant automated and Raspberry Pi hardware checks
-before the CLI treats them as provisioning inputs. The provisioning implementation does not
-otherwise own the image builder.
+Each provisionable image exposes a machine-readable contract containing its role, board,
+architecture, OS version, provisioning-interface version and storage limits. The CLI validates the
+image manifest before writing. The on-device consumer independently validates the baked contract
+against the provisioning bundle.
 
-Provisioning validates the selected image manifest, writes the image and adds the current
-application and device-specific provisioning bundles. It must not depend on undocumented details
-of the image builder.
+Reusable images contain no application, repository clone, operator account, installation
+certificate, device key, Wi-Fi password or installation-specific host identity.
 
-## Application bundles and rapid deployment
+## Application bundle
 
-The CLI builds an application bundle from the current working tree. It may include uncommitted and
-untracked source files selected by the build definition. A clean working tree, tag and version bump
-are not required.
+`e87ctl provision` builds the current role's application before writing the card. A clean working
+tree is not required.
 
-The application bundle contains the Python application and built frontend needed by one Pi role.
-Provisioning injects the current bundle alongside the first-boot provisioning data so a newly
-flashed Pi starts with the code being tested. The reusable host image does not need rebuilding for
-each application change.
+The build runs in a pinned ARM64 Linux container and produces `application-v1.tar.gz`. It includes:
 
-After provisioning, the default deployment command builds and deploys the current working tree:
+- a manifest;
+- the installed Python application and all runtime dependencies in a ready-to-run virtual
+  environment; and
+- the built frontend assets for that role.
+
+The Pi does not run `apt`, `uv sync`, `pip`, `npm` or `pnpm` during first boot. It does not compile
+Python packages or build a frontend.
+
+Install releases under:
 
 ```text
-uv run e87canbus deploy coordinator --host <host>
-uv run e87canbus deploy console --host <host>
+/opt/e87canbus/releases/<application-digest>/
+/opt/e87canbus/current -> releases/<application-digest>
 ```
 
-An explicit application artifact remains supported for repeating a deployment or returning to a
-known build:
+Systemd services execute through `current`. Configuration lives in `/etc/e87canbus`; mutable data
+lives in `/var/lib/e87canbus`. The application archive contains no absolute paths and cannot write
+outside its release directory.
+
+The manifest binds the bundle to one role, `linux-aarch64`, the host Python version and a compatible
+provisioning-interface version. The CLI and first-boot consumer reject mismatches before
+activation. This layout may support later atomic deployment, but deployment and rollback behavior
+are not implemented here.
+
+## Provisioning bundle
+
+The CLI writes one `e87canbus-provisioning-v1.zip` to the boot partition after it has written and
+verified the image. The ZIP has a fixed schema:
 
 ```text
-uv run e87canbus deploy coordinator --host <host> --artifact <path>
+manifest.json
+application.tar.gz
+identity/installation-ca.pem
+identity/ssh-authorized-key
+network/wifi.nmconnection
+configuration/device.json
+configuration/operator-password.hash       coordinator only
+identity/server-certificate.pem             coordinator only
+identity/server-private-key.pem             coordinator only
+identity/chromium-client.p12                console only
+identity/chromium-client-password           console only
 ```
 
-Pi deployment transfers the application bundle over an authenticated management connection,
-activates it, restarts the affected services and checks their health. It preserves device
-identity, installation trust, Wi-Fi settings, operator configuration, databases and host identity.
-It does not rewrite the SD card or require the installation key.
+The console PKCS#12 document contains its client certificate and private key. Its generated
+one-time import password is passed to the certificate tool through standard input, never a process
+argument, and is removed with staging after import.
 
-The installed Pi does not use Git to update itself. It does not retain a repository clone as the
-deployment mechanism.
+The consumer addresses known entries by exact name. It rejects duplicate or unknown entries,
+links, device files, unknown manifest fields, unsupported versions and any archive path that is
+absolute, contains `..` or falls outside the fixed schema. It never performs unrestricted archive
+extraction.
 
-## Raspberry Pi provisioning
+The manifest records the expected image role and compatibility versions plus the declared size and
+SHA-256 digest of every entry. The CLI validates source artifacts before creating the ZIP and reads
+the completed ZIP back from the card. The consumer validates the complete ZIP before changing the
+installed system.
 
-The interactive Pi command selects a compatible host image and eligible SD card, builds the current
-application bundle, then shows the complete destructive action for confirmation:
+The CLI rejects a bundle unless it fits the boot partition while preserving 64 MiB of free space.
+Before staging or extracting, the consumer checks declared and actual byte counts against available
+space while preserving 256 MiB on the root filesystem. Reads are bounded by the declared sizes, so
+a compressed entry cannot expand without limit.
+
+Digest checks detect corruption and incomplete writes. They are not an authenticity boundary for
+initial provisioning.
+
+## First-boot consumer and secret lifecycle
+
+The image contains one root-owned systemd service that runs while the protected
+`unprovisioned` marker exists. Role application services remain gated by that marker.
+
+The consumer performs these phases in order:
+
+1. Locate the exact provisioning ZIP and validate its structure, sizes, digests, compatibility and
+   role without changing installed state.
+2. Copy required inputs into a root-owned staging directory on the root filesystem and sync them.
+3. Remove the boot-partition ZIP after durable staging succeeds.
+4. Record progress and install host identity, accounts, certificates, secrets, network
+   configuration and the application release.
+5. Validate ownership, permissions, systemd configuration, NetworkManager configuration and the
+   installed application manifest.
+6. Write non-secret success status, remove staged secrets and clear `unprovisioned` last.
+7. Reboot once if required, then allow the role services to start.
+
+Progress is durable and each phase is idempotent. A power interruption resumes from the last
+completed phase. Invalid input records a terminal failure and keeps role services disabled. The
+first implementation has no in-place repair command; the operator corrects the input and
+reprovisions the card.
+
+Installed private keys and NetworkManager secrets use the narrowest ownership and mode required by
+their consumers. The consumer never writes their values to status or the journal.
+
+## Raspberry Pi provisioning flow
+
+The interactive commands are:
 
 ```text
-uv run e87canbus provision coordinator
-uv run e87canbus provision console
+uv run e87ctl provision coordinator --installation <recovery-package>
+uv run e87ctl provision console --installation <recovery-package>
 ```
 
-Equivalent command-line arguments support repeatable non-interactive use:
+Each command:
 
-```text
-uv run e87canbus provision coordinator --image <path> --target <device>
-```
+1. Validates the recovery package.
+2. Selects a compatible image and resolves an eligible SD card.
+3. Selects a deployment profile and shows the complete destructive action.
+4. Revalidates the disk and requires confirmation.
+5. Builds and validates the current application bundle.
+6. Creates the role identity and first-boot bundle.
+7. Writes the image and verifies the image-sized bytes.
+8. Mounts the boot partition, writes and reads back the provisioning ZIP, then safely unmounts the
+   whole disk.
+9. Reports the hostname, device ID, artifact digests and `first boot pending`.
 
-Provisioning performs these phases:
+The coordinator bundle contains its HTTPS identity, installation trust certificate, Wi-Fi access
+point configuration, operator password hash and SSH authorization. The console bundle contains its
+client identity, installation trust certificate, Wi-Fi client configuration, Chromium certificate
+configuration and SSH authorization.
 
-1. Resolve, inspect and confirm the target SD card.
-2. Validate the host image manifest and application compatibility.
-3. Write the host image and verify the written bytes.
-4. Create a unique device identity where the role requires one.
-5. Add the application and one-time provisioning bundles to the boot partition.
-6. Verify the bundles and safely unmount the card.
-7. After first boot, report the online checks available through the current connection.
+Reprovisioning always rewrites the SD card. It is an explicit replacement operation.
 
-Depending on the role, a provisioning bundle may contain its signed identity, private device key,
-installation trust key, hostname, SSH authorized key, deployment profile, network settings, HTTPS
-trust and operator configuration.
+## macOS SD-card safety
 
-On first boot, the provisioning service:
+macOS is the only supported writer host in the first implementation. Use structured `diskutil`
+property-list output for discovery and identity checks.
 
-1. validates the bundle format, artifact compatibility and role;
-2. installs the application, configuration and secrets with the required ownership and
-   permissions;
-3. creates unique host identity where the base image requires it;
-4. removes the consumed secrets and bundle;
-5. records non-secret provisioning status; and
-6. starts the services or reboots when required.
+The writer must:
 
-Removing a file from flash media is not secure erasure. This design assumes that someone with
-physical access to an unencrypted SD card can recover that device's installed secrets. Disk
-encryption, secure boot and verified boot are outside the first implementation.
-
-## SD card safety
-
-The CLI treats image writing as destructive. It must never pass an unchecked string directly to
-the image writer.
-
-Normal discovery hides the disk that backs the running system and all its partitions. Supplying a
-protected disk explicitly does not bypass the check. The first implementation has no option to
-write the current system disk.
-
-On Linux, discovery may use structured output from `lsblk` and `findmnt`. It must:
-
-- resolve partitions and virtual devices to their parent physical disks;
-- protect the disks backing `/`, `/boot` and `/boot/firmware`;
-- accept only a whole disk, not a partition;
-- report the resolved path, model, capacity, serial, transport, removability and mounts;
+- resolve partitions, APFS containers and synthesized devices to their physical stores;
+- protect every disk backing the running system;
+- reject internal disks even when explicitly named;
+- accept only a whole external physical disk, never a partition;
 - reject unresolved paths, globs and ambiguous aliases;
-- re-read device identity immediately before writing; and
-- require confirmation of the resolved device, model and capacity.
+- report the resolved device, model, capacity, serial, protocol and mounts;
+- require confirmation of the resolved device, model and capacity;
+- re-read and compare identity immediately before writing;
+- let the operating system handle administrator authentication;
+- write through the resolved raw disk device;
+- read back and hash the image-sized region; and
+- mount only the boot partition for bundle injection before a final whole-disk unmount.
 
-Removability alone is not a safety decision. Built-in card readers and external system drives may
-report it incorrectly or unexpectedly.
+No flag bypasses system-disk, internal-disk, whole-disk or identity checks. Mounted eligible targets
+remain unavailable until the confirmed operation unmounts them.
 
-Mounted non-system targets appear as unavailable until the command explicitly unmounts them after
-confirmation. The writer accepts only a validated target produced by the safety checks. It cannot
+The low-level writer accepts only a validated target value produced by these checks. It cannot
 accept an arbitrary path through another call site.
 
-The first implementation may support only the development host operating system that is tested.
-Other operating systems need their own system-disk discovery and elevation implementation before
-they can write images.
+## First-boot reporting and verification
 
-## Microcontroller provisioning and deployment
+Card preparation and first-boot verification are separate facts. `provision` reports only the
+former.
 
-The CLI uses each existing project's normal USB tooling:
+The consumer writes detailed non-secret state to
+`/var/lib/e87canbus-provisioning/status.json` and a smaller status document to the boot partition.
+Both identify the format version, role, installation ID, device ID, hostname, completed phase,
+artifact digests, result and a bounded safe error code. Neither contains raw configuration or
+secrets.
 
-- `button-pad` uses its fixed PlatformIO environment;
-- `servotronic-controller` uses its fixed PlatformIO environment; and
-- `coordinator-panel` uses the existing `picotool` upload path.
+If networking starts, `e87ctl verify` uses the coordinator HTTPS endpoint and key-only SSH access
+to the selected host as appropriate. It checks:
 
-The first implementation may invoke the existing PlatformIO and upload commands directly from the
-checkout. It should not reproduce their compilation, board support or upload logic.
+- coordinator certificate trust and expected installation identity;
+- successful bundle consumption and marker removal;
+- installed application identity;
+- host role, device ID and hostname;
+- application and role-service health;
+- Wi-Fi association and expected network configuration;
+- console mutual-TLS authentication for HTTP and Socket.IO; and
+- rejection of console identity on an operator-only endpoint.
 
-Interactive commands list compatible connected USB candidates and allow the operator to rescan or
-provide a port. USB metadata does not always distinguish the two Pro Micro projects, so the CLI
-must describe uncertain matches as candidates and require confirmation.
+An offline target is not fully verified. If first boot fails before networking starts, the operator
+can power down the Pi, return the card to the Mac and read the non-secret boot-partition status.
 
-Provisioning flashes the current firmware and writes installation-specific configuration where
-the target supports it. Deployment updates firmware while preserving stored identity and
-configuration where possible. A target without separate persistent configuration may use the same
-physical upload operation for both commands. Its implementation must state what an update
-preserves.
+Each check reports `passed`, `failed` or `unavailable`. Human output explains unavailable checks.
+`--json` returns the same versioned structured result without prompts. The command exits nonzero if
+any required check fails or remains unavailable.
 
-Do not force Raspberry Pi and microcontroller transports behind a common plugin or transport
-interface. Keep one explicit implementation for each supported target. They may share artifact,
-identity and verification formats where that reduces real duplication.
+## Installation replacement
 
-## Verification
+Loss or suspected compromise of a Pi, its card, the management SSH key or the recovery package
+invalidates the installation. Recovery is:
 
-Provision and deploy commands verify their own writes. A separate command can inspect an existing
-target without changing it:
+1. Run `e87ctl installation create` to create a new installation.
+2. Reprovision the coordinator and console.
+3. Replace the stored recovery package.
 
-```text
-uv run e87canbus verify <target>
-```
-
-Verification reports only checks supported by the target and current connection. Its structured
-result identifies checks as passed, failed or unavailable. It does not treat an offline target as
-fully verified.
-
-Checks may include:
-
-- artifact identity, digest and compatibility;
-- installation ID, role and device ID where installed;
-- presence and permissions of device key material;
-- successful first-boot bundle consumption;
-- application service health;
-- Wi-Fi association for a Wi-Fi role;
-- coordinator identity verification;
-- authenticated coordinator access with the device credential; and
-- rejection of a credential from another installation or role.
-
-The Wi-Fi checks can be added without changing how a device is provisioned. Non-Wi-Fi devices skip
-them.
-
-## Interactive command model
-
-The existing `e87canbus` Python entry point remains the only project CLI. Extend its current
-`argparse` command structure instead of adding another CLI framework or executable.
-
-Command names remain provisional. The intended shape is:
-
-```text
-uv run e87canbus run
-uv run e87canbus devices
-uv run e87canbus inspect <target>
-
-uv run e87canbus provision init
-uv run e87canbus provision coordinator
-uv run e87canbus provision console
-uv run e87canbus provision button-pad
-uv run e87canbus provision servotronic-controller
-uv run e87canbus provision coordinator-panel
-
-uv run e87canbus deploy coordinator --host <host>
-uv run e87canbus deploy console --host <host>
-uv run e87canbus deploy button-pad
-uv run e87canbus deploy servotronic-controller
-uv run e87canbus deploy coordinator-panel
-
-uv run e87canbus verify <target>
-```
-
-When a required value is absent and standard input is an interactive terminal, the CLI shows a
-numbered menu or prompt. Initial prompts use normal terminal input rather than an arrow-key UI
-dependency. Prompts may select:
-
-- a compatible local image or firmware artifact;
-- an eligible SD card;
-- a plausible connected USB device;
-- a role-specific deployment profile; and
-- required non-secret settings and hidden secrets.
-
-All choices are also available through explicit arguments or environment variables. Interactive
-and non-interactive paths create the same typed operation request and call the same implementation.
-
-The final confirmation for a destructive write remains mandatory in interactive use. Convenience
-options must not bypass system-disk protection, target identity checks or role compatibility.
-
-## Implementation direction
-
-Keep provisioning code separate from the running vehicle application's `domain`, `kernel` and
-`service` layers. A suitable initial package shape is:
-
-```text
-hosts/src/e87canbus/
-  cli/
-    main.py
-    provision.py
-    deploy.py
-    devices.py
-
-  provisioning/
-    models.py
-    identity.py
-    bundle.py
-    block_devices.py
-    raspberry_pi.py
-    microcontrollers.py
-    verification.py
-    command_runner.py
-
-  device_deployment/
-    raspberry_pi.py
-    microcontrollers.py
-```
-
-Argument parsing, environment lookup, prompts and rendering belong in `cli`. Provisioning and
-deployment functions accept typed requests and return typed results. They do not prompt or depend
-on terminal output. This keeps the implementation testable and leaves room for another caller
-without building an application protocol now.
-
-The one extra type boundary justified by risk is the SD-card writer. It accepts a validated write
-target produced by system-disk checks, never a raw device path.
-
-Subprocess integration stays small and explicit. Tests can supply a recording command runner to
-check PlatformIO and system-command invocation without accessing hardware.
-
-## First CLI implementation milestone
-
-After the image-side provisioning consumer has been added, rebuilt and validated, the first CLI
-milestone covers the current devices and repository-local workflow:
-
-1. Add interactive command dispatch and explicit non-interactive inputs.
-2. Generate and return an installation key, ID and public trust key without storing them.
-3. Discover SD cards while excluding the running system disk.
-4. Write and verify either Pi image, current application bundle and first-boot bundle.
-5. Provision the coordinator with its hotspot inputs and installation trust key.
-6. Provision a console identity and the inputs needed for the planned secure Wi-Fi connection.
-7. Flash the button pad, Servotronic controller and coordinator panel through their existing USB
-   tooling.
-8. Deploy the current working tree to an already provisioned Pi without rewriting its card.
-9. Return structured verification for every supported operation.
-
-The first Wi-Fi cutover may follow as a separate implementation milestone using the identity and
-configuration placed here. Do not add the cockpit, revocation, a desktop UI, a generic device
-plugin API, over-the-air updates, disk encryption or secure boot in this milestone.
+The first implementation does not preserve the old installation ID, certificates or passwords.
+Ordinary card failure without suspected compromise may provision a replacement device using the
+existing recovery package. The old credential remains valid until the installation is replaced.
 
 ## Acceptance criteria
 
-- The CLI stores no installation profile, key, device inventory or implicit configuration.
-- The documented development path works from the checkout through `uv run e87canbus`.
-- Local images and application bundles live under a known Git-ignored artifact directory.
-- No tag, semantic version or clean working tree is required to deploy current application code.
-- Artifact manifests identify their contents with a digest and record available Git context.
-- Interactive commands list only compatible artifacts and eligible write targets by default.
-- Every interactive choice has a corresponding explicit input for non-interactive use.
-- `provision init` returns a new installation key and its derived public identity without storing
-  either value.
-- A coordinator can authenticate a console provisioned later with the same installation key
-  without a prior allowlist update.
-- The first implementation does not require or expose revocation behaviour.
-- A freshly provisioned Pi starts the supplied application without cloning the repository,
-  installing build tools or building software on first boot.
-- System disks are absent from writable candidates and rejected when supplied explicitly.
-- The CLI revalidates the selected disk identity immediately before writing and verifies the
-  completed write.
-- Button pad, Servotronic controller and coordinator panel flashing use their existing supported
-  toolchains and require confirmation of the resolved USB target.
-- A normal Pi deployment preserves provisioned identity and persistent configuration.
-- Devices without Wi-Fi use the same CLI without receiving unused Wi-Fi credentials.
-- No reusable artifact contains an installation secret.
-- No secret appears in the repository, logs, process command line or generated frontend assets.
+- `e87ctl` is a top-level workstation package and is absent from Pi application bundles.
+- `e87canbus` and `e87canbus-console` retain their runtime-only responsibilities.
+- `e87ctl image build` is the only public image-build interface.
+- The CLI keeps no hidden installation state and creates one explicit caller-owned recovery
+  package without logging its secrets.
+- Neither reusable image contains application code, installation secrets or cloned host identity.
+- Application and provisioning bundles have fixed, versioned schemas, bounded reads, complete
+  digests and explicit compatibility rules.
+- First boot performs no package installation, dependency resolution or application build.
+- Power loss cannot clear `unprovisioned` or enable a partially installed application.
+- A fresh coordinator starts the isolated Wi-Fi network and HTTPS endpoint.
+- A fresh console joins automatically and uses its client certificate without a prompt.
+- A laptop with only the Wi-Fi password cannot read application data.
+- The console can use every current production operation required by its UI and cannot use an
+  operator-only endpoint.
+- System and internal disks cannot reach the writer, including through explicit input.
+- The writer detects target replacement before writing and verifies image and bundle bytes.
+- Provisioning reports card preparation without claiming first-boot success.
+- Online verification proves the installed identities, network path and application health.
+- Rebuilt coordinator and console images pass the relevant automated and physical checks.
 
-## Open decisions
+## Deferred work
 
-1. The encoded installation key format and versioned signing construction.
-2. Whether device keys are generated by the CLI or on capable targets.
-3. The signed credential format and proof used by HTTP and Socket.IO clients.
-4. The application and first-boot bundle formats, size limits and compatibility rules.
-5. The authenticated Pi deployment transport and on-device application layout.
-6. How the CLI observes first-boot completion after the operator moves a card into a Pi.
-7. Which development host operating systems the first SD-card writer supports.
-8. What persistent identity or configuration each current microcontroller can preserve across a
-   firmware update.
-9. Which USB details identify each supported microcontroller with useful confidence.
+- Routine `e87ctl deploy` and release rollback.
+- Linux or Windows SD-card writers.
+- Button pad, Servotronic controller and coordinator-panel provisioning.
+- USB device discovery and firmware preservation rules.
+- Cockpit identity or firmware.
+- Credential revocation, rotation, expiry renewal or device inventory.
+- Multiple operators, password recovery or a management UI.
+- Disk encryption, secure boot and verified boot.
+- Tagged releases or external artifact storage.
 
 ## Related specifications
 
-The [Wi-Fi device network](wifi-device-network.md) defines how the coordinator, console and hotspot
-communicate after provisioning. It does not own image creation, installation identity, flashing or
-application deployment.
+The [Wi-Fi device network](wifi-device-network.md) defines the network, HTTPS and authorization
+behavior enabled by this provisioning path.
 
-The [Raspberry Pi image building](raspberry-pi-image-building.md) specification defines the
-reusable host images consumed by Pi provisioning.
+The [Raspberry Pi host images](raspberry-pi-image-building.md) specification defines the
+reusable images and the hardware checks that their provisionable successors must repeat.
