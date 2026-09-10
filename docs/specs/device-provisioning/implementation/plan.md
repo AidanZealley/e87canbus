@@ -1,14 +1,14 @@
 # Device lifecycle tooling implementation plan
 
-Status: draft; implementation has not started.
+Status: implementation in progress.
 
 ## Orchestration record
 
 - Integration branch: `feature/device-lifecycle-tooling`
-- Starting commit: `TBD`
-- Orchestrator: `TBD`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
+- Starting commit: `7d7c2387c0d6b1135eeec842b08cc8ee9a827ef3`
+- Orchestrator: Codex primary agent (`/root`)
+- Specification approved at commit: `622a9d6d62e98b84d4f25152bb5ee525486f98b7`
+- Started: `2026-09-10`
 
 ## Workstream order
 
