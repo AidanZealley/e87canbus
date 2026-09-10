@@ -19,6 +19,9 @@ e87canbus = "e87canbus.cli.main:main"
 e87canbus-console = "e87canbus.console.cli:main"
 
 [dependency-groups]
+application-build = [
+    "hatchling>=1.28",
+]
 dev = [
     "e87ctl",
     "import-linter>=2.0",
