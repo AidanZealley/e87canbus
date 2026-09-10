@@ -1,6 +1,6 @@
 # Workstream 3: Build and validate provisioning artifacts
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -187,4 +187,4 @@ cd frontend && pnpm api:check && pnpm build
   both locked exports and their hashes; the relocated real entry-point probe; `cd frontend && pnpm
   api:check && pnpm build`; and `git diff --check` passed. Docker and a full ARM64 application build
   remain the already recorded non-gate limitation.
-- Accepted commit: `TBD`
+- Accepted commit: `fff702367bed156640f52085d6cc5c48ba196815`
