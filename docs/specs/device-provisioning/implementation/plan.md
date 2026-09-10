@@ -15,7 +15,7 @@ Status: implementation in progress.
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
 | 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb` |
-| 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Not started | — |
+| 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Closure review | — |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Not started | — |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Not started | — |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Not started | — |
