@@ -104,7 +104,7 @@ hide any check unavailable on the implementation host.
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (use the review command in `README.md`)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

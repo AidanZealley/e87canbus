@@ -11,6 +11,10 @@ plan. Execute every workstream through the documented workflow. Use a fresh impl
 for each workstream and a different fresh agent for independent review. Keep review loops bounded,
 maintain the records and commit only accepted work.
 
+Run independent and whole-feature reviews through the review command named in the workflow
+README, exactly as documented. Treat its findings as evidence and triage them yourself. If a
+review call fails, run that review in your own session, record the substitution and continue.
+
 Pause at each documented external validation gate. Treat failed attempts as troubleshooting inside
 the owning workstream, not as new implementation and review cycles, unless the documented reopening
 conditions apply. Resume autonomous execution when the gate's evidence requirement is satisfied.
