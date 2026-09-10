@@ -19,7 +19,7 @@ Status: implementation in progress.
 | 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb` |
 | 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
-| 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Not started | — |
+| 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Closure review | — |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Not started | — |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Not started | — |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted | Not started | — |
@@ -115,3 +115,4 @@ workstream status.
 | 2026-09-10 | Use the one sufficient security path. | Avoid marginal machinery. | Aidan | 2-7 |
 | 2026-09-10 | Reopen workstream 3 for the missing `car` or `bench` deployment-profile contract. | Workstream 4 found that the accepted strict device configuration could not carry an approved provisioning input. | Orchestrator | 3-4 |
 | 2026-09-10 | Run independent reviews with Claude Code Opus at medium effort. | Aidan requested an explicit external reviewer after workstream 3; the validated command is read-only. | Aidan | 4-7 and whole-feature review |
+| 2026-09-10 | The workstream 4 writer gate has no current producer for its strict compatible image. | The accepted builder emits the prototype manifest; workstream 6 owns the provisionable successor but depends on workstream 4 acceptance. The gate remains pending without weakening validation. | Orchestrator | 4 and 6 |

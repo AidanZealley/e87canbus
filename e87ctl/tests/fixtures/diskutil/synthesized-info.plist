@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>DeviceIdentifier</key><string>disk3</string><key>DeviceNode</key><string>/dev/disk3</string><key>Whole</key><true/><key>Internal</key><true/><key>VirtualOrPhysical</key><string>Virtual</string>
+<key>BusProtocol</key><string>AppleAPFS</string><key>TotalSize</key><integer>1000204886016</integer><key>MediaName</key><string>APFS Container</string>
+</dict></plist>
