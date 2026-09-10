@@ -1,6 +1,6 @@
 # Workstream 3: Build and validate provisioning artifacts
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -214,3 +214,4 @@ cd frontend && pnpm api:check && pnpm build
   No release blocker was introduced. The focused artifact tests passed (`29 passed`), the full
   `e87ctl` suite passed (`88 passed`), Ruff and mypy passed, all Python call sites supply the
   required value and `git diff --check` passed.
+- Accepted correction commit: `924514ea061bb69a825efe19ebfec742c698bdf6`.
