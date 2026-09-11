@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,6 +26,7 @@ CONSOLE_CONFIG = CONSOLE / "image.yaml"
 CONSOLE_LAYER = ROOT / "images/layer/e87-console.yaml"
 IMAGE_RUNBOOK = ROOT / "images/README.md"
 IMAGE_CHECK = ROOT / "images/e87canbus-image-check"
+SNAPSHOT_CHECK = ROOT / "images/post-build.sh"
 
 
 def read(path: Path) -> str:
@@ -55,7 +57,14 @@ def arm64_tools(tmp_path: Path, docker: str) -> Path:
     return tools
 
 
-def successful_docker(*, container_architecture: str = "aarch64") -> str:
+def successful_docker(
+    *, container_architecture: str = "aarch64", arguments_log: Path | None = None
+) -> str:
+    record_arguments = (
+        f"printf '%s\\n' \"$@\" >{shlex.quote(str(arguments_log))}"
+        if arguments_log is not None
+        else ":"
+    )
     return f"""#!/bin/sh
 case "$1" in
     info | build) exit 0 ;;
@@ -63,6 +72,7 @@ case "$1" in
         case " $* " in
             *" --entrypoint uname "*) echo {container_architecture}; exit 0 ;;
         esac
+        {record_arguments}
         for argument in "$@"; do
             case "$argument" in
                 type=bind,src=*,dst=/output)
@@ -299,6 +309,65 @@ def test_build_uses_linux_volumes_for_temporary_state_and_package_cache(tmp_path
 
     assert result.returncode == 0, result.stderr
     assert not (repo / ".cache").exists()
+
+
+def test_build_passes_snapshot_epoch_as_generated_configuration(tmp_path: Path) -> None:
+    repo = make_test_repo(tmp_path)
+    arguments_log = tmp_path / "docker-run-arguments"
+    tools = arm64_tools(tmp_path, successful_docker(arguments_log=arguments_log))
+
+    result = subprocess.run(
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
+        env={"PATH": f"{tools}:{os.environ['PATH']}"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    arguments = arguments_log.read_text().splitlines()
+    separator = arguments.index("--")
+    source_path = arguments.index("-S")
+    assert arguments[source_path + 1] == "/source/images"
+    assert "SOURCE_DATE_EPOCH=1786579200" in arguments[separator + 1 :]
+    assert "--env" not in arguments
+
+
+def test_snapshot_check_accepts_only_the_generated_pinned_origin(tmp_path: Path) -> None:
+    assert os.access(SNAPSHOT_CHECK, os.X_OK)
+    origin = tmp_path / "usr/share/rpi-image-gen/origin"
+    origin.parent.mkdir(parents=True)
+    origin.write_text(
+        "# Layer: debian-trixie-arm64-minbase-snapshot\n"
+        "# Source: trixie-snapshot.sources\n"
+        "# Snapshot origin: 20260813T000000Z\n"
+        "# SOURCE_DATE_EPOCH: 1786579200\n"
+    )
+    environment = {**os.environ, "SOURCE_DATE_EPOCH": "1786579200"}
+
+    accepted = subprocess.run(
+        ["sh", str(SNAPSHOT_CHECK), str(tmp_path)],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert accepted.returncode == 0, accepted.stderr
+
+    origin.write_text(
+        "# Layer: debian-trixie-arm64-minbase-snapshot\n"
+        "# Source: trixie-snapshot.sources\n"
+        "# Snapshot origin: 20260911T204739Z\n"
+    )
+    rejected = subprocess.run(
+        ["sh", str(SNAPSHOT_CHECK), str(tmp_path)],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rejected.returncode == 1
+    assert "generated package snapshot origin does not match" in rejected.stderr
 
 
 @pytest.mark.parametrize("failing_move", [2, 3])

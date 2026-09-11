@@ -12,7 +12,9 @@ for the current gate status and evidence requirements.
 ## Build on Apple silicon
 
 Use an arm64 Mac with Docker Desktop running. The build downloads Debian and Raspberry Pi packages
-and reuses the `e87canbus-pi-image-packages` Docker volume.
+and reuses the `e87canbus-pi-image-packages` Docker volume. It pins the Debian package snapshot and
+checks upstream's generated origin before publishing an image. A missing or changed pin fails the
+build.
 
 ```bash
 git status --short
