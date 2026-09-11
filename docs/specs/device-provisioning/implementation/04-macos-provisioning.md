@@ -187,8 +187,17 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   epoch propagation and origin guard. It does not add the report's build-both suggestion or reorder
   the already-safe system-disk rejection for diagnostic wording.
   Candidate `aa5f0f3` contains that accepted rolling-layer correction and is ready for attempt 3.
-- Resume condition: all required evidence passes on the exact candidate, with no secret copied into
-  the record.
+  Attempt 3 on 2026-09-11 ran on exact candidate `aa5f0f3` and failed before disk mutation; the card
+  was not unmounted or written. Full evidence is in
+  `04-macos-provisioning-gate-attempt-3.md`. The rolling Trixie coordinator image now builds and all
+  required unsafe selectors are rejected on real hardware. The interactive path then fails during
+  the application build: production `tsc -b` includes `button-pad-renderer.test.ts`, whose
+  repository-root protocol-vector import is absent because the application builder copies only
+  `frontend` into its build tree. The gate remains blocked before the writer until the production
+  frontend build receives that shared fixture or excludes test-only sources.
+- Resume condition: correct the application build-context or production-TypeScript boundary exposed
+  by attempt 3, record and push a new exact candidate, then obtain all required evidence without
+  copying a secret into the record.
 
 ## Implementation handoff
 
