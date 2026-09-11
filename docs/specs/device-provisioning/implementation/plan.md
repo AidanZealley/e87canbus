@@ -16,7 +16,7 @@ Status: implementation in progress.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Closure review | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`; correction `d0a22c191e8402602f299ec2b77006c9a59e400d`; attempt 2 correction pending |
+| 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`; corrections `d0a22c191e8402602f299ec2b77006c9a59e400d`, `aa5f0f3280f987ce2ffd669120e677e3f2b8a405` |
 | 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374`; correction `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e` |
@@ -101,7 +101,7 @@ hardware.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
-| macOS writer | 4 | After workstream 6, before workstream 7 | Troubleshooting | `d0a22c191e8402602f299ec2b77006c9a59e400d` | Disk safety evidenced at attempt 2; needs a candidate whose image build completes |
+| macOS writer | 4 | After workstream 6, before workstream 7 | Testing | `aa5f0f3280f987ce2ffd669120e677e3f2b8a405` | Disk safety evidenced at attempt 2; attempt 3 must build and exercise the destructive path |
 | Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the

@@ -75,9 +75,9 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Troubleshooting`
+- Status: `Testing`
 - Candidate and instructions: The orchestrator records and pushes the combined corrected
-  candidate `d0a22c191e8402602f299ec2b77006c9a59e400d`. On the M1 Pro MacBook, check out that
+  candidate `aa5f0f3280f987ce2ffd669120e677e3f2b8a405`. On the M1 Pro MacBook, check out that
   exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
   then run `uv sync --locked`. Keep the recovery package outside the checkout and use a compatible
   coordinator image manifest produced by the provisionable image builder.
@@ -186,6 +186,7 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   historical snapshot layer with pinned upstream's rolling Trixie minbase layer and removes the
   epoch propagation and origin guard. It does not add the report's build-both suggestion or reorder
   the already-safe system-disk rejection for diagnostic wording.
+  Candidate `aa5f0f3` contains that accepted rolling-layer correction and is ready for attempt 3.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 
