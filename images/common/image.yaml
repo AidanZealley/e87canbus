@@ -3,8 +3,8 @@ device:
 
 image:
   layer: image-rpios
-  boot_part_size: 200%
-  root_part_size: 300%
+  boot_part_size: 2G
+  root_part_size: 4G
 
 layer:
   base: debian-trixie-arm64-minbase-snapshot

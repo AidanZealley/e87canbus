@@ -8,9 +8,10 @@
 ---
 mmdebstrap:
   packages:
-    - avahi-daemon
+    - dnsmasq-base
     - iw
-    - sudo
+    - nftables
+    - nginx-light
   customize-hooks:
     - '"$SRCROOT/coordinator/customize.sh" "$1" "$SRCROOT/../deploy"'
-    - $BDEBSTRAP_HOOKS/enable-units "$1" avahi-daemon e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service
+    - $BDEBSTRAP_HOOKS/enable-units "$1" e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service e87canbus-controller.service e87canbus-firewall.service e87canbus-dnsmasq.service e87canbus-nginx.service

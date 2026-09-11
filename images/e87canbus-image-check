@@ -40,32 +40,31 @@ check_shell "no failed systemd units" 'failed=$(systemctl --failed --no-legend -
 check "SSH service active" systemctl is-active --quiet ssh.service
 check_shell "SSH accepts public keys only" "/usr/sbin/sshd -T | grep -qx 'authenticationmethods publickey'"
 check_shell "no operator account at UID 1000" '! getent passwd 1000 >/dev/null'
-check "unprovisioned marker present" test -e /var/lib/e87canbus-provisioning/unprovisioned
-check "application absent" test ! -e /opt/e87canbus/.venv/bin/e87canbus
+check_shell "boot partition label is bootfs" '[ "$(findmnt -no LABEL /boot/firmware)" = bootfs ]'
+check_shell "host identity generated locally" 'test -s /etc/machine-id && test -n "$(find /etc/ssh -name "ssh_host_*_key" -print -quit)"'
+check "provisioning marker cleared" test ! -e /var/lib/e87canbus-provisioning/unprovisioned
+check_shell "provisioning succeeded" "python3 -c 'import json; assert json.load(open(\"/var/lib/e87canbus-provisioning/status.json\"))[\"result\"] == \"succeeded\"'"
+check "application release active" test -L /opt/e87canbus/current
+check "management account installed" getent passwd e87-admin
 
 if [ "$role" = coordinator ]; then
     check "panel UART present" test -e /dev/ttyAMA3
-    check "coordinator base services active" systemctl is-active --quiet \
-        avahi-daemon.service e87canbus-kcan.service \
-        e87canbus-ptcan.service e87canbus-fcan.service
+    check "coordinator services active" systemctl is-active --quiet \
+        e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service \
+        e87canbus-controller.service e87canbus-firewall.service \
+        e87canbus-dnsmasq.service e87canbus-nginx.service
     check_shell "kcan maps to spi0.0" "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'"
     check_shell "ptcan maps to spi1.1" "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'"
     check_shell "fcan maps to spi1.2" "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
     check_shell "ptcan is 500 kbit/s" "ip -details link show ptcan | grep -q 'bitrate 500000'"
     check_shell "fcan is 500 kbit/s" "ip -details link show fcan | grep -q 'bitrate 500000'"
-    check_shell "Ethernet uses 10.43.0.1/30 without a default route" '
-        [ "$(nmcli -g connection.interface-name connection show e87canbus-console-link)" = eth0 ] &&
-        [ "$(nmcli -g connection.autoconnect connection show e87canbus-console-link)" = yes ] &&
-        [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-link)" = 10.43.0.1/30 ] &&
-        [ "$(nmcli -g ipv4.never-default connection show e87canbus-console-link)" = yes ]'
-    check_shell "hotspot inactive" '! nmcli -t -f NAME connection show --active | grep -qx e87canbus-hotspot'
-    check_shell "hotspot has no password" 'test -z "$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show e87canbus-hotspot)"'
-    check_shell "application and proxies disabled" '
-        for unit in e87canbus-controller.service e87canbus-coordinator-hotspot-proxy.socket e87canbus-coordinator-console-proxy.socket; do
-            [ "$(systemctl is-active "$unit")" = inactive ] &&
-            [ "$(systemctl is-enabled "$unit")" = disabled ] || exit 1
-        done'
+    check_shell "WPA3 hotspot active at 10.42.0.1" '
+        [ "$(nmcli -g GENERAL.STATE connection show e87canbus-coordinator-wifi)" = activated ] &&
+        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-coordinator-wifi)" = sae ] &&
+        [ "$(nmcli -g 802-11-wireless-security.pmf connection show e87canbus-coordinator-wifi)" = 3 ] &&
+        [ "$(nmcli -g ipv4.addresses connection show e87canbus-coordinator-wifi)" = 10.42.0.1/24 ]'
+    check_shell "IP forwarding disabled" '[ "$(sysctl -n net.ipv4.ip_forward)" = 0 ] && [ "$(sysctl -n net.ipv6.conf.all.forwarding)" = 0 ]'
     check_shell "hotspot sudo policy has four actions" '
         listing=$(sudo -u e87canbus sudo -n -l) || exit 1
         for action in activate deactivate state stations; do
@@ -73,7 +72,9 @@ if [ "$role" = coordinator ]; then
         done
         [ "$(printf "%s\n" "$listing" | grep -oF /usr/local/libexec/e87canbus-hotspot | wc -l | tr -d " ")" = 4 ]'
 else
-    check "console CAN service active" systemctl is-active --quiet e87canbus-console-kcan.service
+    check "console services active" systemctl is-active --quiet \
+        e87canbus-console-kcan.service e87canbus-console.service \
+        e87canbus-console-kiosk.service
     check_shell "kcan is the only CAN interface" '
         interfaces=$(for interface in /sys/class/net/*; do
             [ "$(cat "$interface/type")" = 280 ] && basename "$interface"
@@ -82,11 +83,13 @@ else
     check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
     check_shell "kcan is listen-only" "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'"
-    check_shell "Ethernet uses 10.43.0.2/30 without a default route" '
-        [ "$(nmcli -g connection.interface-name connection show e87canbus-console-link)" = eth0 ] &&
-        [ "$(nmcli -g connection.autoconnect connection show e87canbus-console-link)" = yes ] &&
-        [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-link)" = 10.43.0.2/30 ] &&
-        [ "$(nmcli -g ipv4.never-default connection show e87canbus-console-link)" = yes ]'
+    check_shell "WPA3 console Wi-Fi active at 10.42.0.2" '
+        [ "$(nmcli -g GENERAL.STATE connection show e87canbus-console-wifi)" = activated ] &&
+        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-console-wifi)" = sae ] &&
+        [ "$(nmcli -g 802-11-wireless-security.pmf connection show e87canbus-console-wifi)" = 3 ] &&
+        [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-wifi)" = 10.42.0.2/24 ]'
+    check "Chromium client certificate database" test -s /var/lib/e87-kiosk/.pki/nssdb/cert9.db
+    check "Chromium certificate-selection policy" test -s /etc/chromium/policies/managed/e87canbus.json
     check_shell "Cage and Chromium installed" 'command -v cage >/dev/null && command -v chromium >/dev/null'
     check_shell "DRM card present" 'test -n "$(find /dev/dri -maxdepth 1 -name "card*" -print -quit)"'
     check_shell "touchscreen present" '
@@ -95,11 +98,6 @@ else
             udevadm info --query=property --name="$device" | grep -qx ID_INPUT_TOUCHSCREEN=1 && exit 0
         done
         exit 1'
-    check_shell "application and kiosk disabled" '
-        for unit in e87canbus-console.service e87canbus-console-kiosk.service; do
-            [ "$(systemctl is-active "$unit")" = inactive ] &&
-            [ "$(systemctl is-enabled "$unit")" = disabled ] || exit 1
-        done'
 fi
 
 if [ "$failures" -ne 0 ]; then

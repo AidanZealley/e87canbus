@@ -36,20 +36,22 @@ EOF
 }
 
 install_runtime_assets() {
+    [ "${IGconf_image_boot_part_size}" = 2G ]
+    [ "${IGconf_image_root_part_size}" = 4G ]
     install -d -m 0755 "${target}/etc/systemd/system" \
         "${target}/etc/systemd/system/e87canbus-controller.service.d" \
         "${target}/etc/udev/rules.d" "${target}/usr/local/libexec" \
-        "${target}/etc/sudoers.d"
+        "${target}/etc/sudoers.d" "${target}/etc/e87canbus" \
+        "${target}/etc/sysctl.d" "${target}/usr/share/e87canbus"
 
     for unit in \
         e87canbus-controller.service \
         e87canbus-kcan.service \
         e87canbus-ptcan.service \
         e87canbus-fcan.service \
-        e87canbus-coordinator-hotspot-proxy.service \
-        e87canbus-coordinator-hotspot-proxy.socket \
-        e87canbus-coordinator-console-proxy.service \
-        e87canbus-coordinator-console-proxy.socket
+        e87canbus-firewall.service \
+        e87canbus-dnsmasq.service \
+        e87canbus-nginx.service
     do
         install -m 0644 "${deploy}/systemd/${unit}" \
             "${target}/etc/systemd/system/${unit}"
@@ -61,10 +63,23 @@ install_runtime_assets() {
         "${target}/etc/udev/rules.d/70-e87canbus-coordinator-can.rules"
     install -m 0755 "${deploy}/bin/e87canbus-hotspot" \
         "${target}/usr/local/libexec/e87canbus-hotspot"
+    install -m 0755 "${deploy}/bin/e87canbus-firewall" \
+        "${target}/usr/local/libexec/e87canbus-firewall"
     install -m 0440 "${deploy}/sudoers/e87canbus-hotspot" \
         "${target}/etc/sudoers.d/e87canbus-hotspot"
     install -m 0640 "${deploy}/systemd/controller.env.example" \
         "${target}/etc/e87canbus/controller.env"
+    install -m 0644 "${deploy}/network/dnsmasq.conf" \
+        "${target}/etc/e87canbus/dnsmasq.conf"
+    install -m 0644 "${deploy}/network/nftables.conf" \
+        "${target}/etc/e87canbus/nftables.conf"
+    install -m 0644 "${deploy}/network/90-e87canbus-no-forwarding.conf" \
+        "${target}/etc/sysctl.d/90-e87canbus-no-forwarding.conf"
+    install -m 0644 "${deploy}/nginx/e87canbus.conf" \
+        "${target}/etc/e87canbus/nginx.conf"
+    cat >"${target}/usr/share/e87canbus/image-contract.json" <<EOF
+{"architecture":"arm64","boot_partition_size_bytes":$((2 * 1024 * 1024 * 1024)),"format_version":1,"os_release":"Raspberry Pi OS Lite Trixie","provisioning_interface_version":1,"raspberry_pi_model":"Raspberry Pi 4 Model B","role":"coordinator","root_filesystem_size_bytes":$((4 * 1024 * 1024 * 1024))}
+EOF
 }
 
 configure_role() {
@@ -72,12 +87,6 @@ configure_role() {
     chroot "${target}" usermod -aG dialout e87canbus
     chroot "${target}" /usr/sbin/visudo -cf /etc/sudoers.d/e87canbus-hotspot >/dev/null
 
-    if grep -Eq '^[#[:space:]]*host-name=' "${target}/etc/avahi/avahi-daemon.conf"; then
-        sed -E -i '0,/^[#[:space:]]*host-name=.*/s//host-name=e87/' \
-            "${target}/etc/avahi/avahi-daemon.conf"
-    else
-        sed -i '/^\[server\]$/a host-name=e87' "${target}/etc/avahi/avahi-daemon.conf"
-    fi
 }
 
 configure_boot

@@ -6,7 +6,7 @@ Conflicts=getty@tty7.service
 
 [Service]
 Type=simple
-User=KIOSK_USER_PLACEHOLDER
+User=e87-kiosk
 PAMName=login
 Environment=XDG_SEAT=seat0
 Environment=XDG_VTNR=7
@@ -24,4 +24,4 @@ Restart=on-failure
 RestartSec=5s
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=e87canbus-role.target

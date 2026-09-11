@@ -102,7 +102,7 @@ def test_both_applications_are_loopback_only_with_their_final_artifacts() -> Non
 
     assert "--host 127.0.0.1" in controller
     assert "--host 0.0.0.0" not in controller
-    assert "frontend/apps/coordinator/dist" in controller_env
+    assert "E87CANBUS_FRONTEND=/opt/e87canbus/current/frontend" in controller_env
     expected_origins = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -119,7 +119,7 @@ def test_both_applications_are_loopback_only_with_their_final_artifacts() -> Non
 
     assert "--host 127.0.0.1" in console
     assert "--host 0.0.0.0" not in console
-    assert "frontend/apps/console/dist" in console_env
+    assert "E87CANBUS_CONSOLE_FRONTEND=/opt/e87canbus/current/frontend" in console_env
     kiosk = read(ROOT / "deploy/kiosk/start-console-kiosk.sh")
     assert "http://127.0.0.1:8000/health/live" in kiosk
     assert kiosk.rstrip().endswith("http://127.0.0.1:8000/")
