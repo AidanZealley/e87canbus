@@ -18,10 +18,12 @@ from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
 from e87canbus.adapters.web import SpaStaticFiles
+from e87canbus.api.auth import ApplicationAuthenticator, AuthorizationMiddleware
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
-from e87canbus.api.routes import button_profiles, health, settings, steering
+from e87canbus.api.routes import button_profiles, health, settings, steering, system
+from e87canbus.api.routes.system import PROVISIONING_STATUS_PATH
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
@@ -73,6 +75,8 @@ def create_app(
     settings_repository: ApplicationSettingsRepository | None = None,
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
+    authenticator: ApplicationAuthenticator | None = None,
+    provisioning_status_path: str | Path = PROVISIONING_STATUS_PATH,
 ) -> FastAPI:
     if controller_loop is not None and (profile is not None or config is not None):
         raise ValueError("inject either controller_loop or composition configuration, not both")
@@ -116,7 +120,7 @@ def create_app(
         outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
     )
     publisher = LiveStatePublisher(sio, service, service.config)
-    install_socket_handlers(sio, publisher)
+    install_socket_handlers(sio, publisher, authenticator)
     coordinator_panel = (
         None
         if service.deployment.profile is DeploymentProfile.SIMULATOR
@@ -135,11 +139,13 @@ def create_app(
         ),
     )
     install_exception_handlers(app)
+    if authenticator is not None:
+        app.add_middleware(AuthorizationMiddleware, authenticator=authenticator)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(selected_cors_origins),
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     app.state.controller_loop = service
@@ -152,6 +158,7 @@ def create_app(
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository
     app.state.monotonic_clock = clock
+    app.state.provisioning_status_path = Path(provisioning_status_path)
     # Read-check-write profile sequences must not interleave: without these, a concurrent
     # edit can land between reading a profile and activating it, leaving the runtime
     # running one revision while storage records another.
@@ -162,6 +169,7 @@ def create_app(
     app.include_router(settings.router)
     app.include_router(steering.router)
     app.include_router(button_profiles.router)
+    app.include_router(system.router)
     install_simulation_api(app, service.deployment.simulation_api, service)
     static_app = (
         SpaStaticFiles(directory=frontend_directory, html=True)

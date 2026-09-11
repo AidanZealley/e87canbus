@@ -36,5 +36,8 @@ tar \
     | tar --directory /work/frontend --extract --file -
 cd /work/frontend
 pnpm install --frozen-lockfile
+if [ "$role" = console ]; then
+    export VITE_COORDINATOR_ORIGIN=https://10.42.0.1
+fi
 pnpm --filter "@e87canbus/$role" build
 cp -a "apps/$role/dist" /output/frontend

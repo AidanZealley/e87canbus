@@ -111,6 +111,29 @@ export const zPanelDisplay = z.enum([
 ])
 
 /**
+ * ProvisioningStatusResponse
+ */
+export const zProvisioningStatusResponse = z.object({
+  artifact_digests: z.record(z.string(), z.unknown()),
+  completed_phase: z.string().min(1).max(64),
+  device_id: z
+    .string()
+    .regex(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    ),
+  error_code: z.string().min(1).max(64).nullable(),
+  format_version: z.literal(1),
+  hostname: z
+    .string()
+    .min(1)
+    .max(63)
+    .regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/),
+  installation_id: z.string().regex(/^[a-z2-7]{52}$/),
+  result: z.enum(["pending", "succeeded", "failed"]),
+  role: z.enum(["coordinator", "console"]),
+})
+
+/**
  * ReadinessResponse
  */
 export const zReadinessResponse = z.object({
@@ -944,6 +967,11 @@ export const zUpdateSteeringProfilePath = z.object({
  * Successful Response
  */
 export const zUpdateSteeringProfileResponse = zSteeringProfileResponse
+
+/**
+ * Successful Response
+ */
+export const zGetProvisioningStatusResponse = zProvisioningStatusResponse
 
 /**
  * Successful Response

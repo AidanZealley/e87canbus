@@ -214,6 +214,7 @@ def test_application_builder_is_pinned_and_builds_only_runtime_payload() -> None
     assert "snapshot.debian.org/archive/debian/20260813T000000Z" in sources
     assert "pnpm@9.15.1" in dockerfile
     assert "python3 -m venv --copies /output/venv" in script
+    assert "VITE_COORDINATOR_ORIGIN=https://10.42.0.1" in script
     assert 'pnpm --filter "@e87canbus/$role" build' in script
     assert "--requirement /locked/runtime.txt" in script
     assert "--requirement /locked/build.txt" in script

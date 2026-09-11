@@ -56,6 +56,9 @@ import type {
   GetButtonProfileData,
   GetButtonProfileErrors,
   GetButtonProfileResponses,
+  GetProvisioningStatusData,
+  GetProvisioningStatusErrors,
+  GetProvisioningStatusResponses,
   GetRuntimeConfigurationData,
   GetRuntimeConfigurationResponses,
   GetSavedButtonProfileData,
@@ -159,6 +162,7 @@ import {
   zFailNextSimulationHotspotOperationResponse,
   zGetApplicationSettingsResponse,
   zGetButtonProfileResponse,
+  zGetProvisioningStatusResponse,
   zGetRuntimeConfigurationResponse,
   zGetSavedButtonProfileResponse,
   zGetSavedSteeringProfileResponse,
@@ -1330,6 +1334,30 @@ export const updateSteeringProfile = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Provisioning Status
+ */
+export const getProvisioningStatus = <ThrowOnError extends boolean = true>(
+  options?: Options<GetProvisioningStatusData, ThrowOnError>
+): RequestResult<
+  GetProvisioningStatusResponses,
+  GetProvisioningStatusErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetProvisioningStatusResponses,
+    GetProvisioningStatusErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetProvisioningStatusResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/system/provisioning",
+    ...options,
   })
 
 /**
