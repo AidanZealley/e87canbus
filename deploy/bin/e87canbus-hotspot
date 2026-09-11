@@ -8,14 +8,14 @@ fi
 
 case "$1" in
     activate)
-        exec /usr/bin/nmcli --wait 0 connection up id e87canbus-hotspot
+        exec /usr/bin/nmcli --wait 0 connection up id e87canbus-coordinator-wifi
         ;;
     deactivate)
-        exec /usr/bin/nmcli connection down id e87canbus-hotspot
+        exec /usr/bin/nmcli connection down id e87canbus-coordinator-wifi
         ;;
     state)
         exec /usr/bin/nmcli --get-values GENERAL.STATE \
-            connection show id e87canbus-hotspot
+            connection show id e87canbus-coordinator-wifi
         ;;
     stations)
         exec /usr/sbin/iw dev wlan0 station dump

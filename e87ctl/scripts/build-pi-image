@@ -18,6 +18,13 @@ fail() {
     exit 1
 }
 
+validate_partition_contract() {
+    grep -qx '  boot_part_size: 2G' "${REPO_ROOT}/images/common/image.yaml" \
+        || fail "common image boot partition must match the 2 GiB manifest contract"
+    grep -qx '  root_part_size: 4G' "${REPO_ROOT}/images/common/image.yaml" \
+        || fail "common image root partition must match the 4 GiB manifest contract"
+}
+
 require_arm64() {
     local description="$1"
     local architecture="$2"
@@ -72,6 +79,9 @@ write_manifest() {
   "built_at": "${built_at}",
   "git_commit": ${git_commit},
   "git_dirty": ${git_dirty},
+  "provisioning_interface_version": 1,
+  "boot_partition_size_bytes": 2147483648,
+  "root_filesystem_size_bytes": 4294967296,
   "image": {
     "filename": "${image##*/}",
     "size_bytes": ${size},
@@ -101,6 +111,7 @@ readonly CONFIG_PATH="${ROLE_CONFIG}"
 
 command -v docker >/dev/null 2>&1 || fail "Docker is required; install and start Docker Desktop."
 docker info >/dev/null 2>&1 || fail "the Docker daemon is unavailable; start Docker Desktop."
+validate_partition_contract
 
 readonly HOST_ARCHITECTURE="$(uname -m)"
 echo "Host architecture: ${HOST_ARCHITECTURE}"

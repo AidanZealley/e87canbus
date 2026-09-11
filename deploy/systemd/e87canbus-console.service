@@ -7,9 +7,9 @@ Requires=e87canbus-console-kcan.service
 Type=simple
 User=e87canbus
 Group=e87canbus
-WorkingDirectory=/opt/e87canbus
+WorkingDirectory=/opt/e87canbus/current
 EnvironmentFile=/etc/e87canbus/console.env
-ExecStart=/opt/e87canbus/.venv/bin/e87canbus-console --host 127.0.0.1 --port ${E87CANBUS_CONSOLE_PORT} --frontend-directory ${E87CANBUS_CONSOLE_FRONTEND}
+ExecStart=/opt/e87canbus/current/venv/bin/e87canbus-console --host 127.0.0.1 --port ${E87CANBUS_CONSOLE_PORT} --frontend-directory ${E87CANBUS_CONSOLE_FRONTEND}
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=15s
@@ -22,4 +22,4 @@ ProtectSystem=strict
 ProtectHome=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=e87canbus-role.target

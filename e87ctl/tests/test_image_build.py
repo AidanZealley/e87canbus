@@ -17,7 +17,6 @@ BUILD_SCRIPT = ROOT / "e87ctl/scripts/build-pi-image"
 BUILDER = ROOT / "images/builder"
 COMMON_CONFIG = ROOT / "images/common/image.yaml"
 COMMON_LAYER = ROOT / "images/layer/e87-common.yaml"
-COMMON_OVERLAY = ROOT / "images/layer/e87-common.rootfs-overlay"
 COORDINATOR = ROOT / "images/coordinator"
 COORDINATOR_CONFIG = COORDINATOR / "image.yaml"
 COORDINATOR_LAYER = ROOT / "images/layer/e87-coordinator.yaml"
@@ -85,9 +84,7 @@ esac
 
 
 @pytest.mark.parametrize("role", ["coordinator", "console"])
-def test_cli_builds_each_public_image_role(
-    monkeypatch: pytest.MonkeyPatch, role: str
-) -> None:
+def test_cli_builds_each_public_image_role(monkeypatch: pytest.MonkeyPatch, role: str) -> None:
     command: list[object] = []
 
     def run(arguments: list[object], *, check: bool) -> subprocess.CompletedProcess[str]:
@@ -187,9 +184,7 @@ def test_build_rejects_non_arm64_container(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("role", ["coordinator", "console"])
-def test_build_rejects_role_without_an_image_definition(
-    tmp_path: Path, role: str
-) -> None:
+def test_build_rejects_role_without_an_image_definition(tmp_path: Path, role: str) -> None:
     repo = make_test_repo(tmp_path)
     (repo / f"images/{role}/image.yaml").unlink()
 
@@ -202,6 +197,27 @@ def test_build_rejects_role_without_an_image_definition(
 
     assert result.returncode == 1
     assert f"image definition images/{role}/image.yaml does not exist" in result.stderr
+    assert not (repo / "artifacts").exists()
+
+
+def test_build_rejects_partition_geometry_that_disagrees_with_the_contract(
+    tmp_path: Path,
+) -> None:
+    repo = make_test_repo(tmp_path)
+    tools = arm64_tools(tmp_path, successful_docker())
+    common = repo / "images/common/image.yaml"
+    common.write_text(common.read_text().replace("boot_part_size: 2G", "boot_part_size: 400%"))
+
+    result = subprocess.run(
+        ["bash", str(repo / "e87ctl/scripts/build-pi-image"), "coordinator"],
+        env={"PATH": f"{tools}:{os.environ['PATH']}"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "boot partition must match the 2 GiB manifest contract" in result.stderr
     assert not (repo / "artifacts").exists()
 
 
@@ -238,6 +254,9 @@ def test_successful_build_places_image_and_verified_manifest(tmp_path: Path) -> 
         "built_at": manifest["built_at"],
         "git_commit": None,
         "git_dirty": False,
+        "provisioning_interface_version": 1,
+        "boot_partition_size_bytes": 2 * 1024 * 1024 * 1024,
+        "root_filesystem_size_bytes": 4 * 1024 * 1024 * 1024,
         "image": {
             "filename": images[0].name,
             "size_bytes": images[0].stat().st_size,
@@ -362,10 +381,7 @@ def test_builder_and_package_sources_are_immutable_where_upstream_allows() -> No
     assert revision in dockerfile and revision in script
     assert arm64_image in dockerfile
     assert "URIs: http://snapshot.debian.org/archive/debian/20260813T000000Z" in sources
-    assert (
-        "URIs: http://snapshot.debian.org/archive/debian-security/20260813T000000Z"
-        in sources
-    )
+    assert "URIs: http://snapshot.debian.org/archive/debian-security/20260813T000000Z" in sources
     assert sources.count("Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg") == 2
     assert sources.count("Check-Valid-Until: no") == 2
     assert "Trusted: yes" not in sources
@@ -378,8 +394,8 @@ def test_builder_and_package_sources_are_immutable_where_upstream_allows() -> No
 def test_container_has_only_explicit_writable_build_locations() -> None:
     script = read(BUILD_SCRIPT)
 
-    assert '--platform linux/arm64' in script
-    assert '--cap-add SYS_ADMIN' in script
+    assert "--platform linux/arm64" in script
+    assert "--cap-add SYS_ADMIN" in script
     assert "--privileged" not in script
     assert 'dst=/source,readonly"' in script
     assert "--volume /work" in script
@@ -392,7 +408,7 @@ def test_container_has_only_explicit_writable_build_locations() -> None:
 def test_role_artifacts_have_a_verified_manifest() -> None:
     script = read(BUILD_SCRIPT)
 
-    assert 'artifacts/images/${ROLE}' in script
+    assert "artifacts/images/${ROLE}" in script
     assert 'readonly IMAGE_PATH="${ARTIFACT_DIR}/${BUILD_ID}.img"' in script
     assert 'readonly MANIFEST_PATH="${ARTIFACT_DIR}/${BUILD_ID}.json"' in script
     assert 'BUILD_ID="e87-${ROLE}_${BUILD_DATE}_${BUILD_HHMM}Z_' in script
@@ -407,6 +423,9 @@ def test_role_artifacts_have_a_verified_manifest() -> None:
         "built_at",
         "git_commit",
         "git_dirty",
+        "provisioning_interface_version",
+        "boot_partition_size_bytes",
+        "root_filesystem_size_bytes",
         "filename",
         "size_bytes",
         "sha256",
@@ -427,16 +446,14 @@ def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None
     assert "uv run e87ctl image build console" in runbook
     assert 'manifest=$(ls -t "artifacts/images/${role}"/*.json | head -n 1)' in runbook
     assert 'test "$actual" = "$expected"' in runbook
-    assert "Raspberry Pi Imager did not offer OS customisation" in runbook
     assert "systemd.debug_shell=1" in runbook
-    assert "cp images/e87canbus-image-check /Volumes/BOOT/" in runbook
+    assert "copy `images/e87canbus-image-check`" in runbook
     assert "sh /boot/firmware/e87canbus-image-check coordinator" in runbook
     assert "sh /boot/firmware/e87canbus-image-check console" in runbook
-    assert "changes only the flashed test card" in runbook
+    assert "changes only the flashed" in runbook
     assert "It creates no user or credential" in runbook
-    assert "Do not treat a card as safe to deploy" in runbook
-    assert "the executable source of checkpoint assertions" in runbook
-    assert "complete `PASS` or `FAIL` output" in runbook
+    assert "Do not report the images as accepted" in runbook
+    assert "source of checkpoint assertions" in runbook
 
 
 def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
@@ -451,31 +468,32 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "systemctl is-active --quiet ssh.service",
         "authenticationmethods publickey",
         "! getent passwd 1000 >/dev/null",
-        "test -e /var/lib/e87canbus-provisioning/unprovisioned",
-        "test ! -e /opt/e87canbus/.venv/bin/e87canbus",
+        'findmnt -no LABEL /boot/firmware)" = bootfs',
+        "test ! -e /var/lib/e87canbus-provisioning/unprovisioned",
+        "test -L /opt/e87canbus/current",
         "test -e /dev/ttyAMA3",
-        "avahi-daemon.service e87canbus-kcan.service",
+        "e87canbus-controller.service e87canbus-firewall.service",
         "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'",
         "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'",
         "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'",
         "ip -details link show kcan | grep -q 'bitrate 100000'",
         "ip -details link show ptcan | grep -q 'bitrate 500000'",
         "ip -details link show fcan | grep -q 'bitrate 500000'",
-        "10.43.0.1/30",
-        "nmcli -t -f NAME connection show --active",
-        "802-11-wireless-security.psk",
-        "e87canbus-coordinator-hotspot-proxy.socket",
-        "e87canbus-coordinator-console-proxy.socket",
+        "10.42.0.1/24",
+        "e87canbus-coordinator-wifi",
+        "net.ipv4.ip_forward",
         "/usr/local/libexec/e87canbus-hotspot $action",
-        "systemctl is-active --quiet e87canbus-console-kcan.service",
+        "e87canbus-console-kcan.service e87canbus-console.service",
         '[ "$interfaces" = kcan ]',
         "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'",
         "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'",
-        "10.43.0.2/30",
+        "10.42.0.2/24",
+        "e87canbus-console-wifi",
+        "/var/lib/e87-kiosk/.pki/nssdb/cert9.db",
         "command -v cage >/dev/null && command -v chromium >/dev/null",
         'find /dev/dri -maxdepth 1 -name "card*"',
         "ID_INPUT_TOUCHSCREEN=1",
-        "e87canbus-console.service e87canbus-console-kiosk.service",
+        "e87canbus-console-kiosk.service",
     ):
         assert expected in script
     subprocess.run(["sh", "-n", str(IMAGE_CHECK)], check=True)
@@ -488,27 +506,23 @@ def test_hardware_runbook_covers_both_role_boundaries() -> None:
         "Raspberry Pi 4 Model B",
         "Trixie arm64",
         "panel UART",
-        "three CAN interfaces",
-        "10.43.0.1/30",
+        "three CAN",
+        "10.42.0.1/24",
         "kcan",
         "listen-only mode",
-        "10.43.0.2/30",
+        "10.42.0.2/24",
         "DRM",
         "touchscreen",
-        "provisioning gates",
+        "strict first-boot consumer",
     ):
         assert expected in runbook
 
-    assert (
-        "The checkpoint cannot exercise the application health check or launch the kiosk"
-        in runbook
-    )
     for boundary in (
-        "validated v1 Raspberry Pi 4 host-image prototypes",
-        "must add the missing image-side consumer",
-        "unique host identity",
-        "rebuild both roles with this builder",
-        "repeat the relevant hardware",
+        "provisionable Raspberry Pi 4 coordinator and console image candidates",
+        "e87canbus-provision.service",
+        "unique host state",
+        "MacBook, Raspberry",
+        "Do not report the images as accepted",
     ):
         assert boundary in runbook
     assert "ft5|goodix" not in runbook
@@ -522,6 +536,8 @@ def test_common_image_exposes_one_role_agnostic_definition() -> None:
     assert "layer: rpi4" in config
     assert "e87: e87-common" in config
     assert "pubkey_only: y" in config
+    assert "boot_part_size: 2G" in config
+    assert "root_part_size: 4G" in config
     for role_specific_value in (
         "coordinator",
         "console",
@@ -576,9 +592,6 @@ def test_common_layer_contains_runtime_dependencies_without_build_tools() -> Non
 
 def test_common_layer_creates_service_state_and_versioned_provisioning_boundary() -> None:
     layer = read(COMMON_LAYER)
-    interface_version = read(
-        COMMON_OVERLAY / "usr/share/e87canbus/provisioning-interface"
-    )
 
     assert "groupadd --system e87canbus" in layer
     assert "useradd --system --gid e87canbus" in layer
@@ -587,23 +600,16 @@ def test_common_layer_creates_service_state_and_versioned_provisioning_boundary(
     assert "--home-dir /var/lib/e87canbus --no-create-home" in layer
     assert "--shell /usr/sbin/nologin e87canbus" in layer
     assert "install -d -o root -g e87canbus -m 0750 /opt/e87canbus" in layer
-    assert (
-        "install -d -o e87canbus -g e87canbus -m 0750 "
-        "/etc/e87canbus /var/lib/e87canbus"
-    ) in layer
-    assert "install -d -o root -g root -m 0700 /var/lib/e87canbus-provisioning" in layer
+    assert "install -d -o root -g e87canbus -m 0750 /etc/e87canbus" in layer
+    assert "install -d -o e87canbus -g e87canbus -m 0750 /var/lib/e87canbus" in layer
+    assert "install -d -o root -g e87canbus -m 0750 /var/lib/e87canbus-provisioning" in layer
     assert "/var/lib/e87canbus-provisioning/unprovisioned" in layer
-    assert interface_version == "1\n"
-
-
-def test_common_overlay_contains_only_the_public_interface_version() -> None:
-    overlay_files = {
-        path.relative_to(COMMON_OVERLAY).as_posix()
-        for path in COMMON_OVERLAY.rglob("*")
-        if path.is_file() or path.is_symlink()
-    }
-
-    assert overlay_files == {"usr/share/e87canbus/provisioning-interface"}
+    assert "e87canbus-provision.service" in layer
+    customize = read(ROOT / "images/common/customize.sh")
+    assert 'rm -f "${target}/etc/machine-id"' in customize
+    assert 'rm -f "${target}"/etc/ssh/ssh_host_*' in customize
+    assert "e87canbus-provision" in customize
+    assert not (ROOT / "images/layer/e87-common.rootfs-overlay").exists()
 
 
 def test_coordinator_image_extends_common_with_one_role_layer() -> None:
@@ -611,7 +617,7 @@ def test_coordinator_image_extends_common_with_one_role_layer() -> None:
 
     assert "file: ../common/image.yaml" in config
     assert "coordinator: e87-coordinator" in config
-    assert "${@SRCROOT}/coordinator/network-manager.cmds" in config
+    assert "network-manager.cmds" not in config
     for prohibited in ("e87-console", "chromium", "cage", "simulator"):
         assert prohibited not in config
 
@@ -640,7 +646,7 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
     customize = read(COORDINATOR / "customize.sh")
 
     assert "X-Env-Layer-Requires: e87-common" in layer
-    for package in ("avahi-daemon", "iw", "sudo"):
+    for package in ("dnsmasq-base", "iw", "nftables", "nginx-light"):
         assert f"    - {package}\n" in layer
     for prohibited in ("git", "nodejs", "npm", "pnpm", "uv ", "build-essential"):
         assert prohibited not in layer.lower()
@@ -650,10 +656,9 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
         "e87canbus-kcan.service",
         "e87canbus-ptcan.service",
         "e87canbus-fcan.service",
-        "e87canbus-coordinator-hotspot-proxy.service",
-        "e87canbus-coordinator-hotspot-proxy.socket",
-        "e87canbus-coordinator-console-proxy.service",
-        "e87canbus-coordinator-console-proxy.socket",
+        "e87canbus-firewall.service",
+        "e87canbus-dnsmasq.service",
+        "e87canbus-nginx.service",
         "70-e87canbus-coordinator-can.rules",
         "e87canbus-hotspot",
         "controller.env.example",
@@ -663,23 +668,39 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
     assert '"$SRCROOT/../deploy"' in layer
     assert "usermod -aG dialout e87canbus" in customize
     assert "visudo -cf /etc/sudoers.d/e87canbus-hotspot" in customize
+    assert '"${target}/usr/share/e87canbus"' in customize
+    assert '"${IGconf_image_boot_part_size}" = 2G' in customize
+    assert '"${IGconf_image_root_part_size}" = 4G' in customize
 
 
 def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
-    commands = read(COORDINATOR / "network-manager.cmds")
+    assert not (COORDINATOR / "network-manager.cmds").exists()
+    dnsmasq = read(ROOT / "deploy/network/dnsmasq.conf")
+    firewall = read(ROOT / "deploy/network/nftables.conf")
+    nginx = read(ROOT / "deploy/nginx/e87canbus.conf")
+    dnsmasq_unit = read(ROOT / "deploy/systemd/e87canbus-dnsmasq.service")
+    firewall_unit = read(ROOT / "deploy/systemd/e87canbus-firewall.service")
+    firewall_helper = read(ROOT / "deploy/bin/e87canbus-firewall")
+    nginx_unit = read(ROOT / "deploy/systemd/e87canbus-nginx.service")
 
-    assert commands.count("--offline connection add") == 2
-    assert "con-name e87canbus-console-link" in commands
-    assert "ipv4.addresses 10.43.0.1/30" in commands
-    assert "priority 101 iif eth0 table 501" in commands
-    assert "con-name e87canbus-hotspot" in commands
-    assert "connection.autoconnect no" in commands
-    assert "802-11-wireless.mode ap" in commands
-    assert "802-11-wireless-security.key-mgmt wpa-psk" in commands
-    assert "ipv4.addresses 10.42.0.1/24" in commands
-    assert "priority 100 iif wlan0 table 500" in commands
-    for secret_input in (".psk ", "password", "secret"):
-        assert secret_input not in commands.lower()
+    assert "dhcp-range=10.42.0.100,10.42.0.150" in dnsmasq
+    assert "port=0" in dnsmasq
+    assert "dhcp-option=3" in dnsmasq and "dhcp-option=6" in dnsmasq
+    assert "StateDirectory=e87canbus-dnsmasq" in dnsmasq_unit
+    assert "chain forward" in firewall and "policy drop" in firewall
+    assert 'iifname "wlan0" tcp dport { 22, 443 } accept' in firewall
+    assert "Before=NetworkManager.service" in firewall_unit
+    assert "WantedBy=multi-user.target" in firewall_unit
+    assert "delete table inet e87canbus" in firewall_helper
+    assert "| exec /usr/sbin/nft --file -" in firewall_helper
+    assert "listen 10.42.0.1:443 ssl" in nginx
+    assert "ssl_verify_client optional" in nginx
+    assert "X-E87-Client-Verify $ssl_client_verify" in nginx
+    assert "X-E87-Client-Certificate $ssl_client_escaped_cert" in nginx
+    assert "X-Forwarded-Host 10.42.0.1" in nginx
+    assert "X-Forwarded-Proto https" in nginx
+    assert "RuntimeDirectory=e87canbus-nginx" in nginx_unit
+    assert "Restart=on-failure" in nginx_unit
 
 
 def test_coordinator_application_is_gated_until_provisioning_installs_it() -> None:
@@ -689,17 +710,13 @@ def test_coordinator_application_is_gated_until_provisioning_installs_it() -> No
     assert "Requires=dev-ttyAMA3.device" in condition
     assert "After=dev-ttyAMA3.device" in condition
     assert "ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned" in condition
-    assert "ConditionFileIsExecutable=/opt/e87canbus/.venv/bin/e87canbus" in condition
-    assert "e87canbus-controller.service" not in next(
-        line for line in layer.splitlines() if "enable-units" in line
-    )
-    for proxy in (
-        "e87canbus-coordinator-hotspot-proxy.socket",
-        "e87canbus-coordinator-console-proxy.socket",
-    ):
-        assert proxy not in next(
-            line for line in layer.splitlines() if "enable-units" in line
-        )
+    assert "ConditionFileIsExecutable=/opt/e87canbus/current/venv/bin/e87canbus" in condition
+    assert condition.count("--cors-origin") == 1
+    assert "--cors-origin ${E87CANBUS_CONSOLE_ORIGIN}" in condition
+    enabled = next(line for line in layer.splitlines() if "enable-units" in line)
+    assert "e87canbus-controller.service" in enabled
+    assert "e87canbus-nginx.service" in enabled
+    assert "e87canbus-role.target" not in enabled
 
 
 def test_coordinator_role_files_do_not_duplicate_deploy_assets() -> None:
@@ -713,7 +730,6 @@ def test_coordinator_role_files_do_not_duplicate_deploy_assets() -> None:
         "customize.sh",
         "e87canbus-controller-provisioning.conf",
         "image.yaml",
-        "network-manager.cmds",
     }
 
 
@@ -722,7 +738,7 @@ def test_console_image_extends_common_with_one_role_layer() -> None:
 
     assert "file: ../common/image.yaml" in config
     assert "console: e87-console" in config
-    assert "${@SRCROOT}/console/network-manager.cmds" in config
+    assert "network-manager.cmds" not in config
     for prohibited in ("e87-coordinator", "ptcan", "fcan", "simulator", "pi5"):
         assert prohibited not in config
 
@@ -756,6 +772,7 @@ def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> No
         "cage",
         "chromium",
         "chromium-sandbox",
+        "libnss3-tools",
         "libpam-systemd",
         "plymouth",
     ):
@@ -784,6 +801,8 @@ def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> No
     for asset in canonical_assets:
         assert asset in customize
     assert '"$SRCROOT/../deploy"' in layer
+    assert '"${IGconf_image_boot_part_size}" = 2G' in customize
+    assert '"${IGconf_image_root_part_size}" = 4G' in customize
     for coordinator_asset in (
         "e87canbus-controller.service",
         "e87canbus-ptcan.service",
@@ -794,46 +813,31 @@ def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> No
 
 
 def test_console_network_prerequisite_is_fixed_and_non_routing() -> None:
-    commands = read(CONSOLE / "network-manager.cmds")
-
-    assert commands.count("--offline connection add") == 1
-    assert "con-name e87canbus-console-link" in commands
-    assert "connection.autoconnect yes" in commands
-    assert "ipv4.addresses 10.43.0.2/30" in commands
-    assert "ipv4.gateway ''" in commands
-    assert "ipv4.dns ''" in commands
-    assert "ipv4.never-default yes" in commands
-    assert "0.0.0.0/0 type=blackhole table=501" in commands
-    assert "priority 101 iif eth0 table 501" in commands
-    assert "ipv6.method disabled" in commands
-    for prohibited in ("10.43.0.1/30", "10.42.", "wifi", "password", "secret"):
-        assert prohibited not in commands.lower()
+    assert not (CONSOLE / "network-manager.cmds").exists()
+    customize = read(CONSOLE / "customize.sh")
+    layer = read(CONSOLE_LAYER)
+    assert "libnss3-tools" in layer
+    assert '"role":"console"' in customize
 
 
 def test_console_application_and_kiosk_wait_for_provisioning() -> None:
     application_condition = read(CONSOLE / "e87canbus-console-provisioning.conf")
     kiosk_condition = read(CONSOLE / "e87canbus-console-kiosk-provisioning.conf")
     layer = read(CONSOLE_LAYER)
-    enabled_units = next(
-        line for line in layer.splitlines() if "enable-units" in line
-    )
+    enabled_units = next(line for line in layer.splitlines() if "enable-units" in line)
 
-    marker_condition = (
-        "ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned"
-    )
+    marker_condition = "ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned"
     assert marker_condition in application_condition
     assert marker_condition in kiosk_condition
     assert (
-        "ConditionFileIsExecutable=/opt/e87canbus/.venv/bin/e87canbus-console"
+        "ConditionFileIsExecutable=/opt/e87canbus/current/venv/bin/e87canbus-console"
         in application_condition
     )
-    assert (
-        "ConditionPathExists=/opt/e87canbus/frontend/apps/console/dist/index.html"
-        in kiosk_condition
-    )
+    assert "ConditionPathExists=/opt/e87canbus/current/frontend/index.html" in kiosk_condition
     assert "e87canbus-console-kcan.service" in enabled_units
-    assert "e87canbus-console.service" not in enabled_units
-    assert "e87canbus-console-kiosk.service" not in enabled_units
+    assert "e87canbus-console.service" in enabled_units
+    assert "e87canbus-console-kiosk.service" in enabled_units
+    assert "e87canbus-role.target" not in enabled_units
 
 
 def test_console_role_files_do_not_duplicate_deploy_assets() -> None:
@@ -848,5 +852,4 @@ def test_console_role_files_do_not_duplicate_deploy_assets() -> None:
         "e87canbus-console-kiosk-provisioning.conf",
         "e87canbus-console-provisioning.conf",
         "image.yaml",
-        "network-manager.cmds",
     }

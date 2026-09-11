@@ -1,0 +1,19 @@
+[Unit]
+Description=E87 hotspot DHCP server
+ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned
+After=NetworkManager-wait-online.service
+Wants=NetworkManager-wait-online.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/e87canbus/dnsmasq.conf
+Restart=on-failure
+NoNewPrivileges=yes
+RuntimeDirectory=e87canbus-dnsmasq
+StateDirectory=e87canbus-dnsmasq
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=e87canbus-role.target

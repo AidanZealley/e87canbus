@@ -173,7 +173,7 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
         assert "Before=e87canbus-controller.service" in can_unit
         assert f"sys-subsystem-net-devices-{interface}.device" in can_unit
         assert "restart-ms 100" in can_unit
-        assert "WantedBy=multi-user.target" in can_unit
+        assert "WantedBy=e87canbus-role.target" in can_unit
         assert "RequiredBy=e87canbus-controller.service" in can_unit
         assert f"ExecStartPre=-/usr/sbin/ip link set {interface} down" in can_unit
         assert f"ExecStart=/usr/sbin/ip link set {interface} up" in can_unit
@@ -228,9 +228,10 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
 
     assert helper_path.stat().st_mode & 0o111
-    assert "/usr/bin/nmcli --wait 0 connection up id e87canbus-hotspot" in helper
-    assert "/usr/bin/nmcli connection down id e87canbus-hotspot" in helper
+    assert "/usr/bin/nmcli --wait 0 connection up id e87canbus-coordinator-wifi" in helper
+    assert "/usr/bin/nmcli connection down id e87canbus-coordinator-wifi" in helper
     assert "/usr/bin/nmcli --get-values GENERAL.STATE" in helper
+    assert helper.count("e87canbus-coordinator-wifi") == 3
     assert "/usr/sbin/iw dev wlan0 station dump" in helper
 
     helper_command = "/usr/local/libexec/e87canbus-hotspot"
