@@ -101,7 +101,7 @@ hardware.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
-| macOS writer | 4 | After workstream 6, before workstream 7 | Testing | `3bac67b68a265b10508effced7930ae6c82beef7` | macOS writer evidence recorded on the combined candidate |
+| macOS writer | 4 | After workstream 6, before workstream 7 | Troubleshooting | `3bac67b68a265b10508effced7930ae6c82beef7` | macOS writer evidence recorded on a candidate that fixes the attempt 1 blockers |
 | Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
