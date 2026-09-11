@@ -134,9 +134,10 @@ def provision_card(
 def describe_disk(identity: DiskIdentity) -> str:
     serial = identity.serial or "not reported"
     mounts = ", ".join(identity.mounts) or "none"
+    location = "built-in removable media" if identity.internal else "external media"
     return (
         f"{identity.device_node}: {identity.model}, {identity.capacity_bytes} bytes, "
-        f"serial {serial}, {identity.protocol}, mounts {mounts}"
+        f"serial {serial}, {identity.protocol}, {location}, mounts {mounts}"
     )
 
 
@@ -159,7 +160,7 @@ def choose_disk(diskutil: Diskutil, selection: str | None) -> DiskIdentity:
             return inspect_target(diskutil, selection)
         choices = discover_eligible_disks(diskutil)
         if not choices:
-            raise ProvisionCommandError("no eligible external disk was found")
+            raise ProvisionCommandError("no eligible disk was found")
         return _choose("disk", choices, describe_disk)
     except DiskError as error:
         raise ProvisionCommandError(str(error)) from None

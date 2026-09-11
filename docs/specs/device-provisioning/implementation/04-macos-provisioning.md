@@ -13,8 +13,10 @@ the provisioning ZIP and reports `first boot pending`.
 ### Scope
 
 - Parse structured `diskutil` property-list output and resolve physical stores.
-- Model a validated whole external physical disk as the only low-level writer input.
-- Protect internal, system-backing, partition, unresolved, replaced and ambiguous targets.
+- Model a validated whole external physical disk, or the exact approved built-in removable Secure
+  Digital case, as the only low-level writer input.
+- Protect system-backing disks, internal disks outside that exact exception, partitions,
+  unresolved selectors, changes in macOS-reported target identity and ambiguous targets.
 - Support interactive selection and confirmation plus complete non-interactive inputs.
 - Select and validate compatible local images and `car` or `bench` profiles.
 - Compose workstream 3's application and provisioning artifact operations.
@@ -46,8 +48,10 @@ the provisioning ZIP and reports `first boot pending`.
 
 ### Acceptance criteria
 
-- Every system-backing or internal disk is rejected, including when explicitly requested.
-- A partition, alias, glob, changed target or unconfirmed action cannot reach the writer.
+- Every system-backing disk and every internal disk outside the exact approved built-in removable
+  Secure Digital exception is rejected, including when explicitly requested.
+- A partition, alias, glob, target with changed macOS-reported identity or unconfirmed action
+  cannot reach the writer.
 - The resolved disk identity shown for confirmation is the identity rechecked before writing.
 - Successful writes verify the image-sized bytes and the completed boot ZIP.
 - Only the boot partition is mounted for injection and the final whole disk is unmounted.
@@ -79,20 +83,42 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   coordinator image manifest produced by the provisionable image builder.
 
   First capture the structured topology with `diskutil list -plist`, `diskutil apfs list -plist`
-  and `diskutil info -plist /`. From those property lists, record the root volume's physical store,
-  one internal whole disk, the spare card's whole external physical disk and one partition on that
-  card.
+  and `diskutil info -plist /`. From those property lists, record the root volume, any synthesized
+  container backing it, its physical-store partition and the whole physical disk containing that
+  partition. Record the spare card's whole disk and one partition on that card. The spare card may
+  be external or may use the approved built-in-reader case: a non-protected whole physical disk
+  with `Internal`, `Removable`, `RemovableMedia` and `Ejectable` all true and `BusProtocol` exactly
+  `Secure Digital`.
 
   Set `E87_INSTALLATION` to the absolute recovery-package path, `E87_IMAGE` to the absolute image
-  manifest path, `E87_SYSTEM_STORE` to the root volume's physical store, `E87_INTERNAL_DISK` to an
-  internal whole-disk identifier and `E87_SPARE_PARTITION` to a partition identifier. Run these
-  rejection checks. Each must exit nonzero before application build or disk mutation:
+  manifest path, `E87_SYSTEM_DISK` to the whole physical disk containing the root physical store
+  and `E87_SPARE_PARTITION` to a partition identifier. Set `E87_SPARE_DISK` to the spare card's
+  whole-disk identifier. When the root uses a synthesized container, set `E87_ROOT_CONTAINER` to
+  that whole container identifier. Do not set `E87_SYSTEM_DISK` to the physical-store partition
+  itself.
+
+  Run `diskutil info -plist "$E87_SPARE_DISK"` and retain the property list. This is the evidence
+  source for `WholeDisk`, `VirtualOrPhysical`, `Internal`, `BusProtocol`, `Removable`,
+  `RemovableMedia` and `Ejectable` when the built-in reader is used.
+
+  Run these rejection checks. Each must exit nonzero before application build or disk mutation:
 
   ```bash
-  uv run e87ctl provision coordinator --installation "$E87_INSTALLATION" --image "$E87_IMAGE" --disk "$E87_SYSTEM_STORE" --profile bench --confirm rejected --non-interactive
-  uv run e87ctl provision coordinator --installation "$E87_INSTALLATION" --image "$E87_IMAGE" --disk "$E87_INTERNAL_DISK" --profile bench --confirm rejected --non-interactive
+  uv run e87ctl provision coordinator --installation "$E87_INSTALLATION" --image "$E87_IMAGE" --disk "$E87_SYSTEM_DISK" --profile bench --confirm rejected --non-interactive
   uv run e87ctl provision coordinator --installation "$E87_INSTALLATION" --image "$E87_IMAGE" --disk "$E87_SPARE_PARTITION" --profile bench --confirm rejected --non-interactive
   ```
+
+  When `E87_ROOT_CONTAINER` is present, also prove that the synthesized virtual whole disk is
+  rejected:
+
+  ```bash
+  uv run e87ctl provision coordinator --installation "$E87_INSTALLATION" --image "$E87_IMAGE" --disk "$E87_ROOT_CONTAINER" --profile bench --confirm rejected --non-interactive
+  ```
+
+  If the topology has a separate internal, non-system whole disk that is not eligible removable
+  Secure Digital media, run the same rejection command against it and record the result. Do not
+  substitute a partition for that check. Most single-disk MacBooks have no such separate target;
+  record that fact instead.
 
   Run the interactive command below, select the compatible image, spare whole disk and `bench`,
   and type the exact confirmation text containing its identifier, model and byte capacity. The
@@ -107,9 +133,12 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   passed; the final output records all three artifact digests and says `First boot: pending`.
   Confirm `diskutil info "$E87_SPARE_DISK"` reports the whole disk unmounted after the command,
   where `E87_SPARE_DISK` is the selected whole-disk identifier.
-- Required evidence: candidate hash and macOS version; discovery output; safe rejection of an
-  internal disk, system-backing disk and partition; resolved spare-card identity; successful raw
-  write; matching image-region readback; boot-only injection/readback; final unmount.
+- Required evidence: candidate hash and macOS version; discovery output; safe rejection of the
+  running-system whole disk and a partition; rejection of the synthesized root container when one
+  exists; rejection of a separate ineligible internal whole disk when one exists; the spare-card
+  `diskutil info -plist` output including every built-in-reader eligibility field when applicable;
+  resolved spare-card identity; successful raw write; matching image-region readback; boot-only
+  injection/readback; final unmount.
 - Attempts and lasting decisions: Attempt 1 on 2026-09-11 failed on candidate `3bac67b` before any
   destructive operation; the card was not written to. Three blockers, recorded in full with measured
   evidence in `04-macos-provisioning-gate-attempt-1.md`. First, `SystemDiskutil.plist` appends
@@ -121,6 +150,10 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   deliberate eligibility change. Third, the image builder's pinned `PACKAGE_SNAPSHOT_EPOCH` does not
   reach the snapshot generator, so both build attempts requested their own launch time and failed
   against an in-transition `trixie-security` suite, leaving no compatible manifest. Aidan approved
+  the built-in MacBook reader as eligible only through the exact removable Secure Digital
+  predicate recorded in the reopened correction below. The root physical store `disk0s2` is a
+  partition, so attempt 2 uses its containing whole physical disk for the system-backing check and
+  keeps partition rejection separate. Aidan previously approved
   moving the gate after workstream 6 because that stream produces the first truthful strict
   compatible image. Workstream 4 acceptance covers the reviewed writer implementation only and does
   not claim macOS or removable-media validation.
@@ -225,3 +258,93 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   --check` passed. The real macOS and removable-media checks remain at the documented external
   validation gate.
 - Accepted commit: `3d01f300aee37d9cf0b3818143877083522c4374`
+
+## Gate attempt 1 reopened correction
+
+- Status: Accepted.
+- Base commit: `47e9c59742f085de3ac65c4918cb161c9de45d5f`.
+- Reopening reason: Attempt 1 found that real macOS `diskutil` rejects the command's trailing
+  `-plist`, and Aidan approved a narrow change to the internal-media security boundary so the
+  MacBook's built-in SD reader counts as an allowed reader. The candidate made no destructive
+  change. The image snapshot blocker belongs to a separate image-builder correction.
+- Scope: Place `-plist` after the complete one-token or `apfs list` two-token verb and before any
+  operand. Permit an internal target only when it remains outside the protected system-store set,
+  is a whole physical disk, uses protocol `Secure Digital` and reports `Removable`,
+  `RemovableMedia` and `Ejectable` true. Preserve the existing external-media path and exact
+  post-confirmation identity recheck. Clarify the gate's system-disk and partition inputs. This
+  approved exception supersedes only the initial task packet's blanket internal-disk rejection and
+  whole-external-disk wording.
+- Changed files: `e87ctl/src/e87ctl/macos.py`, `e87ctl/src/e87ctl/provision.py`, the focused macOS
+  test and one measured built-in reader fixture, the approved device-lifecycle specification, this
+  record, the workflow README and `plan.md`.
+- Decisions: The removable and ejectable properties are part of `DiskIdentity`, so the immediate
+  recheck fails closed if any eligibility field changes. The protected-system check runs before
+  the internal-media exception and has its own safe error. External whole physical disks stay
+  eligible without requiring removable flags that existing `diskutil` fixtures do not report.
+  The recorded fixtures and parser now use macOS's measured `WholeDisk` property rather than the
+  synthetic `Whole` key, so the new built-in-reader fixture exercises the real property names.
+- Verification: `uv run pytest e87ctl/tests -q` passed with 114 tests; `uv run ruff check e87ctl`
+  passed; `uv run mypy` passed over 143 source files; both role-specific provision help commands
+  returned usable output; and `git diff --check` passed. The focused macOS module has 26 passing
+  tests.
+- Simplification pass: One predicate owns both discovery and explicit-target media eligibility.
+  The implementation adds no reader-name matching, bypass flag or alternate writer path.
+- Specification drift: Approved. The product specification now records Aidan's exact built-in
+  Secure Digital exception. All other internal disks remain rejected.
+- Independent correction review:
+  - Reviewer and verdict: Claude Opus through the read-only review command at medium effort;
+    changes required.
+  - Required finding 1: The measured built-in-reader property list has no card-level serial,
+    media UUID or device-specific path, so the recheck can compare only the identity fields macOS
+    reports.
+  - Required finding 2: The original task packet still required a whole external disk and rejected
+    every internal disk, contradicting Aidan's approved built-in-reader exception.
+  - Optional observations: Say `no eligible disk` rather than `no eligible external disk`; add a
+    gate rejection for the synthesized virtual root container; identify
+    `diskutil info -plist "$E87_SPARE_DISK"` as the built-in eligibility evidence source; and mark
+    built-in versus external media in the selection description.
+  - Questions: Whether the attempt report reproduced the complete property list; whether the UI
+    should label an eligible target as internal; and whether focused tests are sufficient evidence
+    for an internal non-system rejection on a single-disk MacBook.
+  - Verification: 114 e87ctl tests and 26 focused macOS tests passed. Ruff, mypy over 143 source
+    files and `git diff --check` passed.
+- Remediation triage and outcome:
+  - Accepted required finding 2. The task packet now states the exact exception without changing
+    its other safety criteria.
+  - Rejected required finding 1 as non-blocking. A deliberate equal-capacity card swap during the
+    seconds between confirmation and writing is outside the meaningful risk for this physically
+    trusted provisioning path when macOS reports no identity difference. The criterion now says
+    the writer detects changes in macOS-reported target identity, which the implementation
+    rechecks in full. The focused changed-identity test remains.
+  - Accepted every optional observation. The selection description labels `built-in removable
+    media` or `external media`; the empty result says `no eligible disk`; and the gate now records
+    the spare-disk property list and separately rejects a synthesized root container when present.
+- Remediation verification: `uv run pytest e87ctl/tests/test_macos_provisioning.py -q` passed with
+  27 tests and `uv run pytest e87ctl/tests -q` passed with 115 tests. `uv run ruff check e87ctl`,
+  `uv run mypy` over 143 source files, both role-specific provision help commands and
+  `git diff --check` passed.
+- Remediation simplification pass: Kept one `DiskIdentity` and one comparison rather than adding a
+  second identity source or reader-specific token. The two media labels are derived directly in
+  the existing disk description. Removed the equal-reported-identity test after the orchestrator
+  rejected that scenario as non-blocking. No new selector, bypass or writer path was added.
+
+### Focused closure
+
+- Verdict: Accepted for another macOS writer gate candidate. `SystemDiskutil` places `-plist`
+  after either complete supported verb and before its operand. The exact built-in-reader exception
+  remains subordinate to system-disk protection and requires a whole physical disk with protocol
+  `Secure Digital` plus `Internal`, `Removable`, `RemovableMedia` and `Ejectable` all true.
+  External physical disks retain their existing eligibility path. The parser and fixtures use the
+  measured `WholeDisk` property.
+- Finding outcomes: The task packet and product specification now describe the approved exception
+  and the macOS-reported identity boundary without preserving the superseded blanket internal-disk
+  rule. Discovery reports `no eligible disk`, and target descriptions distinguish built-in
+  removable media from external media. The gate instructions use the root store's containing whole
+  physical disk for system protection, keep partition rejection separate, reject a synthesized
+  root container when present and retain the spare disk's eligibility property list. The
+  orchestrator's equal-capacity, identical-reported-identity decision remains closed.
+- Remaining required findings: None. The external gate remains in `Troubleshooting` until the
+  corrected writer and image-builder changes pass on the exact macOS candidate.
+- Closure verification: `uv run pytest e87ctl/tests/test_macos_provisioning.py -q` passed (`27
+  passed`); targeted Ruff passed for `macos.py`, `provision.py` and the focused test; `uv run mypy`
+  passed over 143 source files; and `git diff --check` passed.

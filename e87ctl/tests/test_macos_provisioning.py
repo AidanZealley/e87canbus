@@ -14,12 +14,13 @@ from e87ctl.cli import main
 from e87ctl.macos import (
     DiskError,
     Diskutil,
+    SystemDiskutil,
     discover_eligible_disks,
     inspect_target,
     recheck_target,
     write_card,
 )
-from e87ctl.provision import confirmation_value, provision_card
+from e87ctl.provision import confirmation_value, describe_disk, provision_card
 from e87ctl.provisioning import ProvisioningArtifact, build_provisioning_bundle
 from e87ctl.recovery import create_recovery_package, write_recovery_package
 
@@ -177,6 +178,108 @@ def test_discovery_resolves_synthesized_system_store_and_reports_external_mount(
     assert disks[0].mounts == ("/Volumes/OLD",)
 
 
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (("info", "/"), ["diskutil", "info", "-plist", "/"]),
+        (("list", "disk4"), ["diskutil", "list", "-plist", "disk4"]),
+        (("apfs", "list"), ["diskutil", "apfs", "list", "-plist"]),
+        (
+            ("apfs", "list", "disk3"),
+            ["diskutil", "apfs", "list", "-plist", "disk3"],
+        ),
+    ],
+)
+def test_system_diskutil_places_plist_after_the_complete_verb(
+    arguments: tuple[str, ...],
+    expected: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    class Completed:
+        stdout = plistlib.dumps({})
+
+    def run(command: list[str], *, check: bool, capture_output: bool) -> Completed:
+        assert check is True
+        assert capture_output is True
+        calls.append(command)
+        return Completed()
+
+    monkeypatch.setattr("e87ctl.macos.subprocess.run", run)
+
+    assert SystemDiskutil().plist(*arguments) == {}
+    assert calls == [expected]
+
+
+def test_builtin_sd_reader_media_is_eligible() -> None:
+    diskutil = FixtureDiskutil()
+    diskutil.external_info = _plist("builtin-sd-info.plist")
+
+    disks = discover_eligible_disks(diskutil)
+
+    assert [disk.identifier for disk in disks] == ["disk4"]
+    assert disks[0].internal is True
+    assert disks[0].protocol == "Secure Digital"
+    assert disks[0].removable is True
+    assert disks[0].removable_media is True
+    assert disks[0].ejectable is True
+    assert "built-in removable media" in describe_disk(disks[0])
+
+
+def test_builtin_sd_reader_identity_change_prevents_validated_target() -> None:
+    diskutil = FixtureDiskutil()
+    diskutil.external_info = _plist("builtin-sd-info.plist")
+    expected = inspect_target(diskutil, "disk4")
+    diskutil.external_info = dict(diskutil.external_info)
+    diskutil.external_info["TotalSize"] = expected.capacity_bytes + 512
+
+    with pytest.raises(DiskError, match="changed after confirmation"):
+        recheck_target(diskutil, expected)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("BusProtocol", "USB"),
+        ("Removable", False),
+        ("RemovableMedia", False),
+        ("Ejectable", False),
+    ],
+)
+def test_internal_media_must_match_every_builtin_sd_reader_property(
+    field: str, value: str | bool
+) -> None:
+    diskutil = FixtureDiskutil()
+    diskutil.external_info = _plist("builtin-sd-info.plist")
+    diskutil.external_info[field] = value
+
+    assert discover_eligible_disks(diskutil) == []
+    with pytest.raises(DiskError, match="internal disk"):
+        inspect_target(diskutil, "disk4")
+
+
+def test_system_backing_disk_is_rejected_even_if_it_matches_builtin_sd_reader() -> None:
+    diskutil = FixtureDiskutil()
+    internal_sd = _plist("builtin-sd-info.plist")
+    internal_sd.update(
+        {
+            "DeviceIdentifier": "disk0",
+            "DeviceNode": "/dev/disk0",
+        }
+    )
+    original_plist = diskutil.plist
+
+    def plist(*arguments: str) -> dict[str, Any]:
+        if arguments == ("info", "disk0"):
+            return internal_sd
+        return original_plist(*arguments)
+
+    diskutil.plist = plist  # type: ignore[method-assign]
+    with pytest.raises(DiskError, match="backs the running system"):
+        inspect_target(diskutil, "disk0")
+
+
 def test_system_backing_disk_is_rejected_even_when_reported_external() -> None:
     diskutil = FixtureDiskutil()
     diskutil_document = _plist("internal-info.plist")
@@ -190,7 +293,7 @@ def test_system_backing_disk_is_rejected_even_when_reported_external() -> None:
         return original_plist(*arguments)
 
     diskutil.plist = plist  # type: ignore[method-assign]
-    with pytest.raises(DiskError, match="internal or backs"):
+    with pytest.raises(DiskError, match="backs the running system"):
         inspect_target(diskutil, "/dev/disk0")
 
 
@@ -214,7 +317,7 @@ def test_internal_disk_is_rejected_when_it_does_not_back_system() -> None:
         return original_plist(*arguments)
 
     diskutil.plist = plist  # type: ignore[method-assign]
-    with pytest.raises(DiskError, match="internal or backs"):
+    with pytest.raises(DiskError, match="internal disk"):
         inspect_target(diskutil, "disk5")
 
 

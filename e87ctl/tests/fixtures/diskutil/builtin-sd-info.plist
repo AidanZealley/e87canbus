@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>DeviceIdentifier</key><string>disk4</string><key>DeviceNode</key><string>/dev/disk4</string><key>WholeDisk</key><true/><key>Internal</key><true/><key>VirtualOrPhysical</key><string>Physical</string>
+<key>BusProtocol</key><string>Secure Digital</string><key>TotalSize</key><integer>127999672320</integer><key>MediaName</key><string>Built In SDXC Reader</string>
+<key>IORegistryEntryName</key><string>Apple SDXC Reader Media</string><key>Removable</key><true/><key>RemovableMedia</key><true/><key>Ejectable</key><true/>
+</dict></plist>

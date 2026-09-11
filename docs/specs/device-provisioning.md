@@ -414,8 +414,11 @@ The writer must:
 
 - resolve partitions, APFS containers and synthesized devices to their physical stores;
 - protect every disk backing the running system;
-- reject internal disks even when explicitly named;
-- accept only a whole external physical disk, never a partition;
+- reject internal disks even when explicitly named, except removable media in the MacBook's
+  built-in SD reader when `diskutil` reports a whole physical disk with `Internal`, `Removable`,
+  `RemovableMedia` and `Ejectable` all true and `BusProtocol` exactly `Secure Digital`;
+- accept only a whole external physical disk or that exact built-in-reader case, never a
+  partition;
 - reject unresolved paths, globs and ambiguous aliases;
 - report the resolved device, model, capacity, serial, protocol and mounts;
 - require confirmation of the resolved device, model and capacity;
@@ -425,8 +428,8 @@ The writer must:
 - read back and hash the image-sized region; and
 - mount only the boot partition for bundle injection before a final whole-disk unmount.
 
-No flag bypasses system-disk, internal-disk, whole-disk or identity checks. Mounted eligible targets
-remain unavailable until the confirmed operation unmounts them.
+No flag bypasses system-disk, internal-media, whole-disk or identity checks. Mounted eligible
+targets remain unavailable until the confirmed operation unmounts them.
 
 The low-level writer accepts only a validated target value produced by these checks. It cannot
 accept an arbitrary path through another call site.
@@ -491,8 +494,10 @@ existing recovery package. The old credential remains valid until the installati
 - A laptop with only the Wi-Fi password cannot read application data.
 - The console can use every current production operation required by its UI and cannot use an
   operator-only endpoint.
-- System and internal disks cannot reach the writer, including through explicit input.
-- The writer detects target replacement before writing and verifies image and bundle bytes.
+- System disks and internal disks outside the exact removable Secure Digital exception cannot
+  reach the writer, including through explicit input.
+- The writer detects changes in macOS-reported target identity before writing and verifies image
+  and bundle bytes.
 - Provisioning reports card preparation without claiming first-boot success.
 - Online verification proves the installed identities, network path and application health.
 - Rebuilt coordinator and console images pass the relevant automated and physical checks.

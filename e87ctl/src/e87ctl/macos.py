@@ -33,6 +33,9 @@ class DiskIdentity:
     serial: str | None
     protocol: str
     internal: bool
+    removable: bool | None
+    removable_media: bool | None
+    ejectable: bool | None
     mounts: tuple[str, ...]
     device_tree_path: str | None
     media_uuid: str | None
@@ -47,8 +50,16 @@ class Diskutil(Protocol):
 class SystemDiskutil:
     def plist(self, *arguments: str) -> dict[str, Any]:
         try:
+            verb_tokens = 2 if arguments[:2] == ("apfs", "list") else 1
             completed = subprocess.run(
-                ["diskutil", *arguments, "-plist"], check=True, capture_output=True
+                [
+                    "diskutil",
+                    *arguments[:verb_tokens],
+                    "-plist",
+                    *arguments[verb_tokens:],
+                ],
+                check=True,
+                capture_output=True,
             )
             document = plistlib.loads(completed.stdout)
             if not isinstance(document, dict):
@@ -87,8 +98,13 @@ def inspect_target(diskutil: Diskutil, selector: str) -> DiskIdentity:
     if _PARTITION_IDENTIFIER.fullmatch(identifier):
         raise DiskError("the selected target is a partition, not a whole disk")
     identity = _read_whole_disk(diskutil, identifier)
-    if not _eligible(identity, _system_physical_stores(diskutil)):
-        raise DiskError("the selected disk is internal or backs the running system")
+    protected = _system_physical_stores(diskutil)
+    if identity.identifier in protected:
+        raise DiskError("the selected disk backs the running system")
+    if not _supported_media(identity):
+        raise DiskError(
+            "the selected internal disk is not removable Secure Digital media"
+        )
     return identity
 
 
@@ -171,7 +187,16 @@ def write_card(
 
 
 def _eligible(identity: DiskIdentity, protected: set[str]) -> bool:
-    return identity.identifier not in protected and not identity.internal
+    return identity.identifier not in protected and _supported_media(identity)
+
+
+def _supported_media(identity: DiskIdentity) -> bool:
+    return not identity.internal or (
+        identity.protocol == "Secure Digital"
+        and identity.removable is True
+        and identity.removable_media is True
+        and identity.ejectable is True
+    )
 
 
 def _parse_selector(selector: str) -> str:
@@ -183,7 +208,7 @@ def _parse_selector(selector: str) -> str:
 
 def _read_whole_disk(diskutil: Diskutil, identifier: str) -> DiskIdentity:
     info = diskutil.plist("info", identifier)
-    if info.get("Whole") is not True or info.get("DeviceIdentifier") != identifier:
+    if info.get("WholeDisk") is not True or info.get("DeviceIdentifier") != identifier:
         raise DiskError("the selected target is not a whole disk")
     if info.get("VirtualOrPhysical") != "Physical":
         raise DiskError("the selected target is not a physical disk")
@@ -191,6 +216,9 @@ def _read_whole_disk(diskutil: Diskutil, identifier: str) -> DiskIdentity:
     if not isinstance(internal, bool):
         raise DiskError("diskutil did not report whether the disk is internal")
     protocol = _required_string(info, "BusProtocol")
+    removable = _optional_bool(info, "Removable")
+    removable_media = _optional_bool(info, "RemovableMedia")
+    ejectable = _optional_bool(info, "Ejectable")
     device_node = _required_string(info, "DeviceNode")
     if device_node != f"/dev/{identifier}":
         raise DiskError("diskutil returned an unexpected device node")
@@ -219,6 +247,9 @@ def _read_whole_disk(diskutil: Diskutil, identifier: str) -> DiskIdentity:
         serial=serial,
         protocol=protocol,
         internal=internal,
+        removable=removable,
+        removable_media=removable_media,
+        ejectable=ejectable,
         mounts=mounts,
         device_tree_path=tree_path,
         media_uuid=media_uuid,
@@ -392,4 +423,11 @@ def _required_string(document: dict[str, Any], name: str) -> str:
     value = document.get(name)
     if not isinstance(value, str) or not value:
         raise DiskError(f"diskutil did not report {name}")
+    return value
+
+
+def _optional_bool(document: dict[str, Any], name: str) -> bool | None:
+    value = document.get(name)
+    if value is not None and not isinstance(value, bool):
+        raise DiskError(f"diskutil returned an invalid {name}")
     return value
