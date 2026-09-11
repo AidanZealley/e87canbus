@@ -101,7 +101,7 @@ hardware.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
-| macOS writer | 4 | After workstream 6, before workstream 7 | Testing | `d0a22c191e8402602f299ec2b77006c9a59e400d` | macOS writer evidence recorded on the corrected candidate |
+| macOS writer | 4 | After workstream 6, before workstream 7 | Troubleshooting | `d0a22c191e8402602f299ec2b77006c9a59e400d` | Disk safety evidenced at attempt 2; needs a candidate whose image build completes |
 | Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
