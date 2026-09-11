@@ -1,6 +1,6 @@
 # Workstream 1: Establish the CLI boundary and preserve image building
 
-Status: accepted.
+Status: closure review.
 
 ## Task packet
 
@@ -127,3 +127,79 @@ bash -n e87ctl/scripts/build-pi-image
   release-blocking defect.
 - Remaining required findings: None.
 - Accepted commit: `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`
+
+## macOS gate attempt 1 correction
+
+- Status: Closure review.
+- Owner and base: Codex (`/root/ws1_snapshot_fix`), working from
+  `c7e21f0ef275cf1adbc5ad5ddfdbb894ee231423`.
+- Reopening reason: The first macOS writer-gate attempt could not produce a compatible image.
+  Both builds used their launch time for Debian snapshots instead of the pinned
+  `PACKAGE_SNAPSHOT_EPOCH=1786579200`, then failed while the live `trixie-security` snapshot was
+  incomplete. The Docker environment contained `SOURCE_DATE_EPOCH`, but pinned upstream commit
+  `262d4df5a9f9d4133370465399a7958a7c22cdc7` creates its generated configuration through `env -i`.
+- Correction: Pass `SOURCE_DATE_EPOCH=1786579200` as an upstream build configuration override
+  after `--`, alongside the existing `IGconf_*` overrides. Remove the ineffective Docker-only
+  environment option. Add the standard `images/post-build.sh` source hook, which checks the
+  assembled root's generated `/usr/share/rpi-image-gen/origin` for the exact epoch before image
+  generation and deployment can publish an artifact.
+- Upstream contract checked: At the pinned revision, `rpi-image-gen` writes command-line overrides
+  into its generated `final.env`, invokes build phases from that environment, and its `snapgen`
+  generator records `# SOURCE_DATE_EPOCH: <value>` in `rpi-image-gen.origin`. The built-in cleanup
+  phase copies that record into the assembled root before the source `post-build.sh` hook runs.
+  Upstream's reproducible-build examples use the same `-- SOURCE_DATE_EPOCH=<epoch>` form.
+- Files changed: `e87ctl/scripts/build-pi-image`, `e87ctl/tests/test_image_build.py`, and the new
+  `images/post-build.sh`, plus this record and `plan.md`.
+- Test evidence: The fake-Docker build records the complete final `docker run` argument vector and
+  proves the epoch appears only after the upstream `--` separator. A focused executable-hook test
+  accepts the pinned generated origin and rejects an origin produced by the live-time fallback.
+- Verification: `uv run pytest e87ctl/tests/test_image_build.py -q` passed (`43 passed`), and the
+  complete `e87ctl` suite passed (`117 passed`). `uv run ruff check e87ctl`, `uv run mypy` over 143
+  source files, shell syntax checks for the builder, post-build hook, image hooks and image checker,
+  and `git diff --check` passed.
+- External check: Docker is unavailable in this environment, so the correction does not claim a
+  real image build. The macOS writer gate remains `Troubleshooting` until a committed candidate
+  produces a compatible image and passes the recorded gate evidence.
+- Simplification and drift: The correction uses upstream's existing configuration and hook
+  contracts. It adds no upstream patch, fork, fallback timestamp or second snapshot setting.
+  Specification drift: None.
+
+### Focused correction review and resolution
+
+- Reviewer and verdict: Claude Code Opus at medium effort through the configured read-only review
+  command. Accepted with one required test correction.
+- Required finding: The hook behavior test invoked `images/post-build.sh` through `sh`, but the
+  pinned upstream runner ignores a source hook that lacks executable mode. The test therefore did
+  not protect the hook-discovery contract.
+- Optional observation accepted: Pin the existing `-S /source/images` argument in the recorded
+  Docker invocation because that directory is where upstream discovers `post-build.sh`.
+- Resolution: The test now asserts `os.access(SNAPSHOT_CHECK, os.X_OK)` and the exact source-root
+  argument. Git records `images/post-build.sh` as mode `100755`. The runbook briefly states that the
+  builder pins the Debian package snapshot and checks the generated origin before publication.
+- Rejected or deferred observations: No test was added for the practically unreachable absent-env
+  branch, and no multi-stanza parsing machinery was added. The exact generated epoch line already
+  detects the observed live-time fallback.
+- Simplification: Kept one upstream override, one standard post-build hook and one exact-line check.
+  The correction still has no alternate timestamp path or upstream patch.
+
+### Correction closure review
+
+- Reviewer and base: Codex (`/root/ws1_snapshot_closure`), reviewing the complete uncommitted
+  correction from `c7e21f0ef275cf1adbc5ad5ddfdbb894ee231423`.
+- Accepted finding: Closed. `images/post-build.sh` is executable and resolves to Git mode `100755`.
+  Its behavior test pins that executable contract. The recorded Docker argument test also pins
+  `-S /source/images`, which is the source root where the upstream runner discovers the hook.
+- Correction check: The final Docker invocation passes the exact
+  `SOURCE_DATE_EPOCH=1786579200` after upstream's `--` separator and no longer uses Docker's
+  `--env` path. At pinned upstream revision `262d4df5a9f9d4133370465399a7958a7c22cdc7`, command-line
+  overrides enter the generated `final.env` across both `env -i` boundaries. `snapgen` writes the
+  same value to `rpi-image-gen.origin`; built-in cleanup copies that file into the assembled root;
+  and the source post-build hook checks its exact epoch line before SBOM, image generation and
+  deployment.
+- Verification: `uv run pytest e87ctl/tests/test_image_build.py -q` passed (`43 passed`); `uv run
+  ruff check e87ctl`, shell syntax checks for the builder and hook, and both tracked and new-file
+  whitespace checks passed. Direct executable-hook checks accepted the pinned origin and rejected
+  both the live-time fallback and an absent generated epoch. Docker remains unavailable, so the
+  macOS writer gate still owns the real image-build evidence.
+- Remaining required findings: None. The remediation introduced no release-blocking defect.
+- Verdict: Accepted.

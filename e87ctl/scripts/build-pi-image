@@ -177,12 +177,12 @@ docker run --rm \
     --volume /tmp \
     --mount "type=volume,src=${PACKAGE_CACHE_VOLUME},dst=/cache,volume-nocopy" \
     --mount "type=bind,src=${STAGING_DIR},dst=/output" \
-    --env "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
     "${BUILDER_IMAGE}" build \
     -S /source/images \
     -B /work \
     -c "${CONTAINER_CONFIG}" \
     -- \
+    "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
     "IGconf_artefact_version=${BUILD_ID}" \
     "IGconf_image_name=e87-${ROLE}" \
     "IGconf_sys_apt_cachedir=/cache" \

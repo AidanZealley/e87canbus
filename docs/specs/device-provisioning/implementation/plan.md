@@ -16,7 +16,7 @@ Status: implementation in progress.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb` |
+| 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Closure review | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`; gate correction pending |
 | 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374`; correction `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e` |
@@ -121,3 +121,4 @@ workstream status.
 | 2026-09-11 | Reopen workstream 4 after macOS writer gate attempt 1. | Candidate `3bac67b` made no destructive change. Measured macOS evidence found invalid `diskutil -plist` argument placement and ambiguous system-disk instructions. The image snapshot failure remains with the image-builder correction owner. | Orchestrator | 4 |
 | 2026-09-11 | Allow removable media in the MacBook's built-in SD reader through one exact eligibility predicate. | The built-in reader reports its card as internal. Aidan approved it only when the target is a non-protected whole physical disk with `Internal`, `Removable`, `RemovableMedia` and `Ejectable` true and `BusProtocol` exactly `Secure Digital`. | Aidan | 4 |
 | 2026-09-11 | Treat a complete recheck of macOS-reported target identity as the replacement-detection boundary. | A deliberate equal-capacity swap during the seconds between confirmation and writing is outside the meaningful risk for this physically trusted path when macOS reports no identity difference. Inventing identity would not improve safety. | Orchestrator | 4 |
+| 2026-09-11 | Reopen workstream 1 for the package-snapshot propagation defect found in macOS gate attempt 1. | A Docker-only `SOURCE_DATE_EPOCH` does not enter pinned upstream's clean generated configuration, so `snapgen` silently used build launch time. The correction uses upstream's configuration override and fails before publication unless the generated origin records the pinned epoch. | Orchestrator | 1 and macOS writer gate |
