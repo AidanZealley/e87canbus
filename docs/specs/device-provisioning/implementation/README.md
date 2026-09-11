@@ -125,7 +125,7 @@ Workstream 4 has a macOS writer gate after workstream 6 and before workstream 7.
 reviewed implementation may be accepted before the gate because workstream 6 produces the first
 truthful compatible image. After workstream 6 is accepted, push one combined candidate and give
 Aidan the commands in the workstream 4 record. Evidence must cover structured disk discovery,
-rejection of protected/internal/partition targets, target-identity recheck, one successful
+rejection of protected/ineligible-internal/partition targets, target-identity recheck, one successful
 spare-card write, image-region readback and boot-only mounting. Start workstream 7 only after the
 result and combined candidate hash are recorded.
 
