@@ -71,7 +71,7 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Testing`
+- Status: `Troubleshooting`
 - Candidate and instructions: The orchestrator records and pushes the combined workstream 4 and 6
   candidate `3bac67b68a265b10508effced7930ae6c82beef7`. On the M1 Pro MacBook, check out that
   exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
@@ -110,10 +110,20 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Required evidence: candidate hash and macOS version; discovery output; safe rejection of an
   internal disk, system-backing disk and partition; resolved spare-card identity; successful raw
   write; matching image-region readback; boot-only injection/readback; final unmount.
-- Attempts and lasting decisions: No attempt yet. Aidan approved moving the gate after workstream 6
-  because that stream produces the first truthful strict compatible image. Workstream 4 acceptance
-  covers the reviewed writer implementation only and does not claim macOS or removable-media
-  validation.
+- Attempts and lasting decisions: Attempt 1 on 2026-09-11 failed on candidate `3bac67b` before any
+  destructive operation; the card was not written to. Three blockers, recorded in full with measured
+  evidence in `04-macos-provisioning-gate-attempt-1.md`. First, `SystemDiskutil.plist` appends
+  `-plist` after the operand, which `diskutil` rejects, so every `provision` invocation aborts in
+  `_system_physical_stores` before resolving any disk; the `disk3` and `disk0` rejection exits are
+  therefore vacuous and must not be read as evidence that the internal or system-backing guards
+  fired. Second, the MacBook Pro's built-in SDXC reader reports `Internal: true`, so the inserted
+  card is ineligible by design and discovery lists no disks; the gate needs either a USB reader or a
+  deliberate eligibility change. Third, the image builder's pinned `PACKAGE_SNAPSHOT_EPOCH` does not
+  reach the snapshot generator, so both build attempts requested their own launch time and failed
+  against an in-transition `trixie-security` suite, leaving no compatible manifest. Aidan approved
+  moving the gate after workstream 6 because that stream produces the first truthful strict
+  compatible image. Workstream 4 acceptance covers the reviewed writer implementation only and does
+  not claim macOS or removable-media validation.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 
