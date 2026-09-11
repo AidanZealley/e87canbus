@@ -348,3 +348,6 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Closure verification: `uv run pytest e87ctl/tests/test_macos_provisioning.py -q` passed (`27
   passed`); targeted Ruff passed for `macos.py`, `provision.py` and the focused test; `uv run mypy`
   passed over 143 source files; and `git diff --check` passed.
+- Accepted correction commit: `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e`. The implementation
+  owner hit its usage limit after acceptance, so a fresh agent verified and committed the unchanged
+  staged tree.
