@@ -75,9 +75,9 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Troubleshooting`
-- Candidate and instructions: The orchestrator records and pushes the combined workstream 4 and 6
-  candidate `3bac67b68a265b10508effced7930ae6c82beef7`. On the M1 Pro MacBook, check out that
+- Status: `Testing`
+- Candidate and instructions: The orchestrator records and pushes the combined corrected
+  candidate `d0a22c191e8402602f299ec2b77006c9a59e400d`. On the M1 Pro MacBook, check out that
   exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
   then run `uv sync --locked`. Keep the recovery package outside the checkout and use a compatible
   coordinator image manifest produced by the provisionable image builder.
@@ -157,6 +157,8 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   moving the gate after workstream 6 because that stream produces the first truthful strict
   compatible image. Workstream 4 acceptance covers the reviewed writer implementation only and does
   not claim macOS or removable-media validation.
+  Candidate `d0a22c1` contains the accepted writer and snapshot-propagation corrections and is ready
+  for attempt 2.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 

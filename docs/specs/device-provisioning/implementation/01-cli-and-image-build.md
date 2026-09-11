@@ -1,6 +1,6 @@
 # Workstream 1: Establish the CLI boundary and preserve image building
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -130,7 +130,7 @@ bash -n e87ctl/scripts/build-pi-image
 
 ## macOS gate attempt 1 correction
 
-- Status: Closure review.
+- Status: Accepted.
 - Owner and base: Codex (`/root/ws1_snapshot_fix`), working from
   `c7e21f0ef275cf1adbc5ad5ddfdbb894ee231423`.
 - Reopening reason: The first macOS writer-gate attempt could not produce a compatible image.
@@ -203,3 +203,4 @@ bash -n e87ctl/scripts/build-pi-image
   macOS writer gate still owns the real image-build evidence.
 - Remaining required findings: None. The remediation introduced no release-blocking defect.
 - Verdict: Accepted.
+- Accepted correction commit: `d0a22c191e8402602f299ec2b77006c9a59e400d`.
