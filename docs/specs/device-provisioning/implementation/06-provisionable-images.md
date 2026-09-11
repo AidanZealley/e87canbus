@@ -1,6 +1,6 @@
 # Workstream 6: Build provisionable coordinator and console images
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -221,4 +221,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   introduced by remediation.
 - Verdict: Accepted.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `3bac67b68a265b10508effced7930ae6c82beef7`

@@ -71,10 +71,10 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Pending`
+- Status: `Testing`
 - Candidate and instructions: The orchestrator records and pushes the combined workstream 4 and 6
-  candidate after workstream 6 acceptance. On the M1 Pro MacBook, check out that exact commit and
-  confirm it with `git rev-parse HEAD`. Record `sw_vers`,
+  candidate `3bac67b68a265b10508effced7930ae6c82beef7`. On the M1 Pro MacBook, check out that
+  exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
   then run `uv sync --locked`. Keep the recovery package outside the checkout and use a compatible
   coordinator image manifest produced by the provisionable image builder.
 

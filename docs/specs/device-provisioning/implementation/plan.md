@@ -21,7 +21,7 @@ Status: implementation in progress.
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374` |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
-| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Closure review | — |
+| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7` |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Not started | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
@@ -101,7 +101,7 @@ hardware.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
-| macOS writer | 4 | After workstream 6, before workstream 7 | Pending | TBD | macOS writer evidence recorded on the combined candidate |
+| macOS writer | 4 | After workstream 6, before workstream 7 | Testing | `3bac67b68a265b10508effced7930ae6c82beef7` | macOS writer evidence recorded on the combined candidate |
 | Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
@@ -117,3 +117,4 @@ workstream status.
 | 2026-09-10 | Run independent reviews with Claude Code Opus at medium effort. | Aidan requested an explicit external reviewer after workstream 3; the validated command is read-only. | Aidan | 4-7 and whole-feature review |
 | 2026-09-10 | The workstream 4 writer gate has no current producer for its strict compatible image. | The accepted builder emits the prototype manifest; workstream 6 owns the provisionable successor but depends on workstream 4 acceptance. The gate remains pending without weakening validation. | Orchestrator | 4 and 6 |
 | 2026-09-10 | Move the macOS writer gate after workstream 6 and require it before workstream 7. | This keeps image validation truthful, accepts the independently reviewed writer without hardware overclaim and tests the combined writer/image candidate. | Aidan | 4, 6 and 7 |
+| 2026-09-11 | Keep the Trixie iwd backend and require physical WPA3-SAE/PMF evidence. | Debian Trixie provides iwd 3.8, after upstream added SAE access-point support in 2.18. The reviewer claim that iwd cannot provide AP-SAE does not apply to the pinned distribution, while Pi radio compatibility still needs the existing hardware gate. | Orchestrator | 6-7 |
