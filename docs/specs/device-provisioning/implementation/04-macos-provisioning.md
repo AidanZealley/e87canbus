@@ -75,7 +75,7 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Testing`
+- Status: `Troubleshooting`
 - Candidate and instructions: The orchestrator records and pushes the combined corrected
   candidate `d0a22c191e8402602f299ec2b77006c9a59e400d`. On the M1 Pro MacBook, check out that
   exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
@@ -159,6 +159,28 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   not claim macOS or removable-media validation.
   Candidate `d0a22c1` contains the accepted writer and snapshot-propagation corrections and is ready
   for attempt 2.
+
+  Attempt 2 on 2026-09-11 ran on candidate `d0a22c1` and failed with one blocker remaining; no
+  destructive operation was attempted and the card was not written to. Full evidence is in
+  `04-macos-provisioning-gate-attempt-2.md`. The `diskutil` argument-order and built-in-reader
+  corrections are both confirmed against real hardware: discovery lists `disk4` as the only eligible
+  disk, and the internal disk, synthesized container and both partitions are rejected. That
+  correction also fixed a second latent defect attempt 1 could not reach, because `_read_whole_disk`
+  read `Whole` where real `diskutil` emits `WholeDisk`. The snapshot-propagation fix is likewise
+  confirmed: both repositories now resolve to the pinned `20260813T000000Z`. Correcting it exposed a
+  defect it had been masking. The upstream sources template ends each stanza with
+  `Options: check-valid-until=no`, which is one-line `sources.list` syntax and is silently ignored in
+  a deb822 `.sources` file, so apt enforces the security archive's roughly one-week validity window
+  and rejects the pinned snapshot as expired. Any pin older than that fails permanently until the
+  deb822 `Check-Valid-Until: no` field is used instead. No compatible image manifest could therefore
+  be produced, and the destructive path remains untested. Recorded as an observation rather than a
+  blocker: Apple Silicon reports the internal SSD as `VirtualOrPhysical: Unknown`, so `disk0` is
+  rejected by the media-type check before the protected-set comparison runs, even though
+  `_system_physical_stores` correctly resolves it to `{'disk0'}`. Aidan stated he is not concerned
+  about package drift between devices or full device installs and would accept reprovisioning every
+  device if a version issue appeared, and does not want bloated code or blocked progress for it; the
+  attempt 2 report recommends dropping the frozen historical pin and batching both role image builds
+  instead.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 
