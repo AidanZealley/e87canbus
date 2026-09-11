@@ -482,6 +482,50 @@ export type PanelDisplay =
   | "off"
 
 /**
+ * ProvisioningStatusResponse
+ */
+export type ProvisioningStatusResponse = {
+  /**
+   * Artifact Digests
+   */
+  artifact_digests: {
+    [key: string]: unknown | string
+  }
+  /**
+   * Completed Phase
+   */
+  completed_phase: string
+  /**
+   * Device Id
+   */
+  device_id: string
+  /**
+   * Error Code
+   */
+  error_code: string | null
+  /**
+   * Format Version
+   */
+  format_version: 1
+  /**
+   * Hostname
+   */
+  hostname: string
+  /**
+   * Installation Id
+   */
+  installation_id: string
+  /**
+   * Result
+   */
+  result: "pending" | "succeeded" | "failed"
+  /**
+   * Role
+   */
+  role: "coordinator" | "console"
+}
+
+/**
  * ReadinessResponse
  */
 export type ReadinessResponse = {
@@ -2454,6 +2498,30 @@ export type UpdateSteeringProfileResponses = {
 
 export type UpdateSteeringProfileResponse =
   UpdateSteeringProfileResponses[keyof UpdateSteeringProfileResponses]
+
+export type GetProvisioningStatusData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/system/provisioning"
+}
+
+export type GetProvisioningStatusErrors = {
+  /**
+   * Provisioning status unavailable
+   */
+  503: unknown
+}
+
+export type GetProvisioningStatusResponses = {
+  /**
+   * Successful Response
+   */
+  200: ProvisioningStatusResponse
+}
+
+export type GetProvisioningStatusResponse =
+  GetProvisioningStatusResponses[keyof GetProvisioningStatusResponses]
 
 export type CheckLivenessData = {
   body?: never

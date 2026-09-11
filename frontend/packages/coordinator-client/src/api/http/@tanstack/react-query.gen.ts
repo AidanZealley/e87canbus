@@ -24,6 +24,7 @@ import {
   failNextSimulationHotspotOperation,
   getApplicationSettings,
   getButtonProfile,
+  getProvisioningStatus,
   getRuntimeConfiguration,
   getSavedButtonProfile,
   getSavedSteeringProfile,
@@ -103,6 +104,8 @@ import type {
   GetButtonProfileData,
   GetButtonProfileError,
   GetButtonProfileResponse,
+  GetProvisioningStatusData,
+  GetProvisioningStatusResponse,
   GetRuntimeConfigurationData,
   GetRuntimeConfigurationResponse,
   GetSavedButtonProfileData,
@@ -1313,6 +1316,32 @@ export const updateSteeringProfileMutation = (
   }
   return mutationOptions
 }
+
+export const getProvisioningStatusQueryKey = (
+  options?: Options<GetProvisioningStatusData>
+) => createQueryKey("getProvisioningStatus", options)
+
+/**
+ * Provisioning Status
+ */
+export const getProvisioningStatusOptions = (
+  options?: Options<GetProvisioningStatusData>
+) =>
+  queryOptions<
+    GetProvisioningStatusResponse,
+    DefaultError,
+    GetProvisioningStatusResponse,
+    ReturnType<typeof getProvisioningStatusQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) =>
+      await getProvisioningStatus({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      }),
+    queryKey: getProvisioningStatusQueryKey(options),
+  })
 
 export const checkLivenessQueryKey = (options?: Options<CheckLivenessData>) =>
   createQueryKey("checkLiveness", options)

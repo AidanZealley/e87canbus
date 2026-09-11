@@ -15,6 +15,7 @@ from pathlib import Path
 import uvicorn
 
 from e87canbus.api import main as api_main
+from e87canbus.api.auth import ApplicationAuthenticator
 from e87canbus.api.main import (
     DEFAULT_PROFILE_DATABASE,
     DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE,
@@ -23,6 +24,18 @@ from e87canbus.api.main import (
 )
 from e87canbus.deployment import CanTransport, DeploymentProfile
 from e87canbus.runners.composition import build_controller_loop
+
+INSTALLATION_ID_ENVIRONMENT_VARIABLE = "E87CANBUS_INSTALLATION_ID"
+OPERATOR_PASSWORD_HASH_PATH = Path("/etc/e87canbus/operator-password.hash")
+
+
+def _required_installation_id() -> str:
+    installation_id = os.environ.get(INSTALLATION_ID_ENVIRONMENT_VARIABLE)
+    if installation_id is None:
+        raise ValueError(
+            f"{INSTALLATION_ID_ENVIRONMENT_VARIABLE} is required for a physical deployment"
+        )
+    return installation_id
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,8 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "localhost",
     }:
         raise ValueError(
-            "SocketCAN profiles are unauthenticated and may bind only to loopback; "
-            "non-loopback exposure requires a separate security decision"
+            "SocketCAN profiles may bind only to loopback; nginx owns external TLS"
         )
     if args.dry_run:
         dry_run_output: dict[str, object] = {
@@ -113,6 +125,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile_database_path=args.profile_database,
         cors_origins=args.cors_origins,
         frontend_directory=args.frontend_directory,
+        authenticator=(
+            ApplicationAuthenticator.from_file(
+                installation_id=_required_installation_id(),
+                operator_password_hash_path=OPERATOR_PASSWORD_HASH_PATH,
+            )
+            if service.deployment.transport is CanTransport.SOCKETCAN
+            else None
+        ),
     )
     if args.reload:
         uvicorn.run(
@@ -122,6 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             log_level=args.log_level,
             reload=True,
             reload_dirs=["hosts/src"],
+            proxy_headers=False,
         )
         return 0
 
@@ -131,6 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             host=args.host,
             port=args.port,
             log_level=args.log_level,
+            proxy_headers=False,
         )
     )
     monitor_cancel = threading.Event()
