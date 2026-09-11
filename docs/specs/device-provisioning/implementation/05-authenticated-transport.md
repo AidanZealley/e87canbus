@@ -1,6 +1,6 @@
 # Workstream 5: Enforce authenticated application transport
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -179,4 +179,4 @@ Add focused route-table tests and run any narrower existing API tests touched by
 - Verification: The 45 focused transport, CLI and provisioning-artifact tests passed. Ruff, mypy
   over 143 source files, application-builder shell syntax, generated API checks, console typecheck,
   all 101 console tests and `git diff --check` passed.
-- Accepted commit: `TBD`
+- Accepted commit: `d896b526f66765219db2718bef81efb888f3f72e`

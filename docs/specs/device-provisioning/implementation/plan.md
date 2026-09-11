@@ -20,7 +20,7 @@ Status: implementation in progress.
 | 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; correction `924514ea061bb69a825efe19ebfec742c698bdf6` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374` |
-| 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Closure review | — |
+| 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Not started | — |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Not started | — |
 
