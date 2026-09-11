@@ -7,7 +7,7 @@ image:
   root_part_size: 4G
 
 layer:
-  base: debian-trixie-arm64-minbase-snapshot
+  base: debian-trixie-arm64-minbase-rolling
   rpi: rpi-debian-trixie
   rpi_utils: rpi-misc-utils
   rpi_essential: rpi-essential-base

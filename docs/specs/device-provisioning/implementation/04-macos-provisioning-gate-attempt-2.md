@@ -269,3 +269,15 @@ Everything else is in place. The validation host, recovery package
 (`~/e87-installation/gate-w4.json`, outside the checkout), captured topology and eligible card are
 ready, and the disk-safety half of the gate is now evidenced. The remaining work is a build fix,
 then the destructive run.
+
+## 9. Orchestrator disposition
+
+Aidan accepted target-package drift between devices and releases and accepted reprovisioning all
+devices if a package-version problem appears. Workstream 1 will use pinned upstream's rolling
+Trixie minbase target layer and remove the historical epoch and origin guard. The pinned builder
+revision, builder container and its working source configuration remain unchanged.
+
+The correction will not add a build-both command, pin-bump workflow, SBOM changes or an apt-validity
+workaround. The suggested system-disk diagnostic reorder is also rejected because all measured
+paths already fail safely. The gate remains `Troubleshooting` until a corrected candidate builds a
+compatible image and the remaining destructive-path evidence passes.

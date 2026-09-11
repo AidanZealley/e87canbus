@@ -3,7 +3,6 @@
 set -euo pipefail
 
 readonly RPI_IMAGE_GEN_REVISION="262d4df5a9f9d4133370465399a7958a7c22cdc7"
-readonly PACKAGE_SNAPSHOT_EPOCH="1786579200"
 readonly BUILDER_IMAGE="e87canbus/pi-image-builder:${RPI_IMAGE_GEN_REVISION:0:12}"
 readonly PACKAGE_CACHE_VOLUME="e87canbus-pi-image-packages"
 readonly SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -182,7 +181,6 @@ docker run --rm \
     -B /work \
     -c "${CONTAINER_CONFIG}" \
     -- \
-    "SOURCE_DATE_EPOCH=${PACKAGE_SNAPSHOT_EPOCH}" \
     "IGconf_artefact_version=${BUILD_ID}" \
     "IGconf_image_name=e87-${ROLE}" \
     "IGconf_sys_apt_cachedir=/cache" \
