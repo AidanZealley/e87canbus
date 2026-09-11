@@ -1,6 +1,6 @@
 # Workstream 1: Establish the CLI boundary and preserve image building
 
-Status: accepted.
+Status: closure review.
 
 ## Task packet
 
@@ -204,3 +204,70 @@ bash -n e87ctl/scripts/build-pi-image
 - Remaining required findings: None. The remediation introduced no release-blocking defect.
 - Verdict: Accepted.
 - Accepted correction commit: `d0a22c191e8402602f299ec2b77006c9a59e400d`.
+
+## macOS gate attempt 2 correction
+
+- Status: Closure review.
+- Owner and base: Codex (`/root/ws1_snapshot_fix`), working from
+  `f9e81f608c849e30b32bb56cee4b5b7eb70c915e`.
+- Reopening reason and decision: Attempt 2 proved the accepted epoch propagation worked, then apt
+  rejected the old security snapshot because pinned upstream writes an ineffective one-line
+  `Options:` field into its deb822 source. Aidan accepted package drift between devices and releases
+  and accepted reprovisioning all devices if a package-version problem occurs. That decision
+  supersedes the attempt 1 snapshot correction.
+- Correction: Select pinned upstream's `debian-trixie-arm64-minbase-rolling` target layer. Remove
+  `PACKAGE_SNAPSHOT_EPOCH`, its generated-configuration override, `images/post-build.sh`, its
+  behavioral tests and the snapshot-specific runbook claim. Keep the pinned `rpi-image-gen`
+  revision, digest-pinned builder container base and the builder container's existing apt source
+  configuration because they are separate working tooling inputs.
+- Tests and simplification: The existing builder-input test now pins the rolling target layer. The
+  correction removes the fake-Docker argument recorder, snapshot hook tests and their supporting
+  Python code. It adds no build-both command, pin-bump process, SBOM work, apt validity workaround
+  or unrelated disk-diagnostic reorder.
+- Verification: `uv run pytest e87ctl/tests/test_image_build.py -q` passed (`41 passed`), and the
+  complete `e87ctl` suite passed (`115 passed`). `uv run ruff check e87ctl`, `uv run mypy` over 143
+  source files, shell syntax checks for the builder, role hooks and image checker, and
+  `git diff --check` passed.
+- External check and drift: Docker remains unavailable in this environment, so the macOS writer
+  gate stays `Troubleshooting` pending a real rolling-layer image build and destructive-path
+  evidence. Approved drift: target OS packages may vary between image builds; the image manifest
+  and digest identify the produced artifact.
+
+### Focused review
+
+- Reviewer and verdict: Claude Code Opus at medium effort through the configured read-only review
+  command. Accepted with no required findings.
+- Evidence: The target selects pinned upstream's rolling Trixie minbase layer, and the correction
+  fully removes the project epoch override, origin hook, supporting tests and runbook promise. The
+  pinned builder revision, digest-pinned builder base and builder-container apt configuration stay
+  intact. Focused and complete `e87ctl` tests, Ruff, mypy, shell syntax and diff checks passed.
+- Optional observations rejected: Do not restore the `-S /source/images` assertion because its
+  reason was the deleted source hook; existing image-build tests and the command retain the source
+  root. Do not add another package-drift sentence to the runbook because this record and the plan
+  already own that decision.
+- Question recorded: Pinned upstream's rolling layer bootstraps through a launch-time snapshot, so
+  a rare snapshot transition may require retry, but it has no permanent expiry and does not justify
+  a project workaround.
+- Remediation: None required. The deletion and simplification pass remains the reviewed result.
+
+### Correction closure review
+
+- Reviewer and base: Codex (`/root/ws1_rolling_closure`), reviewing the complete uncommitted
+  correction from `f9e81f608c849e30b32bb56cee4b5b7eb70c915e`.
+- Accepted findings: None. The focused review found no required issue and required no remediation.
+- Correction check: `images/common/image.yaml` selects pinned upstream's
+  `debian-trixie-arm64-minbase-rolling` layer. The historical epoch override, generated-origin hook,
+  hook tests and snapshot runbook claim are gone. The pinned upstream revision, digest-pinned
+  builder base, builder-container apt sources, image manifest and artifact digest remain. The diff
+  adds no batch build, pin management, SBOM change or apt-validity workaround.
+- External transient: The pinned rolling layer initially resolves a launch-time snapshot before
+  replacing snapshot sources with rolling repositories in the target. A snapshot transition may
+  require a retry. Per the accepted triage, this is an external transient rather than a project
+  blocker and does not justify more builder machinery.
+- Verification: `uv run pytest e87ctl/tests/test_image_build.py -q` passed (`41 passed`); the full
+  `uv run pytest e87ctl/tests -q` suite passed (`115 passed`); Ruff and mypy passed; shell syntax
+  checks passed for the builder, role hooks and image checker; the removed hook is absent; live
+  image-builder sources contain no historical target-snapshot or SBOM machinery; and `git diff
+  --check` passed. Docker is unavailable, so the existing macOS gate still owns the real build.
+- Remaining required findings: None. The correction introduces no release-blocking defect.
+- Verdict: Accepted.

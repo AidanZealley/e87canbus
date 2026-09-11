@@ -181,6 +181,11 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   device if a version issue appeared, and does not want bloated code or blocked progress for it; the
   attempt 2 report recommends dropping the frozen historical pin and batching both role image builds
   instead.
+  Aidan accepted target-package drift between devices and releases, including reprovisioning all
+  devices if a package-version problem occurs. Workstream 1 therefore replaces the target image's
+  historical snapshot layer with pinned upstream's rolling Trixie minbase layer and removes the
+  epoch propagation and origin guard. It does not add the report's build-both suggestion or reorder
+  the already-safe system-disk rejection for diagnostic wording.
 - Resume condition: all required evidence passes on the exact candidate, with no secret copied into
   the record.
 
