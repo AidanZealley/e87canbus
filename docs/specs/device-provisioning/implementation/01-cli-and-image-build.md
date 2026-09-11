@@ -1,6 +1,6 @@
 # Workstream 1: Establish the CLI boundary and preserve image building
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -207,7 +207,7 @@ bash -n e87ctl/scripts/build-pi-image
 
 ## macOS gate attempt 2 correction
 
-- Status: Closure review.
+- Status: Accepted.
 - Owner and base: Codex (`/root/ws1_snapshot_fix`), working from
   `f9e81f608c849e30b32bb56cee4b5b7eb70c915e`.
 - Reopening reason and decision: Attempt 2 proved the accepted epoch propagation worked, then apt
@@ -271,3 +271,4 @@ bash -n e87ctl/scripts/build-pi-image
   --check` passed. Docker is unavailable, so the existing macOS gate still owns the real build.
 - Remaining required findings: None. The correction introduces no release-blocking defect.
 - Verdict: Accepted.
+- Accepted correction commit: `aa5f0f3280f987ce2ffd669120e677e3f2b8a405`.
