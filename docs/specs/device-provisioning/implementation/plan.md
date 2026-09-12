@@ -106,7 +106,7 @@ combined physical candidate is tested.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 8 | After workstream 8 closure | Pending | `f4c775f36f05292615308828ac7151aa5d64bdb1` | Run the updated MacBook, two-Pi, panel and invalid-bundle procedure on this exact combined candidate |
+| Provisioned pair | 8 | After workstream 8 closure | Testing | `90d4142c24189c42655dd3ec91abab0bda487e8d`; replaces failed `f4c775f36f05292615308828ac7151aa5d64bdb1` | Repeat the updated MacBook, two-Pi, panel and invalid-bundle procedure from clean cards on the corrected candidate |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.
