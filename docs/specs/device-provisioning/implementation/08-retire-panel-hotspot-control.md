@@ -108,12 +108,18 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Pending`
-- Candidate and instructions: Test `f4c775f36f05292615308828ac7151aa5d64bdb1` using the
-  procedure in workstream 7, updated for the status-only panel.
+- Status: `Testing`
+- Candidate and instructions: Test corrected candidate
+  `90d4142c24189c42655dd3ec91abab0bda487e8d`. Repeat the procedure in workstream 7 from clean
+  cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
-- Attempts and lasting decisions: `TBD`
+- Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
+  `provisioning_interrupted`. Debian Trixie's `systemd-machine-id-setup --commit` cannot handle the
+  deliberately absent `/etc/machine-id`; plain `systemd-machine-id-setup` creates the required
+  unique ID. The active macOS instructions also used nonexistent plist key `Whole` instead of the
+  measured `WholeDisk`. Candidate `90d4142c24189c42655dd3ec91abab0bda487e8d` contains both
+  focused corrections.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
