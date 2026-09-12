@@ -75,7 +75,7 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 ## External validation
 
 - Gate and placement: macOS writer safety, after workstream 6 and before workstream 7.
-- Status: `Testing`
+- Status: `Passed`
 - Candidate and instructions: The orchestrator records and pushes the combined corrected
   candidate `aa5f0f3280f987ce2ffd669120e677e3f2b8a405`. On the M1 Pro MacBook, check out that
   exact commit and confirm it with `git rev-parse HEAD`. Record `sw_vers`,
@@ -205,9 +205,14 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   application build correction passes. The assembled image labels its FAT partition `BOOT`, while
   the accepted writer and image contract require exactly `bootfs`, so the writer safely exited with
   `written disk does not have exactly one bootfs partition` and left the whole disk unmounted.
-- Resume condition: correct the assembled image's boot filesystem label to exact `bootfs`, record
-  and push a new combined candidate, then rerun the complete gate without copying a secret into the
-  record.
+  Candidate `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` aligns the writer, assembled image and
+  on-device consumer on pinned upstream's exact `BOOT` label.
+  Attempt 5 on 2026-09-12 passed the complete gate on that exact candidate. Full evidence is in
+  `04-macos-provisioning-gate-attempt-5.md`. All unsafe selectors were rejected before mutation;
+  the application built; the raw image write and exact image-sized SHA-256 readback passed; only
+  `BOOT` was mounted for provisioning ZIP injection and readback; final output recorded all three
+  artifact digests and `First boot: pending`; and the whole disk was left unmounted.
+- Resume condition: satisfied. Workstream 7 may proceed.
 
 ## Implementation handoff
 
