@@ -109,8 +109,8 @@ external and must not be claimed on the implementation host.
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Pending`
-- Candidate and instructions: Assigned after closure. Use the procedure in workstream 7, updated
-  for the status-only panel.
+- Candidate and instructions: Test `f4c775f36f05292615308828ac7151aa5d64bdb1` using the
+  procedure in workstream 7, updated for the status-only panel.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: `TBD`

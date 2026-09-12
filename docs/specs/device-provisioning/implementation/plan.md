@@ -23,7 +23,7 @@ Status: implementation in progress.
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; correction `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b` |
-| 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Implementing | — |
+| 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Closure review | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.
@@ -106,7 +106,7 @@ combined physical candidate is tested.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 8 | After workstream 8 closure | Pending | TBD | Run the updated MacBook, two-Pi, panel and invalid-bundle procedure on the exact combined candidate |
+| Provisioned pair | 8 | After workstream 8 closure | Pending | `f4c775f36f05292615308828ac7151aa5d64bdb1` | Run the updated MacBook, two-Pi, panel and invalid-bundle procedure on this exact combined candidate |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.
@@ -130,3 +130,4 @@ workstream status.
 | 2026-09-12 | Reopen workstream 3 for the production frontend input defect found in macOS gate attempt 3. | The accepted application builder copies only `frontend/`, but the coordinator production TypeScript program included a test that imports a repository-root fixture. Excluding test sources from the production program restores the accepted ready-to-run build boundary without adding another builder input or changing runtime behavior. | Orchestrator | 3 and macOS writer gate |
 | 2026-09-12 | Standardise the internal boot-partition label on pinned upstream's exact `BOOT` value. | Attempt 4 proved rpi-image-gen emits `BOOT` and uses it to create `/dev/disk/by-slot/boot`. The product specifications do not name the filesystem label. Updating the strict writer and on-device checks avoids an upstream template and udev-rule fork without changing product behavior or mount safety. | Orchestrator | 4, 6 and macOS writer gate |
 | 2026-09-12 | Retire the coordinator panel's hotspot control and make the panel status-only. | The old button now controls the provisioned network that carries the console's only transport, and hotspot display priority prevents a healthy steady-state `READY` display. Aidan chose full removal in a separate Claude thread and confirmed that decision in this orchestration thread. | Aidan | 6-8 and provisioned-pair gate |
+| 2026-09-12 | Use Claude Code Opus at medium effort for every remaining review, including closure reviews. | Aidan asked to use the remaining Claude allowance for all review work. The validated read-only command and in-session failure fallback remain unchanged. | Aidan | Workstream 8 closure and both whole-feature review calls |
