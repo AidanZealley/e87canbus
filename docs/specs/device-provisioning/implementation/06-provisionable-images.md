@@ -269,3 +269,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
 - Verdict: Accepted for the combined gate candidate. Remediation introduced no release-blocking
   defect.
 - Remaining required findings: None.
+- Accepted correction commit: `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`.
