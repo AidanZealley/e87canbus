@@ -444,3 +444,5 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Verdict: Accepted for macOS writer gate attempt 5. Remediation introduced no release-blocking
   defect.
 - Remaining required findings: None.
+- Accepted correction commit: `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`. Use this exact
+  combined workstream 4 and 6 commit for macOS writer gate attempt 5.
