@@ -9,7 +9,6 @@
 mmdebstrap:
   packages:
     - dnsmasq-base
-    - iw
     - nftables
     - nginx-light
   customize-hooks:

@@ -55,6 +55,10 @@ Unrelated host services do not listen on or accept traffic from the Wi-Fi interf
 The existing `10.43.0.0/30` coordinator-to-console Ethernet profiles, application proxy units,
 checks and documentation are removed. Ethernet is not a fallback transport after cutover.
 
+The coordinator panel reports only coordinator lifecycle state. Its physical button does not start,
+stop or otherwise control the provisioned network. NetworkManager autoconnect is the sole runtime
+owner of access-point activation.
+
 ## Wi-Fi security
 
 The initial configuration uses WPA3-SAE with Protected Management Frames required. NetworkManager
@@ -234,6 +238,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 ## Acceptance criteria
 
 - The coordinator access point starts without a panel button press.
+- Pressing the coordinator panel button does not change the access point or console connection.
 - The console joins automatically and reaches all current console features without a human login.
 - WPA3-SAE and required management-frame protection pass on both Pi Wi-Fi devices, or one approved
   evidence-backed fallback replaces them.

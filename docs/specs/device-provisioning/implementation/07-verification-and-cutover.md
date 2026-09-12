@@ -67,15 +67,15 @@ uv run ruff check e87ctl hosts scripts/watch_frontend_contracts.py
 uv run lint-imports
 uv run python scripts/generate_custom_protocol.py --check
 cd frontend && pnpm api:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
-bash -n e87ctl/scripts/build-pi-image deploy/bin/e87canbus-firewall \
-  deploy/bin/e87canbus-hotspot deploy/kiosk/*.sh
 python3 -m py_compile deploy/bin/e87canbus-provision
-bash -n images/*/customize.sh images/e87canbus-image-check
+for script in e87ctl/scripts/build-pi-image deploy/bin/e87canbus-firewall \
+  deploy/kiosk/*.sh images/*/customize.sh images/e87canbus-image-check; do
+  bash -n "$script"
+done
 git diff --check
 ```
 
-Adjust the shell glob only when an intentionally removed path no longer exists. Record rather than
-hide any check unavailable on the implementation host.
+Record rather than hide any check unavailable on the implementation host.
 
 ## External validation
 
@@ -198,6 +198,10 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
    Run the role-specific `nmcli` command on its matching Pi. The successful active profiles,
    `key-mgmt=sae`, `pmf=3` and actual association provide the WPA3-SAE and required-PMF evidence.
    Confirm no hotspot-reachable listener exists outside DHCP, HTTPS and SSH.
+
+   Confirm the coordinator panel settles at `READY`. Press its physical button several times,
+   then repeat both role-specific `nmcli` checks and confirm the access point remains active, the
+   console remains associated and the panel remains at `READY`.
 
 8. Prove the failure boundary. Power off or disconnect the console, confirm the coordinator stays
    ready, and attempt one reversible console command while disconnected. Confirm it fails at once,

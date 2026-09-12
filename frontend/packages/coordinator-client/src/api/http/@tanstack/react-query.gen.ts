@@ -14,14 +14,11 @@ import {
   checkLiveness,
   checkReadiness,
   connectSimulationDevice,
-  connectSimulationHotspotClient,
   createButtonProfile,
   createSteeringProfile,
   deleteButtonProfile,
   deleteSteeringProfile,
   disconnectSimulationDevice,
-  disconnectSimulationHotspotClient,
-  failNextSimulationHotspotOperation,
   getApplicationSettings,
   getButtonProfile,
   getProvisioningStatus,
@@ -33,7 +30,6 @@ import {
   listButtonProfiles,
   listSteeringProfiles,
   type Options,
-  pressSimulationCoordinatorPanelButton,
   previewSimulationCoordinatorStatus,
   rebootSimulationDevice,
   resetSimulation,
@@ -74,9 +70,6 @@ import type {
   ConnectSimulationDeviceData,
   ConnectSimulationDeviceError,
   ConnectSimulationDeviceResponse,
-  ConnectSimulationHotspotClientData,
-  ConnectSimulationHotspotClientError,
-  ConnectSimulationHotspotClientResponse,
   CreateButtonProfileData,
   CreateButtonProfileError,
   CreateButtonProfileResponse,
@@ -92,12 +85,6 @@ import type {
   DisconnectSimulationDeviceData,
   DisconnectSimulationDeviceError,
   DisconnectSimulationDeviceResponse,
-  DisconnectSimulationHotspotClientData,
-  DisconnectSimulationHotspotClientError,
-  DisconnectSimulationHotspotClientResponse,
-  FailNextSimulationHotspotOperationData,
-  FailNextSimulationHotspotOperationError,
-  FailNextSimulationHotspotOperationResponse,
   GetApplicationSettingsData,
   GetApplicationSettingsError,
   GetApplicationSettingsResponse,
@@ -125,9 +112,6 @@ import type {
   ListSteeringProfilesData,
   ListSteeringProfilesError,
   ListSteeringProfilesResponse,
-  PressSimulationCoordinatorPanelButtonData,
-  PressSimulationCoordinatorPanelButtonError,
-  PressSimulationCoordinatorPanelButtonResponse,
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusError,
   PreviewSimulationCoordinatorStatusResponse,
@@ -413,81 +397,6 @@ export const getSimulationCoordinatorPanelOptions = (
   })
 
 /**
- * Press Button
- */
-export const pressSimulationCoordinatorPanelButtonMutation = (
-  options?: Partial<Options<PressSimulationCoordinatorPanelButtonData>>
-): UseMutationOptions<
-  PressSimulationCoordinatorPanelButtonResponse,
-  PressSimulationCoordinatorPanelButtonError,
-  Options<PressSimulationCoordinatorPanelButtonData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    PressSimulationCoordinatorPanelButtonResponse,
-    PressSimulationCoordinatorPanelButtonError,
-    Options<PressSimulationCoordinatorPanelButtonData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await pressSimulationCoordinatorPanelButton({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Connect Client
- */
-export const connectSimulationHotspotClientMutation = (
-  options?: Partial<Options<ConnectSimulationHotspotClientData>>
-): UseMutationOptions<
-  ConnectSimulationHotspotClientResponse,
-  ConnectSimulationHotspotClientError,
-  Options<ConnectSimulationHotspotClientData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ConnectSimulationHotspotClientResponse,
-    ConnectSimulationHotspotClientError,
-    Options<ConnectSimulationHotspotClientData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await connectSimulationHotspotClient({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Disconnect Client
- */
-export const disconnectSimulationHotspotClientMutation = (
-  options?: Partial<Options<DisconnectSimulationHotspotClientData>>
-): UseMutationOptions<
-  DisconnectSimulationHotspotClientResponse,
-  DisconnectSimulationHotspotClientError,
-  Options<DisconnectSimulationHotspotClientData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DisconnectSimulationHotspotClientResponse,
-    DisconnectSimulationHotspotClientError,
-    Options<DisconnectSimulationHotspotClientData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await disconnectSimulationHotspotClient({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
  * Preview Coordinator Status
  */
 export const previewSimulationCoordinatorStatusMutation = (
@@ -504,31 +413,6 @@ export const previewSimulationCoordinatorStatusMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await previewSimulationCoordinatorStatus({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Fail Next Operation
- */
-export const failNextSimulationHotspotOperationMutation = (
-  options?: Partial<Options<FailNextSimulationHotspotOperationData>>
-): UseMutationOptions<
-  FailNextSimulationHotspotOperationResponse,
-  FailNextSimulationHotspotOperationError,
-  Options<FailNextSimulationHotspotOperationData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    FailNextSimulationHotspotOperationResponse,
-    FailNextSimulationHotspotOperationError,
-    Options<FailNextSimulationHotspotOperationData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await failNextSimulationHotspotOperation({
         ...options,
         ...fnOptions,
         throwOnError: true,

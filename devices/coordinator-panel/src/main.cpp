@@ -55,9 +55,7 @@ void loop() {
         }
     }
 
-    if (button.update(digitalRead(BUTTON_PIN) == LOW, now)) {
-        Serial2.print("BUTTON\n");
-    }
+    button.update(digitalRead(BUTTON_PIN) == LOW, now);
 
     if (static_cast<int32_t>(now - nextFrameMs) >= 0) {
         show(status.display(now), now);

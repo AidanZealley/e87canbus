@@ -2,8 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-12
-- **Supersedes:** ADR 0010's hotspot exposure, ADR 0011's coordinator-console Ethernet link and
-  ADR 0012's proposed cockpit CAN configuration transport.
+- **Supersedes:** ADR 0009's hotspot mechanism and button handling, ADR 0010's hotspot exposure,
+  ADR 0011's coordinator-console Ethernet link, and ADR 0012's proposed cockpit CAN configuration
+  transport. ADR 0009's isolation of panel status from controller work remains in force.
 
 ## Context
 
@@ -29,9 +30,14 @@ Ethernet network and both plain-HTTP proxy pairs are removed. Wi-Fi carries cons
 configuration and diagnostics only. The cockpit remains deferred, and this decision does not
 select a replacement configuration transport for it.
 
+The coordinator panel is status-only. It reports `STARTING`, `READY`, `FAULT` and `OFF`, and has no
+host, simulator or firmware command that can change the provisioned network. The physical button
+remains wired and debounced but emits no UART event.
+
 ## Consequences
 
 - The console connects without Ethernet, a login prompt or a manual panel action.
+- The healthy panel remains at `READY`; pressing its button does not interrupt the console.
 - Possessing only the Wi-Fi password grants liveness, not application or SSH access.
 - Console or Wi-Fi loss does not affect coordinator control. Disconnected commands fail without
   queuing and reconnection obtains a complete current snapshot.

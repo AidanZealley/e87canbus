@@ -1,47 +1,27 @@
-import { WifiIcon } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
+import type { CoordinatorStatus } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { cn } from "@/lib/utils"
 
-export type CoordinatorPanelDisplay =
-  | "starting"
-  | "ready"
-  | "hotspot_waiting"
-  | "hotspot_connected"
-  | "fault"
-  | "off"
-
-const displayLabels: Record<CoordinatorPanelDisplay, string> = {
+const statusLabels: Record<CoordinatorStatus, string> = {
   starting: "Starting",
   ready: "Ready",
-  hotspot_waiting: "Hotspot waiting for a client",
-  hotspot_connected: "Hotspot client connected",
   fault: "Fault",
   off: "Off",
 }
 
-const pixelAppearance: Record<CoordinatorPanelDisplay, string> = {
+const pixelAppearance: Record<CoordinatorStatus, string> = {
   starting:
     "bg-foreground/70 shadow-[0_0_0.45rem_rgb(255_255_255/0.2)] animate-panel-travel",
   ready: "bg-foreground/30",
-  hotspot_waiting:
-    "bg-cyan-400/70 shadow-[0_0_0.45rem_rgb(34_211_238/0.25)] animate-panel-pulse",
-  hotspot_connected:
-    "bg-emerald-500/75 shadow-[0_0_0.4rem_rgb(16_185_129/0.25)]",
   fault: "bg-destructive/75 shadow-[0_0_0.4rem_rgb(239_68_68/0.25)]",
   off: "bg-muted-foreground/15 shadow-none",
 }
 
 type CoordinatorPanelProps = {
-  display: CoordinatorPanelDisplay
-  onHotspotPress: () => void
+  status: CoordinatorStatus
 }
 
-export const CoordinatorPanel = ({
-  display,
-  onHotspotPress,
-}: CoordinatorPanelProps) => {
-  const label = displayLabels[display]
+export const CoordinatorPanel = ({ status }: CoordinatorPanelProps) => {
+  const label = statusLabels[status]
 
   return (
     <div className="grid max-w-xl gap-3">
@@ -57,28 +37,16 @@ export const CoordinatorPanel = ({
             aria-hidden="true"
             className={cn(
               "h-1.5 rounded-full motion-reduce:animate-none",
-              pixelAppearance[display]
+              pixelAppearance[status]
             )}
             style={
-              display === "starting"
+              status === "starting"
                 ? { animationDelay: `${index * 140}ms` }
                 : undefined
             }
           />
         ))}
       </div>
-
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="w-fit"
-        aria-label="Press coordinator hotspot button"
-        onClick={onHotspotPress}
-      >
-        <WifiIcon data-icon="inline-start" aria-hidden="true" />
-        Hotspot
-      </Button>
     </div>
   )
 }

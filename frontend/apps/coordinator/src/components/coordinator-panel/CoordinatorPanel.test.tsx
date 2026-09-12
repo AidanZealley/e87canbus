@@ -8,7 +8,7 @@ afterEach(cleanup)
 
 it("renders five accessible status lights", () => {
   const { container } = render(
-    <CoordinatorPanel display="ready" onHotspotPress={() => undefined} />
+    <CoordinatorPanel status="ready" />
   )
 
   expect(
