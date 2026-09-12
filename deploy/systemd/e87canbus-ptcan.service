@@ -13,5 +13,5 @@ ExecStart=/usr/sbin/ip link set ptcan up
 ExecStop=-/usr/sbin/ip link set ptcan down
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=e87canbus-role.target
 RequiredBy=e87canbus-controller.service

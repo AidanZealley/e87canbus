@@ -16,7 +16,8 @@ endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulate
 controller is a direct actuator capability because no physical wire protocol is verified. The
 simulator does not forward traffic between networks. A separate console Pi owns the driver screen,
 its locally served frontend, and receive-only K-CAN observation. It reaches the coordinator over a
-fixed, non-routing Ethernet link; either host can fail without becoming the other's control owner.
+provisioned, non-routing Wi-Fi network with mutual TLS. Either host can fail without becoming the
+other's control owner.
 
 ## Layout
 
@@ -57,9 +58,8 @@ implied by local send success.
 ## Raspberry Pi deployment
 
 For blank coordinator and console Pi 4s, follow the
-[fresh Raspberry Pi deployment runbook](deploy/README.md). It covers both role-specific installers,
-CAN mappings and services, console kiosk ownership, the `10.43.0.0/30` Ethernet link, health checks,
-and the hardware validation that remains pending. The electrical and device-tree rationale for the
+[provisioning runbook](deploy/README.md). It covers image builds, installation recovery, safe SD
+writing, first boot, authenticated Wi-Fi and online verification. The electrical rationale for the
 coordinator's combined Waveshare boards is recorded in the
 [three-channel CAN stack design](docs/waveshare-three-channel-stack.md).
 

@@ -1,0 +1,1132 @@
+#!/usr/bin/python3
+"""Consume the fixed v1 provisioning bundle on first boot."""
+
+from __future__ import annotations
+
+import configparser
+import contextlib
+import grp
+import hashlib
+import json
+import os
+import pwd
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import uuid
+import zipfile
+from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
+from typing import BinaryIO, NoReturn
+
+BUNDLE_NAME = "e87canbus-provisioning-v1.zip"
+INTERFACE_VERSION = 1
+BOOT_RESERVE = 64 * 1024 * 1024
+ROOT_RESERVE = 256 * 1024 * 1024
+MAX_APPLICATION_ARCHIVE = 1024 * 1024 * 1024
+MAX_APPLICATION_CONTENT = 2 * 1024 * 1024 * 1024
+MAX_BUNDLE = MAX_APPLICATION_ARCHIVE + 16 * 1024 * 1024
+MAX_MANIFEST = 1024 * 1024
+ENTRY_LIMITS = {
+    "application.tar.gz": MAX_APPLICATION_ARCHIVE,
+    "identity/installation-ca.pem": 16 * 1024,
+    "identity/ssh-authorized-key": 4 * 1024,
+    "network/wifi.nmconnection": 64 * 1024,
+    "configuration/device.json": 32 * 1024,
+    "configuration/operator-password.hash": 4 * 1024,
+    "identity/server-certificate.pem": 16 * 1024,
+    "identity/server-private-key.pem": 16 * 1024,
+    "identity/chromium-client.p12": 64 * 1024,
+    "identity/chromium-client-password": 1024,
+}
+COMMON_ENTRIES = {
+    "application.tar.gz",
+    "identity/installation-ca.pem",
+    "identity/ssh-authorized-key",
+    "network/wifi.nmconnection",
+    "configuration/device.json",
+}
+COORDINATOR_ENTRIES = COMMON_ENTRIES | {
+    "configuration/operator-password.hash",
+    "identity/server-certificate.pem",
+    "identity/server-private-key.pem",
+}
+CONSOLE_ENTRIES = COMMON_ENTRIES | {
+    "identity/chromium-client.p12",
+    "identity/chromium-client-password",
+}
+STATUS_FIELDS = {
+    "format_version",
+    "role",
+    "installation_id",
+    "device_id",
+    "hostname",
+    "completed_phase",
+    "artifact_digests",
+    "result",
+    "error_code",
+}
+PHASES = ("staged", "boot_removed", "installed", "verified", "status_written", "cleaned")
+
+
+class BundleError(Exception):
+    """A provisioning bundle failed closed validation."""
+
+
+def fail(message: str) -> NoReturn:
+    raise BundleError(message)
+
+
+def strict_json(contents: bytes, fields: set[str]) -> dict[str, object]:
+    def pairs(items: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in items:
+            if key in result:
+                fail("duplicate_json_field")
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(contents, object_pairs_hook=pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        fail("invalid_json")
+    if not isinstance(value, dict) or set(value) != fields:
+        fail("unknown_json_field")
+    return value
+
+
+def archive_path(name: str) -> None:
+    path = PurePosixPath(name)
+    if not name or name.startswith("/") or "\\" in name or ".." in path.parts or str(path) != name:
+        fail("unsafe_archive_path")
+
+
+def digest_stream(stream: BinaryIO, size: int, limit: int) -> str:
+    if not isinstance(size, int) or isinstance(size, bool) or size < 0 or size > limit:
+        fail("oversized_entry")
+    digest = hashlib.sha256()
+    remaining = size
+    while remaining:
+        chunk = stream.read(min(1024 * 1024, remaining))
+        if not chunk:
+            fail("short_entry")
+        digest.update(chunk)
+        remaining -= len(chunk)
+    if stream.read(1):
+        fail("long_entry")
+    return digest.hexdigest()
+
+
+def validate_identity(value: object, pattern: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(pattern, value) is None:
+        fail("invalid_identity")
+    return value
+
+
+def expected_entries(role: str) -> set[str]:
+    if role == "coordinator":
+        return COORDINATOR_ENTRIES
+    if role == "console":
+        return CONSOLE_ENTRIES
+    fail("wrong_role")
+
+
+def validate_record(value: object, limit: int) -> tuple[int, str]:
+    if not isinstance(value, dict) or set(value) != {"size_bytes", "sha256"}:
+        fail("invalid_file_record")
+    size = value["size_bytes"]
+    digest = value["sha256"]
+    if not isinstance(size, int) or isinstance(size, bool) or size < 0 or size > limit:
+        fail("oversized_entry")
+    return size, validate_identity(digest, r"[0-9a-f]{64}")
+
+
+def validate_application(stream: BinaryIO, expected_role: str) -> tuple[dict[str, object], int]:
+    with tarfile.open(fileobj=stream, mode="r|gz") as archive:
+        first = archive.next()
+        if (
+            first is None
+            or first.name != "manifest.json"
+            or not first.isfile()
+            or first.size > MAX_MANIFEST
+            or first.mode & 0o7000
+        ):
+            fail("invalid_application_manifest")
+        manifest_stream = archive.extractfile(first)
+        if manifest_stream is None:
+            fail("invalid_application_manifest")
+        fields = {
+            "format_version",
+            "role",
+            "architecture",
+            "python_version",
+            "provisioning_interface_version",
+            "built_at",
+            "git_commit",
+            "git_dirty",
+            "builder_image",
+            "builder_revision",
+            "python_lock_sha256",
+            "frontend_lock_sha256",
+            "files",
+        }
+        manifest = strict_json(manifest_stream.read(first.size + 1), fields)
+        if (
+            type(manifest["format_version"]) is not int
+            or manifest["format_version"] != 1
+            or manifest["role"] != expected_role
+            or manifest["architecture"] != "linux-aarch64"
+            or manifest["python_version"] != "3.13"
+            or type(manifest["provisioning_interface_version"]) is not int
+            or manifest["provisioning_interface_version"] != INTERFACE_VERSION
+            or not isinstance(manifest["git_dirty"], bool)
+            or not isinstance(manifest["builder_image"], str)
+            or not manifest["builder_image"].startswith("debian:trixie-slim@sha256:")
+        ):
+            fail("incompatible_application")
+        validate_timestamp(manifest["built_at"])
+        if manifest["git_commit"] is not None:
+            validate_identity(manifest["git_commit"], r"[0-9a-f]{40}")
+        for field in ("builder_revision", "python_lock_sha256", "frontend_lock_sha256"):
+            validate_identity(manifest[field], r"[0-9a-f]{64}")
+        files = manifest["files"]
+        if not isinstance(files, dict) or not files:
+            fail("invalid_application_files")
+        records: dict[str, tuple[int, str]] = {}
+        total = 0
+        for name, record in files.items():
+            archive_path(name)
+            if not re.fullmatch(r"(?:venv|frontend)/[^\x00]+", name):
+                fail("invalid_application_path")
+            records[name] = validate_record(record, MAX_APPLICATION_CONTENT)
+            total += records[name][0]
+        for name in records:
+            if any(parent.as_posix() in records for parent in PurePosixPath(name).parents):
+                fail("invalid_application_path")
+        if (
+            total > MAX_APPLICATION_CONTENT
+            or not any(name.startswith("venv/") for name in records)
+            or not any(name.startswith("frontend/") for name in records)
+        ):
+            fail("invalid_application_files")
+        seen: set[str] = set()
+        while (member := archive.next()) is not None:
+            archive_path(member.name)
+            if (
+                not member.isfile()
+                or member.name in seen
+                or member.name not in records
+                or member.mode & 0o7000
+            ):
+                fail("invalid_application_entry")
+            size, expected_digest = records[member.name]
+            if member.size != size:
+                fail("invalid_application_entry")
+            contents = archive.extractfile(member)
+            if contents is None or digest_stream(contents, size, size) != expected_digest:
+                fail("application_digest_mismatch")
+            seen.add(member.name)
+        if seen != set(records):
+            fail("incomplete_application")
+        return manifest, total
+
+
+def validate_timestamp(value: object) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        fail("invalid_timestamp")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        fail("invalid_timestamp")
+    if parsed.tzinfo != UTC or parsed.microsecond:
+        fail("invalid_timestamp")
+    return parsed
+
+
+def validate_bundle(
+    path: Path, contract: dict[str, object], root: Path
+) -> tuple[dict[str, object], dict[str, object], dict[str, tuple[int, str]]]:
+    size = path.stat().st_size
+    if (
+        size > MAX_BUNDLE
+        or size + BOOT_RESERVE > contract["boot_partition_size_bytes"]
+        or shutil.disk_usage(path.parent).free < BOOT_RESERVE
+    ):
+        fail("boot_space")
+    with zipfile.ZipFile(path) as archive:
+        infos = archive.infolist()
+        names = [item.filename for item in infos]
+        if not names or names[0] != "manifest.json" or len(names) != len(set(names)):
+            fail("invalid_entry_order")
+        for info in infos:
+            archive_path(info.filename)
+            mode = info.external_attr >> 16
+            if info.is_dir() or mode & 0o170000 not in (0, stat.S_IFREG) or info.flag_bits & 1:
+                fail("non_regular_entry")
+        manifest_info = infos[0]
+        if manifest_info.file_size > MAX_MANIFEST:
+            fail("oversized_manifest")
+        fields = {
+            "format_version",
+            "created_at",
+            "role",
+            "image_format_version",
+            "application_format_version",
+            "provisioning_interface_version",
+            "installation_id",
+            "device_id",
+            "hostname",
+            "application_digest",
+            "entries",
+        }
+        with archive.open(manifest_info) as stream:
+            manifest = strict_json(stream.read(manifest_info.file_size + 1), fields)
+        role = manifest["role"]
+        if set(names) != {"manifest.json"} | expected_entries(
+            role if isinstance(role, str) else ""
+        ):
+            fail("wrong_entries")
+        if (
+            type(manifest["format_version"]) is not int
+            or manifest["format_version"] != 1
+            or type(manifest["image_format_version"]) is not int
+            or manifest["image_format_version"] != contract["format_version"]
+            or type(manifest["application_format_version"]) is not int
+            or manifest["application_format_version"] != 1
+            or type(manifest["provisioning_interface_version"]) is not int
+            or manifest["provisioning_interface_version"]
+            != contract["provisioning_interface_version"]
+            or role != contract["role"]
+        ):
+            fail("incompatible_bundle")
+        created_at = validate_timestamp(manifest["created_at"])
+        installation_id = validate_identity(manifest["installation_id"], r"[a-z2-7]{52}")
+        device_id = validate_identity(
+            manifest["device_id"],
+            r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+        )
+        if str(uuid.UUID(device_id, version=4)) != device_id:
+            fail("invalid_identity")
+        hostname = validate_identity(manifest["hostname"], r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+        application_digest = validate_identity(manifest["application_digest"], r"[0-9a-f]{64}")
+        entries = manifest["entries"]
+        if not isinstance(entries, dict) or set(entries) != expected_entries(role):
+            fail("wrong_entries")
+        records = {
+            name: validate_record(record, ENTRY_LIMITS[name]) for name, record in entries.items()
+        }
+        if records["application.tar.gz"][1] != application_digest:
+            fail("application_digest_mismatch")
+        by_name = {info.filename: info for info in infos}
+        for name, (entry_size, expected_digest) in records.items():
+            info = by_name[name]
+            if info.file_size != entry_size:
+                fail("entry_size_mismatch")
+            with archive.open(info) as stream:
+                if digest_stream(stream, entry_size, ENTRY_LIMITS[name]) != expected_digest:
+                    fail("entry_digest_mismatch")
+        with archive.open("configuration/device.json") as stream:
+            device = strict_json(
+                stream.read(records["configuration/device.json"][0] + 1),
+                {
+                    "format_version",
+                    "role",
+                    "deployment_profile",
+                    "installation_id",
+                    "device_id",
+                    "hostname",
+                    "application_digest",
+                },
+            )
+        if device != {
+            "format_version": 1,
+            "role": role,
+            "deployment_profile": device.get("deployment_profile"),
+            "installation_id": installation_id,
+            "device_id": device_id,
+            "hostname": hostname,
+            "application_digest": application_digest,
+        } or device["deployment_profile"] not in ("car", "bench"):
+            fail("device_manifest_mismatch")
+        with archive.open("application.tar.gz") as stream:
+            application, installed_size = validate_application(stream, role)
+        staged_size = sum(size for size, _ in records.values())
+        if staged_size + ROOT_RESERVE > contract["root_filesystem_size_bytes"]:
+            fail("root_space")
+        required = staged_size + installed_size + ROOT_RESERVE
+        if required > shutil.disk_usage(root).free:
+            fail("root_space")
+        validate_small_payloads(archive, role, records)
+        manifest["created_at_parsed"] = created_at
+        manifest["application_manifest"] = application
+        return manifest, device, records
+
+
+def validate_small_payloads(
+    archive: zipfile.ZipFile,
+    role: str,
+    records: dict[str, tuple[int, str]],
+) -> None:
+    def contents(name: str) -> bytes:
+        value = archive.read(name)
+        if len(value) != records[name][0]:
+            fail("entry_size_mismatch")
+        return value
+
+    network = configparser.ConfigParser(interpolation=None, strict=True)
+    try:
+        network.read_string(contents("network/wifi.nmconnection").decode("utf-8"))
+    except (UnicodeDecodeError, configparser.Error):
+        fail("invalid_network_profile")
+    expected_address = "10.42.0.1/24" if role == "coordinator" else "10.42.0.2/24"
+    expected_mode = "ap" if role == "coordinator" else "infrastructure"
+    expected_connection = f"e87canbus-{role}-wifi"
+    if (
+        network.get("connection", "id", fallback="") != expected_connection
+        or network.get("connection", "type", fallback="") != "wifi"
+        or network.get("connection", "interface-name", fallback="") != "wlan0"
+        or network.get("connection", "autoconnect", fallback="") != "true"
+        or network.get("wifi", "mode", fallback="") != expected_mode
+        or network.get("wifi-security", "key-mgmt", fallback="") != "sae"
+        or network.get("wifi-security", "pmf", fallback="") != "3"
+        or network.get("ipv4", "method", fallback="") != "manual"
+        or network.get("ipv4", "address1", fallback="") != expected_address
+        or network.get("ipv4", "gateway", fallback="")
+        or network.get("ipv4", "dns", fallback="")
+        or network.get("ipv6", "method", fallback="") != "disabled"
+    ):
+        fail("invalid_network_profile")
+    ssh_key = contents("identity/ssh-authorized-key")
+    if re.fullmatch(rb"ssh-ed25519 [A-Za-z0-9+/]+={0,3}(?: [^\r\n]+)?\n", ssh_key) is None:
+        fail("invalid_ssh_key")
+    validate_openssl(["openssl", "x509", "-noout"], contents("identity/installation-ca.pem"))
+    if role == "coordinator":
+        password_hash = contents("configuration/operator-password.hash")
+        if not password_hash.startswith(b"$argon2id$") or b"\n" in password_hash.rstrip(b"\n"):
+            fail("invalid_operator_hash")
+        certificate = contents("identity/server-certificate.pem")
+        private_key = contents("identity/server-private-key.pem")
+        cert_public = validate_openssl(
+            ["openssl", "x509", "-pubkey", "-noout"], certificate, capture=True
+        )
+        key_public = validate_openssl(["openssl", "pkey", "-pubout"], private_key, capture=True)
+        if cert_public != key_public:
+            fail("certificate_key_mismatch")
+        return
+    try:
+        password = contents("identity/chromium-client-password").decode("ascii")
+    except UnicodeDecodeError:
+        fail("invalid_client_identity")
+    with tempfile.TemporaryDirectory(prefix="e87-validate-") as temporary:
+        identity = Path(temporary) / "identity.p12"
+        identity.write_bytes(contents("identity/chromium-client.p12"))
+        os.chmod(identity, 0o600)
+        try:
+            subprocess.run(
+                [
+                    "openssl",
+                    "pkcs12",
+                    "-in",
+                    str(identity),
+                    "-noout",
+                    "-passin",
+                    "fd:0",
+                ],
+                input=password,
+                text=True,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            fail("invalid_client_identity")
+
+
+def validate_openssl(command: list[str], contents: bytes, *, capture: bool = False) -> bytes:
+    try:
+        result = subprocess.run(
+            command,
+            input=contents,
+            check=True,
+            stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        fail("invalid_certificate")
+    return result.stdout if capture else b""
+
+
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_file(path: Path, contents: bytes, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    with temporary.open("wb") as output:
+        output.write(contents)
+        output.flush()
+        os.fsync(output.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, path)
+    fsync_directory(path.parent)
+
+
+def write_json(path: Path, document: dict[str, object], mode: int = 0o600) -> None:
+    write_file(
+        path, (json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n").encode(), mode
+    )
+
+
+def load_contract(root: Path) -> dict[str, object]:
+    path = root / "usr/share/e87canbus/image-contract.json"
+    fields = {
+        "format_version",
+        "role",
+        "raspberry_pi_model",
+        "os_release",
+        "architecture",
+        "provisioning_interface_version",
+        "boot_partition_size_bytes",
+        "root_filesystem_size_bytes",
+    }
+    contract = strict_json(path.read_bytes(), fields)
+    if (
+        contract["format_version"] != 1
+        or contract["role"] not in ("coordinator", "console")
+        or contract["raspberry_pi_model"] != "Raspberry Pi 4 Model B"
+        or contract["os_release"] != "Raspberry Pi OS Lite Trixie"
+        or contract["architecture"] != "arm64"
+        or contract["provisioning_interface_version"] != INTERFACE_VERSION
+        or not isinstance(contract["boot_partition_size_bytes"], int)
+        or isinstance(contract["boot_partition_size_bytes"], bool)
+        or contract["boot_partition_size_bytes"] <= BOOT_RESERVE
+        or not isinstance(contract["root_filesystem_size_bytes"], int)
+        or isinstance(contract["root_filesystem_size_bytes"], bool)
+        or contract["root_filesystem_size_bytes"] <= ROOT_RESERVE
+    ):
+        fail("invalid_image_contract")
+    return contract
+
+
+def stage_bundle(bundle: Path, staging: Path, records: dict[str, tuple[int, str]]) -> None:
+    temporary = staging.with_name("staging.new")
+    shutil.rmtree(temporary, ignore_errors=True)
+    temporary.mkdir(mode=0o700, parents=True)
+    with zipfile.ZipFile(bundle) as archive:
+        for name in sorted(records):
+            target = temporary / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(name) as source, target.open("xb") as output:
+                remaining = records[name][0]
+                while remaining:
+                    chunk = source.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        fail("short_entry")
+                    output.write(chunk)
+                    remaining -= len(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(target, 0o600)
+        write_file(temporary / "manifest.json", archive.read("manifest.json"), 0o600)
+    for directory, _, _ in os.walk(temporary, topdown=False):
+        fsync_directory(Path(directory))
+    shutil.rmtree(staging, ignore_errors=True)
+    os.replace(temporary, staging)
+    fsync_directory(staging.parent)
+
+
+def root_path(root: Path, absolute: str) -> Path:
+    return root / absolute.lstrip("/")
+
+
+def run(command: list[str], *, input_text: str | None = None) -> None:
+    subprocess.run(command, input=input_text, text=True, check=True, stdout=subprocess.DEVNULL)
+
+
+def initialize_host_identity(hostname: str) -> None:
+    run(["hostnamectl", "set-hostname", hostname])
+    run(["systemd-machine-id-setup"])
+    run(["ssh-keygen", "-A"])
+
+
+def ensure_accounts(root: Path, role: str) -> None:
+    if root != Path("/"):
+        return
+    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if role == "console":
+        if subprocess.run(["getent", "group", "e87-kiosk"], **quiet).returncode:
+            run(["groupadd", "--system", "e87-kiosk"])
+        if subprocess.run(["id", "e87-kiosk"], **quiet).returncode:
+            run(
+                [
+                    "useradd",
+                    "--system",
+                    "--gid",
+                    "e87-kiosk",
+                    "--home-dir",
+                    "/var/lib/e87-kiosk",
+                    "--create-home",
+                    "--shell",
+                    "/usr/sbin/nologin",
+                    "e87-kiosk",
+                ]
+            )
+    if subprocess.run(["getent", "group", "e87-admin"], **quiet).returncode:
+        run(["groupadd", "--system", "e87-admin"])
+    if subprocess.run(["id", "e87-admin"], **quiet).returncode:
+        run(
+            [
+                "useradd",
+                "--gid",
+                "e87-admin",
+                "--home-dir",
+                "/home/e87-admin",
+                "--create-home",
+                "--shell",
+                "/bin/bash",
+                "e87-admin",
+            ]
+        )
+    # A shadow value that is not a valid crypt hash prevents local password
+    # login without marking the account locked, which sshd rejects before
+    # attempting the required public-key authentication.
+    run(["usermod", "--password", "x", "e87-admin"])
+
+
+def set_owner(path: Path, user: str, group: str, *, recursive: bool = False) -> None:
+    if os.environ.get("E87_PROVISIONING_ROOT", "/") != "/":
+        return
+    uid = pwd.getpwnam(user).pw_uid
+    gid = grp.getgrnam(group).gr_gid
+    paths = [path]
+    if recursive:
+        paths.extend(path.rglob("*"))
+    for owned in paths:
+        os.chown(owned, uid, gid, follow_symlinks=False)
+
+
+def install_hostname(root: Path, hostname: str) -> None:
+    write_file(root_path(root, "/etc/hostname"), f"{hostname}\n".encode(), 0o644)
+    hosts_path = root_path(root, "/etc/hosts")
+    lines = hosts_path.read_text().splitlines() if hosts_path.exists() else []
+    lines = [line for line in lines if line.split(maxsplit=1)[:1] != ["127.0.1.1"]]
+    lines.append(f"127.0.1.1\t{hostname}")
+    write_file(hosts_path, ("\n".join(lines) + "\n").encode(), 0o644)
+
+
+def install_application(staging: Path, root: Path, digest: str, expected_role: str) -> None:
+    releases = root_path(root, "/opt/e87canbus/releases")
+    release = releases / digest
+    archive_path_value = staging / "application.tar.gz"
+    if digest_path(archive_path_value, MAX_APPLICATION_ARCHIVE) != digest:
+        fail("application_digest_mismatch")
+    with archive_path_value.open("rb") as stream:
+        application_manifest, _ = validate_application(stream, expected_role)
+    if release.exists():
+        verify_release(release, application_manifest)
+    else:
+        temporary = releases / f".{digest}.new"
+        shutil.rmtree(temporary, ignore_errors=True)
+        temporary.mkdir(parents=True)
+        with tarfile.open(archive_path_value, mode="r:gz") as archive:
+            members = archive.getmembers()
+            for member in members:
+                if not member.isfile():
+                    fail("invalid_application_entry")
+                target = temporary / member.name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(member)
+                if source is None:
+                    fail("invalid_application_entry")
+                with target.open("xb") as output:
+                    shutil.copyfileobj(source, output, 1024 * 1024)
+                    output.flush()
+                    os.fsync(output.fileno())
+                os.chmod(target, 0o755 if member.mode & 0o111 else 0o644)
+        verify_release(temporary, application_manifest)
+        for directory, _, _ in os.walk(temporary, topdown=False):
+            fsync_directory(Path(directory))
+        os.replace(temporary, release)
+        fsync_directory(releases)
+    entry = (
+        release
+        / "venv/bin"
+        / ("e87canbus" if expected_role == "coordinator" else "e87canbus-console")
+    )
+    if (
+        not entry.is_file()
+        or not os.access(entry, os.X_OK)
+        or not (release / "frontend/index.html").is_file()
+    ):
+        fail("invalid_installed_application")
+    current = root_path(root, "/opt/e87canbus/current")
+    replacement = current.with_name(".current.new")
+    replacement.unlink(missing_ok=True)
+    replacement.symlink_to(Path("releases") / digest)
+    os.replace(replacement, current)
+    fsync_directory(current.parent)
+
+
+def verify_release(release: Path, expected_manifest: dict[str, object]) -> None:
+    manifest_path = release / "manifest.json"
+    installed_manifest = strict_json(
+        manifest_path.read_bytes(),
+        {
+            "format_version",
+            "role",
+            "architecture",
+            "python_version",
+            "provisioning_interface_version",
+            "built_at",
+            "git_commit",
+            "git_dirty",
+            "builder_image",
+            "builder_revision",
+            "python_lock_sha256",
+            "frontend_lock_sha256",
+            "files",
+        },
+    )
+    if installed_manifest != expected_manifest:
+        fail("installed_manifest_failed")
+    files = expected_manifest["files"]
+    if not isinstance(files, dict):
+        fail("installed_manifest_failed")
+    actual_files: set[str] = set()
+    for path in release.rglob("*"):
+        if path.is_symlink() or (not path.is_dir() and not path.is_file()):
+            fail("invalid_installed_application")
+        if path.is_file():
+            actual_files.add(path.relative_to(release).as_posix())
+    if actual_files != {"manifest.json", *files}:
+        fail("invalid_installed_application")
+    for name, record in files.items():
+        size, expected_digest = validate_record(record, MAX_APPLICATION_CONTENT)
+        path = release / name
+        if path.stat().st_size != size or digest_path(path, size) != expected_digest:
+            fail("installed_application_digest_mismatch")
+
+
+def install_files(
+    staging: Path, root: Path, manifest: dict[str, object], device: dict[str, object]
+) -> None:
+    role = str(manifest["role"])
+    ensure_accounts(root, role)
+    install_hostname(root, str(manifest["hostname"]))
+    etc = root_path(root, "/etc/e87canbus")
+    write_file(etc / "device.json", (staging / "configuration/device.json").read_bytes(), 0o640)
+    write_file(
+        etc / "installation-ca.pem", (staging / "identity/installation-ca.pem").read_bytes(), 0o644
+    )
+    nm = root_path(root, "/etc/NetworkManager/system-connections/e87canbus-wifi.nmconnection")
+    write_file(nm, (staging / "network/wifi.nmconnection").read_bytes(), 0o600)
+    ssh = root_path(root, "/home/e87-admin/.ssh/authorized_keys")
+    write_file(ssh, (staging / "identity/ssh-authorized-key").read_bytes(), 0o600)
+    os.chmod(ssh.parent, 0o700)
+    set_owner(etc / "device.json", "root", "e87canbus")
+    set_owner(ssh.parent, "e87-admin", "e87-admin")
+    set_owner(ssh, "e87-admin", "e87-admin")
+    write_file(
+        root_path(root, "/etc/sudoers.d/e87-admin"),
+        b"e87-admin ALL=(ALL:ALL) NOPASSWD: ALL\n",
+        0o440,
+    )
+    profile = str(device["deployment_profile"])
+    if role == "coordinator":
+        write_file(
+            etc / "operator-password.hash",
+            (staging / "configuration/operator-password.hash").read_bytes(),
+            0o640,
+        )
+        write_file(
+            etc / "server-certificate.pem",
+            (staging / "identity/server-certificate.pem").read_bytes(),
+            0o644,
+        )
+        write_file(
+            etc / "server-private-key.pem",
+            (staging / "identity/server-private-key.pem").read_bytes(),
+            0o600,
+        )
+        env = (
+            f"E87CANBUS_PROFILE={profile}\nE87CANBUS_PORT=8000\n"
+            "E87CANBUS_DATABASE=/var/lib/e87canbus/application.sqlite3\n"
+            "E87CANBUS_FRONTEND=/opt/e87canbus/current/frontend\n"
+            "E87CANBUS_CONSOLE_ORIGIN=http://127.0.0.1:8000\n"
+            f"E87CANBUS_INSTALLATION_ID={manifest['installation_id']}\n"
+        )
+        write_file(etc / "controller.env", env.encode(), 0o640)
+        set_owner(etc / "operator-password.hash", "root", "e87canbus")
+        set_owner(etc / "controller.env", "root", "e87canbus")
+    else:
+        listen_only = "on" if profile == "car" else "off"
+        env = (
+            f"E87CANBUS_CONSOLE_CAN_LISTEN_ONLY={listen_only}\n"
+            "E87CANBUS_CONSOLE_PORT=8000\n"
+            "E87CANBUS_CONSOLE_FRONTEND=/opt/e87canbus/current/frontend\n"
+        )
+        write_file(etc / "console.env", env.encode(), 0o640)
+        set_owner(etc / "console.env", "root", "e87canbus")
+        profile_dir = root_path(root, "/var/lib/e87-kiosk/.pki/nssdb")
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(profile_dir, 0o700)
+        if root == Path("/"):
+            if not (profile_dir / "cert9.db").exists():
+                run(["certutil", "-N", "--empty-password", "-d", f"sql:{profile_dir}"])
+            subprocess.run(
+                ["certutil", "-D", "-d", f"sql:{profile_dir}", "-n", "e87canbus installation CA"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            run(
+                [
+                    "certutil",
+                    "-A",
+                    "-d",
+                    f"sql:{profile_dir}",
+                    "-n",
+                    "e87canbus installation CA",
+                    "-t",
+                    "C,,",
+                    "-i",
+                    str(etc / "installation-ca.pem"),
+                ]
+            )
+            subprocess.run(
+                ["certutil", "-D", "-d", f"sql:{profile_dir}", "-n", "e87canbus console"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            password = (staging / "identity/chromium-client-password").read_text()
+            run(
+                [
+                    "pk12util",
+                    "-i",
+                    str(staging / "identity/chromium-client.p12"),
+                    "-d",
+                    f"sql:{profile_dir}",
+                    "-w",
+                    "/dev/stdin",
+                ],
+                input_text=password,
+            )
+            set_owner(profile_dir, "e87-kiosk", "e87-kiosk", recursive=True)
+            for path in profile_dir.rglob("*"):
+                if path.is_file():
+                    with path.open("rb") as stored:
+                        os.fsync(stored.fileno())
+            for directory, _, _ in os.walk(profile_dir, topdown=False):
+                fsync_directory(Path(directory))
+        policy = {
+            "AutoSelectCertificateForUrls": [
+                {
+                    "pattern": "https://10.42.0.1",
+                    "filter": {"ISSUER": {"CN": "e87canbus installation CA"}},
+                }
+            ]
+        }
+        write_json(root_path(root, "/etc/chromium/policies/managed/e87canbus.json"), policy, 0o644)
+    install_application(staging, root, str(manifest["application_digest"]), role)
+    if root == Path("/"):
+        initialize_host_identity(str(manifest["hostname"]))
+
+
+def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> None:
+    role = str(manifest["role"])
+    current = root_path(root, "/opt/e87canbus/current")
+    if (
+        current.resolve()
+        != root_path(root, f"/opt/e87canbus/releases/{manifest['application_digest']}").resolve()
+    ):
+        fail("activation_failed")
+    archive_path_value = staging / "application.tar.gz"
+    if digest_path(archive_path_value, MAX_APPLICATION_ARCHIVE) != manifest["application_digest"]:
+        fail("application_digest_mismatch")
+    with archive_path_value.open("rb") as stream:
+        application_manifest, _ = validate_application(stream, role)
+    verify_release(current, application_manifest)
+    network_profile = root_path(
+        root, "/etc/NetworkManager/system-connections/e87canbus-wifi.nmconnection"
+    )
+    authorized_keys = root_path(root, "/home/e87-admin/.ssh/authorized_keys")
+    required = {
+        network_profile: 0o600,
+        authorized_keys: 0o600,
+        root_path(root, "/etc/sudoers.d/e87-admin"): 0o440,
+        root_path(root, "/etc/e87canbus/device.json"): 0o640,
+    }
+    if role == "coordinator":
+        required.update(
+            {
+                root_path(root, "/etc/e87canbus/server-private-key.pem"): 0o600,
+                root_path(root, "/etc/e87canbus/operator-password.hash"): 0o640,
+                root_path(root, "/etc/e87canbus/controller.env"): 0o640,
+            }
+        )
+    else:
+        required.update(
+            {
+                root_path(root, "/etc/chromium/policies/managed/e87canbus.json"): 0o644,
+                root_path(root, "/etc/e87canbus/console.env"): 0o640,
+            }
+        )
+    for path, mode in required.items():
+        if not path.is_file() or stat.S_IMODE(path.stat().st_mode) != mode:
+            fail("installed_contract_failed")
+    if stat.S_IMODE(authorized_keys.parent.stat().st_mode) != 0o700:
+        fail("installed_contract_failed")
+    if root == Path("/"):
+        ownership = {
+            network_profile: ("root", "root"),
+            authorized_keys: ("e87-admin", "e87-admin"),
+            root_path(root, "/etc/e87canbus/device.json"): ("root", "e87canbus"),
+        }
+        if role == "coordinator":
+            ownership.update(
+                {
+                    root_path(root, "/etc/e87canbus/server-private-key.pem"): ("root", "root"),
+                    root_path(root, "/etc/e87canbus/operator-password.hash"): (
+                        "root",
+                        "e87canbus",
+                    ),
+                    root_path(root, "/etc/e87canbus/controller.env"): ("root", "e87canbus"),
+                }
+            )
+        else:
+            ownership[root_path(root, "/etc/e87canbus/console.env")] = ("root", "e87canbus")
+        for path, (user, group) in ownership.items():
+            metadata = path.stat()
+            if (
+                metadata.st_uid != pwd.getpwnam(user).pw_uid
+                or metadata.st_gid != grp.getgrnam(group).gr_gid
+            ):
+                fail("installed_contract_failed")
+        units = [str(path) for path in Path("/etc/systemd/system").glob("e87canbus-*")]
+        run(["systemd-analyze", "verify", *units])
+        if role == "coordinator":
+            run(["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"])
+            run(["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"])
+            run(["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"])
+
+
+def status_document(
+    manifest: dict[str, object], phase: str, result: str, error: str | None
+) -> dict[str, object]:
+    document = {
+        "format_version": 1,
+        "role": manifest["role"],
+        "installation_id": manifest["installation_id"],
+        "device_id": manifest["device_id"],
+        "hostname": manifest["hostname"],
+        "completed_phase": phase,
+        "artifact_digests": {
+            "application": manifest["application_digest"],
+            "provisioning": manifest.get("provisioning_digest", "0" * 64),
+        },
+        "result": result,
+        "error_code": error,
+    }
+    if set(document) != STATUS_FIELDS:
+        raise AssertionError("status contract mismatch")
+    return document
+
+
+def write_status(root: Path, boot: Path, document: dict[str, object]) -> None:
+    root_status = root_path(root, "/var/lib/e87canbus-provisioning/status.json")
+    write_json(root_status, document, 0o640)
+    set_owner(root_status, "root", "e87canbus")
+    write_json(boot / "e87canbus-status-v1.json", document, 0o644)
+
+
+def digest_path(path: Path, limit: int) -> str:
+    with path.open("rb") as stream:
+        return digest_stream(stream, path.stat().st_size, limit)
+
+
+def failure_identity(bundle: Path, contract: dict[str, object]) -> dict[str, object]:
+    fallback = {
+        "role": contract["role"],
+        "installation_id": "a" * 52,
+        "device_id": "00000000-0000-4000-8000-000000000000",
+        "hostname": "unprovisioned",
+        "application_digest": "0" * 64,
+        "provisioning_digest": "0" * 64,
+    }
+    try:
+        with zipfile.ZipFile(bundle) as archive:
+            raw = archive.read("manifest.json")
+        document = json.loads(raw)
+        if not isinstance(document, dict) or document.get("role") != contract["role"]:
+            return fallback
+        fallback.update(
+            {
+                "installation_id": validate_identity(
+                    document.get("installation_id"), r"[a-z2-7]{52}"
+                ),
+                "device_id": validate_identity(
+                    document.get("device_id"),
+                    r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+                ),
+                "hostname": validate_identity(
+                    document.get("hostname"),
+                    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?",
+                ),
+                "application_digest": validate_identity(
+                    document.get("application_digest"), r"[0-9a-f]{64}"
+                ),
+                "provisioning_digest": digest_path(bundle, MAX_BUNDLE),
+            }
+        )
+    except Exception:
+        pass
+    return fallback
+
+
+def record_validation_failure(
+    root: Path,
+    boot: Path,
+    identity: dict[str, object],
+    error_code: str,
+) -> None:
+    write_status(
+        root,
+        boot,
+        status_document(identity, "validation", "failed", error_code[:64]),
+    )
+
+
+def record_operational_failure(
+    root: Path,
+    boot: Path,
+    manifest: dict[str, object],
+    phase: str,
+    error_code: str,
+) -> None:
+    write_status(
+        root,
+        boot,
+        status_document(manifest, phase, "failed", error_code[:64]),
+    )
+
+
+def phase_index(phase: str | None) -> int:
+    return PHASES.index(phase) if phase in PHASES else -1
+
+
+def main() -> int:
+    root = Path(os.environ.get("E87_PROVISIONING_ROOT", "/")).resolve()
+    boot = Path(
+        os.environ.get("E87_PROVISIONING_BOOT", str(root_path(root, "/boot/firmware")))
+    ).resolve()
+    state_dir = root_path(root, "/var/lib/e87canbus-provisioning")
+    staging = state_dir / "staging"
+    state_path = state_dir / "progress.json"
+    marker = state_dir / "unprovisioned"
+    bundle = boot / BUNDLE_NAME
+    if not marker.exists():
+        return 0
+    state_dir.mkdir(parents=True, exist_ok=True)
+    contract = load_contract(root)
+    phase: str | None = None
+    failed_identity = (
+        failure_identity(bundle, contract)
+        if bundle.is_file()
+        else {
+            "role": contract["role"],
+            "installation_id": "a" * 52,
+            "device_id": "00000000-0000-4000-8000-000000000000",
+            "hostname": "unprovisioned",
+            "application_digest": "0" * 64,
+            "provisioning_digest": "0" * 64,
+        }
+    )
+    manifest: dict[str, object]
+    device: dict[str, object]
+    try:
+        if root == Path("/"):
+            label = subprocess.run(
+                ["findmnt", "--noheadings", "--output", "LABEL", str(boot)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if label != "BOOT":
+                fail("wrong_boot_label")
+        if state_path.exists():
+            state = strict_json(state_path.read_bytes(), {"phase", "manifest", "device"})
+            phase = state["phase"] if isinstance(state["phase"], str) else None
+            manifest = state["manifest"] if isinstance(state["manifest"], dict) else {}
+            device = state["device"] if isinstance(state["device"], dict) else {}
+        else:
+            if not bundle.is_file():
+                fail("bundle_missing")
+            manifest, device, records = validate_bundle(bundle, contract, root)
+            manifest["provisioning_digest"] = digest_path(bundle, MAX_BUNDLE)
+            manifest.pop("created_at_parsed", None)
+            manifest.pop("application_manifest", None)
+            stage_bundle(bundle, staging, records)
+            phase = "staged"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if phase_index(phase) < phase_index("boot_removed"):
+            bundle.unlink(missing_ok=True)
+            fsync_directory(boot)
+            phase = "boot_removed"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if phase_index(phase) < phase_index("installed"):
+            created_at = validate_timestamp(manifest["created_at"])
+            if root == Path("/") and datetime.now(UTC) < created_at:
+                run(["date", "--set", created_at.isoformat()])
+            install_files(staging, root, manifest, device)
+            phase = "installed"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if phase_index(phase) < phase_index("verified"):
+            verify_installed(root, staging, manifest)
+            phase = "verified"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if phase_index(phase) < phase_index("status_written"):
+            write_status(root, boot, status_document(manifest, "complete", "succeeded", None))
+            phase = "status_written"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if phase_index(phase) < phase_index("cleaned"):
+            shutil.rmtree(staging, ignore_errors=True)
+            fsync_directory(state_dir)
+            phase = "cleaned"
+            write_json(state_path, {"phase": phase, "manifest": manifest, "device": device})
+        if root == Path("/"):
+            run(["systemctl", "enable", "e87canbus-role.target"])
+        marker.unlink()
+        fsync_directory(state_dir)
+        if root == Path("/"):
+            run(["systemctl", "daemon-reload"])
+            run(["systemctl", "start", "--no-block", "e87canbus-role.target"])
+        return 0
+    except BundleError as error:
+        if phase is None:
+            record_validation_failure(root, boot, failed_identity, str(error))
+        else:
+            with contextlib.suppress(Exception):
+                record_operational_failure(root, boot, manifest, phase, str(error))
+        print(f"e87canbus-provision: {str(error)[:64]}", file=sys.stderr)
+        return 1
+    except Exception:
+        if phase is None:
+            record_validation_failure(root, boot, failed_identity, "invalid_bundle")
+            print("e87canbus-provision: invalid_bundle", file=sys.stderr)
+            return 1
+        with contextlib.suppress(Exception):
+            record_operational_failure(root, boot, manifest, phase, "provisioning_interrupted")
+        print("e87canbus-provision: interrupted; provisioning will resume", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

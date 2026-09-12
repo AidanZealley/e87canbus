@@ -7,12 +7,12 @@ using namespace coordinator_panel;
 void test_parser_accepts_only_complete_bounded_status_lines() {
     LineParser parser;
     Display display = Display::OFF;
-    const char valid[] = "STATUS hotspot_connected\n";
+    const char valid[] = "STATUS ready\n";
     for (size_t index = 0; index < sizeof(valid) - 2; ++index) {
         TEST_ASSERT_FALSE(parser.push(valid[index], display));
     }
     TEST_ASSERT_TRUE(parser.push('\n', display));
-    TEST_ASSERT_EQUAL(Display::HOTSPOT_CONNECTED, display);
+    TEST_ASSERT_EQUAL(Display::READY, display);
 
     const char malformed[] = "STATUS connected\n";
     for (char byte : malformed) {
@@ -39,15 +39,13 @@ void test_status_timeouts_and_off_recover_on_the_next_valid_status() {
     status.accept(Display::READY, 70000);
     TEST_ASSERT_EQUAL(Display::READY, status.display(72999));
     TEST_ASSERT_EQUAL(Display::FAULT, status.display(73000));
-    status.accept(Display::HOTSPOT_CONNECTED, 74000);
-    TEST_ASSERT_EQUAL(Display::HOTSPOT_CONNECTED, status.display(74000));
     status.accept(Display::OFF, 75000);
     TEST_ASSERT_EQUAL(Display::OFF, status.display(200000));
     status.accept(Display::STARTING, 200001);
     TEST_ASSERT_EQUAL(Display::STARTING, status.display(200001));
 }
 
-void test_button_emits_once_per_debounced_press() {
+void test_wired_button_input_remains_debounced() {
     ButtonDebouncer button;
     TEST_ASSERT_FALSE(button.update(true, 10));
     TEST_ASSERT_FALSE(button.update(false, 20));
@@ -61,10 +59,9 @@ void test_button_emits_once_per_debounced_press() {
     TEST_ASSERT_TRUE(button.update(true, 180));
 }
 
-void test_rendering_has_six_semantics_and_hard_channel_cap() {
+void test_rendering_has_four_semantics_and_hard_channel_cap() {
     Rgb pixels[PIXEL_COUNT];
-    const Display displays[] = {Display::STARTING, Display::READY, Display::HOTSPOT_WAITING,
-                                Display::HOTSPOT_CONNECTED, Display::FAULT, Display::OFF};
+    const Display displays[] = {Display::STARTING, Display::READY, Display::FAULT, Display::OFF};
     for (Display display : displays) {
         render(display, 400, pixels);
         for (const Rgb &pixel : pixels) {
@@ -77,11 +74,6 @@ void test_rendering_has_six_semantics_and_hard_channel_cap() {
     render(Display::READY, 0, pixels);
     TEST_ASSERT_TRUE(pixels[0].red > 0 && pixels[0].red == pixels[0].green &&
                      pixels[0].green == pixels[0].blue);
-    render(Display::HOTSPOT_WAITING, 400, pixels);
-    TEST_ASSERT_TRUE(pixels[0].red == 0 && pixels[0].green == pixels[0].blue &&
-                     pixels[0].blue > 0);
-    render(Display::HOTSPOT_CONNECTED, 0, pixels);
-    TEST_ASSERT_TRUE(pixels[0].red == 0 && pixels[0].green > 0 && pixels[0].blue == 0);
     render(Display::FAULT, 0, pixels);
     TEST_ASSERT_TRUE(pixels[0].red > 0 && pixels[0].green == 0 && pixels[0].blue == 0);
     render(Display::OFF, 0, pixels);
@@ -92,7 +84,7 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parser_accepts_only_complete_bounded_status_lines);
     RUN_TEST(test_status_timeouts_and_off_recover_on_the_next_valid_status);
-    RUN_TEST(test_button_emits_once_per_debounced_press);
-    RUN_TEST(test_rendering_has_six_semantics_and_hard_channel_cap);
+    RUN_TEST(test_wired_button_input_remains_debounced);
+    RUN_TEST(test_rendering_has_four_semantics_and_hard_channel_cap);
     return UNITY_END();
 }

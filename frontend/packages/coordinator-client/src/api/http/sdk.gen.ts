@@ -26,9 +26,6 @@ import type {
   ConnectSimulationDeviceData,
   ConnectSimulationDeviceErrors,
   ConnectSimulationDeviceResponses,
-  ConnectSimulationHotspotClientData,
-  ConnectSimulationHotspotClientErrors,
-  ConnectSimulationHotspotClientResponses,
   CreateButtonProfileData,
   CreateButtonProfileErrors,
   CreateButtonProfileResponses,
@@ -44,18 +41,15 @@ import type {
   DisconnectSimulationDeviceData,
   DisconnectSimulationDeviceErrors,
   DisconnectSimulationDeviceResponses,
-  DisconnectSimulationHotspotClientData,
-  DisconnectSimulationHotspotClientErrors,
-  DisconnectSimulationHotspotClientResponses,
-  FailNextSimulationHotspotOperationData,
-  FailNextSimulationHotspotOperationErrors,
-  FailNextSimulationHotspotOperationResponses,
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
   GetButtonProfileData,
   GetButtonProfileErrors,
   GetButtonProfileResponses,
+  GetProvisioningStatusData,
+  GetProvisioningStatusErrors,
+  GetProvisioningStatusResponses,
   GetRuntimeConfigurationData,
   GetRuntimeConfigurationResponses,
   GetSavedButtonProfileData,
@@ -75,9 +69,6 @@ import type {
   ListSteeringProfilesData,
   ListSteeringProfilesErrors,
   ListSteeringProfilesResponses,
-  PressSimulationCoordinatorPanelButtonData,
-  PressSimulationCoordinatorPanelButtonErrors,
-  PressSimulationCoordinatorPanelButtonResponses,
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusErrors,
   PreviewSimulationCoordinatorStatusResponses,
@@ -149,16 +140,14 @@ import {
   zCheckLivenessResponse,
   zCheckReadinessResponse,
   zConnectSimulationDeviceResponse,
-  zConnectSimulationHotspotClientResponse,
   zCreateButtonProfileResponse,
   zCreateSteeringProfileResponse,
   zDeleteButtonProfileResponse,
   zDeleteSteeringProfileResponse,
   zDisconnectSimulationDeviceResponse,
-  zDisconnectSimulationHotspotClientResponse,
-  zFailNextSimulationHotspotOperationResponse,
   zGetApplicationSettingsResponse,
   zGetButtonProfileResponse,
+  zGetProvisioningStatusResponse,
   zGetRuntimeConfigurationResponse,
   zGetSavedButtonProfileResponse,
   zGetSavedSteeringProfileResponse,
@@ -166,7 +155,6 @@ import {
   zGetSteeringProfileResponse,
   zListButtonProfilesResponse,
   zListSteeringProfilesResponse,
-  zPressSimulationCoordinatorPanelButtonResponse,
   zPreviewSimulationCoordinatorStatusResponse,
   zRebootSimulationDeviceResponse,
   zResetSimulationResponse,
@@ -387,84 +375,6 @@ export const getSimulationCoordinatorPanel = <
   })
 
 /**
- * Press Button
- */
-export const pressSimulationCoordinatorPanelButton = <
-  ThrowOnError extends boolean = true,
->(
-  options?: Options<PressSimulationCoordinatorPanelButtonData, ThrowOnError>
-): RequestResult<
-  PressSimulationCoordinatorPanelButtonResponses,
-  PressSimulationCoordinatorPanelButtonErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options?.client ?? client).post<
-    PressSimulationCoordinatorPanelButtonResponses,
-    PressSimulationCoordinatorPanelButtonErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zPressSimulationCoordinatorPanelButtonResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/coordinator-panel/button",
-    ...options,
-  })
-
-/**
- * Connect Client
- */
-export const connectSimulationHotspotClient = <
-  ThrowOnError extends boolean = true,
->(
-  options?: Options<ConnectSimulationHotspotClientData, ThrowOnError>
-): RequestResult<
-  ConnectSimulationHotspotClientResponses,
-  ConnectSimulationHotspotClientErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options?.client ?? client).post<
-    ConnectSimulationHotspotClientResponses,
-    ConnectSimulationHotspotClientErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zConnectSimulationHotspotClientResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/coordinator-panel/client/connect",
-    ...options,
-  })
-
-/**
- * Disconnect Client
- */
-export const disconnectSimulationHotspotClient = <
-  ThrowOnError extends boolean = true,
->(
-  options?: Options<DisconnectSimulationHotspotClientData, ThrowOnError>
-): RequestResult<
-  DisconnectSimulationHotspotClientResponses,
-  DisconnectSimulationHotspotClientErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options?.client ?? client).post<
-    DisconnectSimulationHotspotClientResponses,
-    DisconnectSimulationHotspotClientErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zDisconnectSimulationHotspotClientResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/coordinator-panel/client/disconnect",
-    ...options,
-  })
-
-/**
  * Preview Coordinator Status
  */
 export const previewSimulationCoordinatorStatus = <
@@ -492,32 +402,6 @@ export const previewSimulationCoordinatorStatus = <
       "Content-Type": "application/json",
       ...options.headers,
     },
-  })
-
-/**
- * Fail Next Operation
- */
-export const failNextSimulationHotspotOperation = <
-  ThrowOnError extends boolean = true,
->(
-  options?: Options<FailNextSimulationHotspotOperationData, ThrowOnError>
-): RequestResult<
-  FailNextSimulationHotspotOperationResponses,
-  FailNextSimulationHotspotOperationErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options?.client ?? client).post<
-    FailNextSimulationHotspotOperationResponses,
-    FailNextSimulationHotspotOperationErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zFailNextSimulationHotspotOperationResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation",
-    ...options,
   })
 
 /**
@@ -1330,6 +1214,30 @@ export const updateSteeringProfile = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Provisioning Status
+ */
+export const getProvisioningStatus = <ThrowOnError extends boolean = true>(
+  options?: Options<GetProvisioningStatusData, ThrowOnError>
+): RequestResult<
+  GetProvisioningStatusResponses,
+  GetProvisioningStatusErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options?.client ?? client).get<
+    GetProvisioningStatusResponses,
+    GetProvisioningStatusErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zGetProvisioningStatusResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/system/provisioning",
+    ...options,
   })
 
 /**

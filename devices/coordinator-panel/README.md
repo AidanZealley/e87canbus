@@ -2,7 +2,9 @@
 
 This PlatformIO project targets the Adafruit QT Py RP2040 mounted with an Adafruit NeoPixel Driver
 BFF. It drives exactly five WS2812B/SK6812-compatible pixels and implements only the coordinator
-panel's fixed newline-delimited UART protocol.
+panel's fixed newline-delimited status protocol. The panel displays `STARTING`, `READY`, `FAULT`
+and `OFF`. Its physical button remains wired and debounced but emits no UART event and has no
+network action.
 
 ## Connections
 

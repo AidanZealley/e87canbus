@@ -189,7 +189,7 @@ Console frontend + kiosk                  Coordinator frontend + controller
 Receive-only kcan                         kcan + ptcan + fcan
        |                                          |
        +---------------- K-CAN -------------------+
-       +---- 10.43.0.0/30 direct Ethernet --------+
+       +---- authenticated private Wi-Fi ---------+
 ```
 
 The coordinator's three CAN connections are independent physical networks. It does not
@@ -255,7 +255,7 @@ The console has no controller kernel or durable state. Its separate host service
 receive-only `kcan`, coalesces complete `console.snapshot` activity updates to at most 1 Hz, and
 serves its local frontend. The snapshot exposes connection, frame count and fault status only; raw
 CAN identifiers and payloads never reach the browser. The console frontend separately consumes the
-coordinator's authoritative APIs over the fixed `10.43.0.0/30` Ethernet link.
+coordinator's authoritative APIs over provisioned mutual TLS at `https://10.42.0.1`.
 
 ### Arduino — PlatformIO
 
@@ -307,7 +307,7 @@ No BMW DBC definition is verified or active in the current milestone.
 
 - **IDEs:** VS Code, Windsurf
 - **Version control:** Git monorepo, hosted on GitHub
-- **Pi development:** SSH into Pi or `rsync` / `git pull` to deploy
+- **Pi deployment:** Build and provision role images with `e87ctl`; use key-only SSH for maintenance
 - **Arduino development:** PlatformIO extension in VS Code
 - **AI pairing:** Claude Code pointed at repo root — see repo structure above
 
@@ -327,8 +327,8 @@ No BMW DBC definition is verified or active in the current milestone.
 8. **Characterize the steering actuator boundary safely** — document command transport, range,
    polarity, feedback, failure behavior, and electrical safe state before selecting hardware
 9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages coordinator ↔ Arduino
-10. **Validate the two-host edge** — run both blank-Pi installers, direct Ethernet/proxies,
-    console kiosk and Pi-plus-screen peak-load tests before integration
+10. **Validate the provisioned pair.** Provision both blank cards, boot with Ethernet disconnected,
+    and verify authenticated Wi-Fi, console kiosk and Pi-plus-screen peak load before integration.
 
 Before connecting any project hardware to the car, verify custom-ID collisions, K-CAN-compatible
 transceivers, the termination strategy, actual vehicle bitrate, all firmware automatic-transmit

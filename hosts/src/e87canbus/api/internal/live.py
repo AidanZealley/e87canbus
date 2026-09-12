@@ -12,6 +12,11 @@ from typing import Any, TypeVar
 
 import socketio  # type: ignore[import-untyped]
 
+from e87canbus.api.auth import (
+    SOCKET_SEND_PERMISSIONS,
+    ApplicationAuthenticator,
+    PrincipalKind,
+)
 from e87canbus.api.models.live import (
     LiveData,
     LiveEnvelope,
@@ -351,30 +356,62 @@ class LiveStatePublisher:
 def install_socket_handlers(
     sio: socketio.AsyncServer,
     publisher: LiveStatePublisher,
+    authenticator: ApplicationAuthenticator | None = None,
 ) -> None:
+    principals: dict[str, PrincipalKind] = {}
+
     @sio.event  # type: ignore[untyped-decorator]
-    async def connect(sid: str, environ: dict[str, Any], auth: object) -> None:
-        del environ, auth
+    async def connect(sid: str, environ: dict[str, Any], auth: object) -> bool:
+        del auth
+        principal = (
+            await authenticator.authenticate_environ(environ)
+            if authenticator is not None
+            else None
+        )
+        if (
+            principal is not None
+            and principal.kind not in SOCKET_SEND_PERMISSIONS[ClientEvent.CONTROLLER_RESYNC]
+        ):
+            return False
         await publisher.send_snapshot(sid)
+        if principal is not None:
+            principals[sid] = principal.kind
+        return True
 
     @sio.event  # type: ignore[untyped-decorator]
     async def disconnect(sid: str, reason: str) -> None:
         del reason
+        principals.pop(sid, None)
         publisher.disconnect(sid)
 
     @sio.on(ClientEvent.CONTROLLER_RESYNC)  # type: ignore[untyped-decorator]
     async def resync(sid: str, payload: object = None) -> None:
         del payload
+        if (
+            authenticator is not None
+            and principals.get(sid) not in SOCKET_SEND_PERMISSIONS[ClientEvent.CONTROLLER_RESYNC]
+        ):
+            return
         await publisher.send_snapshot(sid)
 
     @sio.on(ClientEvent.TRACE_SUBSCRIBE)  # type: ignore[untyped-decorator]
     async def trace_subscribe(sid: str, payload: object = None) -> None:
         del payload
+        if (
+            authenticator is not None
+            and principals.get(sid) not in SOCKET_SEND_PERMISSIONS[ClientEvent.TRACE_SUBSCRIBE]
+        ):
+            return
         await publisher.subscribe_trace(sid)
 
     @sio.on(ClientEvent.TRACE_UNSUBSCRIBE)  # type: ignore[untyped-decorator]
     async def trace_unsubscribe(sid: str, payload: object = None) -> None:
         del payload
+        if (
+            authenticator is not None
+            and principals.get(sid) not in SOCKET_SEND_PERMISSIONS[ClientEvent.TRACE_UNSUBSCRIBE]
+        ):
+            return
         await publisher.unsubscribe_trace(sid)
 
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=E87 hotspot firewall
+ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned
+After=e87canbus-provision.service
+Before=NetworkManager.service
+Before=e87canbus-dnsmasq.service e87canbus-nginx.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/e87canbus-firewall
+ExecReload=/usr/local/libexec/e87canbus-firewall
+
+[Install]
+WantedBy=multi-user.target

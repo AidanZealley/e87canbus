@@ -1,12 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import {
-  connectSimulationHotspotClientMutation,
-  disconnectSimulationHotspotClientMutation,
-  failNextSimulationHotspotOperationMutation,
   getSimulationCoordinatorPanelOptions,
   getSimulationCoordinatorPanelQueryKey,
-  pressSimulationCoordinatorPanelButtonMutation,
   previewSimulationCoordinatorStatusMutation,
 } from "@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen"
 import type {
@@ -14,7 +10,6 @@ import type {
   SimulationCoordinatorPanelState,
 } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { CoordinatorPanel } from "@/components/coordinator-panel"
-import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -33,38 +28,11 @@ export const SimulatorCoordinatorPanel = () => {
   })
   const updatePanel = (state: SimulationCoordinatorPanelState) =>
     queryClient.setQueryData(getSimulationCoordinatorPanelQueryKey(), state)
-  const press = useMutation({
-    ...pressSimulationCoordinatorPanelButtonMutation(),
-    onSuccess: updatePanel,
-    onError: notifySimulatorError,
-  })
-  const connect = useMutation({
-    ...connectSimulationHotspotClientMutation(),
-    onSuccess: updatePanel,
-    onError: notifySimulatorError,
-  })
-  const disconnect = useMutation({
-    ...disconnectSimulationHotspotClientMutation(),
-    onSuccess: updatePanel,
-    onError: notifySimulatorError,
-  })
-  const fail = useMutation({
-    ...failNextSimulationHotspotOperationMutation(),
-    onSuccess: updatePanel,
-    onError: notifySimulatorError,
-  })
   const preview = useMutation({
     ...previewSimulationCoordinatorStatusMutation(),
     onSuccess: updatePanel,
     onError: notifySimulatorError,
   })
-  const mutationPending =
-    press.isPending ||
-    connect.isPending ||
-    disconnect.isPending ||
-    fail.isPending ||
-    preview.isPending
-
   return (
     <section
       aria-labelledby="coordinator-panel-heading"
@@ -76,79 +44,43 @@ export const SimulatorCoordinatorPanel = () => {
         </h2>
         <p className="text-xs text-muted-foreground">
           {panel.data
-            ? `Coordinator ${panel.data.coordinator_status}; hotspot ${panel.data.hotspot_status}`
+            ? `Coordinator ${panel.data.coordinator_status}`
             : "Loading shared service state"}
         </p>
       </div>
 
       {panel.data ? (
         <>
-          <CoordinatorPanel
-            display={panel.data.display}
-            onHotspotPress={() => press.mutate({})}
-          />
-          <div className="flex flex-wrap gap-2">
-            <div className="grid gap-1">
-              <Label
-                htmlFor="coordinator-condition"
-                className="text-xs text-muted-foreground"
-              >
-                Coordinator condition
-              </Label>
-              <Select
-                value={panel.data.coordinator_status_preview ?? "live"}
-                disabled={mutationPending}
-                onValueChange={(value) =>
-                  preview.mutate({
-                    body: {
-                      status:
-                        value === "live"
-                          ? null
-                          : (value as CoordinatorStatus),
-                    },
-                  })
-                }
-              >
-                <SelectTrigger id="coordinator-condition" className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">Live controller</SelectItem>
-                  <SelectItem value="starting">Starting</SelectItem>
-                  <SelectItem value="fault">Fault</SelectItem>
-                  <SelectItem value="off">Off</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={mutationPending}
-              onClick={() => connect.mutate({})}
+          <CoordinatorPanel status={panel.data.coordinator_status} />
+          <div className="grid gap-1">
+            <Label
+              htmlFor="coordinator-condition"
+              className="text-xs text-muted-foreground"
             >
-              Connect client
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={mutationPending}
-              onClick={() => disconnect.mutate({})}
+              Coordinator condition
+            </Label>
+            <Select
+              value={panel.data.coordinator_status_preview ?? "live"}
+              disabled={preview.isPending}
+              onValueChange={(value) =>
+                preview.mutate({
+                  body: {
+                    status:
+                      value === "live" ? null : (value as CoordinatorStatus),
+                  },
+                })
+              }
             >
-              Disconnect client
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={mutationPending || panel.data.failure_armed}
-              onClick={() => fail.mutate({})}
-            >
-              {panel.data.failure_armed
-                ? "Next operation will fail"
-                : "Fail next operation"}
-            </Button>
+              <SelectTrigger id="coordinator-condition" className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live controller</SelectItem>
+                <SelectItem value="starting">Starting</SelectItem>
+                <SelectItem value="fault">Fault</SelectItem>
+                <SelectItem value="off">Off</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </>
       ) : null}

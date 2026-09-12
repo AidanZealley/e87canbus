@@ -5,8 +5,10 @@ description = "Hardware-aware but locally testable tooling for a BMW E87 CAN bus
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "argon2-cffi>=25.1",
     "can-isotp==2.0.7",
     "cantools>=40.0",
+    "cryptography>=46.0",
     "fastapi>=0.115",
     "python-can>=4.4",
     "pyserial>=3.5",
@@ -19,7 +21,11 @@ e87canbus = "e87canbus.cli.main:main"
 e87canbus-console = "e87canbus.console.cli:main"
 
 [dependency-groups]
+application-build = [
+    "hatchling>=1.28",
+]
 dev = [
+    "e87ctl",
     "import-linter>=2.0",
     "mypy>=1.10",
     "httpx2>=2.0",
@@ -29,6 +35,9 @@ dev = [
     "watchfiles==1.2.0",
 ]
 
+[tool.uv.sources]
+e87ctl = { path = "e87ctl", editable = true }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -37,7 +46,7 @@ build-backend = "hatchling.build"
 packages = ["hosts/src/e87canbus"]
 
 [tool.pytest.ini_options]
-testpaths = ["hosts/tests"]
+testpaths = ["hosts/tests", "e87ctl/tests"]
 addopts = "-ra"
 
 [tool.ruff]
@@ -50,7 +59,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["hosts/src/e87canbus"]
+files = ["hosts/src/e87canbus", "e87ctl/src/e87ctl"]
 
 # Layer boundaries, enforced in CI with `uv run lint-imports`. The intended
 # dependency direction points inward: adapters/runners -> service -> kernel ->

@@ -16,8 +16,6 @@ constexpr size_t MAX_LINE_LENGTH = 63;
 enum class Display : uint8_t {
     STARTING,
     READY,
-    HOTSPOT_WAITING,
-    HOTSPOT_CONNECTED,
     FAULT,
     OFF,
 };
@@ -36,8 +34,6 @@ inline bool parseStatus(const char *line, size_t length, Display &display) {
     static const StatusName statuses[] = {
         {"STATUS starting", Display::STARTING},
         {"STATUS ready", Display::READY},
-        {"STATUS hotspot_waiting", Display::HOTSPOT_WAITING},
-        {"STATUS hotspot_connected", Display::HOTSPOT_CONNECTED},
         {"STATUS fault", Display::FAULT},
         {"STATUS off", Display::OFF},
     };
@@ -157,24 +153,6 @@ inline void render(Display display, uint32_t now, Rgb (&pixels)[PIXEL_COUNT]) {
         case Display::READY:
             for (Rgb &pixel : pixels) {
                 pixel = bounded(20, 20, 20);
-            }
-            break;
-        case Display::HOTSPOT_WAITING: {
-            constexpr uint16_t period = 1600;
-            constexpr uint8_t minimum = 12;
-            constexpr uint8_t maximum = 96;
-            const uint16_t phase = static_cast<uint16_t>(now % period);
-            const uint16_t ramp = phase <= period / 2 ? phase : period - phase;
-            const uint8_t level = static_cast<uint8_t>(
-                minimum + (static_cast<uint32_t>(maximum - minimum) * ramp) / (period / 2));
-            for (Rgb &pixel : pixels) {
-                pixel = bounded(0, level, level);
-            }
-            break;
-        }
-        case Display::HOTSPOT_CONNECTED:
-            for (Rgb &pixel : pixels) {
-                pixel = bounded(0, 127, 0);
             }
             break;
         case Display::FAULT:

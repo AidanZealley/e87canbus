@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -eu
+
+role="${1:-}"
+case "$role" in
+    coordinator | console) ;;
+    *) echo "Usage: build-application coordinator|console" >&2; exit 2 ;;
+esac
+
+rm -rf /work
+mkdir -p /work /output
+python3 -m venv --copies /work/build-venv
+/work/build-venv/bin/pip install \
+    --disable-pip-version-check --require-hashes --no-cache-dir \
+    --requirement /locked/build.txt
+/work/build-venv/bin/pip wheel \
+    --disable-pip-version-check --no-deps --no-build-isolation \
+    --wheel-dir /work/wheels /source
+python3 -m venv --copies /output/venv
+/output/venv/bin/pip install \
+    --disable-pip-version-check --require-hashes --no-cache-dir \
+    --requirement /locked/runtime.txt
+/output/venv/bin/pip install \
+    --disable-pip-version-check --no-deps --no-index /work/wheels/e87canbus-*.whl
+python3 /usr/local/bin/make-entry-points-relocatable \
+    /output/venv/bin/e87canbus \
+    /output/venv/bin/e87canbus-console
+mkdir /work/frontend
+tar \
+    --directory /source/frontend \
+    --exclude node_modules \
+    --exclude '*/node_modules' \
+    --exclude '*/dist' \
+    --create --file - . \
+    | tar --directory /work/frontend --extract --file -
+cd /work/frontend
+pnpm install --frozen-lockfile
+if [ "$role" = console ]; then
+    export VITE_COORDINATOR_ORIGIN=https://10.42.0.1
+fi
+pnpm --filter "@e87canbus/$role" build
+cp -a "apps/$role/dist" /output/frontend

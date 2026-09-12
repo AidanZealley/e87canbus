@@ -1,106 +1,140 @@
 # Raspberry Pi host images
 
-This repository builds the validated v1 Raspberry Pi 4 host-image prototypes for the coordinator
-and console. They contain stable operating-system and role setup, but no application, installation
-identity, secrets, Wi-Fi credentials or operator account. Copying future installation inputs onto
-a card will not provision it. The provisioning feature must add the image-side consumer and unique
-host identity behavior, then rebuild both roles with this builder and repeat the relevant hardware
-checks. Cards flashed from one prototype artifact share its build-time hostname and are not
-deployable hosts.
+This directory builds the provisionable Raspberry Pi 4 coordinator and console image candidates.
+Each image contains the stable OS configuration and one strict first-boot consumer. It contains no
+application release, installation credential, operator account or reusable host identity.
+
+The device lifecycle workflow owns acceptance. Automated image checks do not prove Raspberry Pi
+radio behavior, Chromium certificate selection or the macOS writer. See
+[`docs/specs/device-provisioning/implementation/README.md`](../docs/specs/device-provisioning/implementation/README.md)
+for the current gate status and evidence requirements.
 
 ## Build on Apple silicon
 
-Use a clean checkout on an arm64 Mac with Docker Desktop running. The supported and tested host is
-the M1 Pro MacBook. The build downloads Debian and Raspberry Pi packages, so it needs network
-access. Docker keeps downloaded packages in the named volume `e87canbus-pi-image-packages` between
-builds.
-
-Check the source tree before starting. A dirty tree is allowed and recorded in the manifest, but
-it is not an acceptable hardware-checkpoint candidate.
+Use an arm64 Mac with Docker Desktop running. The build downloads Debian and Raspberry Pi packages
+and reuses the `e87canbus-pi-image-packages` Docker volume.
 
 ```bash
 git status --short
 docker info >/dev/null
-uname -m
+test "$(uname -m)" = arm64
+uv run e87ctl image build coordinator
+uv run e87ctl image build console
 ```
 
-`uname -m` must print `arm64`. Build each role from the repository root:
-
-```bash
-./scripts/build-pi-image coordinator
-./scripts/build-pi-image console
-```
-
-Each command prints its image path, manifest path and SHA-256 digest. Outputs are local and ignored
-by Git:
+Generated images and manifests are ignored by Git under:
 
 ```text
-artifacts/images/coordinator/e87-coordinator_<date>_<time>Z_<commit>.img
-artifacts/images/coordinator/e87-coordinator_<date>_<time>Z_<commit>.json
-artifacts/images/console/e87-console_<date>_<time>Z_<commit>.img
-artifacts/images/console/e87-console_<date>_<time>Z_<commit>.json
+artifacts/images/coordinator/
+artifacts/images/console/
 ```
 
-For example, `e87-coordinator_2026-08-24_1432Z_b3c3206.img`. A build from a dirty
-working tree ends in `<commit>-dirty`; the manifest still records the full commit, dirty state and
-image digest.
-
-Inspect the newest artifact for a role without assuming a build identifier:
+The command prints each image path, manifest path and SHA-256 digest. Check the latest result without
+assuming its generated name:
 
 ```bash
 role=coordinator
 manifest=$(ls -t "artifacts/images/${role}"/*.json | head -n 1)
 image="${manifest%.json}.img"
-cat "$manifest"
 expected=$(sed -n 's/.*"sha256": "\([^"]*\)".*/\1/p' "$manifest")
 actual=$(shasum -a 256 "$image" | awk '{print $1}')
 test "$actual" = "$expected"
-printf 'Image: %s\nSHA-256: %s\n' "$image" "$actual"
+cat "$manifest"
 ```
 
-Repeat with `role=console`. Check that the manifest says:
+Repeat with `role=console`. The strict v1 manifest records the role, Pi model, Trixie arm64 OS,
+pinned builder revision, Git context, image digest, provisioning interface version and boot/root
+storage limits. The FAT boot partition keeps rpi-image-gen's `BOOT` label, which the macOS writer
+uses as the exact partition identity.
 
-- `git_dirty` is `false` and `git_commit` is the checkpoint commit;
-- `architecture` is `arm64`;
-- `raspberry_pi_model` is `Raspberry Pi 4 Model B`;
-- `os_release` is `Raspberry Pi OS Lite Trixie`; and
-- `role` matches the card being tested.
+## Image contents
 
-## Write a test card
+Both roles:
 
-Open Raspberry Pi Imager and choose **Use Custom**. Select the role's `.img`, select the test SD
-card, then write it and wait for Imager verification to finish. Confirm the image path and target
-device before writing.
+- remove the builder hostname, `/etc/machine-id` and SSH host keys before publication;
+- contain `e87canbus-provision.service` and the protected `unprovisioned` marker;
+- contain no application, recovery package, device certificate, network secret or SSH authorized
+  key;
+- generate the machine ID and SSH host keys locally; and
+- keep the role target stopped until the consumer validates, stages, installs and cleans a bundle.
 
-Raspberry Pi Imager did not offer OS customisation for the base checkpoint's custom image. Do not
-depend on Imager to create a test user or install an SSH key. The reusable image deliberately has
-no operator account, and its SSH server accepts public keys only.
+The coordinator image also contains nginx, dnsmasq and nftables. Provisioning supplies the WPA3-SAE
+access-point profile and TLS identity. Nginx listens at `10.42.0.1:443`, requests a client
+certificate and replaces the two trusted identity headers before proxying to the loopback
+application. Dnsmasq offers only `10.42.0.100` through `10.42.0.150`, with no DNS or default
+gateway. The firewall drops forwarding and permits hotspot ingress only for DHCP, HTTPS, SSH and
+ICMP. The controller service has no privileged NetworkManager helper or sudo rule. NetworkManager
+autoconnect owns access-point activation, and the coordinator panel cannot change it.
 
-### Temporary local access
+The console image contains Cage, Chromium and NSS tools. Provisioning supplies the static
+`10.42.0.2/24` WPA3-SAE profile, imports its client identity into the `e87-kiosk` Chromium profile
+and installs automatic certificate selection only for `https://10.42.0.1`.
 
-Use [systemd's debug shell](https://www.freedesktop.org/software/systemd/man/latest/systemd-debug-generator.html)
-for this hardware checkpoint. This changes only the flashed test card. It does not change the
-`.img`, its manifest or repository source. It creates no user or credential.
+First boot does not run `apt`, `pip`, `uv`, `npm` or `pnpm`. It installs the ready application under
+`/opt/e87canbus/releases/<digest>` and activates `/opt/e87canbus/current` only after complete bundle
+validation. Success removes the boot bundle and staged secrets, writes non-secret status to the
+root and `BOOT` filesystems, then clears `unprovisioned`. An invalid bundle leaves the marker and
+all role services disabled.
 
-After Imager has verified the card, eject and reinsert it so macOS mounts its `BOOT` partition.
-Copy the checkpoint script onto the card and append the debug-shell option to the existing single
-line in `cmdline.txt`:
+## Physical checkpoint
+
+Build both roles from one clean candidate commit. Use the public provisioning commands and follow
+the macOS writer gate before booting either Pi:
 
 ```bash
-cmdline=/Volumes/BOOT/cmdline.txt
-cp images/e87canbus-image-check /Volumes/BOOT/
-grep -qw systemd.debug_shell=1 "$cmdline" || \
-  perl -0pi -e 's/\s*\z/ systemd.debug_shell=1\n/' "$cmdline"
-grep -n systemd.debug_shell=1 "$cmdline"
-diskutil eject /Volumes/BOOT
+uv run e87ctl provision coordinator --installation <recovery-package>
+uv run e87ctl provision console --installation <recovery-package>
 ```
 
-The debug shell gives unauthenticated root access on local virtual terminal 9. Keep the Pi away
-from untrusted networks and vehicle wiring while it is enabled. Connect the role hardware, HDMI
-display and keyboard, then boot. Wait for boot to settle and press Control-Option-F9 on an Apple
-keyboard. Hold Fn as well if its top row controls media. On a PC keyboard, press Control-Alt-F9.
+The workflow records the exact image, provisioning and application digests. It also owns the
+deliberately invalid-bundle card used to prove offline failure status.
 
-Before reusing or handing over the card, remove the debug shell and power off:
+For the successful pair, copy `images/e87canbus-image-check` to the test card's `BOOT` partition
+and use a test-only local console such as `systemd.debug_shell=1`. This changes only the flashed
+test card. It creates no user or credential. On the Mac, set `E87_TEST_DISK` to the confirmed
+whole-disk identifier for that card and prepare the temporary input:
+
+```bash
+(
+  set -euo pipefail
+  E87_TEST_DISK_ID=${E87_TEST_DISK#/dev/}
+  [[ "$E87_TEST_DISK_ID" =~ ^disk[0-9]+$ ]]
+  E87_TEST_PARTITION="/dev/${E87_TEST_DISK_ID}s1"
+  diskutil info -plist "/dev/$E87_TEST_DISK_ID" |
+    plutil -extract WholeDisk raw - | grep -qx true
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract ParentWholeDisk raw - | grep -qx "$E87_TEST_DISK_ID"
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract VolumeName raw - | grep -qx BOOT
+  trap 'diskutil unmountDisk "/dev/$E87_TEST_DISK_ID" >/dev/null 2>&1 || true' EXIT
+  diskutil mount "$E87_TEST_PARTITION"
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract MountPoint raw - | grep -qx /Volumes/BOOT
+  cp images/e87canbus-image-check /Volumes/BOOT/
+  grep -qw systemd.debug_shell=1 /Volumes/BOOT/cmdline.txt ||
+    sed -i '' '1s/$/ systemd.debug_shell=1/' /Volumes/BOOT/cmdline.txt
+  sync
+  diskutil unmountDisk "/dev/$E87_TEST_DISK_ID"
+  trap - EXIT
+)
+```
+
+Boot the Pi, open the local debug shell on tty9 and run:
+
+```bash
+sh /boot/firmware/e87canbus-image-check coordinator
+sh /boot/firmware/e87canbus-image-check console
+```
+
+The executable is the source of checkpoint assertions. It checks the Raspberry Pi 4 Model B and
+Trixie arm64 base, unique host state, successful provisioning status, `BOOT` label, active
+release, key-only SSH and role services. Coordinator checks cover the panel UART and three CAN
+interfaces, and confirm the panel hotspot helper and sudo rule are absent. Console checks cover
+`kcan` in listen-only mode, DRM and touchscreen input. Network
+checks cover the `10.42.0.1/24` coordinator access point, `10.42.0.2/24` console client, WPA3/PMF
+policy, no forwarding and the console Chromium certificate store.
+
+Remove the temporary debug shell and checker before reusing a card:
 
 ```bash
 sed -i 's/[[:space:]]systemd\.debug_shell=1//g' /boot/firmware/cmdline.txt
@@ -110,80 +144,9 @@ sync
 systemctl poweroff
 ```
 
-Do not treat a card as safe to deploy until the negative `grep` check succeeds. Reflashing the
-card from the verified image also removes all test-card changes.
+Do not report the images as accepted until the workflow contains the complete MacBook, Raspberry
+Pi Imager, Pi 4, network, TLS and cleanup evidence for the exact candidate.
 
-## Checks on both roles
-
-The checkpoint script runs the common checks and the selected role checks in one pass. From the
-debug shell, run one of:
-
-```bash
-sh /boot/firmware/e87canbus-image-check coordinator
-sh /boot/firmware/e87canbus-image-check console
-```
-
-It prints `PASS` or `FAIL` for every assertion and exits nonzero if anything fails. The script is
-the executable source of checkpoint assertions. It checks that the expected Pi 4 and Trixie arm64
-system booted without failed units, SSH accepts public keys only, no operator account or application
-was baked into the image, and the unprovisioned marker remains present.
-
-## Coordinator checks
-
-Fit the [three-channel CAN stack](../docs/waveshare-three-channel-stack.md) and coordinator panel
-according to the [wiring guide](../docs/wiring.md) before booting. A passing coordinator run confirms
-that the panel UART exists and all three CAN interfaces use their intended SPI controllers and bit
-rates. It also checks the fixed `10.43.0.1/30` Ethernet profile, inactive password-free hotspot,
-four-action hotspot sudo policy, and provisioning gates on the application and proxy sockets.
-
-## Console checks
-
-Fit the 2-CH CAN HAT+, with only its first CAN channel in use, and the intended DSI display and
-touchscreen before booting. A passing console run confirms that `kcan` is the only CAN interface,
-mapped to `spi1.1` at 100 kbit/s in listen-only mode. It also checks the fixed `10.43.0.2/30`
-Ethernet profile, Cage, Chromium, DRM, touchscreen input, and provisioning gates on the application
-and kiosk.
-
-## Investigate a failure
-
-The failed assertion names the area to inspect. These commands expose the useful raw state without
-duplicating the checker's assertions:
-
-```bash
-systemctl --failed --no-legend --plain
-systemctl list-units --all 'e87canbus-*' ssh.service avahi-daemon.service --no-pager
-systemctl list-unit-files 'e87canbus-*' --no-pager
-journalctl -b -u 'e87canbus-*' --no-pager
-for interface in kcan ptcan fcan; do
-  test -e "/sys/class/net/$interface" || continue
-  printf '\n%s -> %s\n' "$interface" "$(readlink -f "/sys/class/net/$interface/device")"
-  ip -details link show "$interface"
-done
-nmcli connection show
-for device in /dev/input/event*; do
-  test -e "$device" || continue
-  udevadm info --query=property --name="$device" | \
-    sed -n '/^DEVNAME=/p; /^ID_INPUT/p'
-done
-```
-
-These commands report services, boot logs, existing CAN interfaces, NetworkManager profiles and
-input-device classification on either role. Do not add credentials or enable application units to
-make the reusable-image checkpoint pass.
-
-The checkpoint cannot exercise the application health check or launch the kiosk. The future
-provisioning work must add the missing image-side consumer before it can install the application,
-operator account and unique host identity. The checkpoint also does not prove CAN traffic, hotspot
-credentials, paired-host Ethernet reachability or vehicle-safe wiring. Those are installation
-acceptance checks, not reusable-image checks.
-
-## Record the checkpoint
-
-For each role, record:
-
-- the build command result, image filename, size and SHA-256 digest;
-- Raspberry Pi Imager write and verification result;
-- Pi model and OS checks;
-- failed-unit output;
-- the checkpoint script's complete `PASS` or `FAIL` output; and
-- confirmation that `systemd.debug_shell=1` was removed or the card was reflashed.
+After both Pis boot, join their Wi-Fi network and run `e87ctl verify coordinator` and `e87ctl
+verify console` with the installation recovery package. The [provisioning runbook](../deploy/README.md)
+contains the complete pair and invalid-bundle acceptance procedure.

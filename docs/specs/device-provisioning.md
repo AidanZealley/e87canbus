@@ -52,8 +52,9 @@ The first implementation accepts these limits:
 - A reusable image cannot authenticate its first provisioning bundle because it contains no
   installation-specific trust anchor. Physical control of the card authorizes initial
   provisioning.
-- There is no credential revocation or rotation. Loss or compromise of a device or the recovery
-  package is handled by creating a new installation and reprovisioning both Pis.
+- There is no credential revocation or rotation. Loss of control or suspected compromise of a
+  device or the recovery package requires a new installation and reprovisioning both Pis. An
+  ordinary failed card that remains under operator control can be replaced within the installation.
 - Certificate expiry is handled by reprovisioning.
 
 Disk encryption, secure boot, verified boot, hardware-backed device keys, remote access and an
@@ -104,8 +105,10 @@ uv run e87ctl installation create --output <recovery-package>
 uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
 
-uv run e87ctl verify coordinator --installation <recovery-package>
-uv run e87ctl verify console --installation <recovery-package>
+uv run e87ctl verify coordinator --installation <recovery-package> \
+  --host-key-fingerprint <trusted-sha256-fingerprint>
+uv run e87ctl verify console --installation <recovery-package> \
+  --host-key-fingerprint <trusted-sha256-fingerprint>
 ```
 
 Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
@@ -414,8 +417,11 @@ The writer must:
 
 - resolve partitions, APFS containers and synthesized devices to their physical stores;
 - protect every disk backing the running system;
-- reject internal disks even when explicitly named;
-- accept only a whole external physical disk, never a partition;
+- reject internal disks even when explicitly named, except removable media in the MacBook's
+  built-in SD reader when `diskutil` reports a whole physical disk with `Internal`, `Removable`,
+  `RemovableMedia` and `Ejectable` all true and `BusProtocol` exactly `Secure Digital`;
+- accept only a whole external physical disk or that exact built-in-reader case, never a
+  partition;
 - reject unresolved paths, globs and ambiguous aliases;
 - report the resolved device, model, capacity, serial, protocol and mounts;
 - require confirmation of the resolved device, model and capacity;
@@ -425,8 +431,8 @@ The writer must:
 - read back and hash the image-sized region; and
 - mount only the boot partition for bundle injection before a final whole-disk unmount.
 
-No flag bypasses system-disk, internal-disk, whole-disk or identity checks. Mounted eligible targets
-remain unavailable until the confirmed operation unmounts them.
+No flag bypasses system-disk, internal-media, whole-disk or identity checks. Mounted eligible
+targets remain unavailable until the confirmed operation unmounts them.
 
 The low-level writer accepts only a validated target value produced by these checks. It cannot
 accept an arbitrary path through another call site.
@@ -443,7 +449,9 @@ artifact digests, result and a bounded safe error code. Neither contains raw con
 secrets.
 
 If networking starts, `e87ctl verify` uses the coordinator HTTPS endpoint and key-only SSH access
-to the selected host as appropriate. It checks:
+to the selected host as appropriate. The operator supplies the role's Ed25519 host-key SHA-256
+fingerprint from a trusted local physical check. Verification rejects another SSH server at the
+fixed address. It checks:
 
 - coordinator certificate trust and expected installation identity;
 - successful bundle consumption and marker removal;
@@ -463,8 +471,8 @@ any required check fails or remains unavailable.
 
 ## Installation replacement
 
-Loss or suspected compromise of a Pi, its card, the management SSH key or the recovery package
-invalidates the installation. Recovery is:
+Loss of control or suspected compromise of a Pi, its card, the management SSH key or the recovery
+package invalidates the installation. Recovery is:
 
 1. Run `e87ctl installation create` to create a new installation.
 2. Reprovision the coordinator and console.
@@ -491,8 +499,10 @@ existing recovery package. The old credential remains valid until the installati
 - A laptop with only the Wi-Fi password cannot read application data.
 - The console can use every current production operation required by its UI and cannot use an
   operator-only endpoint.
-- System and internal disks cannot reach the writer, including through explicit input.
-- The writer detects target replacement before writing and verifies image and bundle bytes.
+- System disks and internal disks outside the exact removable Secure Digital exception cannot
+  reach the writer, including through explicit input.
+- The writer detects changes in macOS-reported target identity before writing and verifies image
+  and bundle bytes.
 - Provisioning reports card preparation without claiming first-boot success.
 - Online verification proves the installed identities, network path and application health.
 - Rebuilt coordinator and console images pass the relevant automated and physical checks.
