@@ -101,7 +101,7 @@ hardware.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
-| macOS writer | 4 | After workstream 6, before workstream 7 | Testing | `0f29317e2887975b29e218e653314bd83d8a8597` | Re-run the complete gate from the exact candidate; attempt 3's application-build blocker is corrected and reviewed |
+| macOS writer | 4 | After workstream 6, before workstream 7 | Troubleshooting | `0f29317e2887975b29e218e653314bd83d8a8597` | Raw write and readback pass at attempt 4; assembled image must label its boot filesystem exactly `bootfs` |
 | Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
