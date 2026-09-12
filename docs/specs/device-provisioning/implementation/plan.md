@@ -102,7 +102,7 @@ hardware.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 7 | After closure | Pending | TBD | MacBook and two-Pi evidence recorded |
+| Provisioned pair | 7 | After closure | Testing | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b` | Run the recorded MacBook, two-Pi and invalid-bundle procedure on the exact candidate |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.

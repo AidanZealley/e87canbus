@@ -80,9 +80,9 @@ hide any check unavailable on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after automated closure and before acceptance.
-- Status: `Pending`
-- Candidate: set after automated closure. Test the exact clean accepted candidate, not a later
-  bookkeeping commit.
+- Status: `Testing`
+- Candidate: `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`. Test this exact clean candidate,
+  not the later bookkeeping commit.
 - Required evidence: candidate hash and clean/dirty build context; both image and application
   manifests/digests; MacBook builds; two safe SD writes/readbacks; coordinator and console first
   boot; unique hostname/machine ID/SSH keys; ZIP and staged-secret removal; marker transition;
@@ -402,4 +402,5 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
   introduced by remediation.
 - Verdict: Accepted. No required finding remains. The provisioned-pair hardware gate is still
   pending and determines workstream acceptance.
-- Accepted commit: `TBD`
+- Candidate commit: `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`. Workstream acceptance remains
+  pending until the provisioned-pair hardware gate passes.
