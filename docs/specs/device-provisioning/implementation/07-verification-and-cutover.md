@@ -1,6 +1,6 @@
 # Workstream 7: Verify the complete pair and cut over to provisioning
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -94,7 +94,7 @@ hide any check unavailable on the implementation host.
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `50e009c46a139e5b90f124195bdc917f8ec959f3`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
