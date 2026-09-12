@@ -481,7 +481,8 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "10.42.0.1/24",
         "e87canbus-coordinator-wifi",
         "net.ipv4.ip_forward",
-        "/usr/local/libexec/e87canbus-hotspot $action",
+        "controller service cannot gain privileges",
+        "sudo -u e87canbus sudo -n -l",
         "e87canbus-console-kcan.service e87canbus-console.service",
         '[ "$interfaces" = kcan ]',
         "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'",
@@ -645,8 +646,9 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
     customize = read(COORDINATOR / "customize.sh")
 
     assert "X-Env-Layer-Requires: e87-common" in layer
-    for package in ("dnsmasq-base", "iw", "nftables", "nginx-light"):
+    for package in ("dnsmasq-base", "nftables", "nginx-light"):
         assert f"    - {package}\n" in layer
+    assert "    - iw\n" not in layer
     for prohibited in ("git", "nodejs", "npm", "pnpm", "uv ", "build-essential"):
         assert prohibited not in layer.lower()
 
@@ -659,14 +661,12 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
         "e87canbus-dnsmasq.service",
         "e87canbus-nginx.service",
         "70-e87canbus-coordinator-can.rules",
-        "e87canbus-hotspot",
         "controller.env.example",
     )
     for asset in canonical_assets:
         assert asset in customize
     assert '"$SRCROOT/../deploy"' in layer
     assert "usermod -aG dialout e87canbus" in customize
-    assert "visudo -cf /etc/sudoers.d/e87canbus-hotspot" in customize
     assert '"${target}/usr/share/e87canbus"' in customize
     assert '"${IGconf_image_boot_part_size}" = 2G' in customize
     assert '"${IGconf_image_root_part_size}" = 4G' in customize

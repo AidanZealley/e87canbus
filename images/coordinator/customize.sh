@@ -61,12 +61,8 @@ install_runtime_assets() {
         "${target}/etc/systemd/system/e87canbus-controller.service.d/provisioning.conf"
     install -m 0644 "${deploy}/udev/70-e87canbus-coordinator-can.rules" \
         "${target}/etc/udev/rules.d/70-e87canbus-coordinator-can.rules"
-    install -m 0755 "${deploy}/bin/e87canbus-hotspot" \
-        "${target}/usr/local/libexec/e87canbus-hotspot"
     install -m 0755 "${deploy}/bin/e87canbus-firewall" \
         "${target}/usr/local/libexec/e87canbus-firewall"
-    install -m 0440 "${deploy}/sudoers/e87canbus-hotspot" \
-        "${target}/etc/sudoers.d/e87canbus-hotspot"
     install -m 0640 "${deploy}/systemd/controller.env.example" \
         "${target}/etc/e87canbus/controller.env"
     install -m 0644 "${deploy}/network/dnsmasq.conf" \
@@ -85,8 +81,6 @@ EOF
 configure_role() {
     chroot "${target}" chown root:e87canbus /etc/e87canbus/controller.env
     chroot "${target}" usermod -aG dialout e87canbus
-    chroot "${target}" /usr/sbin/visudo -cf /etc/sudoers.d/e87canbus-hotspot >/dev/null
-
 }
 
 configure_boot

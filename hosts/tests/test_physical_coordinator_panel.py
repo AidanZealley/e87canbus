@@ -9,7 +9,6 @@ import pytest
 from e87canbus.adapters.coordinator_panel import UartPanelAdapter
 from e87canbus.api.main import create_app
 from e87canbus.deployment import DeploymentProfile
-from e87canbus.hotspot import HotspotObservation
 from e87canbus.runners.composition import build_controller_loop
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
 from e87canbus.service import ControllerLoopLifecycle
@@ -17,76 +16,31 @@ from e87canbus.service import ControllerLoopLifecycle
 
 class FakeSerialPort:
     def __init__(self) -> None:
-        self.incoming = bytearray()
         self.events: list[bytes | str] = []
-        self.writes: list[tuple[float, bytes]] = []
         self.lock = threading.Lock()
-
-    def read(self, size: int = 1) -> bytes:
-        time.sleep(0.005)
-        with self.lock:
-            chunk = bytes(self.incoming[:size])
-            del self.incoming[:size]
-            return chunk
+        self.fail_writes = False
 
     def write(self, data: bytes) -> int:
         with self.lock:
+            if self.fail_writes:
+                raise OSError("simulated UART write failure")
             self.events.append(data)
-            self.writes.append((time.monotonic(), data))
         return len(data)
 
     def close(self) -> None:
         with self.lock:
             self.events.append("closed")
 
-    def button(self) -> None:
-        with self.lock:
-            self.incoming.extend(b"BUTTON\n")
-
-
-class FakeHotspotBackend:
-    def __init__(self) -> None:
-        self.observation = HotspotObservation.DISABLED
-        self.activation_calls = 0
-
-    def activate(self) -> None:
-        self.activation_calls += 1
-        self.observation = HotspotObservation.STARTING
-
-    def deactivate(self) -> None:
-        self.observation = HotspotObservation.DISABLED
-
-    def observe(self) -> HotspotObservation:
-        return self.observation
-
-
-class BlockingHotspotBackend(FakeHotspotBackend):
-    """Hold the first observation, as a slow NetworkManager command does."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.observing = threading.Event()
-        self.release = threading.Event()
-        self._block_first_observation = True
-
-    def observe(self) -> HotspotObservation:
-        if self._block_first_observation:
-            self._block_first_observation = False
-            self.observing.set()
-            assert self.release.wait(timeout=5.0)
-        return super().observe()
-
 
 class FakeController:
     def __init__(self) -> None:
         self.lifecycle = ControllerLoopLifecycle.CREATED
         self.ready = False
-        self.snapshotted = threading.Event()
+        self.fatal = False
 
     def snapshot(self) -> SimpleNamespace:
-        self.snapshotted.set()
         return SimpleNamespace(
-            diagnostics=SimpleNamespace(health=SimpleNamespace(fatal=False)),
+            diagnostics=SimpleNamespace(health=SimpleNamespace(fatal=self.fatal)),
             service=SimpleNamespace(ready=self.ready),
         )
 
@@ -107,7 +61,7 @@ class FakeSocketCanBus:
 
 def wait_for(
     predicate: Callable[[], bool],
-    events: list[bytes | str] | None = None,
+    events: list[bytes | str],
     timeout: float = 3.0,
 ) -> None:
     deadline = time.monotonic() + timeout
@@ -116,87 +70,41 @@ def wait_for(
         time.sleep(0.01)
 
 
-def test_pre_ready_button_is_not_retained_while_hotspot_observation_is_blocked() -> None:
+def test_panel_heartbeats_status_and_sends_off_on_graceful_stop() -> None:
     controller = FakeController()
-    controller.lifecycle = ControllerLoopLifecycle.RUNNING
     port = FakeSerialPort()
-    backend = BlockingHotspotBackend()
     accessory = PhysicalCoordinatorPanel(
         controller,  # type: ignore[arg-type]
         uart_factory=lambda: UartPanelAdapter(port),
-        hotspot_backend=backend,
     )
 
     accessory.start()
-    assert backend.observing.wait(timeout=0.5)
-    # The state worker is held inside its observation, so the next snapshot is the UART
-    # thread capturing the coordinator status of this press.
-    controller.snapshotted.clear()
-    port.button()
-    assert controller.snapshotted.wait(timeout=0.5)
-    controller.ready = True
-    backend.release.set()
-    try:
-        wait_for(lambda: b"STATUS ready\n" in port.events, port.events)
-        assert backend.activation_calls == 0
-        port.button()
-        wait_for(lambda: backend.activation_calls == 1)
-    finally:
-        accessory.stop()
-
-    assert port.events[-2:] == [b"STATUS off\n", "closed"]
-
-
-def test_ready_button_remains_valid_while_hotspot_observation_is_blocked() -> None:
-    controller = FakeController()
+    wait_for(lambda: b"STATUS starting\n" in port.events, port.events)
     controller.lifecycle = ControllerLoopLifecycle.RUNNING
     controller.ready = True
-    port = FakeSerialPort()
-    backend = BlockingHotspotBackend()
-    accessory = PhysicalCoordinatorPanel(
-        controller,  # type: ignore[arg-type]
-        uart_factory=lambda: UartPanelAdapter(port),
-        hotspot_backend=backend,
-    )
-
-    accessory.start()
-    assert backend.observing.wait(timeout=0.5)
-    # The state worker is held inside its observation, so the next snapshot is the UART
-    # thread capturing the coordinator status of this press.
-    controller.snapshotted.clear()
-    port.button()
-    assert controller.snapshotted.wait(timeout=0.5)
-    controller.ready = False
-    backend.release.set()
-    try:
-        wait_for(lambda: backend.activation_calls == 1)
-    finally:
-        accessory.stop()
+    wait_for(lambda: b"STATUS ready\n" in port.events, port.events)
+    controller.fatal = True
+    wait_for(lambda: b"STATUS fault\n" in port.events, port.events)
+    accessory.stop()
 
     assert port.events[-2:] == [b"STATUS off\n", "closed"]
 
 
-def test_blocked_hotspot_observation_does_not_stop_the_uart_heartbeat() -> None:
+def test_uart_write_failure_stops_heartbeats_without_sending_graceful_off() -> None:
     controller = FakeController()
     port = FakeSerialPort()
-    backend = BlockingHotspotBackend()
     accessory = PhysicalCoordinatorPanel(
         controller,  # type: ignore[arg-type]
         uart_factory=lambda: UartPanelAdapter(port),
-        hotspot_backend=backend,
     )
 
     accessory.start()
-    assert backend.observing.wait(timeout=0.5)
-    try:
-        # The state worker is held inside its observation, so these heartbeats can only
-        # come from the independent UART loop.
-        wait_for(lambda: len(port.writes) >= 2, port.events, timeout=3.0)
-    finally:
-        backend.release.set()
-        accessory.stop()
+    wait_for(lambda: b"STATUS starting\n" in port.events, port.events)
+    port.fail_writes = True
+    wait_for(lambda: "closed" in port.events, port.events)
+    accessory.stop()
 
-    assert port.events[-2:] == [b"STATUS off\n", "closed"]
+    assert b"STATUS off\n" not in port.events
 
 
 @pytest.mark.parametrize(

@@ -713,18 +713,6 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "HotspotStatus": {
-        "enum": [
-          "disabled",
-          "starting",
-          "waiting",
-          "connected",
-          "stopping",
-          "failed"
-        ],
-        "title": "HotspotStatus",
-        "type": "string"
-      },
       "LivenessResponse": {
         "additionalProperties": false,
         "properties": {
@@ -737,18 +725,6 @@
         },
         "title": "LivenessResponse",
         "type": "object"
-      },
-      "PanelDisplay": {
-        "enum": [
-          "starting",
-          "ready",
-          "hotspot_waiting",
-          "hotspot_connected",
-          "fault",
-          "off"
-        ],
-        "title": "PanelDisplay",
-        "type": "string"
       },
       "ProvisioningStatusResponse": {
         "additionalProperties": false,
@@ -1044,23 +1020,10 @@
                 "type": "null"
               }
             ]
-          },
-          "display": {
-            "$ref": "#/components/schemas/PanelDisplay"
-          },
-          "failure_armed": {
-            "title": "Failure Armed",
-            "type": "boolean"
-          },
-          "hotspot_status": {
-            "$ref": "#/components/schemas/HotspotStatus"
           }
         },
         "required": [
           "coordinator_status",
-          "display",
-          "hotspot_status",
-          "failure_armed",
           "coordinator_status_preview"
         ],
         "title": "SimulationCoordinatorPanelState",
@@ -1990,129 +1953,6 @@
         ]
       }
     },
-    "/api/dev/simulation/coordinator-panel/button": {
-      "post": {
-        "operationId": "pressSimulationCoordinatorPanelButton",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Press Button",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/client/connect": {
-      "post": {
-        "operationId": "connectSimulationHotspotClient",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Connect Client",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/client/disconnect": {
-      "post": {
-        "operationId": "disconnectSimulationHotspotClient",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Disconnect Client",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
     "/api/dev/simulation/coordinator-panel/coordinator-status": {
       "put": {
         "operationId": "previewSimulationCoordinatorStatus",
@@ -2159,37 +1999,6 @@
           }
         },
         "summary": "Preview Coordinator Status",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation": {
-      "post": {
-        "operationId": "failNextSimulationHotspotOperation",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Fail Next Operation",
         "tags": [
           "development simulation: coordinator panel"
         ]

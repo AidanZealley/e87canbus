@@ -65,12 +65,9 @@ if [ "$role" = coordinator ]; then
         [ "$(nmcli -g 802-11-wireless-security.pmf connection show e87canbus-coordinator-wifi)" = 3 ] &&
         [ "$(nmcli -g ipv4.addresses connection show e87canbus-coordinator-wifi)" = 10.42.0.1/24 ]'
     check_shell "IP forwarding disabled" '[ "$(sysctl -n net.ipv4.ip_forward)" = 0 ] && [ "$(sysctl -n net.ipv6.conf.all.forwarding)" = 0 ]'
-    check_shell "hotspot sudo policy has four actions" '
-        listing=$(sudo -u e87canbus sudo -n -l) || exit 1
-        for action in activate deactivate state stations; do
-            printf "%s\n" "$listing" | grep -Fq "/usr/local/libexec/e87canbus-hotspot $action" || exit 1
-        done
-        [ "$(printf "%s\n" "$listing" | grep -oF /usr/local/libexec/e87canbus-hotspot | wc -l | tr -d " ")" = 4 ]'
+    check_shell "controller service cannot gain privileges" '
+        [ "$(systemctl show --property=NoNewPrivileges --value e87canbus-controller.service)" = yes ] &&
+        ! sudo -u e87canbus sudo -n -l >/dev/null 2>&1'
 else
     check "console services active" systemctl is-active --quiet \
         e87canbus-console-kcan.service e87canbus-console.service \

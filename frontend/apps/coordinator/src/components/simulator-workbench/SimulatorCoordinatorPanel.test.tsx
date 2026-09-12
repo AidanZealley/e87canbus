@@ -8,10 +8,6 @@ import { SimulatorCoordinatorPanel } from "./SimulatorCoordinatorPanel"
 
 const api = vi.hoisted(() => ({
   getSimulationCoordinatorPanel: vi.fn(),
-  pressSimulationCoordinatorPanelButton: vi.fn(),
-  connectSimulationHotspotClient: vi.fn(),
-  disconnectSimulationHotspotClient: vi.fn(),
-  failNextSimulationHotspotOperation: vi.fn(),
   previewSimulationCoordinatorStatus: vi.fn(),
 }))
 
@@ -25,9 +21,6 @@ const state = (
 ): SimulationCoordinatorPanelState => ({
   coordinator_status: "ready",
   coordinator_status_preview: null,
-  display: "ready",
-  failure_armed: false,
-  hotspot_status: "disabled",
   ...overrides,
 })
 
@@ -36,19 +29,12 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it("renders shared state and sends controls to the simulator backend", async () => {
+it("renders coordinator state and previews panel conditions", async () => {
   api.getSimulationCoordinatorPanel.mockResolvedValue(state())
-  api.pressSimulationCoordinatorPanelButton.mockResolvedValue(
-    state({ display: "hotspot_waiting", hotspot_status: "starting" })
-  )
-  api.connectSimulationHotspotClient.mockResolvedValue(
-    state({ display: "hotspot_connected", hotspot_status: "connected" })
-  )
   api.previewSimulationCoordinatorStatus.mockResolvedValue(
     state({
       coordinator_status: "fault",
       coordinator_status_preview: "fault",
-      display: "fault",
     })
   )
   const queryClient = new QueryClient({
@@ -65,28 +51,6 @@ it("renders shared state and sends controls to the simulator backend", async () 
 
   expect(
     await screen.findByRole("img", { name: "Coordinator indicator: Ready" })
-  ).toBeTruthy()
-
-  fireEvent.click(
-    screen.getByRole("button", { name: "Press coordinator hotspot button" })
-  )
-  await waitFor(() =>
-    expect(api.pressSimulationCoordinatorPanelButton).toHaveBeenCalledOnce()
-  )
-  expect(
-    screen.getByRole("img", {
-      name: "Coordinator indicator: Hotspot waiting for a client",
-    })
-  ).toBeTruthy()
-
-  fireEvent.click(screen.getByRole("button", { name: "Connect client" }))
-  await waitFor(() =>
-    expect(api.connectSimulationHotspotClient).toHaveBeenCalledOnce()
-  )
-  expect(
-    screen.getByRole("img", {
-      name: "Coordinator indicator: Hotspot client connected",
-    })
   ).toBeTruthy()
 
   fireEvent.click(

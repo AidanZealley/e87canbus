@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 import threading
 import time
 from dataclasses import replace
@@ -189,39 +188,14 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
     assert "--frontend-directory" in unit
 
 
-def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
+def test_controller_has_no_privileged_hotspot_control() -> None:
     root = Path(__file__).resolve().parents[2]
-    helper_path = root / "deploy/bin/e87canbus-hotspot"
-    helper = helper_path.read_text()
-    sudoers = (root / "deploy/sudoers/e87canbus-hotspot").read_text()
     unit = (root / "deploy/systemd/e87canbus-controller.service").read_text()
+    sudoers = "\n".join(path.read_text() for path in (root / "deploy/sudoers").glob("*"))
 
-    assert helper_path.stat().st_mode & 0o111
-    assert "/usr/bin/nmcli --wait 0 connection up id e87canbus-coordinator-wifi" in helper
-    assert "/usr/bin/nmcli connection down id e87canbus-coordinator-wifi" in helper
-    assert "/usr/bin/nmcli --get-values GENERAL.STATE" in helper
-    assert helper.count("e87canbus-coordinator-wifi") == 3
-    assert "/usr/sbin/iw dev wlan0 station dump" in helper
-
-    helper_command = "/usr/local/libexec/e87canbus-hotspot"
-    # The count is the closure property: the loop below proves the four intended actions
-    # are granted, and this proves there is no fifth grant alongside them.
-    assert sudoers.count(helper_command) == 4
-    assert "nmcli" not in sudoers
-    assert "/usr/sbin/iw" not in sudoers
-    assert "*" not in sudoers
-    for action in ("activate", "deactivate", "state", "stations"):
-        assert f"{helper_command} {action}" in sudoers
-    assert "NoNewPrivileges=false" in unit
-
-    for arguments in ((), ("invalid",), ("state", "extra")):
-        result = subprocess.run(
-            (helper_path, *arguments),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 2
+    assert "e87canbus ALL=" not in sudoers
+    assert "NoNewPrivileges=true" in unit
+    assert "NoNewPrivileges=false" not in unit
 
 
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:

@@ -80,35 +80,11 @@ export const zEngineRpmRequest = z.object({
 })
 
 /**
- * HotspotStatus
- */
-export const zHotspotStatus = z.enum([
-  "disabled",
-  "starting",
-  "waiting",
-  "connected",
-  "stopping",
-  "failed",
-])
-
-/**
  * LivenessResponse
  */
 export const zLivenessResponse = z.object({
   status: z.literal("live").optional().default("live"),
 })
-
-/**
- * PanelDisplay
- */
-export const zPanelDisplay = z.enum([
-  "starting",
-  "ready",
-  "hotspot_waiting",
-  "hotspot_connected",
-  "fault",
-  "off",
-])
 
 /**
  * ProvisioningStatusResponse
@@ -216,9 +192,6 @@ export const zSimulationCommandAcknowledgement = z.object({
 export const zSimulationCoordinatorPanelState = z.object({
   coordinator_status: zCoordinatorStatus,
   coordinator_status_preview: zCoordinatorStatus.nullable(),
-  display: zPanelDisplay,
-  failure_armed: z.boolean(),
-  hotspot_status: zHotspotStatus,
 })
 
 /**
@@ -693,24 +666,6 @@ export const zUpdateButtonProfileResponse = zButtonProfileResponse
 export const zGetSimulationCoordinatorPanelResponse =
   zSimulationCoordinatorPanelState
 
-/**
- * Successful Response
- */
-export const zPressSimulationCoordinatorPanelButtonResponse =
-  zSimulationCoordinatorPanelState
-
-/**
- * Successful Response
- */
-export const zConnectSimulationHotspotClientResponse =
-  zSimulationCoordinatorPanelState
-
-/**
- * Successful Response
- */
-export const zDisconnectSimulationHotspotClientResponse =
-  zSimulationCoordinatorPanelState
-
 export const zPreviewSimulationCoordinatorStatusBody =
   zSimulationCoordinatorStatusRequest
 
@@ -718,12 +673,6 @@ export const zPreviewSimulationCoordinatorStatusBody =
  * Successful Response
  */
 export const zPreviewSimulationCoordinatorStatusResponse =
-  zSimulationCoordinatorPanelState
-
-/**
- * Successful Response
- */
-export const zFailNextSimulationHotspotOperationResponse =
   zSimulationCoordinatorPanelState
 
 export const zTapSimulationButtonPath = z.object({
