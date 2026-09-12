@@ -467,7 +467,7 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "systemctl is-active --quiet ssh.service",
         "authenticationmethods publickey",
         "! getent passwd 1000 >/dev/null",
-        'findmnt -no LABEL /boot/firmware)" = bootfs',
+        'findmnt -no LABEL /boot/firmware)" = BOOT',
         "test ! -e /var/lib/e87canbus-provisioning/unprovisioned",
         "test -L /opt/e87canbus/current",
         "test -e /dev/ttyAMA3",

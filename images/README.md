@@ -44,7 +44,8 @@ cat "$manifest"
 
 Repeat with `role=console`. The strict v1 manifest records the role, Pi model, Trixie arm64 OS,
 pinned builder revision, Git context, image digest, provisioning interface version and boot/root
-storage limits. The FAT boot partition keeps the `bootfs` label used by the macOS writer.
+storage limits. The FAT boot partition keeps rpi-image-gen's `BOOT` label, which the macOS writer
+uses as the exact partition identity.
 
 ## Image contents
 
@@ -71,7 +72,7 @@ and installs automatic certificate selection only for `https://10.42.0.1`.
 First boot does not run `apt`, `pip`, `uv`, `npm` or `pnpm`. It installs the ready application under
 `/opt/e87canbus/releases/<digest>` and activates `/opt/e87canbus/current` only after complete bundle
 validation. Success removes the boot bundle and staged secrets, writes non-secret status to the
-root and `bootfs` filesystems, then clears `unprovisioned`. An invalid bundle leaves the marker and
+root and `BOOT` filesystems, then clears `unprovisioned`. An invalid bundle leaves the marker and
 all role services disabled.
 
 ## Physical checkpoint
@@ -87,7 +88,7 @@ uv run e87ctl provision console --installation <recovery-package>
 The workflow records the exact image, provisioning and application digests. It also owns the
 deliberately invalid-bundle card used to prove offline failure status.
 
-For the successful pair, copy `images/e87canbus-image-check` to the test card's `bootfs` partition
+For the successful pair, copy `images/e87canbus-image-check` to the test card's `BOOT` partition
 and use a test-only local console such as `systemd.debug_shell=1`. This changes only the flashed
 test card. It creates no user or credential. Run:
 
@@ -97,7 +98,7 @@ sh /boot/firmware/e87canbus-image-check console
 ```
 
 The executable is the source of checkpoint assertions. It checks the Raspberry Pi 4 Model B and
-Trixie arm64 base, unique host state, successful provisioning status, `bootfs` label, active
+Trixie arm64 base, unique host state, successful provisioning status, `BOOT` label, active
 release, key-only SSH and role services. Coordinator checks cover the panel UART and three CAN
 interfaces. Console checks cover `kcan` in listen-only mode, DRM and touchscreen input. Network
 checks cover the `10.42.0.1/24` coordinator access point, `10.42.0.2/24` console client, WPA3/PMF

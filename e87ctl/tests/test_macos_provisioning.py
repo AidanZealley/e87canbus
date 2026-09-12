@@ -41,12 +41,14 @@ class FixtureDiskutil:
         mount_point: Path | None = None,
         automount_boot: bool = False,
         unexpected_mount: bool = False,
+        boot_volume_name: str = "BOOT",
     ) -> None:
         self.external_info = _plist("external-info.plist")
         self.mount_point = mount_point
         self.written = False
         self.boot_mounted = automount_boot
         self.unexpected_mount = unexpected_mount
+        self.boot_volume_name = boot_volume_name
         self.calls: list[tuple[str, ...]] = []
 
     def plist(self, *arguments: str) -> dict[str, Any]:
@@ -71,7 +73,7 @@ class FixtureDiskutil:
                 partitions = [
                     {
                         "DeviceIdentifier": "disk4s1",
-                        "VolumeName": "bootfs",
+                        "VolumeName": self.boot_volume_name,
                         **(
                             {"MountPoint": str(self.mount_point)}
                             if self.boot_mounted and self.mount_point is not None
@@ -428,6 +430,35 @@ def test_writer_uses_an_already_mounted_boot_partition(
     assert (boot / "e87canbus-provisioning-v1.zip").is_file()
 
 
+def test_writer_requires_the_exact_boot_partition_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    diskutil = FixtureDiskutil(mount_point=tmp_path, boot_volume_name="bootfs")
+    target = recheck_target(diskutil, inspect_target(diskutil, "disk4"))
+    image, image_path, _ = _image(tmp_path)
+    provisioning = _bundle(tmp_path, image, _application(tmp_path))
+    monkeypatch.setattr(
+        "e87ctl.macos._run_privileged",
+        lambda command: setattr(diskutil, "written", True),
+    )
+    monkeypatch.setattr(
+        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
+    )
+
+    with pytest.raises(DiskError, match="exactly one BOOT partition"):
+        write_card(
+            diskutil,
+            target,
+            image_path=image_path,
+            image=image,
+            provisioning=provisioning,
+        )
+
+    assert not (tmp_path / "e87canbus-provisioning-v1.zip").exists()
+    assert ("mount", "disk4s1") not in diskutil.calls
+    assert diskutil.calls[-1] == ("unmountDisk", "/dev/disk4")
+
+
 def test_writer_rejects_an_unexpected_mounted_partition_before_copy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -447,7 +478,7 @@ def test_writer_rejects_an_unexpected_mounted_partition_before_copy(
         "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
     )
 
-    with pytest.raises(DiskError, match="other than bootfs"):
+    with pytest.raises(DiskError, match="other than BOOT"):
         write_card(
             diskutil,
             target,
