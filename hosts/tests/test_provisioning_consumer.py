@@ -126,6 +126,22 @@ def replace_bundle_entry(bundle: Path, name: str, contents: bytes) -> None:
             archive.writestr(info, entries[entry_name])
 
 
+def test_host_identity_initialization_creates_a_missing_machine_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    consumer = load_consumer()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(consumer, "run", commands.append)
+
+    consumer.initialize_host_identity("e87-coordinator")
+
+    assert commands == [
+        ["hostnamectl", "set-hostname", "e87-coordinator"],
+        ["systemd-machine-id-setup"],
+        ["ssh-keygen", "-A"],
+    ]
+
+
 @pytest.mark.parametrize("role", ["coordinator", "console"])
 def test_consumer_installs_and_activates_a_valid_role_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, role: str
