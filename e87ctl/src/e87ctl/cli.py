@@ -22,6 +22,7 @@ from e87ctl.recovery import (
     create_recovery_package,
     write_recovery_package,
 )
+from e87ctl.verify import VerifyCommandError, render_human, verify_device
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -54,6 +55,22 @@ def _parser() -> argparse.ArgumentParser:
     )
     provision.add_argument("--non-interactive", action="store_true")
     provision.add_argument("--json", action="store_true", help="Print a machine-readable result")
+
+    verify = commands.add_parser("verify", help="Verify a provisioned Raspberry Pi")
+    verify.add_argument("role", choices=("coordinator", "console"))
+    verify.add_argument("--installation", required=True, type=Path, metavar="PATH")
+    verify.add_argument(
+        "--status",
+        type=Path,
+        metavar="PATH",
+        help="Read an offline e87canbus-status-v1.json from the BOOT partition",
+    )
+    verify.add_argument(
+        "--host-key-fingerprint",
+        metavar="SHA256:FINGERPRINT",
+        help="Expected SHA-256 fingerprint of the selected device's Ed25519 SSH host key",
+    )
+    verify.add_argument("--json", action="store_true", help="Print a machine-readable result")
     return parser
 
 
@@ -169,6 +186,24 @@ def _provision(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _verify(arguments: argparse.Namespace) -> int:
+    try:
+        result = verify_device(
+            arguments.role,
+            arguments.installation,
+            offline_status_path=arguments.status,
+            expected_host_key_fingerprint=arguments.host_key_fingerprint,
+        )
+    except VerifyCommandError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    if arguments.json:
+        print(json.dumps(result.model_dump(), separators=(",", ":")))
+    else:
+        print(render_human(result))
+    return 0 if result.result == "passed" else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "image":
@@ -184,4 +219,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _create_installation(output, json_output)
     if arguments.command == "provision":
         return _provision(arguments)
+    if arguments.command == "verify":
+        return _verify(arguments)
     raise AssertionError("command was not parsed")
