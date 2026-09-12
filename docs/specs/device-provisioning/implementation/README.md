@@ -104,16 +104,15 @@ Do not begin another broad review or promote optional observations.
 
 ## Review command
 
-Use this read-only command for the independent reviews of workstreams 4 through 8 and the initial
-whole-feature review. Replace `<prompt>` with the applicable review prompt and task packet:
+Use this read-only command for every remaining review, including workstream closure and both
+whole-feature review calls. Replace `<prompt>` with the applicable review prompt and task packet:
 
 ```bash
 claude -p "<prompt>" --model opus --effort medium --permission-mode plan
 ```
 
 The orchestrator records Claude's evidence under `Required`, `Optional` and `Question`, then owns
-triage. Keep closure reviews in the current session because they verify only the accepted finding
-list and its fixes.
+triage. Run each closure as a fresh Claude call against the recorded accepted findings and fixes.
 
 If the command fails because Claude Code is missing, logged out, out of quota or otherwise cannot
 complete the review, assign a fresh reviewer in the current session. Record the substitution in
