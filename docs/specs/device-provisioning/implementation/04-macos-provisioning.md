@@ -198,6 +198,10 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Resume condition: correct the application build-context or production-TypeScript boundary exposed
   by attempt 3, record and push a new exact candidate, then obtain all required evidence without
   copying a secret into the record.
+  Workstream 3 correction `0f29317e2887975b29e218e653314bd83d8a8597` excludes test-only
+  sources from the coordinator production TypeScript program. A frontend-only offline build,
+  normal builds and all 89 coordinator tests passed, and independent review plus focused closure
+  accepted the correction. Use that exact commit for attempt 4 and rerun the complete gate.
 
 ## Implementation handoff
 
