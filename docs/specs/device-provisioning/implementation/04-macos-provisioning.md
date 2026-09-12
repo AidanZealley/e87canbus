@@ -195,13 +195,19 @@ identity-change cases. Do not invoke a real destructive writer from automated te
   repository-root protocol-vector import is absent because the application builder copies only
   `frontend` into its build tree. The gate remains blocked before the writer until the production
   frontend build receives that shared fixture or excludes test-only sources.
-- Resume condition: correct the application build-context or production-TypeScript boundary exposed
-  by attempt 3, record and push a new exact candidate, then obtain all required evidence without
-  copying a secret into the record.
   Workstream 3 correction `0f29317e2887975b29e218e653314bd83d8a8597` excludes test-only
   sources from the coordinator production TypeScript program. A frontend-only offline build,
   normal builds and all 89 coordinator tests passed, and independent review plus focused closure
   accepted the correction. Use that exact commit for attempt 4 and rerun the complete gate.
+  Attempt 4 on 2026-09-12 ran on exact candidate `0f29317e` and failed after the complete raw image
+  write and matching image-sized SHA-256 readback, but before the boot partition was mounted or the
+  provisioning ZIP was copied. Full evidence is in `04-macos-provisioning-gate-attempt-4.md`. The
+  application build correction passes. The assembled image labels its FAT partition `BOOT`, while
+  the accepted writer and image contract require exactly `bootfs`, so the writer safely exited with
+  `written disk does not have exactly one bootfs partition` and left the whole disk unmounted.
+- Resume condition: correct the assembled image's boot filesystem label to exact `bootfs`, record
+  and push a new combined candidate, then rerun the complete gate without copying a secret into the
+  record.
 
 ## Implementation handoff
 
