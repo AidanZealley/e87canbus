@@ -1055,7 +1055,7 @@ def main() -> int:
                 capture_output=True,
                 text=True,
             ).stdout.strip()
-            if label != "bootfs":
+            if label != "BOOT":
                 fail("wrong_boot_label")
         if state_path.exists():
             state = strict_json(state_path.read_bytes(), {"phase", "manifest", "device"})

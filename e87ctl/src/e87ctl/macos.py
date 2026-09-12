@@ -165,7 +165,7 @@ def write_card(
             raise DiskError("the boot partition did not mount")
         mounted = _mounted_partitions(diskutil, target.identity.identifier)
         if mounted != {boot_identifier: mount_point}:
-            raise DiskError("a partition other than bootfs is mounted")
+            raise DiskError("a partition other than BOOT is mounted")
         destination = Path(mount_point) / "e87canbus-provisioning-v1.zip"
         available = shutil.disk_usage(mount_point).free
         validate_provisioning_bundle(
@@ -373,10 +373,10 @@ def _boot_partition(diskutil: Diskutil, identifier: str) -> str:
     boot = [
         item.get("DeviceIdentifier")
         for item in partitions
-        if isinstance(item, dict) and item.get("VolumeName") == "bootfs"
+        if isinstance(item, dict) and item.get("VolumeName") == "BOOT"
     ]
     if len(boot) != 1 or not isinstance(boot[0], str):
-        raise DiskError("written disk does not have exactly one bootfs partition")
+        raise DiskError("written disk does not have exactly one BOOT partition")
     return boot[0]
 
 

@@ -222,3 +222,50 @@ environment where available. Do not claim Pi radio compatibility from these chec
 - Verdict: Accepted.
 - Remaining required findings: None.
 - Accepted commit: `3bac67b68a265b10508effced7930ae6c82beef7`
+
+## Gate attempt 4 reopening implementation handoff
+
+- Base commit: `a3717ae`
+- Outcome: Standardised workstream 6's on-device and hardware checks on the exact `BOOT` label
+  emitted by pinned rpi-image-gen. The shared image definition remains the builder's unmodified
+  source for that label.
+- Claude review: Changes required. Genimage places `extraargs` before its own label argument, so
+  the proposed `fs.vfat_mkfs_args: -n bootfs` was overridden by the final `-n BOOT`. Pinned
+  upstream's by-slot boot udev rule also matches `ID_FS_LABEL=="BOOT"`, so changing only the
+  filesystem label would break upstream boot-device discovery.
+- Finding dispositions: Accepted both findings. The product specifications require one exact boot
+  partition but do not name its filesystem label. The orchestrator therefore chose upstream's
+  existing `BOOT` label as the internal contract. Workstream 4 owns the sequential writer change.
+- Files changed: Updated the provisioning consumer, hardware checker, image runbook, focused image
+  tests and this reopening handoff. Removed the ineffective image configuration override, builder
+  preflight and test from the first implementation pass.
+- Decisions: Require exact `BOOT` everywhere in workstream 6. No alias, post-build relabelling,
+  role-specific setting or compatibility path was added.
+- Verification: The pinned rpi-image-gen source fixes the `simple_dual` FAT label and its by-slot
+  udev match to `BOOT`. The focused image, host-deployment and provisioning-consumer tests passed
+  with 61 tests. Ruff passed for `e87ctl` and `hosts`; mypy passed over 143 source files; all
+  required shell syntax checks and `git diff --check` passed.
+- Simplification pass: Removed the losing duplicate label argument and its defensive machinery.
+  The built image, on-device consumer and hardware checker now share one upstream label.
+- Limitations and drift: This environment did not assemble a Docker image. Gate attempt 5 must
+  build and write the combined correction on macOS. Changing the workflow seam from `bootfs` to
+  upstream `BOOT` does not change approved product behavior or a security boundary.
+
+### Gate attempt 4 focused closure
+
+- Reviewer: Codex, fresh focused closure reviewer.
+- Accepted finding outcomes: Both accepted Claude findings are closed. The ineffective
+  `fs.vfat_mkfs_args` override and its defensive checks are absent. The image retains pinned
+  rpi-image-gen's exact `BOOT` label, while the on-device provisioning consumer and hardware
+  checkpoint require the same value.
+- Coupling evidence: At pinned revision `262d4df5a9f9d4133370465399a7958a7c22cdc7`, the
+  `simple_dual` genimage definition labels the FAT filesystem `BOOT` and the installed udev rule
+  creates `/dev/disk/by-slot/boot` only for `ID_FS_LABEL=="BOOT"`. Keeping the upstream label
+  therefore preserves boot-device discovery as well as the assembled image's observed layout.
+- Verification: The focused image, host-deployment, provisioning-consumer and macOS writer suite
+  passed with 89 tests. The complete `e87ctl` suite passed with 116 tests. Ruff passed for
+  `e87ctl`, `hosts` and the installed consumer, mypy passed over 143 source files, the changed
+  executable checks parsed with their native interpreters, and `git diff --check` passed.
+- Verdict: Accepted for the combined gate candidate. Remediation introduced no release-blocking
+  defect.
+- Remaining required findings: None.

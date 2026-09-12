@@ -400,3 +400,47 @@ identity-change cases. Do not invoke a real destructive writer from automated te
 - Accepted correction commit: `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e`. The implementation
   owner hit its usage limit after acceptance, so a fresh agent verified and committed the unchanged
   staged tree.
+
+## Gate attempt 4 reopening implementation handoff
+
+- Base commit: `a3717ae`.
+- Outcome: The macOS writer now requires exactly one partition labelled `BOOT`, mounts only that
+  partition and proves it is the whole disk's only mounted partition before copying the
+  provisioning ZIP.
+- Reopening reason: Gate attempt 4 proved the raw write and image-sized readback, then exposed a
+  mismatch between the writer's `bootfs` fixture and pinned rpi-image-gen's assembled `BOOT`
+  filesystem. The builder also uses `BOOT` for its boot-device discovery rule.
+- Files changed: Updated `e87ctl/src/e87ctl/macos.py`, its focused writer fixture and tests, and
+  this record.
+- Decisions: Keep one strict label. The writer accepts `BOOT` exactly and does not accept `bootfs`
+  as an alias. The existing validated-target boundary, raw write, readback, boot-only mount proof,
+  ZIP verification and final whole-disk unmount are unchanged.
+- Specification drift: The internal workstream seam changes from `bootfs` to `BOOT`. The approved
+  product specifications name only the boot partition, so this does not change product behavior,
+  architecture or a security boundary. It avoids a repository-owned fork of the pinned image
+  builder.
+- Verification: The focused macOS suite passed with 28 tests and the complete `e87ctl` suite passed
+  with 116 tests. Targeted Ruff, mypy over 143 source files, both role-specific provision help
+  commands and `git diff --check` passed.
+- Simplification pass: The correction changes the one existing exact match and its error text. It
+  adds no alias, fallback, relabelling step or new configuration.
+
+### Gate attempt 4 focused closure
+
+- Reviewer: Codex, fresh focused closure reviewer.
+- Accepted finding outcomes: Both accepted findings are closed across the cumulative correction.
+  The writer requires exactly one partition whose volume name is `BOOT`. It obtains that
+  partition's mount point, mounts only that partition when needed and rejects the disk unless the
+  complete mounted-partition map contains only that partition before copying the provisioning ZIP.
+  The existing image readback, ZIP readback and final whole-disk unmount remain in place.
+- Coupling evidence: Pinned rpi-image-gen revision
+  `262d4df5a9f9d4133370465399a7958a7c22cdc7` sets the `simple_dual` FAT label to `BOOT` and its
+  boot by-slot udev rule matches `ID_FS_LABEL=="BOOT"`. The correction keeps that coupled upstream
+  behavior intact rather than overriding only the filesystem label.
+- Verification: The combined focused image, deployment, consumer and macOS writer suite passed
+  with 89 tests. The complete `e87ctl` suite passed with 116 tests. Ruff passed for `e87ctl`,
+  `hosts` and the installed consumer, mypy passed over 143 source files, the image checkpoint and
+  consumer parsed with their native interpreters, and `git diff --check` passed.
+- Verdict: Accepted for macOS writer gate attempt 5. Remediation introduced no release-blocking
+  defect.
+- Remaining required findings: None.
