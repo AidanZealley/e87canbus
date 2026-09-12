@@ -52,8 +52,9 @@ The first implementation accepts these limits:
 - A reusable image cannot authenticate its first provisioning bundle because it contains no
   installation-specific trust anchor. Physical control of the card authorizes initial
   provisioning.
-- There is no credential revocation or rotation. Loss or compromise of a device or the recovery
-  package is handled by creating a new installation and reprovisioning both Pis.
+- There is no credential revocation or rotation. Loss of control or suspected compromise of a
+  device or the recovery package requires a new installation and reprovisioning both Pis. An
+  ordinary failed card that remains under operator control can be replaced within the installation.
 - Certificate expiry is handled by reprovisioning.
 
 Disk encryption, secure boot, verified boot, hardware-backed device keys, remote access and an
@@ -104,8 +105,10 @@ uv run e87ctl installation create --output <recovery-package>
 uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
 
-uv run e87ctl verify coordinator --installation <recovery-package>
-uv run e87ctl verify console --installation <recovery-package>
+uv run e87ctl verify coordinator --installation <recovery-package> \
+  --host-key-fingerprint <trusted-sha256-fingerprint>
+uv run e87ctl verify console --installation <recovery-package> \
+  --host-key-fingerprint <trusted-sha256-fingerprint>
 ```
 
 Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
@@ -446,7 +449,9 @@ artifact digests, result and a bounded safe error code. Neither contains raw con
 secrets.
 
 If networking starts, `e87ctl verify` uses the coordinator HTTPS endpoint and key-only SSH access
-to the selected host as appropriate. It checks:
+to the selected host as appropriate. The operator supplies the role's Ed25519 host-key SHA-256
+fingerprint from a trusted local physical check. Verification rejects another SSH server at the
+fixed address. It checks:
 
 - coordinator certificate trust and expected installation identity;
 - successful bundle consumption and marker removal;
@@ -466,8 +471,8 @@ any required check fails or remains unavailable.
 
 ## Installation replacement
 
-Loss or suspected compromise of a Pi, its card, the management SSH key or the recovery package
-invalidates the installation. Recovery is:
+Loss of control or suspected compromise of a Pi, its card, the management SSH key or the recovery
+package invalidates the installation. Recovery is:
 
 1. Run `e87ctl installation create` to create a new installation.
 2. Reprovision the coordinator and console.

@@ -22,7 +22,7 @@ Status: implementation in progress.
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374`; corrections `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e`, `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; correction `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
-| 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Implementing | — |
+| 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Closure review | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.

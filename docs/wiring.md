@@ -31,7 +31,7 @@ before attaching QT Py USB-C for upload or service; never power it from the Pi a
 
 Before installation, bench-check harness polarity and continuity, `/dev/ttyAMA3` TX/RX, the five
 pixel order and colours, brightness, button debounce, heartbeat fault/recovery, graceful off,
-hotspot association/cancellation/disconnect, and the Ethernet forwarding block. These checks remain
+Wi-Fi association/cancellation/disconnect, and the Wi-Fi no-forwarding policy. These checks remain
 pending until the assembled hardware is available. Do not add further power switching, capacitors,
 data protection, or live-USB isolation unless the bench demonstrates a problem.
 
@@ -66,11 +66,11 @@ Required Pi stack and assignments:
 
 Wire CAN-H to CAN-H, CAN-L to CAN-L, and ensure the bench bus has correct termination.
 
-Setup verifies `kcan` → `spi0.0`, `ptcan` → `spi1.1`, and `fcan` → `spi1.2`. Actual vehicle bitrate,
-compatible transceivers, grounding, isolation, and termination must be verified before physical
-connection.
+The physical image checkpoint verifies `kcan` → `spi0.0`, `ptcan` → `spi1.1`, and `fcan` →
+`spi1.2`. Actual vehicle bitrate, compatible transceivers, grounding, isolation, and termination
+must be verified before physical connection.
 
-## Console CAN and Ethernet
+## Console CAN and Wi-Fi
 
 The console Pi 4 uses only Waveshare 2-CH CAN HAT+ CAN0 on SPI1 CE1, with its 16 MHz controller and
 interrupt BCM `22`. The console udev rule names that controller `kcan`; its systemd service applies
@@ -82,15 +82,13 @@ Leave HAT+ CAN1 physically disconnected. The console configuration intentionally
 overlay, udev name or service. Do not fit termination on the unused channel or treat it as a spare
 transmit path.
 
-Connect the two Pi `eth0` ports directly. The coordinator is `10.43.0.1/30` and the console is
-`10.43.0.2/30`; neither side has a gateway or DNS on this link. This cable carries coordinator HTTP
-and Socket.IO traffic, not CAN frames, and must not be configured for forwarding or internet
-sharing.
+The provisioned console joins the coordinator's Wi-Fi at `10.42.0.2/24` and reaches authenticated
+HTTPS at `10.42.0.1`. Ethernet is not a coordinator-console transport or fallback.
 
 The checked-in scripts and tests verify these intended settings only. Before vehicle installation,
 physically confirm K-CAN polarity, 100 kbit/s operation, the selected listen-only behavior,
 disabled termination, the inactive second controller, grounding and transceiver compatibility. Separately validate the
-direct Ethernet link and isolation, console Pi plus screen peak current, and the HAT power input
+Wi-Fi isolation, console Pi plus screen peak current, and the HAT power input
 against reverse battery, cranking and load-dump transients. Avoid simultaneous USB and HAT power
 until the power path is verified.
 

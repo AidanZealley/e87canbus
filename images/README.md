@@ -90,7 +90,35 @@ deliberately invalid-bundle card used to prove offline failure status.
 
 For the successful pair, copy `images/e87canbus-image-check` to the test card's `BOOT` partition
 and use a test-only local console such as `systemd.debug_shell=1`. This changes only the flashed
-test card. It creates no user or credential. Run:
+test card. It creates no user or credential. On the Mac, set `E87_TEST_DISK` to the confirmed
+whole-disk identifier for that card and prepare the temporary input:
+
+```bash
+(
+  set -euo pipefail
+  E87_TEST_DISK_ID=${E87_TEST_DISK#/dev/}
+  [[ "$E87_TEST_DISK_ID" =~ ^disk[0-9]+$ ]]
+  E87_TEST_PARTITION="/dev/${E87_TEST_DISK_ID}s1"
+  diskutil info -plist "/dev/$E87_TEST_DISK_ID" |
+    plutil -extract Whole raw - | grep -qx true
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract ParentWholeDisk raw - | grep -qx "$E87_TEST_DISK_ID"
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract VolumeName raw - | grep -qx BOOT
+  trap 'diskutil unmountDisk "/dev/$E87_TEST_DISK_ID" >/dev/null 2>&1 || true' EXIT
+  diskutil mount "$E87_TEST_PARTITION"
+  diskutil info -plist "$E87_TEST_PARTITION" |
+    plutil -extract MountPoint raw - | grep -qx /Volumes/BOOT
+  cp images/e87canbus-image-check /Volumes/BOOT/
+  grep -qw systemd.debug_shell=1 /Volumes/BOOT/cmdline.txt ||
+    sed -i '' '1s/$/ systemd.debug_shell=1/' /Volumes/BOOT/cmdline.txt
+  sync
+  diskutil unmountDisk "/dev/$E87_TEST_DISK_ID"
+  trap - EXIT
+)
+```
+
+Boot the Pi, open the local debug shell on tty9 and run:
 
 ```bash
 sh /boot/firmware/e87canbus-image-check coordinator
@@ -116,3 +144,7 @@ systemctl poweroff
 
 Do not report the images as accepted until the workflow contains the complete MacBook, Raspberry
 Pi Imager, Pi 4, network, TLS and cleanup evidence for the exact candidate.
+
+After both Pis boot, join their Wi-Fi network and run `e87ctl verify coordinator` and `e87ctl
+verify console` with the installation recovery package. The [provisioning runbook](../deploy/README.md)
+contains the complete pair and invalid-bundle acceptance procedure.

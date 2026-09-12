@@ -189,37 +189,6 @@ def test_systemd_unit_runs_canonical_rx_only_service_with_bounded_restart() -> N
     assert "--frontend-directory" in unit
 
 
-def test_coordinator_setup_owns_and_validates_the_complete_three_channel_can_stack() -> None:
-    root = Path(__file__).resolve().parents[2]
-    setup = (root / "scripts/setup_coordinator.sh").read_text()
-
-    assert "dtoverlay=spi1-3cs" in setup
-    assert "dtoverlay=uart3" in setup
-    assert "[[ -e /dev/ttyAMA3 ]]" in setup
-    assert (
-        "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000"
-        in setup
-    )
-    assert (
-        "dtoverlay=mcp2515,spi1-1,oscillator=16000000,interrupt=22,speed=10000000"
-        in setup
-    )
-    assert (
-        "dtoverlay=mcp2515,spi1-2,oscillator=16000000,interrupt=13,speed=10000000"
-        in setup
-    )
-    interfaces = [network.interface for network in default_config().can_networks]
-    assert f"CAN_INTERFACES=({' '.join(interfaces)})" in setup
-    assert "EXPECTED_SPI_PARENTS=(spi0.0 spi1.1 spi1.2)" in setup
-    for interface in interfaces:
-        assert f"e87canbus-{interface}.service" in setup
-
-    # Each controller keeps the name its configuration expects, in SPI connection order.
-    naming_rules = (root / "deploy/udev/70-e87canbus-coordinator-can.rules").read_text()
-    for spi_parent, interface in zip(("spi0.0", "spi1.1", "spi1.2"), interfaces, strict=True):
-        assert f'KERNELS=="{spi_parent}", NAME="{interface}"' in naming_rules
-
-
 def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
     root = Path(__file__).resolve().parents[2]
     helper_path = root / "deploy/bin/e87canbus-hotspot"
@@ -253,25 +222,6 @@ def test_hotspot_helper_exposes_only_the_fixed_runtime_operations() -> None:
             text=True,
         )
         assert result.returncode == 2
-
-
-def test_hotspot_web_proxy_exposes_only_the_fixed_wifi_address() -> None:
-    root = Path(__file__).resolve().parents[2]
-    setup = (root / "scripts/setup_coordinator.sh").read_text()
-    socket = (
-        root / "deploy/systemd/e87canbus-coordinator-hotspot-proxy.socket"
-    ).read_text()
-    service = (
-        root / "deploy/systemd/e87canbus-coordinator-hotspot-proxy.service"
-    ).read_text()
-
-    assert 'HOTSPOT_ADDRESS="10.42.0.1/24"' in setup
-    assert 'HOTSPOT_HOSTNAME="e87"' in setup
-    assert 'ipv4.addresses "${HOTSPOT_ADDRESS}"' in setup
-    assert "ListenStream=10.42.0.1:80" in socket
-    assert "BindToDevice=wlan0" in socket
-    assert "FreeBind=yes" in socket
-    assert "systemd-socket-proxyd 127.0.0.1:8000" in service
 
 
 def test_headless_kiosk_activates_and_owns_its_virtual_terminal() -> None:
