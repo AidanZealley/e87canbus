@@ -23,7 +23,7 @@ Status: implementation in progress.
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; correction `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b` |
-| 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Not started | — |
+| 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Implementing | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.

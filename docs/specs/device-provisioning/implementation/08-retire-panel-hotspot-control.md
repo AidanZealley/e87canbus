@@ -1,6 +1,6 @@
 # Workstream 8: Retire the panel hotspot control
 
-Status: not started.
+Status: implementing.
 
 ## Why this exists
 
@@ -115,7 +115,7 @@ external and must not be claimed on the implementation host.
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `87346cc4e498e7277440c4ca40a2aead725f85cb`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
