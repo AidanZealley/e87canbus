@@ -215,3 +215,52 @@ cd frontend && pnpm api:check && pnpm build
   `e87ctl` suite passed (`88 passed`), Ruff and mypy passed, all Python call sites supply the
   required value and `git diff --check` passed.
 - Accepted correction commit: `924514ea061bb69a825efe19ebfec742c698bdf6`.
+
+## Reopened application-build correction
+
+- Trigger and base: macOS writer gate attempt 3 reached the application build on candidate
+  `aa5f0f3280f987ce2ffd669120e677e3f2b8a405`, then the coordinator production TypeScript build
+  tried to resolve a test-only import from the repository-root `protocol/test-vectors/` directory.
+  This focused correction starts from `a98add03e4599100172f4e6675ab47d1505a0f76`.
+- Correction: The coordinator production TypeScript configuration excludes `*.test.ts` and
+  `*.test.tsx` sources. Vitest still discovers and runs those files through the existing `test`
+  command, while the ready-to-run frontend build now depends only on frontend production inputs.
+- Files changed: `frontend/apps/coordinator/tsconfig.app.json` and this implementation handoff.
+- Verification: A temporary frontend-only copy, with no sibling `protocol/` directory, completed a
+  frozen offline dependency install and `pnpm --filter @e87canbus/coordinator build`. The normal
+  coordinator build, typecheck and test commands passed, including all 21 test files and 89 tests;
+  TypeScript's production file list contains `button-pad-renderer.ts` but not its test. The full
+  workstream checks also passed: `uv run pytest e87ctl/tests -q` (`115 passed`), `uv run ruff check
+  e87ctl`, `uv run mypy` (`143 source files`), and `cd frontend && pnpm api:check && pnpm build`.
+- Simplification pass: Excluding the two test filename patterns in the existing production config
+  avoids a second TypeScript config, a copied fixture and another builder input. No runtime source,
+  test source, package script or application-builder path changed.
+- Specification drift: None. This changes build input selection only. It does not change runtime
+  behavior, an artifact schema, a security boundary or another accepted workstream.
+- Independent review: Codex (`/root/ws3_attempt3_review`), fresh independent reviewer. The
+  configured Claude Opus medium command could not start the review because its session quota was
+  exhausted, so the workflow's documented in-session fallback was used.
+- Review verdict: Accepted. The production TypeScript program excludes both supported test-file
+  suffixes and still includes the corresponding runtime source. The frontend-only build no longer
+  depends on the repository-root protocol fixture, while Vitest continues to discover, compile and
+  run all 21 test files.
+- Required findings: None.
+- Optional observation: The coordinator's existing `typecheck` command uses the production
+  TypeScript configuration, so it no longer performs static type checking on test files. Vitest
+  still compiles and executes them. A separate test type-check configuration would restore that
+  extra developer check, but it is not required for the ready-to-run application build or this
+  gate correction.
+- Questions: None.
+- Review verification: `pnpm --filter @e87canbus/coordinator build`, `pnpm --filter
+  @e87canbus/coordinator typecheck`, and `pnpm --filter @e87canbus/coordinator test` passed. The
+  test run passed all 21 files and 89 tests. TypeScript's production file list includes
+  `button-pad-renderer.ts` and excludes `button-pad-renderer.test.ts`; `git diff --check` passed.
+- Focused closure review: Codex (`/root/ws3_attempt3_closure`), fresh closure reviewer. Accepted.
+  The two exclusions remove `.test.ts` and `.test.tsx` files from the production TypeScript
+  program, including the sole frontend source that imports the repository-root protocol fixture,
+  while leaving its runtime module in the program. The application builder copies only
+  `frontend/`, so the production build no longer requires an input that the builder omits. Vitest
+  still discovered and passed all 21 test files and 89 tests. The coordinator production build and
+  typecheck passed, and TypeScript's file list contains `button-pad-renderer.ts` but not
+  `button-pad-renderer.test.ts`. No required finding remains and the correction introduces no
+  release-blocking defect. The optional separate test type-check configuration was not promoted.
