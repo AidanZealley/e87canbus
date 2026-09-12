@@ -104,7 +104,7 @@ Do not begin another broad review or promote optional observations.
 
 ## Review command
 
-Use this read-only command for the independent reviews of workstreams 4 through 7 and the initial
+Use this read-only command for the independent reviews of workstreams 4 through 8 and the initial
 whole-feature review. Replace `<prompt>` with the applicable review prompt and task packet:
 
 ```bash
@@ -129,9 +129,10 @@ rejection of protected/ineligible-internal/partition targets, target-identity re
 spare-card write, image-region readback and boot-only mounting. Start workstream 7 only after the
 result and combined candidate hash are recorded.
 
-Workstream 7 has the final MacBook and two-Pi gate. Its candidate must build, provision and boot one
-coordinator and one console, exercise failure reporting with a separate disposable card or fixture,
-and pass the network, identity, authorization and service checks listed in that record.
+Workstream 8 has the final MacBook and two-Pi gate. Its combined candidate must build, provision
+and boot one coordinator and one console, exercise failure reporting with a separate disposable
+card, prove the panel is status-only, and pass the network, identity, authorization and service
+checks listed in workstreams 7 and 8.
 
 A failed attempt enters `Troubleshooting`, not a new implementation-review cycle. Record the
 candidate, command, useful output, diagnosis, correction owner and next attempt. Use the original

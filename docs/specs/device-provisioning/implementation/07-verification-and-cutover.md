@@ -1,6 +1,6 @@
 # Workstream 7: Verify the complete pair and cut over to provisioning
 
-Status: closure review.
+Status: accepted.
 
 ## Task packet
 
@@ -79,10 +79,9 @@ hide any check unavailable on the implementation host.
 
 ## External validation
 
-- Gate and placement: complete provisioned pair, after automated closure and before acceptance.
-- Status: `Testing`
-- Candidate: `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`. Test this exact clean candidate,
-  not the later bookkeeping commit.
+- Gate and placement: complete provisioned pair, after workstream 8 closure.
+- Status: `Pending`
+- Candidate: assigned from the combined workstream 8 head.
 - Required evidence: candidate hash and clean/dirty build context; both image and application
   manifests/digests; MacBook builds; two safe SD writes/readbacks; coordinator and console first
   boot; unique hostname/machine ID/SSH keys; ZIP and staged-secret removal; marker transition;
@@ -400,7 +399,6 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
   `python3 -m py_compile deploy/bin/e87canbus-provision` and `git diff --check` passed. A focused
   source and documentation audit found no unresolved accepted finding or release-blocking defect
   introduced by remediation.
-- Verdict: Accepted. No required finding remains. The provisioned-pair hardware gate is still
-  pending and determines workstream acceptance.
-- Candidate commit: `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`. Workstream acceptance remains
-  pending until the provisioned-pair hardware gate passes.
+- Verdict: Accepted. No required finding remains. The provisioned-pair hardware gate moves after
+  workstream 8 and tests the combined candidate.
+- Accepted commit: `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`.
