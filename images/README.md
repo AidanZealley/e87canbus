@@ -101,7 +101,7 @@ whole-disk identifier for that card and prepare the temporary input:
   [[ "$E87_TEST_DISK_ID" =~ ^disk[0-9]+$ ]]
   E87_TEST_PARTITION="/dev/${E87_TEST_DISK_ID}s1"
   diskutil info -plist "/dev/$E87_TEST_DISK_ID" |
-    plutil -extract Whole raw - | grep -qx true
+    plutil -extract WholeDisk raw - | grep -qx true
   diskutil info -plist "$E87_TEST_PARTITION" |
     plutil -extract ParentWholeDisk raw - | grep -qx "$E87_TEST_DISK_ID"
   diskutil info -plist "$E87_TEST_PARTITION" |

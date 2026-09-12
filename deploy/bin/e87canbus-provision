@@ -552,6 +552,12 @@ def run(command: list[str], *, input_text: str | None = None) -> None:
     subprocess.run(command, input=input_text, text=True, check=True, stdout=subprocess.DEVNULL)
 
 
+def initialize_host_identity(hostname: str) -> None:
+    run(["hostnamectl", "set-hostname", hostname])
+    run(["systemd-machine-id-setup"])
+    run(["ssh-keygen", "-A"])
+
+
 def ensure_accounts(root: Path, role: str) -> None:
     if root != Path("/"):
         return
@@ -831,9 +837,7 @@ def install_files(
         write_json(root_path(root, "/etc/chromium/policies/managed/e87canbus.json"), policy, 0o644)
     install_application(staging, root, str(manifest["application_digest"]), role)
     if root == Path("/"):
-        run(["hostnamectl", "set-hostname", str(manifest["hostname"])])
-        run(["systemd-machine-id-setup", "--commit"])
-        run(["ssh-keygen", "-A"])
+        initialize_host_identity(str(manifest["hostname"]))
 
 
 def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> None:
