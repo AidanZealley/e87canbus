@@ -321,3 +321,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   obsolete workaround test. Added no retry, alternate address or second validation path.
 - Resume condition: Publish one corrected candidate, then repeat the complete physical gate from
   clean cards.
+- Accepted correction commit: `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`.
