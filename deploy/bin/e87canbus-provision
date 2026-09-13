@@ -558,6 +558,10 @@ def initialize_host_identity(hostname: str) -> None:
     run(["ssh-keygen", "-A"])
 
 
+def installed_unit_files(directory: Path) -> list[str]:
+    return [str(path) for path in sorted(directory.glob("e87canbus-*")) if path.is_file()]
+
+
 def ensure_accounts(root: Path, role: str) -> None:
     if root != Path("/"):
         return
@@ -910,7 +914,7 @@ def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> 
                 or metadata.st_gid != grp.getgrnam(group).gr_gid
             ):
                 fail("installed_contract_failed")
-        units = [str(path) for path in Path("/etc/systemd/system").glob("e87canbus-*")]
+        units = installed_unit_files(Path("/etc/systemd/system"))
         run(["systemd-analyze", "verify", *units])
         if role == "coordinator":
             run(["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"])

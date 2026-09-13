@@ -39,7 +39,7 @@ check_shell "Raspberry Pi 4 Model B" "tr -d '\\0' </proc/device-tree/model | gre
 check_shell "no failed systemd units" 'failed=$(systemctl --failed --no-legend --plain); [ -z "$failed" ] || { printf "%s\n" "$failed"; exit 1; }'
 check "SSH service active" systemctl is-active --quiet ssh.service
 check_shell "SSH accepts public keys only" "/usr/sbin/sshd -T | grep -qx 'authenticationmethods publickey'"
-check_shell "no operator account at UID 1000" '! getent passwd 1000 >/dev/null'
+check_shell "upstream image-builder account removed" '! getent passwd pi >/dev/null'
 check_shell "boot partition label is BOOT" '[ "$(findmnt -no LABEL /boot/firmware)" = BOOT ]'
 check_shell "host identity generated locally" 'test -s /etc/machine-id && test -n "$(find /etc/ssh -name "ssh_host_*_key" -print -quit)"'
 check "provisioning marker cleared" test ! -e /var/lib/e87canbus-provisioning/unprovisioned
