@@ -110,7 +110,7 @@ external and must not be claimed on the implementation host.
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
 - Candidate and instructions: Test corrected candidate
-  `90d4142c24189c42655dd3ec91abab0bda487e8d`. Repeat the procedure in workstream 7 from clean
+  `3fccfd009a2beffd7a4cd1addfe7373126a9b78f`. Repeat the procedure in workstream 7 from clean
   cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
@@ -119,7 +119,16 @@ external and must not be claimed on the implementation host.
   deliberately absent `/etc/machine-id`; plain `systemd-machine-id-setup` creates the required
   unique ID. The active macOS instructions also used nonexistent plist key `Whole` instead of the
   measured `WholeDisk`. Candidate `90d4142c24189c42655dd3ec91abab0bda487e8d` contains both
-  focused corrections.
+  focused corrections. Attempt 2 on that candidate passed machine-ID creation and host identity,
+  then reached `completed_phase=installed` before failing with `provisioning_interrupted`.
+  `verify_installed()` included matching systemd relationship and drop-in directories in its
+  `systemd-analyze verify` arguments, which the tool rejected. The physical checker also mistook
+  vacancy of UID 1000 for removal of the upstream `pi` account, even though provisioning correctly
+  creates `e87-admin` as the first regular user. The correction verifies only matching unit files
+  and checks that the named upstream account is absent. Candidate
+  `3fccfd009a2beffd7a4cd1addfe7373126a9b78f` contains both focused corrections. Aidan retained the
+  attempt evidence outside the repository under
+  `~/.e87canbus/gates/90d4142c24189c42655dd3ec91abab0bda487e8d/`.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
