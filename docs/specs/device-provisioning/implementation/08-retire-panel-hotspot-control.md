@@ -110,8 +110,8 @@ external and must not be claimed on the implementation host.
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
 - Candidate and instructions: Test corrected candidate
-  `3fccfd009a2beffd7a4cd1addfe7373126a9b78f`. Repeat the procedure in workstream 7 from clean
-  cards.
+  `9924947eacd209fc00b9eaa7fb0df5098c63892b`. Repeat the complete procedure in workstream 7 from
+  clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -128,7 +128,19 @@ external and must not be claimed on the implementation host.
   and checks that the named upstream account is absent. Candidate
   `3fccfd009a2beffd7a4cd1addfe7373126a9b78f` contains both focused corrections. Aidan retained the
   attempt evidence outside the repository under
-  `~/.e87canbus/gates/90d4142c24189c42655dd3ec91abab0bda487e8d/`.
+  `~/.e87canbus/gates/90d4142c24189c42655dd3ec91abab0bda487e8d/`. Attempt 3 on
+  `3fccfd009a2beffd7a4cd1addfe7373126a9b78f` passed host identity and reached installed-state
+  verification. It exposed an nginx validation precondition, an invalid empty `gateway=` property
+  in the generated NetworkManager profile, and a target incompatibility between NetworkManager's
+  iwd backend and an SAE access point. The focused correction creates nginx's runtime directory
+  before native configuration validation and omits both gateway and DNS properties while requiring
+  the no-default-route and ignore-DNS settings. Aidan approved replacing iwd with NetworkManager's
+  default wpa_supplicant backend after the physical result invalidated the earlier iwd assumption.
+  The image now removes both iwd layer selections and installs Debian Trixie's `wpasupplicant`
+  explicitly. The bundle retains its SAE-only and required-PMF settings, and the physical gate must
+  still prove both. Claude Opus at medium effort accepted the cumulative correction with no
+  required findings. Candidate `9924947eacd209fc00b9eaa7fb0df5098c63892b` contains the reviewed
+  correction.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff

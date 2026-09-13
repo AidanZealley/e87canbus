@@ -299,3 +299,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   consumer compilation and `git diff --check`. It confirmed one NetworkManager owner, no weaker
   security mode, strict absence of gateway and DNS properties, and the correct nginx validation
   precondition. Docker assembly and physical SAE/PMF behavior remain at the gate.
+- Accepted correction commit: `9924947eacd209fc00b9eaa7fb0df5098c63892b`.
