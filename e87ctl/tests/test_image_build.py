@@ -466,7 +466,7 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "systemctl --failed --no-legend --plain",
         "systemctl is-active --quiet ssh.service",
         "authenticationmethods publickey",
-        "! getent passwd 1000 >/dev/null",
+        "! getent passwd pi >/dev/null",
         'findmnt -no LABEL /boot/firmware)" = BOOT',
         "test ! -e /var/lib/e87canbus-provisioning/unprovisioned",
         "test -L /opt/e87canbus/current",
@@ -496,6 +496,7 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "e87canbus-console-kiosk.service",
     ):
         assert expected in script
+    assert "getent passwd 1000" not in script
     subprocess.run(["sh", "-n", str(IMAGE_CHECK)], check=True)
 
 

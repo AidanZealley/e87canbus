@@ -142,6 +142,26 @@ def test_host_identity_initialization_creates_a_missing_machine_id(
     ]
 
 
+def test_installed_unit_verification_ignores_systemd_relationship_directories(
+    tmp_path: Path,
+) -> None:
+    consumer = load_consumer()
+    systemd = tmp_path / "systemd"
+    systemd.mkdir()
+    service = systemd / "e87canbus-controller.service"
+    target = systemd / "e87canbus-role.target"
+    service.write_text("[Unit]\n")
+    target.write_text("[Unit]\n")
+    for name in (
+        "e87canbus-controller.service.d",
+        "e87canbus-role.target.wants",
+        "e87canbus-console.service.requires",
+    ):
+        (systemd / name).mkdir()
+
+    assert consumer.installed_unit_files(systemd) == [str(service), str(target)]
+
+
 @pytest.mark.parametrize("role", ["coordinator", "console"])
 def test_consumer_installs_and_activates_a_valid_role_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, role: str
