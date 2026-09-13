@@ -21,7 +21,7 @@ Status: implementation in progress.
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; corrections `924514ea061bb69a825efe19ebfec742c698bdf6`, `0f29317e2887975b29e218e653314bd83d8a8597` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374`; corrections `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e`, `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
-| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; correction `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
+| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; corrections `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`, `9924947eacd209fc00b9eaa7fb0df5098c63892b` |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b` |
 | 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Closure review | — |
 
@@ -106,7 +106,7 @@ combined physical candidate is tested.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 8 | After workstream 8 closure | Testing | `3fccfd009a2beffd7a4cd1addfe7373126a9b78f`; replaces failed `90d4142c24189c42655dd3ec91abab0bda487e8d` | Repeat the MacBook, two-Pi, panel and invalid-bundle procedure from clean cards on the corrected candidate |
+| Provisioned pair | 8 | After workstream 8 closure | Testing | `9924947eacd209fc00b9eaa7fb0df5098c63892b`; replaces failed `3fccfd009a2beffd7a4cd1addfe7373126a9b78f` | Repeat the complete MacBook, two-Pi, panel and invalid-bundle procedure from clean cards |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.
@@ -131,3 +131,5 @@ workstream status.
 | 2026-09-12 | Standardise the internal boot-partition label on pinned upstream's exact `BOOT` value. | Attempt 4 proved rpi-image-gen emits `BOOT` and uses it to create `/dev/disk/by-slot/boot`. The product specifications do not name the filesystem label. Updating the strict writer and on-device checks avoids an upstream template and udev-rule fork without changing product behavior or mount safety. | Orchestrator | 4, 6 and macOS writer gate |
 | 2026-09-12 | Retire the coordinator panel's hotspot control and make the panel status-only. | The old button now controls the provisioned network that carries the console's only transport, and hotspot display priority prevents a healthy steady-state `READY` display. Aidan chose full removal in a separate Claude thread and confirmed that decision in this orchestration thread. | Aidan | 6-8 and provisioned-pair gate |
 | 2026-09-12 | Use Claude Code Opus at medium effort for every remaining review, including closure reviews. | Aidan asked to use the remaining Claude allowance for all review work. The validated read-only command and in-session failure fallback remain unchanged. | Aidan | Workstream 8 closure and both whole-feature review calls |
+| 2026-09-13 | Physical evidence invalidated the accepted assumption that iwd 3.8 could provide the required access point through NetworkManager on this target. | NetworkManager rejected the coordinator profile because its iwd backend supports only PSK authentication in access-point mode. Replacing the backend changes recorded architecture and awaits Aidan's decision. | Provisioned-pair gate evidence; decision pending Aidan | 6-8 |
+| 2026-09-13 | Replace iwd with NetworkManager's default wpa_supplicant backend. | The target rejected SAE access-point mode through iwd. Debian Trixie's `wpasupplicant` keeps NetworkManager as the sole network owner and consumes the same SAE-only profile with required PMF, so the correction changes implementation architecture without weakening the approved security policy. | Aidan | 6-8 and provisioned-pair gate |
