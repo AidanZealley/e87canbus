@@ -300,3 +300,24 @@ environment where available. Do not claim Pi radio compatibility from these chec
   security mode, strict absence of gateway and DNS properties, and the correct nginx validation
   precondition. Docker assembly and physical SAE/PMF behavior remain at the gate.
 - Accepted correction commit: `9924947eacd209fc00b9eaa7fb0df5098c63892b`.
+
+### Provisioned-pair gate attempt 4 troubleshooting correction
+
+- Physical evidence: Candidate `9924947eacd209fc00b9eaa7fb0df5098c63892b` reached installed
+  verification, where provisioning-time `nginx -t` tried to bind `10.42.0.1` before
+  NetworkManager assigned it. This disproves the focused review's conclusion that creating the
+  runtime directory made nginx validation safe before networking.
+- Correction: Removed nginx validation from provisioning. The existing
+  `e87canbus-nginx.service` owns `nginx -t` through `ExecStartPre`; systemd runs it with
+  `RuntimeDirectory=e87canbus-nginx` after `NetworkManager-wait-online.service`. Provisioning
+  continues to validate the interface-independent dnsmasq and nftables configurations.
+- Focused coverage: The consumer test requires provisioning native validation to run only dnsmasq
+  and nftables. The image test requires the nginx service's runtime directory, network ordering and
+  exact `ExecStartPre` check.
+- Verification: The focused image, artifact, online-verification, deployment and provisioning
+  consumer tests passed with 106 tests. Ruff passed for `e87ctl`, `hosts` and the consumer; mypy
+  passed over 142 source files; consumer compilation and `git diff --check` passed.
+- Simplification pass: Removed the runtime-directory constant, provisioning-time nginx call and
+  obsolete workaround test. Added no retry, alternate address or second validation path.
+- Resume condition: Publish one corrected candidate, then repeat the complete physical gate from
+  clean cards.

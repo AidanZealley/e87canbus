@@ -162,25 +162,16 @@ def test_installed_unit_verification_ignores_systemd_relationship_directories(
     assert consumer.installed_unit_files(systemd) == [str(service), str(target)]
 
 
-def test_native_nginx_validation_creates_its_runtime_directory_first(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_provisioning_native_validation_excludes_live_nginx_check(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     consumer = load_consumer()
-    runtime = tmp_path / "run/e87canbus-nginx"
     commands: list[list[str]] = []
+    monkeypatch.setattr(consumer, "run", commands.append)
 
-    def run(command: list[str], **_: object) -> None:
-        if command[0] == "nginx":
-            assert runtime.is_dir()
-        commands.append(command)
-
-    monkeypatch.setattr(consumer, "run", run)
-    monkeypatch.setattr(consumer, "NGINX_RUNTIME_DIRECTORY", runtime)
-
-    consumer.validate_coordinator_configuration()
+    consumer.validate_static_coordinator_configuration()
 
     assert commands == [
-        ["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"],
         ["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"],
         ["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"],
     ]
