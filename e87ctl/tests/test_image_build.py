@@ -703,6 +703,8 @@ def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
     assert "X-Forwarded-Host 10.42.0.1" in nginx
     assert "X-Forwarded-Proto https" in nginx
     assert "RuntimeDirectory=e87canbus-nginx" in nginx_unit
+    assert "After=e87canbus-controller.service NetworkManager-wait-online.service" in nginx_unit
+    assert "ExecStartPre=/usr/sbin/nginx -t -q -c /etc/e87canbus/nginx.conf" in nginx_unit
     assert "Restart=on-failure" in nginx_unit
 
 

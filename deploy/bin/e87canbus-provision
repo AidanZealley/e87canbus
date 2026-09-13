@@ -71,7 +71,6 @@ STATUS_FIELDS = {
     "error_code",
 }
 PHASES = ("staged", "boot_removed", "installed", "verified", "status_written", "cleaned")
-NGINX_RUNTIME_DIRECTORY = Path("/run/e87canbus-nginx")
 
 
 class BundleError(Exception):
@@ -847,9 +846,7 @@ def install_files(
         initialize_host_identity(str(manifest["hostname"]))
 
 
-def validate_coordinator_configuration() -> None:
-    NGINX_RUNTIME_DIRECTORY.mkdir(mode=0o755, parents=True, exist_ok=True)
-    run(["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"])
+def validate_static_coordinator_configuration() -> None:
     run(["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"])
     run(["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"])
 
@@ -927,7 +924,7 @@ def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> 
         units = installed_unit_files(Path("/etc/systemd/system"))
         run(["systemd-analyze", "verify", *units])
         if role == "coordinator":
-            validate_coordinator_configuration()
+            validate_static_coordinator_configuration()
 
 
 def status_document(
