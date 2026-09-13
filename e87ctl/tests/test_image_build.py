@@ -573,10 +573,13 @@ def test_common_layer_contains_runtime_dependencies_without_build_tools() -> Non
         "curl",
         "iproute2",
         "python3",
+        "wpasupplicant",
     ):
         assert f"    - {package}\n" in layer
     assert "network: network-manager" in config
-    assert "wifi_backend: network-manager-iwd" in config
+    assert "wifi: iwd" not in config
+    assert "wifi_backend: network-manager-iwd" not in config
+    assert "    - iwd\n" not in layer
     for prohibited in (
         "apt ",
         "apt-get",
