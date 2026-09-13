@@ -16,8 +16,6 @@ layer:
   ssh: openssh-server
   time: systemd-timesyncd
   regulatory: wireless-regulatory
-  wifi: iwd
-  wifi_backend: network-manager-iwd
   e87: e87-common
 
 ssh:

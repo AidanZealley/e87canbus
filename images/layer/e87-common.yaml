@@ -14,6 +14,7 @@ mmdebstrap:
     - iproute2
     - python3
     - sudo
+    - wpasupplicant
   customize-hooks:
     - '"$SRCROOT/common/customize.sh" "$1" "$SRCROOT/../deploy"'
     - |-

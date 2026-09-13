@@ -270,3 +270,32 @@ environment where available. Do not claim Pi radio compatibility from these chec
   defect.
 - Remaining required findings: None.
 - Accepted correction commit: `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`.
+
+## Provisioned-pair gate attempt 3 reopening handoff
+
+- Base commit: `d3b29b3fbb033d6adf47ed4aa42879f0868575f8`.
+- Outcome: Corrected two installed-state validation defects and replaced iwd with NetworkManager's
+  default wpa_supplicant backend after the target rejected SAE access-point mode through iwd.
+- Files changed: Updated the provisioning bundle generator and consumer, shared image definition,
+  common image layer, focused image and consumer tests, workstream 8 gate record and plan.
+- Decisions: Debian Trixie's `wpasupplicant` is now the one explicit Wi-Fi backend package.
+  NetworkManager remains the sole network owner. The provisioning profile still requires
+  `key-mgmt=sae` and `pmf=3`; it advertises no gateway or DNS and permits no fallback mode.
+- Corrections: The generated profile omits invalid empty gateway and DNS properties, and strict
+  consumer validation rejects either property while requiring the no-default-route and ignore-DNS
+  settings. Coordinator native validation creates nginx's runtime directory before `nginx -t`.
+- Verification: The focused image, artifact, online-verification, deployment and provisioning
+  consumer tests passed with 106 tests. Ruff passed for `e87ctl`, `hosts` and the consumer; mypy
+  passed over 142 source files; consumer compilation, common image-hook parsing and
+  `git diff --check` passed. Docker image assembly and native NetworkManager validation remain at
+  the physical gate.
+- Simplification pass: Removed both iwd layer selections. Added no backend switch, hostapd path,
+  duplicate network owner or weaker security profile.
+- External evidence: Docker image assembly and Raspberry Pi radio behavior remain unclaimed. The
+  next exact candidate must pass the complete provisioned-pair gate, including SAE and required
+  management-frame protection.
+- Focused review: Claude Code Opus at medium effort accepted the cumulative correction with no
+  required findings. It reproduced `973` tests, Ruff, mypy over `142` source files, provisioning
+  consumer compilation and `git diff --check`. It confirmed one NetworkManager owner, no weaker
+  security mode, strict absence of gateway and DNS properties, and the correct nginx validation
+  precondition. Docker assembly and physical SAE/PMF behavior remain at the gate.

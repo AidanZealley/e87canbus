@@ -162,6 +162,30 @@ def test_installed_unit_verification_ignores_systemd_relationship_directories(
     assert consumer.installed_unit_files(systemd) == [str(service), str(target)]
 
 
+def test_native_nginx_validation_creates_its_runtime_directory_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    consumer = load_consumer()
+    runtime = tmp_path / "run/e87canbus-nginx"
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **_: object) -> None:
+        if command[0] == "nginx":
+            assert runtime.is_dir()
+        commands.append(command)
+
+    monkeypatch.setattr(consumer, "run", run)
+    monkeypatch.setattr(consumer, "NGINX_RUNTIME_DIRECTORY", runtime)
+
+    consumer.validate_coordinator_configuration()
+
+    assert commands == [
+        ["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"],
+        ["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"],
+        ["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"],
+    ]
+
+
 @pytest.mark.parametrize("role", ["coordinator", "console"])
 def test_consumer_installs_and_activates_a_valid_role_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, role: str
@@ -185,7 +209,15 @@ def test_consumer_installs_and_activates_a_valid_role_bundle(
     assert json.loads((current / "manifest.json").read_text())["role"] == role
     network = root / "etc/NetworkManager/system-connections/e87canbus-wifi.nmconnection"
     assert network.stat().st_mode & 0o777 == 0o600
-    assert f"id=e87canbus-{role}-wifi" in network.read_text()
+    network_contents = network.read_text()
+    network_lines = network_contents.splitlines()
+    assert f"id=e87canbus-{role}-wifi" in network_contents
+    assert not any(line.startswith("gateway=") for line in network_lines)
+    assert not any(line.startswith("dns=") for line in network_lines)
+    assert "key-mgmt=sae" in network_contents
+    assert "pmf=3" in network_contents
+    assert "never-default=true" in network_contents
+    assert "ignore-auto-dns=true" in network_contents
     assert artifact.configuration.hostname in (root / "etc/e87canbus/device.json").read_text()
     assert f"127.0.1.1\t{artifact.configuration.hostname}\n" in (root / "etc/hosts").read_text()
     all_status = (state / "status.json").read_text()
@@ -232,6 +264,30 @@ def test_bundle_with_wrong_networkmanager_connection_id_is_rejected(
         bundle,
         "network/wifi.nmconnection",
         profile.replace(b"id=e87canbus-coordinator-wifi", b"id=unexpected"),
+    )
+
+    assert load_consumer().main() == 1
+    assert not (root / "opt/e87canbus/current").exists()
+    assert (root / "var/lib/e87canbus-provisioning/unprovisioned").exists()
+
+
+@pytest.mark.parametrize("property_name", ["gateway", "dns"])
+def test_bundle_with_empty_route_property_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    property_name: str,
+) -> None:
+    root, boot, _ = sandbox(tmp_path, "coordinator", monkeypatch)
+    bundle = boot / "e87canbus-provisioning-v1.zip"
+    with zipfile.ZipFile(bundle) as archive:
+        profile = archive.read("network/wifi.nmconnection")
+    replace_bundle_entry(
+        bundle,
+        "network/wifi.nmconnection",
+        profile.replace(
+            b"ignore-auto-dns=true",
+            f"{property_name}=\nignore-auto-dns=true".encode(),
+        ),
     )
 
     assert load_consumer().main() == 1

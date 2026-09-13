@@ -71,6 +71,7 @@ STATUS_FIELDS = {
     "error_code",
 }
 PHASES = ("staged", "boot_removed", "installed", "verified", "status_written", "cleaned")
+NGINX_RUNTIME_DIRECTORY = Path("/run/e87canbus-nginx")
 
 
 class BundleError(Exception):
@@ -395,8 +396,10 @@ def validate_small_payloads(
         or network.get("wifi-security", "pmf", fallback="") != "3"
         or network.get("ipv4", "method", fallback="") != "manual"
         or network.get("ipv4", "address1", fallback="") != expected_address
-        or network.get("ipv4", "gateway", fallback="")
-        or network.get("ipv4", "dns", fallback="")
+        or network.has_option("ipv4", "gateway")
+        or network.has_option("ipv4", "dns")
+        or network.get("ipv4", "never-default", fallback="") != "true"
+        or network.get("ipv4", "ignore-auto-dns", fallback="") != "true"
         or network.get("ipv6", "method", fallback="") != "disabled"
     ):
         fail("invalid_network_profile")
@@ -844,6 +847,13 @@ def install_files(
         initialize_host_identity(str(manifest["hostname"]))
 
 
+def validate_coordinator_configuration() -> None:
+    NGINX_RUNTIME_DIRECTORY.mkdir(mode=0o755, parents=True, exist_ok=True)
+    run(["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"])
+    run(["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"])
+    run(["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"])
+
+
 def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> None:
     role = str(manifest["role"])
     current = root_path(root, "/opt/e87canbus/current")
@@ -917,9 +927,7 @@ def verify_installed(root: Path, staging: Path, manifest: dict[str, object]) -> 
         units = installed_unit_files(Path("/etc/systemd/system"))
         run(["systemd-analyze", "verify", *units])
         if role == "coordinator":
-            run(["nginx", "-t", "-c", "/etc/e87canbus/nginx.conf"])
-            run(["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"])
-            run(["nft", "--check", "--file", "/etc/e87canbus/nftables.conf"])
+            validate_coordinator_configuration()
 
 
 def status_document(
