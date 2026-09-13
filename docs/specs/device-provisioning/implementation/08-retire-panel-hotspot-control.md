@@ -110,7 +110,7 @@ external and must not be claimed on the implementation host.
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
 - Candidate and instructions: Test corrected candidate
-  `9924947eacd209fc00b9eaa7fb0df5098c63892b`. Repeat the complete procedure in workstream 7 from
+  `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`. Repeat the complete procedure in workstream 7 from
   clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
@@ -140,7 +140,13 @@ external and must not be claimed on the implementation host.
   explicitly. The bundle retains its SAE-only and required-PMF settings, and the physical gate must
   still prove both. Claude Opus at medium effort accepted the cumulative correction with no
   required findings. Candidate `9924947eacd209fc00b9eaa7fb0df5098c63892b` contains the reviewed
-  correction.
+  correction. Attempt 4 on that candidate proved `nginx -t` binds the configured `10.42.0.1`
+  address during provisioning, before NetworkManager assigns it. This physical result disproves
+  the focused review's conclusion that creating nginx's runtime directory was a complete
+  precondition fix. Provisioning now leaves nginx validation to the existing service
+  `ExecStartPre`, which runs with its runtime directory after `NetworkManager-wait-online`; it keeps
+  the interface-independent dnsmasq and nftables checks. Candidate
+  `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` contains this focused correction.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
