@@ -108,10 +108,10 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Testing`
-- Candidate and instructions: Test corrected fallback candidate
-  `8ed08b2152f4aaf93a64c4388604f853020f1e7a`. Repeat the complete procedure in workstream 7 from
-  clean cards.
+- Status: `Troubleshooting`
+- Candidate and instructions: Candidate `8ed08b2152f4aaf93a64c4388604f853020f1e7a` failed after
+  provisioning. Diagnose its Chromium trap on the already-modified console card before publishing
+  another candidate.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -162,7 +162,14 @@ external and must not be claimed on the implementation host.
   passed and every remaining console check passed except the checker's unconditional listen-only
   assertion. The selected `bench` profile correctly disables listen-only. Candidate
   `8ed08b2152f4aaf93a64c4388604f853020f1e7a` installs the console-only `kbd` package that provides
-  `chvt` and makes the physical CAN check enforce the provisioned `car` or `bench` mode.
+  `chvt` and makes the physical CAN check enforce the provisioned `car` or `bench` mode. That
+  candidate provisioned the console and started Cage, but Chromium `152.0.7977.82-1~deb13u1`
+  repeatedly exited from `SIGTRAP` with status 133. The display stayed black apart from an
+  intermittent cursor and Chromium wrote minidumps without useful stderr. Diagnostics ruled out
+  automatic Ozone selection, the Chromium sandbox, GPU acceleration, D-Bus session setup, the
+  persistent profile and missing Mesa DRI drivers. The card was modified during diagnosis and
+  cannot supply final evidence. Workstream 6 records the next symbolized native-trace procedure;
+  no speculative browser change or replacement candidate is accepted yet.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff

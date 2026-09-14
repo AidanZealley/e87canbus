@@ -106,7 +106,7 @@ combined physical candidate is tested.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 8 | After workstream 8 closure | Testing | `8ed08b2152f4aaf93a64c4388604f853020f1e7a`; replaces blocked `3631bfcdf655f5af73162b3903fcccc9d197e166` | Repeat the complete MacBook, two-Pi, panel and invalid-bundle procedure from clean cards |
+| Provisioned pair | 8 | After workstream 8 closure | Troubleshooting | `8ed08b2152f4aaf93a64c4388604f853020f1e7a` failed; diagnostic card modified | Capture a symbolized native Chromium backtrace before publishing another candidate |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.
