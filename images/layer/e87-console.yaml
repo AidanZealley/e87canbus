@@ -11,6 +11,7 @@ mmdebstrap:
     - cage
     - chromium
     - chromium-sandbox
+    - kbd
     - libnss3-tools
     - libpam-systemd
     - plymouth

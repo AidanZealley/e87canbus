@@ -491,7 +491,10 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "e87canbus-console-kcan.service e87canbus-console.service",
         '[ "$interfaces" = kcan ]',
         "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'",
-        "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'",
+        'open("/etc/e87canbus/device.json")',
+        '"deployment_profile"',
+        'car) printf "%s\\n" "$details" | grep -Eq "listen-only on|LISTEN-ONLY"',
+        'bench) ! printf "%s\\n" "$details" | grep -Eq "listen-only on|LISTEN-ONLY"',
         "10.42.0.2/24",
         "e87canbus-console-wifi",
         "key-mgmt connection show e87canbus-console-wifi)\" = wpa-psk",
@@ -520,7 +523,7 @@ def test_hardware_runbook_covers_both_role_boundaries() -> None:
         "three CAN",
         "10.42.0.1/24",
         "kcan",
-        "listen-only mode",
+        "listen-only for `car`",
         "10.42.0.2/24",
         "DRM",
         "touchscreen",
@@ -781,17 +784,22 @@ def test_console_boot_configuration_has_only_the_first_hat_controller() -> None:
 def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> None:
     layer = read(CONSOLE_LAYER)
     customize = read(CONSOLE / "customize.sh")
+    kiosk_unit = read(ROOT / "deploy/systemd/e87canbus-console-kiosk.service")
 
     assert "X-Env-Layer-Requires: e87-common" in layer
     for package in (
         "cage",
         "chromium",
         "chromium-sandbox",
+        "kbd",
         "libnss3-tools",
         "libpam-systemd",
         "plymouth",
     ):
         assert f"    - {package}\n" in layer
+    assert "ExecStartPre=+/usr/bin/chvt 7" in kiosk_unit
+    assert "    - kbd\n" not in read(COMMON_LAYER)
+    assert "    - kbd\n" not in read(COORDINATOR_LAYER)
     for prohibited in (
         "avahi-daemon",
         "desktop",

@@ -368,3 +368,22 @@ environment where available. Do not claim Pi radio compatibility from these chec
   `git diff --check`, and confirmed the five-property Wi-Fi contract remains consistent from
   generation through physical verification. Hardware compatibility remains at the gate.
 - Accepted correction commit: `3631bfcdf655f5af73162b3903fcccc9d197e166`.
+
+### Provisioned-pair gate console troubleshooting correction
+
+- Physical evidence: Candidate `3631bfcdf655f5af73162b3903fcccc9d197e166` provisioned the
+  console successfully after manually bypassing its missing `/usr/bin/chvt`. The console joined
+  the coordinator and passed the WPA2-RSN check. Every remaining console check passed except the
+  checker's unconditional listen-only assertion. The selected `bench` profile correctly configures
+  `kcan` with listen-only disabled so it can acknowledge frames on the isolated bench bus.
+- Correction: The console image installs Debian's `kbd` package, which provides the kiosk unit's
+  existing `/usr/bin/chvt` command. The physical checker reads the strict provisioned
+  `/etc/e87canbus/device.json` and requires listen-only for `car` or disabled listen-only for
+  `bench`.
+- Focused coverage: The image test requires `kbd` in the console-only package layer and pins both
+  deployment-profile branches in the physical checker. The runbook now describes the same
+  profile-dependent CAN check.
+- Simplification pass: Kept the existing kiosk unit and provisioning-controlled CAN setting. Added
+  no alternate VT switch, inferred profile or fallback CAN mode.
+- External evidence: The next exact candidate must repeat the console first boot without the
+  manual `chvt` bypass and pass the profile-aware physical checker.
