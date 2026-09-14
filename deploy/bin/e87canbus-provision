@@ -838,12 +838,13 @@ def install_files(
                         os.fsync(stored.fileno())
             for directory, _, _ in os.walk(profile_dir, topdown=False):
                 fsync_directory(Path(directory))
+        certificate_selection = {
+            "pattern": "https://10.42.0.1",
+            "filter": {"ISSUER": {"CN": "e87canbus installation CA"}},
+        }
         policy = {
             "AutoSelectCertificateForUrls": [
-                {
-                    "pattern": "https://10.42.0.1",
-                    "filter": {"ISSUER": {"CN": "e87canbus installation CA"}},
-                }
+                json.dumps(certificate_selection, sort_keys=True, separators=(",", ":"))
             ]
         }
         write_json(root_path(root, "/etc/chromium/policies/managed/e87canbus.json"), policy, 0o644)
