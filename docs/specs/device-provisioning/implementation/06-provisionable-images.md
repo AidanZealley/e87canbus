@@ -387,3 +387,34 @@ environment where available. Do not claim Pi radio compatibility from these chec
   no alternate VT switch, inferred profile or fallback CAN mode.
 - External evidence: The next exact candidate must repeat the console first boot without the
   manual `chvt` bypass and pass the profile-aware physical checker.
+
+### Provisioned-pair gate Chromium diagnosis
+
+- Physical evidence: Candidate `8ed08b2152f4aaf93a64c4388604f853020f1e7a` provisioned the
+  console and started Cage, but Debian Chromium `152.0.7977.82-1~deb13u1` exited with status 133
+  from `SIGTRAP`. The kiosk restarted every five seconds and left repeated minidumps while the
+  display stayed black apart from an intermittent cursor. The diagnostic card was modified and
+  cannot supply final gate evidence. Tests on that card ruled out automatic Ozone selection, the
+  Chromium sandbox, GPU acceleration, D-Bus session setup, a persistent browser profile and missing
+  Mesa DRI drivers.
+- Local investigation: The exact arm64 Chromium executable is a stripped 286 MiB ELF with build ID
+  `0297ec5e840b87b8936579770f04581456ad51b8`. Debian's normal package search and debuginfod do not
+  expose its symbols, but the `trixie-security-debug` package index contains the exact matching
+  `chromium-dbgsym_152.0.7977.82-1~deb13u1_arm64` package. Its indexed build ID matches the
+  executable, its download is 35,636,376 bytes and its installed size is 177,041 KiB. Debian
+  Trixie also provides arm64 `gdb`, so catching the native trap with those symbols is the shortest
+  route to an actionable stack and register state.
+- Next diagnostic: Keep using the already-disqualified card. Temporarily give it package access,
+  add a deb822 apt source for `https://deb.debian.org/debian-security-debug`, suite
+  `trixie-security-debug`, component `main`, signed by Debian's archive keyring, then install `gdb`
+  and the exact matching `chromium-dbgsym`. Run the exact kiosk Chromium invocation under Cage
+  through a batch GDB wrapper. The wrapper must source `/etc/chromium.d/*`, invoke
+  `/usr/lib/chromium/chromium` with the shipped kiosk arguments plus `--disable-breakpad`, stop
+  without passing `SIGTRAP`, and emit `thread apply all backtrace`, `info registers` and
+  instructions around `$pc`. Set a temporary systemd drop-in with `Restart=no` and replace only
+  the Cage child with this wrapper. Retain the complete unit journal,
+  `dpkg-query -W chromium chromium-common chromium-sandbox chromium-dbgsym gdb cage`, and
+  `readelf -n /usr/lib/chromium/chromium` output.
+- Disposition: Do not publish another image or select a Chromium flag, alternate browser or package
+  pin until the native trap identifies the failing component. GDB and the temporary drop-in belong
+  only on the diagnostic card and must not enter the production image.
