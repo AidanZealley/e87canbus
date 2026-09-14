@@ -205,8 +205,12 @@ def test_consumer_installs_and_activates_a_valid_role_bundle(
     assert f"id=e87canbus-{role}-wifi" in network_contents
     assert not any(line.startswith("gateway=") for line in network_lines)
     assert not any(line.startswith("dns=") for line in network_lines)
-    assert "key-mgmt=sae" in network_contents
+    assert "key-mgmt=wpa-psk" in network_contents
+    assert "proto=rsn" in network_contents
+    assert "pairwise=ccmp" in network_contents
+    assert "group=ccmp" in network_contents
     assert "pmf=3" in network_contents
+    assert "key-mgmt=sae" not in network_contents
     assert "never-default=true" in network_contents
     assert "ignore-auto-dns=true" in network_contents
     assert artifact.configuration.hostname in (root / "etc/e87canbus/device.json").read_text()
@@ -279,6 +283,38 @@ def test_bundle_with_empty_route_property_is_rejected(
             b"ignore-auto-dns=true",
             f"{property_name}=\nignore-auto-dns=true".encode(),
         ),
+    )
+
+    assert load_consumer().main() == 1
+    assert not (root / "opt/e87canbus/current").exists()
+    assert (root / "var/lib/e87canbus-provisioning/unprovisioned").exists()
+
+
+@pytest.mark.parametrize(
+    ("expected", "replacement"),
+    [
+        (b"key-mgmt=wpa-psk", b"key-mgmt=sae"),
+        (b"proto=rsn", b"proto=wpa"),
+        (b"pairwise=ccmp", b"pairwise=tkip"),
+        (b"group=ccmp", b"group=tkip"),
+        (b"pmf=3", b"pmf=2"),
+        (b"pmf=3", b"auth-alg=open\npmf=3"),
+    ],
+)
+def test_bundle_with_weaker_wifi_security_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    expected: bytes,
+    replacement: bytes,
+) -> None:
+    root, boot, _ = sandbox(tmp_path, "coordinator", monkeypatch)
+    bundle = boot / "e87canbus-provisioning-v1.zip"
+    with zipfile.ZipFile(bundle) as archive:
+        profile = archive.read("network/wifi.nmconnection")
+    replace_bundle_entry(
+        bundle,
+        "network/wifi.nmconnection",
+        profile.replace(expected, replacement),
     )
 
     assert load_consumer().main() == 1

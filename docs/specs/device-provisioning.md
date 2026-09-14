@@ -157,7 +157,9 @@ private key as unencrypted OpenSSH PEM and the SSH public key in its one-line Op
 format has no alternate key encodings in v1.
 
 The operator username is `operator`. Generated passwords use cryptographically secure randomness
-and alphabets accepted by their consumers.
+and alphabets accepted by their consumers. The Wi-Fi password is 32 random characters and supplies
+the guessing resistance for the WPA2-Personal network defined by the
+[Wi-Fi device network](wifi-device-network.md).
 
 The CLI creates the file with mode `0600`, refuses to overwrite an existing path and prints only a
 non-secret summary. It also writes the public CA certificate beside the package as

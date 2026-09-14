@@ -463,7 +463,7 @@ def _network_profile(role: Role, recovery: RecoveryPackage) -> str:
         "type=wifi\ninterface-name=wlan0\nautoconnect=true\n\n"
         "[wifi]\n"
         f"{wifi}ssid={recovery.wifi_ssid}\n\n"
-        "[wifi-security]\nkey-mgmt=sae\npmf=3\n"
+        "[wifi-security]\nkey-mgmt=wpa-psk\nproto=rsn\npairwise=ccmp\ngroup=ccmp\npmf=3\n"
         f"psk={recovery.wifi_password.get_secret_value()}\n\n"
         f"[ipv4]\n{ipv4}ignore-auto-dns=true\n\n"
         "[ipv6]\nmethod=disabled\n"

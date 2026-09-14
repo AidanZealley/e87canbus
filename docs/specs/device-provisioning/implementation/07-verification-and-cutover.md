@@ -80,20 +80,26 @@ Record rather than hide any check unavailable on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after workstream 8 closure.
-- Status: `Pending`
-- Candidate: assigned from the combined workstream 8 head.
+- Status: `Troubleshooting`
+- Candidate: `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` failed its WPA3 access-point
+  check. The approved WPA2-Personal correction is pending review and publication.
 - Required evidence: candidate hash and clean/dirty build context; both image and application
   manifests/digests; MacBook builds; two safe SD writes/readbacks; coordinator and console first
   boot; unique hostname/machine ID/SSH keys; ZIP and staged-secret removal; marker transition;
-  service health; exact IP/DHCP/no-forwarding behavior; WPA3-SAE and PMF; certificate trust and
-  automatic console mTLS; HTTP and Socket.IO allowlists; laptop Wi-Fi-only denial; operator access;
+  service health; exact IP/DHCP/no-forwarding behavior; WPA2-RSN/CCMP and required PMF; certificate
+  trust and automatic console mTLS; HTTP and Socket.IO allowlists; laptop Wi-Fi-only denial;
+  operator access;
   console rejection on operator status; Ethernet-disconnected operation; console disconnect/no
   replay/recovery; locally trusted SSH host-key fingerprints; authenticated SSH-only service
   exception; verification wall-clock times; and invalid-bundle boot and local-host state.
-- Attempts and lasting decisions: `TBD`
-- Resume condition: all required evidence passes on one recorded candidate. A WPA3/PMF failure may
-  resume only after the single evidence-backed fallback allowed by the specification is approved
-  and recorded as drift.
+- Attempts and lasting decisions: Attempt 5 proved that candidate `b944952b` provisioned and
+  passed every physical checker item except SAE access-point activation. wpa_supplicant reported
+  `Could not generate WPA IE`, `WPA initialization failed` and `Failed to initialize AP interface`;
+  `get_throttled=0x0` ruled out a power fault. Together with the earlier iwd rejection, this
+  triggered Aidan's approval of the one WPA2-Personal, RSN-only, CCMP-only fallback. Required PMF
+  remains because the evidence isolates SAE.
+- Resume condition: all required evidence passes on one recorded candidate using the approved
+  WPA2-Personal fallback.
 
 ### Candidate procedure
 
@@ -158,8 +164,9 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
    key to match the locally recorded fingerprint, pin it in a temporary `known_hosts`, then use
    strict host-key checking. They cover the strict root status, complete installation
    and device identities, consumed ZIP and staged-secret cleanup, release manifest and installed
-   file digests, hostname and generated host identity, active role services, WPA3/PMF profiles,
-   disabled forwarding, loaded firewall and dnsmasq policy, key-only SSH, trusted coordinator TLS,
+   file digests, hostname and generated host identity, active role services, exact WPA2/PMF
+   profiles, disabled forwarding, loaded firewall and dnsmasq policy, key-only SSH, trusted
+   coordinator TLS,
    authenticated coordinator readiness, unauthenticated denial, operator status access, console
    HTTP and Socket.IO mTLS, and console rejection by the operator-only status endpoint.
 
@@ -187,8 +194,8 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
    non-secret checks:
 
    ```bash
-   nmcli -g GENERAL.STATE,802-11-wireless-security.key-mgmt,802-11-wireless-security.pmf,ipv4.addresses,ipv4.gateway,ipv4.dns connection show e87canbus-coordinator-wifi
-   nmcli -g GENERAL.STATE,802-11-wireless-security.key-mgmt,802-11-wireless-security.pmf,ipv4.addresses,ipv4.gateway,ipv4.dns connection show e87canbus-console-wifi
+   nmcli -g GENERAL.STATE,802-11-wireless-security.key-mgmt,802-11-wireless-security.proto,802-11-wireless-security.pairwise,802-11-wireless-security.group,802-11-wireless-security.pmf,ipv4.addresses,ipv4.gateway,ipv4.dns connection show e87canbus-coordinator-wifi
+   nmcli -g GENERAL.STATE,802-11-wireless-security.key-mgmt,802-11-wireless-security.proto,802-11-wireless-security.pairwise,802-11-wireless-security.group,802-11-wireless-security.pmf,ipv4.addresses,ipv4.gateway,ipv4.dns connection show e87canbus-console-wifi
    sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
    sudo nft list table inet e87canbus
    sudo dnsmasq --test --conf-file=/etc/e87canbus/dnsmasq.conf
@@ -196,8 +203,9 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
    ```
 
    Run the role-specific `nmcli` command on its matching Pi. The successful active profiles,
-   `key-mgmt=sae`, `pmf=3` and actual association provide the WPA3-SAE and required-PMF evidence.
-   Confirm no hotspot-reachable listener exists outside DHCP, HTTPS and SSH.
+   `key-mgmt=wpa-psk`, `proto=rsn`, CCMP-only `pairwise` and `group`, `pmf=3` and actual
+   association provide the approved WPA2-Personal and required-PMF evidence. Confirm no
+   hotspot-reachable listener exists outside DHCP, HTTPS and SSH.
 
    Confirm the coordinator panel settles at `READY`. Press its physical button several times,
    then repeat both role-specific `nmcli` checks and confirm the access point remains active, the

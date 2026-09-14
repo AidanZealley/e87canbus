@@ -657,7 +657,10 @@ def nm(field):
     return subprocess.run(["nmcli", "-g", field, "connection", "show", connection],
                           text=True, capture_output=True).stdout.strip()
 checks["wifi"] = (nm("GENERAL.STATE") == "activated" and
-                  nm("802-11-wireless-security.key-mgmt") == "sae" and
+                  nm("802-11-wireless-security.key-mgmt") == "wpa-psk" and
+                  nm("802-11-wireless-security.proto") == "rsn" and
+                  nm("802-11-wireless-security.pairwise") == "ccmp" and
+                  nm("802-11-wireless-security.group") == "ccmp" and
                   nm("802-11-wireless-security.pmf") == "3" and
                   nm("ipv4.addresses") == expected_address and
                   nm("ipv4.gateway") == "" and nm("ipv4.dns") == "" and

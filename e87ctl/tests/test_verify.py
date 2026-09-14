@@ -461,3 +461,12 @@ def test_https_identity_binds_ssh_and_operator_status_to_the_same_device(
 
 def test_remote_verifier_is_valid_python() -> None:
     compile(_REMOTE_VERIFIER, "<e87ctl remote verifier>", "exec")
+    for expected in (
+        'key-mgmt") == "wpa-psk"',
+        'proto") == "rsn"',
+        'pairwise") == "ccmp"',
+        'group") == "ccmp"',
+        'pmf") == "3"',
+    ):
+        assert expected in _REMOTE_VERIFIER
+    assert 'key-mgmt") == "sae"' not in _REMOTE_VERIFIER

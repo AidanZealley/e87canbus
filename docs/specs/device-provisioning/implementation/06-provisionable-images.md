@@ -57,8 +57,8 @@ valid bundle is fully installed.
 - No secret value reaches status, journal or overly broad file permissions.
 - First boot performs no package install, dependency resolution or application/frontend build.
 - Each Pi receives its assigned hostname/device identity and locally unique machine ID/SSH keys.
-- Coordinator and console implement the exact IP, DHCP, WPA3/PMF, no-forwarding, TLS and service
-  policy from the Wi-Fi contract.
+- Coordinator and console implement the exact IP, DHCP, WPA2-Personal/RSN/CCMP/required-PMF,
+  no-forwarding, TLS and service policy from the Wi-Fi contract.
 - Chromium can select only the installed console identity for the coordinator origin without
   frontend access to its private key.
 - Both images build structurally through the existing wrapper; real hardware behavior remains
@@ -322,3 +322,48 @@ environment where available. Do not claim Pi radio compatibility from these chec
 - Resume condition: Publish one corrected candidate, then repeat the complete physical gate from
   clean cards.
 - Accepted correction commit: `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`.
+
+## Provisioned-pair gate attempt 5 reopening handoff
+
+- Base commit: `0df1babbb4db591c7282a98d91f596de7f1c5116`.
+- Physical evidence: Candidate `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` provisioned
+  successfully and passed every physical checker item except the WPA3 access point. Its SAE,
+  required-PMF and address settings were correct, but the profile stayed inactive. Explicit
+  activation reached wpa_supplicant, which reported `Could not generate WPA IE`,
+  `WPA initialization failed` and `Failed to initialize AP interface`. Power was healthy at
+  `get_throttled=0x0`. Together with attempt 3's iwd failure, both available NetworkManager
+  backends have failed SAE access-point operation on the target Pi 4 stack.
+- Decision: Aidan approved the specification's single evidence-backed fallback. Use
+  WPA2-Personal with RSN only, CCMP only and required PMF through the existing NetworkManager and
+  wpa_supplicant ownership. We briefly considered disabling PMF, but the evidence isolates SAE and
+  does not justify that extra downgrade.
+- Security effect: The fallback loses SAE forward secrecy and resistance to offline password
+  guessing. The existing generated 32-character random installation PSK makes guessing
+  impractical. Required PMF, TLS, mutual TLS, SSH, firewall filtering and disabled forwarding
+  remain unchanged.
+- Files changed: Provisioning profile generation and strict consumption, online verification,
+  physical image checker, focused tests, active Wi-Fi, provisioning, deploy and image documentation,
+  workstream 7's physical procedure, ADR 0014 and the active workflow records.
+- Verification: The complete Python suite passed with 979 tests. Ruff passed for `e87ctl`, `hosts`,
+  the consumer and the watched-contract script; mypy passed over 142 source files. Both import
+  contracts and the generated custom-protocol check passed, as did consumer compilation,
+  image-checker shell parsing and `git diff --check`. A final 112-test focused run passed after
+  tightening the exact Wi-Fi security-property set.
+- Simplification pass: Replaced the active SAE assertions with one exact WPA2-RSN/CCMP contract.
+  Added no selectable mode, compatibility alias, TKIP path, second backend or hostapd service.
+- External evidence: The corrected exact candidate must repeat the complete provisioned-pair gate
+  and prove active profiles with `key-mgmt=wpa-psk`, `proto=rsn`, CCMP-only pairwise and group
+  ciphers, and `pmf=3` on both Pis.
+- Focused review: Claude Code Opus at medium effort required two changes. The consumer test's broad
+  `"sae"` absence assertion could match a random generated SSID or PSK, and the active workstream
+  acceptance criterion still named WPA3/PMF. Both findings were accepted. The test now rejects the
+  exact `key-mgmt=sae` property, and the criterion names the approved
+  WPA2-Personal/RSN/CCMP/required-PMF contract. Reflow suggestions, the pre-existing ConfigParser
+  default-section case and alternate security wording remain optional and were not promoted.
+- Remediation verification: The 76 focused provisioning-consumer, online-verification and image
+  tests passed. Ruff and `git diff --check` passed. The simplification check found no alias,
+  fallback mode or extra validation path introduced by remediation.
+- Closure review: Claude Code Opus at medium effort accepted both corrections with no remaining
+  required findings. It reran the same 76 focused tests, Ruff, image-checker shell parsing and
+  `git diff --check`, and confirmed the five-property Wi-Fi contract remains consistent from
+  generation through physical verification. Hardware compatibility remains at the gate.
