@@ -109,8 +109,8 @@ external and must not be claimed on the implementation host.
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
-- Candidate and instructions: Test reviewed fallback candidate
-  `3631bfcdf655f5af73162b3903fcccc9d197e166`. Repeat the complete procedure in workstream 7 from
+- Candidate and instructions: Test corrected fallback candidate
+  `8ed08b2152f4aaf93a64c4388604f853020f1e7a`. Repeat the complete procedure in workstream 7 from
   clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
@@ -156,7 +156,13 @@ external and must not be claimed on the implementation host.
   32-character random installation PSK makes offline guessing impractical. TLS, mutual TLS, SSH,
   firewall filtering and disabled forwarding remain unchanged. Claude Opus at medium effort
   accepted the focused correction and closure with no remaining required findings. Candidate
-  `3631bfcdf655f5af73162b3903fcccc9d197e166` contains the reviewed fallback.
+  `3631bfcdf655f5af73162b3903fcccc9d197e166` contains the reviewed fallback. Console diagnostics
+  on that candidate proved the fallback in operation: provisioning completed after manually
+  bypassing the missing `/usr/bin/chvt`, the console joined the coordinator, its WPA2-RSN check
+  passed and every remaining console check passed except the checker's unconditional listen-only
+  assertion. The selected `bench` profile correctly disables listen-only. Candidate
+  `8ed08b2152f4aaf93a64c4388604f853020f1e7a` installs the console-only `kbd` package that provides
+  `chvt` and makes the physical CAN check enforce the provisioned `car` or `bench` mode.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
