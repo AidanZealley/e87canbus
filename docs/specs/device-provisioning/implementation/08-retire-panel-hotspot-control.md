@@ -110,8 +110,9 @@ external and must not be claimed on the implementation host.
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
 - Candidate and instructions: Test corrected candidate
-  `ca6a8267201b3ef82fcf47030d2cefdb0761ac74`. Repeat the complete procedure in workstream 7 from
-  clean cards.
+  `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`. Build both roles, confirm Debian's
+  `firmware-brcm80211` is installed, then repeat the complete procedure in workstream 7 from clean
+  cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
