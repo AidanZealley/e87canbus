@@ -489,4 +489,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   syntax and `git diff --check` passed. Fresh Claude closure reproduced the focused checks and
   found no remaining required issue. Physical firmware selection and association remain at the
   clean-card gate.
-- Accepted correction commit: `TBD`.
+- Accepted correction commit: `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`.
