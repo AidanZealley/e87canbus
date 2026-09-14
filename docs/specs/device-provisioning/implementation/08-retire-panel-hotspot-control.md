@@ -173,7 +173,13 @@ external and must not be claimed on the implementation host.
   of `select_certificate_for_urls`. The generated Linux policy used dictionary entries where
   Chromium requires stringified JSON dictionaries. Candidate
   `ca6a8267201b3ef82fcf47030d2cefdb0761ac74` corrects only that serialization; its origin and
-  installation-CA issuer restrictions remain unchanged.
+  installation-CA issuer restrictions remain unchanged. Radio diagnostics on the later rolling
+  build then isolated a local Pi 4 brcmfmac status-16 association regression: both Pis worked with
+  unrelated peers, but the console could not reach authentication with the coordinator under any
+  tested PMF, band, power-saving or userspace-owner variation. Candidate
+  `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3` applies the evidence-backed correction by resolving
+  only `firmware-brcm80211` from Debian for both roles. It leaves the Raspberry Pi kernel,
+  NetworkManager ownership and the WPA2-RSN/CCMP/required-PMF profile unchanged.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
