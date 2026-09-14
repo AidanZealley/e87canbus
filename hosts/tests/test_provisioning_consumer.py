@@ -226,7 +226,14 @@ def test_consumer_installs_and_activates_a_valid_role_bundle(
         assert "DEV_ORIGIN" not in controller_env
     else:
         policy = json.loads((root / "etc/chromium/policies/managed/e87canbus.json").read_text())
-        assert policy["AutoSelectCertificateForUrls"][0]["pattern"] == "https://10.42.0.1"
+        assert set(policy) == {"AutoSelectCertificateForUrls"}
+        certificate_selections = policy["AutoSelectCertificateForUrls"]
+        assert len(certificate_selections) == 1
+        assert isinstance(certificate_selections[0], str)
+        assert json.loads(certificate_selections[0]) == {
+            "pattern": "https://10.42.0.1",
+            "filter": {"ISSUER": {"CN": "e87canbus installation CA"}},
+        }
 
 
 def test_invalid_bundle_changes_no_installed_state_and_keeps_gate(

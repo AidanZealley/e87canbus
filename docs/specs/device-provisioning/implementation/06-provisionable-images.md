@@ -388,33 +388,30 @@ environment where available. Do not claim Pi radio compatibility from these chec
 - External evidence: The next exact candidate must repeat the console first boot without the
   manual `chvt` bypass and pass the profile-aware physical checker.
 
-### Provisioned-pair gate Chromium diagnosis
+### Provisioned-pair gate Chromium policy correction
 
 - Physical evidence: Candidate `8ed08b2152f4aaf93a64c4388604f853020f1e7a` provisioned the
-  console and started Cage, but Debian Chromium `152.0.7977.82-1~deb13u1` exited with status 133
-  from `SIGTRAP`. The kiosk restarted every five seconds and left repeated minidumps while the
-  display stayed black apart from an intermittent cursor. The diagnostic card was modified and
-  cannot supply final gate evidence. Tests on that card ruled out automatic Ozone selection, the
-  Chromium sandbox, GPU acceleration, D-Bus session setup, a persistent browser profile and missing
-  Mesa DRI drivers.
-- Local investigation: The exact arm64 Chromium executable is a stripped 286 MiB ELF with build ID
-  `0297ec5e840b87b8936579770f04581456ad51b8`. Debian's normal package search and debuginfod do not
-  expose its symbols, but the `trixie-security-debug` package index contains the exact matching
-  `chromium-dbgsym_152.0.7977.82-1~deb13u1_arm64` package. Its indexed build ID matches the
-  executable, its download is 35,636,376 bytes and its installed size is 177,041 KiB. Debian
-  Trixie also provides arm64 `gdb`, so catching the native trap with those symbols is the shortest
-  route to an actionable stack and register state.
-- Next diagnostic: Keep using the already-disqualified card. Temporarily give it package access,
-  add a deb822 apt source for `https://deb.debian.org/debian-security-debug`, suite
-  `trixie-security-debug`, component `main`, signed by Debian's archive keyring, then install `gdb`
-  and the exact matching `chromium-dbgsym`. Run the exact kiosk Chromium invocation under Cage
-  through a batch GDB wrapper. The wrapper must source `/etc/chromium.d/*`, invoke
-  `/usr/lib/chromium/chromium` with the shipped kiosk arguments plus `--disable-breakpad`, stop
-  without passing `SIGTRAP`, and emit `thread apply all backtrace`, `info registers` and
-  instructions around `$pc`. Set a temporary systemd drop-in with `Restart=no` and replace only
-  the Cage child with this wrapper. Retain the complete unit journal,
-  `dpkg-query -W chromium chromium-common chromium-sandbox chromium-dbgsym gdb cage`, and
-  `readelf -n /usr/lib/chromium/chromium` output.
-- Disposition: Do not publish another image or select a Chromium flag, alternate browser or package
-  pin until the native trap identifies the failing component. GDB and the temporary drop-in belong
-  only on the diagnostic card and must not enter the production image.
+  console and started Cage, but Raspberry Pi Chromium
+  `152.0.7977.82-1~deb13u1+rpt2` exited with status 133 from `SIGTRAP`. The diagnostic card was
+  modified and cannot supply final gate evidence. Its report is retained at
+  `evidence/8ed08b2-chromium-gdb-report.txt`.
+- Diagnosis: The installed Raspberry Pi build has build ID
+  `18af09b2cf097d17f79e2717b6ec2d0b7528d4a5`, while Debian's non-Raspberry-Pi debug package has
+  build ID `0297ec5e840b87b8936579770f04581456ad51b8`, so GDB could not produce named frames. The
+  register values at the deliberate `brk` instruction nevertheless decode to fragments of
+  `select_certificate_for_urls`. Chromium's policy schema requires
+  `AutoSelectCertificateForUrls` to be a list of stringified JSON dictionaries. The consumer wrote
+  a list of dictionaries, sending the Raspberry Pi build into that policy parser failure.
+- Correction: Serialize the one origin and issuer filter as compact JSON inside the policy's outer
+  list. The selection remains restricted to `https://10.42.0.1` and certificates issued by the
+  installation CA.
+- Focused coverage: The sandboxed console-consumer test now checks that the outer policy contains
+  one string and parses that string to verify the exact origin and issuer filter. The focused
+  consumer and image suites passed (`59 passed`). Ruff passed on the changed consumer and tests;
+  Python compilation, the workstream's shell syntax checks and `git diff --check` also passed.
+- Simplification pass: Kept the existing Chromium package, kiosk command, certificate store and
+  managed-policy file. No browser flag, alternate browser, package pin, debug package or recovery
+  path enters the image.
+- External evidence: Build the next exact candidate and repeat console provisioning from a clean
+  card. The kiosk must remain running, render the coordinator UI and complete the client-certificate
+  connection without diagnostic modifications.
