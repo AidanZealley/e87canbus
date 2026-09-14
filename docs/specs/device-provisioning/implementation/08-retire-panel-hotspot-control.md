@@ -109,8 +109,8 @@ external and must not be claimed on the implementation host.
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Testing`
-- Candidate and instructions: Test corrected candidate
-  `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`. Repeat the complete procedure in workstream 7 from
+- Candidate and instructions: Test reviewed fallback candidate
+  `3631bfcdf655f5af73162b3903fcccc9d197e166`. Repeat the complete procedure in workstream 7 from
   clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
@@ -146,7 +146,17 @@ external and must not be claimed on the implementation host.
   precondition fix. Provisioning now leaves nginx validation to the existing service
   `ExecStartPre`, which runs with its runtime directory after `NetworkManager-wait-online`; it keeps
   the interface-independent dnsmasq and nftables checks. Candidate
-  `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` contains this focused correction.
+  `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` contains this focused correction. Attempt 5 on that
+  candidate provisioned successfully and passed every physical checker item except the WPA3 access
+  point. The correct SAE, required-PMF and address settings remained inactive. Explicit activation
+  reached wpa_supplicant but failed with `Could not generate WPA IE`, `WPA initialization failed`
+  and `Failed to initialize AP interface`; `get_throttled=0x0` ruled out a power fault. Both iwd and
+  wpa_supplicant have now failed SAE access-point operation on the target Pi 4 stack. Aidan approved
+  the one documented fallback: WPA2-Personal with RSN only, CCMP only and required PMF. The existing
+  32-character random installation PSK makes offline guessing impractical. TLS, mutual TLS, SSH,
+  firewall filtering and disabled forwarding remain unchanged. Claude Opus at medium effort
+  accepted the focused correction and closure with no remaining required findings. Candidate
+  `3631bfcdf655f5af73162b3903fcccc9d197e166` contains the reviewed fallback.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
