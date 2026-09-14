@@ -367,3 +367,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   required findings. It reran the same 76 focused tests, Ruff, image-checker shell parsing and
   `git diff --check`, and confirmed the five-property Wi-Fi contract remains consistent from
   generation through physical verification. Hardware compatibility remains at the gate.
+- Accepted correction commit: `3631bfcdf655f5af73162b3903fcccc9d197e166`.
