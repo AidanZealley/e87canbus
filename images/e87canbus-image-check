@@ -82,7 +82,14 @@ else
         [ "$interfaces" = kcan ]'
     check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
-    check_shell "kcan is listen-only" "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'"
+    check_shell "kcan mode matches deployment profile" '
+        profile=$(python3 -c '\''import json; print(json.load(open("/etc/e87canbus/device.json"))["deployment_profile"])'\'') &&
+        details=$(ip -details link show kcan) &&
+        case "$profile" in
+            car) printf "%s\n" "$details" | grep -Eq "listen-only on|LISTEN-ONLY" ;;
+            bench) ! printf "%s\n" "$details" | grep -Eq "listen-only on|LISTEN-ONLY" ;;
+            *) printf "unknown deployment profile: %s\n" "$profile" >&2; exit 1 ;;
+        esac'
     check_shell "WPA2-RSN console Wi-Fi active at 10.42.0.2" '
         [ "$(nmcli -g GENERAL.STATE connection show e87canbus-console-wifi)" = activated ] &&
         [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-console-wifi)" = wpa-psk ] &&

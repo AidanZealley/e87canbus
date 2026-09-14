@@ -132,7 +132,8 @@ The executable is the source of checkpoint assertions. It checks the Raspberry P
 Trixie arm64 base, unique host state, successful provisioning status, `BOOT` label, active
 release, key-only SSH and role services. Coordinator checks cover the panel UART and three CAN
 interfaces, and confirm the panel hotspot helper and sudo rule are absent. Console checks cover
-`kcan` in listen-only mode, DRM and touchscreen input. Network checks cover the `10.42.0.1/24`
+the provisioned `kcan` mode, listen-only for `car` and acknowledgement-enabled for `bench`, plus
+DRM and touchscreen input. Network checks cover the `10.42.0.1/24`
 coordinator access point, `10.42.0.2/24` console client, exact
 WPA2-RSN/CCMP and required-PMF policy, no forwarding and the console Chromium certificate store.
 
