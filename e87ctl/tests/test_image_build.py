@@ -580,6 +580,10 @@ def test_common_layer_contains_runtime_dependencies_without_build_tools() -> Non
     layer = read(COMMON_LAYER)
     config = read(COMMON_CONFIG)
 
+    assert "Package: firmware-brcm80211" in layer
+    assert "Pin: release o=Debian" in layer
+    assert "Pin-Priority: 1001" in layer
+    assert "firmware-brcm80211=" not in layer
     for package in (
         "ca-certificates",
         "can-utils",

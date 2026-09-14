@@ -415,3 +415,78 @@ environment where available. Do not claim Pi radio compatibility from these chec
 - External evidence: Build the next exact candidate and repeat console provisioning from a clean
   card. The kiosk must remain running, render the coordinator UI and complete the client-certificate
   connection without diagnostic modifications.
+
+### Provisioned-pair gate Pi-to-Pi radio diagnosis
+
+- Physical evidence: The console associates with ordinary access points, and a Mac completes the
+  WPA handshake with the coordinator. The Pi console cannot associate with the Pi coordinator
+  under ordinary WPA2 with PMF required, optional or disabled. Disabling power saving, bypassing
+  NetworkManager, changing frequency band and rebooting both radios do not change the result. Each
+  attempt reaches an accepted nl80211 connect request, then returns `NL80211_CMD_CONNECT status=16`
+  after about 0.4 seconds. The coordinator receives no authentication or handshake. Candidate
+  `3631bfcdf655f5af73162b3903fcccc9d197e166` previously joined the same coordinator and passed its
+  WPA2-RSN check, while a later rolling build regressed. This isolates the failure to the Pi 4
+  brcmfmac AP/STA combination rather than the approved network profile or userspace owner.
+- Package provenance: Pinned `rpi-image-gen` revision
+  `262d4df5a9f9d4133370465399a7958a7c22cdc7` composes `rpi4` through `rpi-generic64`. Its
+  `rpi-linux-v8` layer requests `linux-image-rpi-v8`, while `rpi-device-base` requests
+  `firmware-brcm80211`. The `rpi-debian-trixie` layer resolves both from Raspberry Pi's live Trixie
+  repository. The dated Debian snapshot in `images/builder/debian.sources` supplies only the
+  builder container, so neither target package version is frozen or recorded in the image
+  manifest. On 2026-09-14 the live repository advertises kernel meta-package
+  `1:6.18.39-1+rpt1` and firmware package `1:20260519-1~bpo13+1+rpt1`; that does not prove which
+  versions the failed candidate contains.
+- Diagnosis: Raspberry Pi's firmware tracker issue
+  [#58](https://github.com/RPi-Distro/firmware-nonfree/issues/58) reports the same low-level Pi 4
+  BCM4345/6 local status-16 association signature after installing
+  `1:20260519-1~bpo13+1+rpt1`, although its peer setup is not identical. Debian Trixie's
+  `20250410-2` package restores association in that report with no other change. Raspberry Pi's
+  retained `firmware-brcm80211` packages from `20240709`, `20241210`, `20250410` and `20260519`
+  contain the same Pi 4 BCM43455 standard blob, SHA-256
+  `d608f866582519c0a28d86db43040f4f1b98dd1d153e72e9752586546b4a36c3`, version `7.45.265`.
+  Pinning an older Raspberry Pi package or selecting its `7.45.241` minimal alternative would test
+  a different and less relevant change. Debian's package instead supplies firmware `7.45.234`,
+  SHA-256 `d408faa9d0d5b1a2f9912dcea53ab0be48217288e398406d117f0edafe7c3edd`, which matches the
+  evidence-backed fix.
+- Correction: Before package resolution, the common image layer writes one APT preference for
+  `firmware-brcm80211` from release origin `Debian` at priority 1001. Both roles therefore select
+  Debian Trixie's package instead of Raspberry Pi's epoch-prefixed package. The preference remains
+  in the image, so later package operations keep following Debian's supported Trixie firmware
+  updates rather than freezing one version. The kernel remains on Raspberry Pi's normal supported
+  track because the matching report fixes the same failure without changing it.
+- Security and architecture: This keeps NetworkManager with wpa_supplicant as the sole network
+  owner and leaves the WPA2-RSN/CCMP/required-PMF profile unchanged. Debian's Trixie package is a
+  distribution-supported firmware source. Its BCM43455 binary contains SAE and DPP support but
+  lacks the Raspberry Pi standard variant's external-SAE support. The approved WPA2 network uses
+  neither SAE mode nor DPP. The physical retest must still prove required PMF. No hostapd service or
+  alternate network path is added.
+- Focused coverage: The image test requires the preference to target only
+  `firmware-brcm80211`, select origin `Debian` with downgrade-capable priority 1001 and avoid an
+  exact-version freeze. Mmdebstrap's setup-hook phase guarantees that the preference exists before
+  package resolution; YAML mapping order does not. The focused consumer and image suites passed
+  (`59 passed`). Ruff, YAML parsing, extracted setup-hook shell syntax, image script shell syntax
+  and `git diff --check` passed.
+- Simplification pass: Added one three-field APT preference. There is no package download hook,
+  copied firmware blob, kernel pin, firmware alternative, second repository or runtime repair.
+- Removal condition: Return `firmware-brcm80211` to normal Raspberry Pi repository resolution only
+  after a Raspberry Pi package passes the complete physical gate without the local status-16
+  regression.
+- External evidence: Build both roles from the next exact candidate and record `uname -r`,
+  `dpkg-query -W firmware-brcm80211` and the boot-time brcmfmac firmware version. Repeat the full
+  clean-card gate. The console must associate with the coordinator under the unchanged required-PMF
+  profile and complete every remaining network, TLS and kiosk check.
+- Focused review: Claude Code Opus at medium effort found two required issues. The test treated YAML
+  text order as execution order, and the first diagnosis overstated issue #58 as identical physical
+  behavior. Both were accepted. The DPP wording, active image-runbook note and removal condition
+  were accepted from optional observations. Extra provenance work, A/B image experiments and
+  physical-checker expansion were rejected because the clean full gate supplies the required
+  evidence.
+- Resolution: Removed the text-order assertion and grounded setup timing in mmdebstrap semantics.
+  The record now distinguishes the shared status-16 signature from peer behavior, includes the
+  earlier successful rolling candidate and accurately describes Debian firmware capabilities.
+- Final verification: The focused consumer and image suites passed (`59 passed`), including `41`
+  image tests. Ruff, YAML parsing, extracted setup-hook shell syntax, every image script's shell
+  syntax and `git diff --check` passed. Fresh Claude closure reproduced the focused checks and
+  found no remaining required issue. Physical firmware selection and association remain at the
+  clean-card gate.
+- Accepted correction commit: `TBD`.

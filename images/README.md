@@ -14,6 +14,10 @@ for the current gate status and evidence requirements.
 Use an arm64 Mac with Docker Desktop running. The build downloads Debian and Raspberry Pi packages
 and reuses the `e87canbus-pi-image-packages` Docker volume.
 
+Both images intentionally resolve `firmware-brcm80211` from Debian. Raspberry Pi's current package
+causes a Pi 4 local association rejection with status 16. Return to normal Raspberry Pi package
+resolution only after a replacement passes the complete physical gate without that regression.
+
 ```bash
 git status --short
 docker info >/dev/null
