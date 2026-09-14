@@ -391,7 +391,13 @@ def validate_small_payloads(
         or network.get("connection", "interface-name", fallback="") != "wlan0"
         or network.get("connection", "autoconnect", fallback="") != "true"
         or network.get("wifi", "mode", fallback="") != expected_mode
-        or network.get("wifi-security", "key-mgmt", fallback="") != "sae"
+        or not network.has_section("wifi-security")
+        or set(network["wifi-security"])
+        != {"key-mgmt", "proto", "pairwise", "group", "pmf", "psk"}
+        or network.get("wifi-security", "key-mgmt", fallback="") != "wpa-psk"
+        or network.get("wifi-security", "proto", fallback="") != "rsn"
+        or network.get("wifi-security", "pairwise", fallback="") != "ccmp"
+        or network.get("wifi-security", "group", fallback="") != "ccmp"
         or network.get("wifi-security", "pmf", fallback="") != "3"
         or network.get("ipv4", "method", fallback="") != "manual"
         or network.get("ipv4", "address1", fallback="") != expected_address

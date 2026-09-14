@@ -19,6 +19,7 @@ complete.
 | [0011](0011-separate-coordinator-and-console-hosts.md) | Separate coordinator and console hosts | Accepted |
 | [0012](0012-kcan-cockpit-display.md) | K-CAN cockpit display with coordinator-owned configuration | Proposed |
 | [0013](0013-provisioned-wifi-device-network.md) | Provisioned authenticated Wi-Fi device network | Accepted |
+| [0014](0014-use-wpa2-personal-for-pi-network.md) | WPA2-Personal fallback for the Pi network | Accepted |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old

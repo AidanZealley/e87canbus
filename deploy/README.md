@@ -96,9 +96,10 @@ The Pi must keep `unprovisioned`, start no role services, and write a bounded fa
 
 ## Network and failure behavior
 
-The coordinator owns `10.42.0.1/24` and the console owns `10.42.0.2/24` on one WPA3-SAE network
-with required management-frame protection. Laptop DHCP is limited to `10.42.0.100-150` and
-advertises neither DNS nor a default gateway. Forwarding is disabled and the firewall accepts
+The coordinator owns `10.42.0.1/24` and the console owns `10.42.0.2/24` on one WPA2-Personal
+RSN/CCMP network with required management-frame protection. Laptop DHCP is limited to
+`10.42.0.100-150` and advertises neither DNS nor a default gateway. Forwarding is disabled and the
+firewall accepts
 only DHCP, HTTPS, key-only SSH and normal local-network traffic.
 
 The coordinator remains the only controller owner. Turning off the console or removing Wi-Fi must

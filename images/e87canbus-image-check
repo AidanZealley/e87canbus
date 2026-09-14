@@ -59,9 +59,12 @@ if [ "$role" = coordinator ]; then
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
     check_shell "ptcan is 500 kbit/s" "ip -details link show ptcan | grep -q 'bitrate 500000'"
     check_shell "fcan is 500 kbit/s" "ip -details link show fcan | grep -q 'bitrate 500000'"
-    check_shell "WPA3 hotspot active at 10.42.0.1" '
+    check_shell "WPA2-RSN hotspot active at 10.42.0.1" '
         [ "$(nmcli -g GENERAL.STATE connection show e87canbus-coordinator-wifi)" = activated ] &&
-        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-coordinator-wifi)" = sae ] &&
+        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-coordinator-wifi)" = wpa-psk ] &&
+        [ "$(nmcli -g 802-11-wireless-security.proto connection show e87canbus-coordinator-wifi)" = rsn ] &&
+        [ "$(nmcli -g 802-11-wireless-security.pairwise connection show e87canbus-coordinator-wifi)" = ccmp ] &&
+        [ "$(nmcli -g 802-11-wireless-security.group connection show e87canbus-coordinator-wifi)" = ccmp ] &&
         [ "$(nmcli -g 802-11-wireless-security.pmf connection show e87canbus-coordinator-wifi)" = 3 ] &&
         [ "$(nmcli -g ipv4.addresses connection show e87canbus-coordinator-wifi)" = 10.42.0.1/24 ]'
     check_shell "IP forwarding disabled" '[ "$(sysctl -n net.ipv4.ip_forward)" = 0 ] && [ "$(sysctl -n net.ipv6.conf.all.forwarding)" = 0 ]'
@@ -80,9 +83,12 @@ else
     check_shell "kcan maps to spi1.1" "readlink -f /sys/class/net/kcan/device | grep -q '/spi1[.]1$'"
     check_shell "kcan is 100 kbit/s" "ip -details link show kcan | grep -q 'bitrate 100000'"
     check_shell "kcan is listen-only" "ip -details link show kcan | grep -Eq 'listen-only on|LISTEN-ONLY'"
-    check_shell "WPA3 console Wi-Fi active at 10.42.0.2" '
+    check_shell "WPA2-RSN console Wi-Fi active at 10.42.0.2" '
         [ "$(nmcli -g GENERAL.STATE connection show e87canbus-console-wifi)" = activated ] &&
-        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-console-wifi)" = sae ] &&
+        [ "$(nmcli -g 802-11-wireless-security.key-mgmt connection show e87canbus-console-wifi)" = wpa-psk ] &&
+        [ "$(nmcli -g 802-11-wireless-security.proto connection show e87canbus-console-wifi)" = rsn ] &&
+        [ "$(nmcli -g 802-11-wireless-security.pairwise connection show e87canbus-console-wifi)" = ccmp ] &&
+        [ "$(nmcli -g 802-11-wireless-security.group connection show e87canbus-console-wifi)" = ccmp ] &&
         [ "$(nmcli -g 802-11-wireless-security.pmf connection show e87canbus-console-wifi)" = 3 ] &&
         [ "$(nmcli -g ipv4.addresses connection show e87canbus-console-wifi)" = 10.42.0.2/24 ]'
     check "Chromium client certificate database" test -s /var/lib/e87-kiosk/.pki/nssdb/cert9.db
