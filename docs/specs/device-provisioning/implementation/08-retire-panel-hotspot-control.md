@@ -108,10 +108,10 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Troubleshooting`
-- Candidate and instructions: Candidate `8ed08b2152f4aaf93a64c4388604f853020f1e7a` failed after
-  provisioning. Diagnose its Chromium trap on the already-modified console card before publishing
-  another candidate.
+- Status: `Testing`
+- Candidate and instructions: Test corrected candidate
+  `ca6a8267201b3ef82fcf47030d2cefdb0761ac74`. Repeat the complete procedure in workstream 7 from
+  clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -168,8 +168,12 @@ external and must not be claimed on the implementation host.
   intermittent cursor and Chromium wrote minidumps without useful stderr. Diagnostics ruled out
   automatic Ozone selection, the Chromium sandbox, GPU acceleration, D-Bus session setup, the
   persistent profile and missing Mesa DRI drivers. The card was modified during diagnosis and
-  cannot supply final evidence. Workstream 6 records the next symbolized native-trace procedure;
-  no speculative browser change or replacement candidate is accepted yet.
+  cannot supply final evidence. GDB confirmed that the installed Raspberry Pi Chromium build did
+  not match Debian's debug symbols, but register values at the deliberate trap decoded to fragments
+  of `select_certificate_for_urls`. The generated Linux policy used dictionary entries where
+  Chromium requires stringified JSON dictionaries. Candidate
+  `ca6a8267201b3ef82fcf47030d2cefdb0761ac74` corrects only that serialization; its origin and
+  installation-CA issuer restrictions remain unchanged.
 - Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
 
 ## Implementation handoff
