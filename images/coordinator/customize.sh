@@ -43,6 +43,8 @@ install_runtime_assets() {
         "${target}/etc/udev/rules.d" "${target}/usr/local/libexec" \
         "${target}/etc/sudoers.d" "${target}/etc/e87canbus" \
         "${target}/etc/sysctl.d" "${target}/usr/share/e87canbus"
+    # nginx-light enables an unauthenticated HTTP service; only the E87 unit may run.
+    ln -sfn /dev/null "${target}/etc/systemd/system/nginx.service"
 
     for unit in \
         e87canbus-controller.service \

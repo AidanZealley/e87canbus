@@ -53,6 +53,11 @@ if [ "$role" = coordinator ]; then
         e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service \
         e87canbus-controller.service e87canbus-firewall.service \
         e87canbus-dnsmasq.service e87canbus-nginx.service
+    check_shell "authenticated HTTPS listener active at 10.42.0.1:443" \
+        "ss -H -ltn 'sport = :443' | awk '\$4 == \"10.42.0.1:443\" { found=1 } END { exit !found }'"
+    check_shell "no HTTP listener exposed on port 80" "! ss -H -ltn 'sport = :80' | grep -q ."
+    check_shell "stock nginx service masked" \
+        "[ \"\$(systemctl is-enabled nginx.service 2>/dev/null)\" = masked ]"
     check_shell "kcan maps to spi0.0" "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'"
     check_shell "ptcan maps to spi1.1" "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'"
     check_shell "fcan maps to spi1.2" "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'"
