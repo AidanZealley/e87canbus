@@ -1,6 +1,6 @@
 # Workstream 9: Guided pair verification
 
-Status: closure review; external validation troubleshooting.
+Status: accepted.
 
 ## Task packet
 
@@ -157,24 +157,27 @@ machinery.
 
 ## Closure review
 
-- Verdict: Implementation accepted. Final workstream acceptance waits at the shared external gate.
+- Verdict: Accepted. The shared external gate passed on Aidan's final physical attestation.
 - Remaining required findings: None in the guided verification implementation.
-- Accepted commit: Pending external-gate completion. Implementation commit
-  `8205dbbba820d4b1ba8795407d8b45b8046aed2b`; separate formatting commit
+- Accepted commit: Implementation commit `8205dbbba820d4b1ba8795407d8b45b8046aed2b`; separate formatting commit
   `f8b8e02617375dff694c69976849a6eabe9fc804`.
 
 ## External validation
 
 - Gate and placement: Complete provisioned pair after this workstream's closure.
-- Status: `Troubleshooting`
+- Status: `Passed`
 - Candidate and instructions: The device correction is `f67e02e226491b7211c61ffd97bc73ce0c3a2792`
-  and the guided workstation verifier is `f8b8e02617375dff694c69976849a6eabe9fc804`. The attached
-  report passed, but its exact image build provenance is not recorded.
+  and the guided workstation verifier and clean image candidate are
+  `f8b8e02617375dff694c69976849a6eabe9fc804`. The attached report passed. Both image manifests,
+  image digests and the shared pinned builder revision are recorded in the evidence summary.
 - Required evidence: All existing workstream 7 and 8 gate evidence, plus the saved report showing
   two passing checks for each role.
 - Attempts and lasting decisions: Preserve the successful `eda0d12` device result and its measured
   verifier defects. The new guided report passed both roles twice and is recorded in
   [the evidence summary](evidence/f8b8e02-guided-pair-verification.md). The display-spacing
-  mitigation remains hardware work.
-- Resume condition: Both passes for both roles succeed, the complete physical evidence is recorded
-  and the provisioned-pair gate returns to `Passed`.
+  mitigation remains hardware work. Aidan confirmed completion of the remaining physical checks
+  and matching application and provisioning digests. Their literal values were not retained after
+  the diagnostic sessions closed; he approved closing the workflow with that explicit evidence
+  limitation.
+- Resume condition: Complete. Both passes for both roles succeeded and the physical gate evidence
+  is accepted.
