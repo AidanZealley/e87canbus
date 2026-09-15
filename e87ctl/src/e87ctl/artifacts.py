@@ -229,13 +229,25 @@ def provisioning_entry_names(role: Role) -> set[str]:
     }
 
 
-def load_image_manifest(path: Path, *, expected_role: Role | None = None) -> ImageManifest:
+def load_image_manifest_metadata(path: Path, *, expected_role: Role | None = None) -> ImageManifest:
     try:
         manifest = _model_from_json_file(path, ImageManifest, max_bytes=32 * 1024)
         if expected_role is not None and manifest.role != expected_role:
             raise ValueError("image role does not match")
         image_path = path.with_name(manifest.image.filename)
-        _validate_file(image_path, manifest.image, max_bytes=manifest.image.size_bytes)
+        if not image_path.is_file() or image_path.stat().st_size != manifest.image.size_bytes:
+            raise ValueError("image size does not match manifest")
+        return manifest
+    except Exception:
+        raise ArtifactError("invalid image artifact") from None
+
+
+def load_image_manifest(path: Path, *, expected_role: Role | None = None) -> ImageManifest:
+    manifest = load_image_manifest_metadata(path, expected_role=expected_role)
+    try:
+        image_path = path.with_name(manifest.image.filename)
+        if digest_file(image_path, max_bytes=manifest.image.size_bytes) != manifest.image.sha256:
+            raise ValueError("image digest does not match manifest")
         return manifest
     except Exception:
         raise ArtifactError("invalid image artifact") from None

@@ -22,6 +22,8 @@ from e87ctl.macos import (
 )
 from e87ctl.provision import (
     ProvisionCommandError,
+    choose_image,
+    compatible_image_manifests,
     confirmation_value,
     describe_disk,
     provision_card,
@@ -178,6 +180,77 @@ def _application(tmp_path: Path, role: str = "coordinator") -> ApplicationArtifa
         size_bytes=path.stat().st_size,
         sha256=digest_file(path, max_bytes=path.stat().st_size),
     )
+
+
+@pytest.mark.parametrize("interactive", [True, False])
+def test_image_selection_defers_payload_validation_until_provisioning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interactive: bool
+) -> None:
+    directory = tmp_path / "artifacts/images/coordinator" if interactive else tmp_path
+    directory.mkdir(parents=True, exist_ok=True)
+    _, image_path, manifest_path = _image(directory)
+    image_path.write_bytes(b"corrupt image!")  # Same size, so listing remains cheap.
+    image_opens = 0
+    original_open = Path.open
+
+    def track_image_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        nonlocal image_opens
+        if path == image_path:
+            image_opens += 1
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", track_image_open)
+
+    if interactive:
+        assert compatible_image_manifests(tmp_path, "coordinator") == [manifest_path]
+        monkeypatch.setattr("builtins.input", lambda _prompt: "1")
+    selection = None if interactive else str(manifest_path)
+    assert choose_image(tmp_path, "coordinator", selection) == manifest_path
+    assert image_opens == 0
+
+    recovery_path = tmp_path / "installation.json"
+    write_recovery_package(recovery_path, create_recovery_package(NOW))
+    target = inspect_target(FixtureDiskutil(), "disk4")
+    with pytest.raises(ProvisionCommandError, match="invalid image artifact"):
+        provision_card(
+            "coordinator",
+            installation_path=recovery_path,
+            image_manifest_path=manifest_path,
+            expected_target=target,
+            deployment_profile="bench",
+            confirmation=confirmation_value(target),
+            repository=tmp_path,
+            diskutil=FixtureDiskutil(),
+        )
+    assert image_opens == 1
+
+
+def test_image_listing_excludes_non_regular_payload_without_opening_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "artifacts/images/coordinator"
+    directory.mkdir(parents=True)
+    manifest, image_path, manifest_path = _image(directory)
+    image_path.unlink()
+    image_path.mkdir()
+    manifest = manifest.model_copy(
+        update={
+            "image": manifest.image.model_copy(
+                update={"size_bytes": image_path.stat().st_size}
+            )
+        }
+    )
+    manifest_path.write_bytes(canonical_json(manifest))
+    original_open = Path.open
+
+    def reject_payload_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path == image_path:
+            pytest.fail("image listing must not open the payload")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", reject_payload_open)
+
+    assert compatible_image_manifests(tmp_path, "coordinator") == []
 
 
 def _bundle(

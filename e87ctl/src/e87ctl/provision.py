@@ -8,7 +8,12 @@ from typing import Literal, TypeVar, cast
 from pydantic import BaseModel, ConfigDict
 
 from e87ctl.application import ApplicationBuildError, build_application
-from e87ctl.artifacts import ArtifactError, Role, load_image_manifest
+from e87ctl.artifacts import (
+    ArtifactError,
+    Role,
+    load_image_manifest,
+    load_image_manifest_metadata,
+)
 from e87ctl.macos import (
     DiskError,
     DiskIdentity,
@@ -59,7 +64,7 @@ def compatible_image_manifests(repository: Path, role: Role) -> list[Path]:
     compatible: list[Path] = []
     for path in sorted(directory.glob("*.json")):
         try:
-            load_image_manifest(path, expected_role=role)
+            load_image_manifest_metadata(path, expected_role=role)
         except Exception:
             continue
         compatible.append(path)
