@@ -575,4 +575,4 @@ environment where available. Do not claim Pi radio compatibility from these chec
   `git diff --check` passed. The active image and test tree contains no 6.12 layer selection,
   Bookworm kernel source or pin, or Debian firmware preference. The common image definition and
   layer match their pre-`2827f7e` package-resolution state.
-- Corrective commit: `TBD`.
+- Corrective commit: `7a87845f15ba59d30ecd38772b985fa4ae0c34ca`.
