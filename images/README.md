@@ -153,6 +153,7 @@ systemctl poweroff
 Do not report the images as accepted until the workflow contains the complete MacBook, Raspberry
 Pi Imager, Pi 4, network, TLS and cleanup evidence for the exact candidate.
 
-After both Pis boot, join their Wi-Fi network and run `e87ctl verify coordinator` and `e87ctl
-verify console` with the installation recovery package. The [provisioning runbook](../deploy/README.md)
-contains the complete pair and invalid-bundle acceptance procedure.
+After both Pis boot, run `uv run e87ctl verify` and follow its prompts. It collects the recovery
+package, both host-key fingerprints and a report path, then guides the Wi-Fi switch and checks both
+Pis twice. The [provisioning runbook](../deploy/README.md) contains the complete pair and
+invalid-bundle acceptance procedure.

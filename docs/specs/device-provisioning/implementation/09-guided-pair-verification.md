@@ -1,6 +1,6 @@
 # Workstream 9: Guided pair verification
 
-Status: not started.
+Status: implemented, awaiting independent review.
 
 ## Task packet
 
@@ -94,11 +94,39 @@ machinery.
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
+- Base commit: `437e4c6`
+- Outcome: `uv run e87ctl verify` with no role runs the guided pair check. It collects the
+  recovery-package path, both trusted fingerprints and the report path, asks for one network-switch
+  confirmation, verifies the coordinator and console twice each and saves one secret-free report.
+  The explicit `verify coordinator|console` commands keep their arguments, output and exit codes.
+- Files changed: `e87ctl/src/e87ctl/guided.py` (new), `e87ctl/src/e87ctl/cli.py`,
+  `e87ctl/tests/test_verify.py`, `docs/specs/device-provisioning.md`, `deploy/README.md`,
+  `images/README.md`, this record.
+- Decisions:
+  - The guided flow lives in its own module. Keeping it in `cli.py` would have doubled that
+    dispatcher's size with prompt sequencing that has nothing to do with argument parsing.
+  - `run_passes` only sequences `verify_device`; it duplicates no check. Prompts, clock and
+    verifier are injected, so the tests need no subprocess or network machinery.
+  - The report is a new narrow `PairVerificationReport` v1 holding four
+    `PairVerificationPass` entries, each wrapping an unmodified `VerificationResult` with its role,
+    pass number and elapsed seconds. A validator forbids claiming `passed` without four passing
+    passes. It contains no recovery-package material.
+  - A `VerifyCommandError` from a device call stops the remaining passes and is recorded as
+    `incomplete_reason`, so a bad package or unreachable network does not cost the operator three
+    more full timeouts. Ordinary `failed` results never stop the run, so a mutated release is still
+    visible in both passes.
+  - The report path is rejected up front if it exists or its directory is missing, keeping
+    overwrite and path mistakes on the internet-connected side of the network switch.
+  - `verify` with no role rejects `--installation`, `--status`, `--host-key-fingerprint` and
+    `--json` rather than silently ignoring them. An explicit role still requires `--installation`;
+    argparse can no longer enforce it now that the role is optional.
+- Verification: `uv run pytest e87ctl/tests -q` (161 passed), `uv run ruff check e87ctl`,
+  `uv run mypy` (143 files, clean), `git diff --check`. Fourteen new tests cover prompt ordering,
+  each invalid local input failing before the network prompt, the four-pass sequence and elapsed
+  times, a failing second pass staying visible, partial evidence after an abort, the report
+  contract, and a secret-free written report from the real CLI path. Also smoke-tested end to end
+  against a throwaway installation with no devices present: four recorded failing passes, a written
+  report and exit 1.
 - Known limitations or external checks: Internet access still needs a second interface while the
   MacBook is attached only to the isolated coordinator network. The guided flow removes the need
   for live agent help during that interval and leaves a report for later review.
