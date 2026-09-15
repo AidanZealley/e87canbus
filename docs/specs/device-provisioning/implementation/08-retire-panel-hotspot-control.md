@@ -107,7 +107,7 @@ external and must not be claimed on the implementation host.
 
 ## External validation
 
-- Gate and placement: complete provisioned pair, after closure and before acceptance.
+- Gate and placement: complete provisioned pair, after workstream 9 closure.
 - Status: `Troubleshooting`
 - Candidate and evidence: corrective software commit
   `f67e02e226491b7211c61ffd97bc73ce0c3a2792`; fresh images have not yet been built. Candidate

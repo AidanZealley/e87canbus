@@ -24,6 +24,7 @@ Status: implementation in progress.
 | 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; corrections `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`, `9924947eacd209fc00b9eaa7fb0df5098c63892b`, `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`, `3631bfcdf655f5af73162b3903fcccc9d197e166`, `8ed08b2152f4aaf93a64c4388604f853020f1e7a`, `ca6a8267201b3ef82fcf47030d2cefdb0761ac74`, `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`, `7a87845f15ba59d30ecd38772b985fa4ae0c34ca`, `417d4b47ba7746b8da5472bc364b230a29d0e5eb`, `06462fe30af212546f28f67d60b5d256d90b9243`, `f67e02e226491b7211c61ffd97bc73ce0c3a2792` |
 | 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`; corrections `ce16ae39f564774b53aa4ab2e0ee55aed81049df`, `f67e02e226491b7211c61ffd97bc73ce0c3a2792` |
 | 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Accepted | `f4c775f36f05292615308828ac7151aa5d64bdb1`; complete button removal `b1bc43ede509f1fae43956e2b7423d9af62fa332` |
+| 9 | [Guided pair verification](09-guided-pair-verification.md) | 8 accepted and physical-verifier correction `f67e02e` | Not started | — |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
 Only one workstream may be active.
@@ -45,6 +46,10 @@ identity, Wi-Fi, nginx, Chromium and role-service gates. Workstream 7 adds onlin
 removes the superseded Ethernet/setup path. Workstream 8 removes the old panel hotspot authority
 as one vertical change across host, firmware, simulator, frontend and image privileges before the
 combined physical candidate is tested.
+
+Workstream 9 is a small workstation-only usability pass. It composes the accepted per-role
+verifier into one guided pair command before the reopened physical gate is run again. Keeping it
+separate avoids mixing operator interaction with the accepted verification and security logic.
 
 ## Cross-workstream contracts
 
@@ -87,6 +92,8 @@ combined physical candidate is tested.
   Workstream 7 may add diagnostics but must return behavior fixes to its owner.
 - Workstream 8 owns complete retirement of the panel hotspot control. It changes generated API
   contracts only by regenerating their sources and preserves the provisioned network itself.
+- Workstream 9 owns only guided orchestration and its combined evidence report. Workstream 7 keeps
+  ownership of every per-device verification check and trust rule.
 - Focused test-file ownership may transfer sequentially. Generated API and live-contract artifacts
   must be regenerated in the workstream that changes their source.
 
@@ -106,7 +113,7 @@ combined physical candidate is tested.
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---:|---|---|---|---|
 | macOS writer | 4 | After workstream 6, before workstream 7 | Passed | `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` | Complete; attempt 5 records all required evidence |
-| Provisioned pair | 8 | After workstream 8 closure | Troubleshooting | `f67e02e226491b7211c61ffd97bc73ce0c3a2792` corrective software candidate; fresh images not yet built | Create a fresh installation and cards, then pass real `e87ctl verify` at least twice and complete the outstanding physical evidence |
+| Provisioned pair | 9 | After workstream 9 closure | Troubleshooting | `f67e02e226491b7211c61ffd97bc73ce0c3a2792` corrective software candidate; fresh images not yet built | Accept workstream 9, nominate its candidate, create fresh cards and pass the guided pair verification plus outstanding physical evidence |
 
 Gate status is one of `Pending`, `Testing`, `Troubleshooting` or `Passed`; it is separate from the
 workstream status.
@@ -141,3 +148,4 @@ workstream status.
 | 2026-09-15 | Complete the post-review cleanup: broaden CI syntax coverage, expose only approved safe provisioning errors, preserve primary writer failures, remove the obsolete panel button completely and retain the fixed application-builder snapshot. | These decisions improve truthful CI and diagnostics, keep unexpected failures sanitized, remove the last dead hardware-control path and preserve reproducible application builds. The effective production systemd override already has only the console CORS origin, so that observation required no change. Historical ADRs and implementation evidence remain until the planned documentation cleanup. | Aidan | 1-4, 7-8 and whole-feature review |
 | 2026-09-15 | Defer image payload hashing until the user selects an image to provision. | Reading every multi-gigabyte payload made the interactive list slower in direct proportion to retained images. Listing now validates bounded manifests and cheap regular-file metadata; the selected image still receives full SHA-256 validation before builds or disk access. | Aidan | 4 and whole-feature review |
 | 2026-09-15 | Reopen the provisioned-pair gate for measured workstation-verifier defects while preserving the successful `eda0d12` device result. | Direct authenticated SSH and the deployed mTLS application path worked, but macOS scan comments prevented CLI SSH, relocated runtime bytecode broke exact release hashing, and strict Python TLS rejected certificates without key identifiers. Commit `f67e02e` corrects those boundaries without changing device networking. A fresh installation and cards are required because old recovery packages and application artifacts do not satisfy the corrected contracts. | Orchestrator, from physical gate evidence | 2, 3, 6, 7 and provisioned-pair gate |
+| 2026-09-15 | Add a guided pair-verification command before rerunning the physical gate. | Joining the isolated coordinator network removes the MacBook's internet access, so assembling four low-level commands while testing is awkward and prevents live agent help. The guided form collects caller-owned inputs first, keeps exact fingerprint pinning, runs both roles twice and saves secret-free evidence. It adds no package discovery, network changes or hidden inventory. | Aidan | 7, 9, whole-feature review and provisioned-pair gate |
