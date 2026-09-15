@@ -109,10 +109,10 @@ external and must not be claimed on the implementation host.
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Troubleshooting`
-- Candidate and instructions: `7a87845f15ba59d30ecd38772b985fa4ae0c34ca` restores normal pinned
-  `rpi-image-gen` Raspberry Pi Trixie package resolution. Do not build or flash it yet. Choose or
-  implement a production display-interference mitigation before repeating the complete procedure
-  in workstream 7 from clean cards.
+- Candidate and instructions: `417d4b47ba7746b8da5472bc364b230a29d0e5eb` retains normal pinned
+  `rpi-image-gen` Raspberry Pi Trixie package resolution and corrects the coordinator's authenticated
+  nginx boundary. Build and provision clean cards only when the display assembly has an acceptable
+  production interference mitigation, then repeat the complete procedure in workstream 7.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -189,9 +189,21 @@ external and must not be claimed on the implementation host.
   only the 2.4 GHz scan census and usually removed the coordinator from view; disconnecting it
   restored reception. The 5 GHz join test was split and supports no production choice. The forward
   cleanup candidate removes both diagnostic package overrides without rewriting their history.
+  A later physical-separation test then associated the console immediately and kept it connected at
+  `10.42.0.2`, strongly confirming display proximity as the status-16 cause. That test separately
+  exposed a coordinator image defect: `e87canbus-nginx.service` crash-looped because nginx retained
+  default temporary paths under read-only `/var/lib/nginx`, while Debian's stock `nginx.service`
+  exposed unauthenticated port 80. The checker falsely accepted the custom unit's
+  `activating (auto-restart)` state. Candidate
+  `417d4b47ba7746b8da5472bc364b230a29d0e5eb` moves every nginx temporary path beneath its systemd
+  runtime directory, selects `www-data`, masks the stock unit and requires the intended HTTPS
+  listener while rejecting port 80. The configured Claude review call exhausted its session quota
+  without returning a review; the documented fresh in-session fallback accepted the correction
+  with no findings.
 - Resume condition: Aidan chooses or implements an acceptable display-interference mitigation,
-  then all workstream 7 and 8 physical evidence passes on one exact clean-card candidate with the
-  display operating normally.
+  then candidate `417d4b47ba7746b8da5472bc364b230a29d0e5eb` passes all workstream 7 and 8
+  physical evidence from clean cards with the display operating normally, authenticated HTTPS
+  listening on `10.42.0.1:443` and no listener on port 80.
 
 ## Implementation handoff
 
