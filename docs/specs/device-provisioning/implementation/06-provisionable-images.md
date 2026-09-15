@@ -576,3 +576,33 @@ environment where available. Do not claim Pi radio compatibility from these chec
   Bookworm kernel source or pin, or Debian firmware preference. The common image definition and
   layer match their pre-`2827f7e` package-resolution state.
 - Corrective commit: `7a87845f15ba59d30ecd38772b985fa4ae0c34ca`.
+
+### Coordinator authenticated-boundary correction
+
+- Physical evidence: With the console display and Pi physically separated, the console associated
+  on its first recorded attempt and remained connected at `10.42.0.2` using the unchanged
+  WPA2-RSN/CCMP/required-PMF profile. The coordinator controller and access point were healthy, but
+  its custom nginx unit crash-looped while trying to change ownership of
+  `/var/lib/nginx/fastcgi` through the read-only `ProtectSystem=strict` boundary. Port 443 therefore
+  refused connections. Debian's separately enabled stock nginx unit also exposed unauthenticated
+  HTTP on port 80. No files or configuration were changed on either Pi during this test.
+- Correction: Run nginx workers as Debian's `www-data` account and place its client-body, proxy,
+  FastCGI, uWSGI and SCGI temporary paths beneath the existing
+  `/run/e87canbus-nginx` runtime directory. Mask Debian's stock `nginx.service` in the coordinator
+  image, leaving `e87canbus-nginx.service` as the only web boundary. Keep
+  `ProtectSystem=strict`; no additional writable filesystem path or privilege exception is needed.
+- Checker correction: Retain the service-state check, then require an exact listening socket at
+  `10.42.0.1:443`, no listener on port 80 and a masked stock nginx unit. This prevents systemd's
+  `activating (auto-restart)` state from being mistaken for a healthy authenticated boundary.
+- Review: The required Claude Code Opus call exited without a review because its session quota was
+  exhausted. The workflow's fresh in-session fallback reviewer accepted the complete uncommitted
+  correction with no required, optional or question findings.
+- Verification: The focused image suite passed (`42 passed`) and Ruff passed for the changed test.
+  Both changed shell files passed `sh -n`; the coordinator image and layer YAML parsed with
+  PyYAML; `git diff --check` passed. Native nginx and physical socket behavior remain owned by the
+  corrected candidate retest.
+- Accepted correction commit: `417d4b47ba7746b8da5472bc364b230a29d0e5eb`.
+- External evidence: Build and provision clean cards from this exact candidate. Confirm the stock
+  unit is masked, port 80 is closed, the custom unit remains active, `10.42.0.1:443` listens and the
+  authenticated console connection succeeds. This does not by itself resolve the separate physical
+  display-interference blocker.
