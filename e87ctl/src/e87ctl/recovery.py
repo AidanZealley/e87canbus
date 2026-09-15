@@ -219,20 +219,6 @@ def write_recovery_package(path: Path, package: RecoveryPackage) -> Path:
     return sidecar
 
 
-def write_ca_sidecar(path: Path, package: RecoveryPackage) -> None:
-    descriptor: int | None = None
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-        _write_file(descriptor, package.installation_ca_certificate.encode("ascii"), 0o644)
-    except (OSError, UnicodeError):
-        if descriptor is not None:
-            with suppress(OSError):
-                os.close(descriptor)
-            with suppress(OSError):
-                path.unlink()
-        raise RecoveryPackageError("could not create public CA certificate") from None
-
-
 def _write_file(descriptor: int, contents: bytes, mode: int) -> None:
     with os.fdopen(descriptor, "wb", closefd=False) as output:
         os.fchmod(descriptor, mode)

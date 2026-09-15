@@ -21,7 +21,6 @@ from e87ctl.recovery import (
     ca_sidecar_path,
     create_recovery_package,
     load_recovery_package,
-    write_ca_sidecar,
     write_recovery_package,
 )
 
@@ -156,18 +155,6 @@ def test_existing_sidecar_prevents_partial_recovery_file(tmp_path: Path) -> None
 
     assert not output.exists()
     assert sidecar.read_text() == "keep me"
-
-
-def test_public_sidecar_can_be_recreated_from_loaded_recovery(tmp_path: Path) -> None:
-    output = tmp_path / "installation.json"
-    package = create_recovery_package(CREATED_AT)
-    sidecar = write_recovery_package(output, package)
-    sidecar.unlink()
-
-    loaded = load_recovery_package(output)
-    write_ca_sidecar(sidecar, loaded)
-
-    assert sidecar.read_text() == loaded.installation_ca_certificate
 
 
 @pytest.mark.parametrize(
