@@ -146,10 +146,28 @@ when the original is unavailable, and record why.
   Ethernet-disconnected operation and invalid-bundle disposable-card result. Panel-button
   invariance is no longer applicable because the button is absent from the product.
 
+### Provisioning image-selection performance correction
+
+- Decision: Do not hash every local image before displaying the interactive image list. Parse each
+  bounded strict manifest and check that its role-specific paired payload resolves to a regular
+  file of the declared size. Fully validate only the selected image's SHA-256 before application
+  building, bundle creation, target recheck or disk access. Explicit `--image` selection keeps the
+  same full validation.
+- Review: The configured Claude Code Opus call exited at its session quota without returning a
+  review. A fresh in-session fallback reviewer found one required issue: a size-only metadata check
+  could list a directory or special file. The implementation owner added the regular-file check
+  while preserving symlinks to regular files. A different fresh fallback closure reviewer accepted
+  the correction with no remaining or introduced required finding.
+- Verification: The focused artifact and macOS provisioning suites passed (`65 passed`); the full
+  `e87ctl` suite passed (`141 passed`). Ruff, strict mypy over 142 source files, direct symlink
+  behavior and `git diff --check` passed. Tests prove listing opens no image payload and full
+  validation opens only the selected payload before any later build or disk operation.
+- Accepted commit: `1034e87222a1ac6d54835fbda34e9e0fa87c9621`.
+
 ## Orchestrator completion record
 
 - Final head and verification: Code corrections end at
-  `b1bc43ede509f1fae43956e2b7423d9af62fa332`. Final verification passed: `984` Python tests,
+  `1034e87222a1ac6d54835fbda34e9e0fa87c9621`. Final whole-feature verification passed: `987` Python tests,
   mypy over 142 source files, Ruff, import contracts, generated protocol checks, provisioning
   consumer and application-builder helper compilation, per-file shell syntax and
   `git diff --check`. The unchanged frontend had already passed API checks, lint, typecheck, `208`
