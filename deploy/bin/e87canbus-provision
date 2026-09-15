@@ -987,7 +987,11 @@ def failure_identity(bundle: Path, contract: dict[str, object]) -> dict[str, obj
     }
     try:
         with zipfile.ZipFile(bundle) as archive:
-            raw = archive.read("manifest.json")
+            manifest_info = archive.getinfo("manifest.json")
+            if manifest_info.file_size > MAX_MANIFEST:
+                return fallback
+            with archive.open(manifest_info) as stream:
+                raw = stream.read(manifest_info.file_size + 1)
         document = json.loads(raw)
         if not isinstance(document, dict) or document.get("role") != contract["role"]:
             return fallback

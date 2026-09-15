@@ -383,14 +383,6 @@ def digest_file(path: Path, *, max_bytes: int) -> str:
         return _digest_stream(stream, path.stat().st_size, max_bytes=max_bytes)
 
 
-def _validate_file(path: Path, expected: FileRecord, *, max_bytes: int) -> None:
-    if (
-        path.stat().st_size != expected.size_bytes
-        or digest_file(path, max_bytes=max_bytes) != expected.sha256
-    ):
-        raise ValueError("file does not match manifest")
-
-
 def _digest_stream(stream: _Readable, declared_size: int, *, max_bytes: int | None = None) -> str:
     if declared_size < 0 or declared_size > (max_bytes if max_bytes is not None else declared_size):
         raise ValueError("declared size exceeds limit")
