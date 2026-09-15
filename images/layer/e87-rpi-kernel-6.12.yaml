@@ -1,0 +1,22 @@
+# METABEGIN
+# X-Env-Layer-Name: e87-rpi-kernel-6.12
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: kernel
+# X-Env-Layer-Desc: Supported Raspberry Pi 6.12 LTS kernel for status-16 isolation
+# METAEND
+---
+mmdebstrap:
+  mirrors:
+    - ${IGTOP}/templates/debian/apt/rpi-bookworm.sources
+  setup-hooks:
+    - |-
+      install -d -m 0755 "$1/etc/apt/preferences.d"
+      cat > "$1/etc/apt/preferences.d/e87canbus-rpi-kernel" <<'EOF'
+      Package: linux-image-rpi-v8 linux-image-6.12.*+rpt-rpi-v8
+      Pin: release o=Raspberry Pi Foundation,n=bookworm
+      Pin-Priority: 1001
+
+      Package: *
+      Pin: release o=Raspberry Pi Foundation,n=bookworm
+      Pin-Priority: -1
+      EOF

@@ -16,6 +16,7 @@ layer:
   ssh: openssh-server
   time: systemd-timesyncd
   regulatory: wireless-regulatory
+  kernel: e87-rpi-kernel-6.12
   e87: e87-common
 
 ssh:
