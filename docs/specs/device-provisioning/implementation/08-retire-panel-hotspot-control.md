@@ -108,7 +108,7 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after workstream 9 closure.
-- Status: `Troubleshooting`
+- Status: `Passed`
 - Candidate and evidence: corrective software commit
   `f67e02e226491b7211c61ffd97bc73ce0c3a2792`; fresh images have not yet been built. Candidate
   `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b` passed its deployed device path, but the subsequent
@@ -117,6 +117,9 @@ external and must not be claimed on the implementation host.
   [the verifier follow-up](evidence/eda0d12-e87ctl-verification-diagnostics.md).
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
+- Final result: Aidan confirmed a healthy steady-state `READY` display and that panel inputs did
+  not change the provisioned network. Candidate `f8b8e02617375dff694c69976849a6eabe9fc804`
+  passed the shared gate; see [the final evidence summary](evidence/f8b8e02-guided-pair-verification.md).
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
   `provisioning_interrupted`. Debian Trixie's `systemd-machine-id-setup --commit` cannot handle the
   deliberately absent `/etc/machine-id`; plain `systemd-machine-id-setup` creates the required

@@ -80,7 +80,7 @@ Record rather than hide any check unavailable on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after workstream 9 closure.
-- Status: `Troubleshooting`
+- Status: `Passed`
 - Candidate: corrective software commit `f67e02e226491b7211c61ffd97bc73ce0c3a2792`;
   fresh images have not yet been built. The successful `eda0d12` device evidence remains in
   [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md), and the verifier
@@ -131,6 +131,15 @@ Record rather than hide any check unavailable on the implementation host.
 - External requirement: Create a fresh installation and cards, then run the real verifier at least
   twice. Earlier recovery packages and application artifacts cannot validate the corrected
   certificate and immutable-release contracts.
+
+### Final gate result
+
+Candidate `f8b8e02617375dff694c69976849a6eabe9fc804` passed the guided verifier twice for each role.
+The clean image manifests, image digests, laptop DHCP result and final physical-check attestation
+are recorded in [the final evidence summary](evidence/f8b8e02-guided-pair-verification.md). Aidan
+confirmed that the application and provisioning digests matched during testing, though the closed
+diagnostic sessions did not retain their literal values. He approved that explicit evidence
+limitation and closed the physical gate.
 
 ### Candidate procedure
 
