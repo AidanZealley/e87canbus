@@ -295,6 +295,28 @@ def test_invalid_bundle_changes_no_installed_state_and_keeps_gate(
     assert bundle.exists()
 
 
+def test_failure_identity_does_not_read_an_oversized_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    consumer = load_consumer()
+    bundle = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", b" " * (consumer.MAX_MANIFEST + 1))
+
+    opened: list[str] = []
+
+    def record_open(*args: object, **kwargs: object) -> None:
+        opened.append(str(args[1]))
+        raise AssertionError("oversized manifest was opened")
+
+    monkeypatch.setattr(consumer.zipfile.ZipFile, "open", record_open)
+
+    identity = consumer.failure_identity(bundle, {"role": "coordinator"})
+
+    assert identity["hostname"] == "unprovisioned"
+    assert opened == []
+
+
 def test_bundle_with_wrong_networkmanager_connection_id_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

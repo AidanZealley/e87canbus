@@ -1,6 +1,6 @@
 # Device lifecycle tooling whole-feature review
 
-Status: prior closure accepted; reopen whole-feature review after workstream 9 acceptance.
+Status: accepted.
 
 ## Reviewer task packet
 
@@ -164,7 +164,7 @@ when the original is unavailable, and record why.
   validation opens only the selected payload before any later build or disk operation.
 - Accepted commit: `1034e87222a1ac6d54835fbda34e9e0fa87c9621`.
 
-## Orchestrator completion record
+## Orchestrator pre-workstream-9 record
 
 - Final head and verification: Code corrections end at
   `f67e02e226491b7211c61ffd97bc73ce0c3a2792`. The physical-verifier correction passed `995`
@@ -183,7 +183,7 @@ when the original is unavailable, and record why.
   physical checks. Mechanical display spacing remains separate hardware work.
 - Specification drift: No unrecorded implementation drift. Aidan classified mechanical
   DSI/display spacing as separate hardware integration work rather than a software gate blocker.
-- Completion report delivered: `TBD`
+- Completion report delivered after the reopened review below.
 
 Workstream 9 was approved after this review because the physical gate exposed avoidable operator
 friction. After accepting it, run the documented whole-feature review against the new head. Keep
@@ -197,3 +197,73 @@ role, with stable exact releases and complete SSH and mutual-TLS checks. The sha
 still lacks the exact image-build provenance and the rest of the workstream 7 and 8 evidence, so
 workstream 9 remains at closure rather than final acceptance and the reopened whole-feature review
 has not started.
+
+## Reopened whole-feature review
+
+- Reviewer: Claude Code Opus at medium effort through the configured read-only review command.
+- Reviewed range: `7d7c2387c0d6b1135eeec842b08cc8ee9a827ef3` through gate-acceptance commit
+  `b4ac430` on `feature/device-lifecycle-tooling`.
+- Verification: Claude passed `1009` Python tests, mypy over 143 files, Ruff and both import
+  contracts. The orchestrator independently passed the same Python suite, generated protocol and
+  frontend API checks, all `208` frontend tests, both frontend production builds, relevant shell
+  syntax, provisioning-consumer compilation and `git diff --check`.
+- Acceptance audit: The CLI and workstation-only package boundary, destructive-disk safety,
+  secret lifecycle, signed identity, first-boot atomicity, network isolation, TLS and application
+  authorization, complete removal of the superseded Ethernet and panel-button paths, guided
+  verification and Git artifact exclusions satisfy their approved contracts. Recorded macOS,
+  image-build and Raspberry Pi results remain external evidence rather than review-host claims.
+- Verdict: Changes required. The reviewer found two localized required issues and no architectural
+  or security-boundary failure.
+
+### Required findings
+
+1. Workstream 6: `failure_identity` reads `manifest.json` from an invalid provisioning ZIP without
+   first enforcing `MAX_MANIFEST`. A hostile declared uncompressed size could exhaust Pi memory in
+   the failure-reporting path before it writes the bounded `invalid_bundle` status. Accept. Bound
+   the failure-path read using the consumer's existing limit and add one focused oversized-entry
+   test.
+2. Workstream 3: private helper `_validate_file` in `e87ctl/src/e87ctl/artifacts.py` has no caller.
+   Accept. Delete the dead helper as part of the required final simplification pass.
+
+### Optional observations
+
+The reviewer noted duplicated verifier literals, repeated provisioning-bundle validation,
+short-read `dd` cleanup, a narrow temporary-key file-mode window, duplicate guided-result
+derivation, one private helper import and no ignore rule for a recovery package deliberately
+written inside the checkout. None changes an accepted criterion or presents a demonstrated release
+defect, so none is promoted during closure.
+
+### Questions and disposition
+
+- The final report must state that the four application and provisioning digest values were
+  observed to match but were not retained. Accepted; the gate and decision log already record that
+  explicit limitation.
+- The remaining physical observations are Aidan's attestation rather than captured command output.
+  Accepted by Aidan when he instructed the orchestrator to close the workflow.
+
+### Remediation and focused closure
+
+- Workstream 6 bounded `failure_identity` before opening or decompressing the ZIP manifest. A
+  focused test proves an entry larger than `MAX_MANIFEST` is never opened in the failure-reporting
+  path. The owner passed all `21` provisioning-consumer tests, consumer compilation and
+  `git diff --check`.
+- Workstream 3 deleted the unused `_validate_file` helper. No import or caller was left behind. The
+  owner passed all `34` provisioning-artifact tests, Ruff, mypy and `git diff --check`.
+- A fresh Claude Code Opus closure call at medium effort accepted both fixes with no remaining
+  required finding or release-blocking defect introduced by remediation. It passed the full
+  `e87ctl` suite (`161` tests), all `21` provisioning-consumer tests, strict mypy, Ruff, consumer
+  compilation and `git diff --check`.
+
+### Final verification and verdict
+
+- The orchestrator passed `1010` Python tests, mypy over 143 files, Ruff, both import contracts,
+  generated protocol and frontend API checks, all `208` frontend tests, both frontend production
+  builds, relevant shell syntax, provisioning-consumer compilation, the tracked secret/artifact
+  filename audit and `git diff --check`.
+- Both external gates are `Passed`, all nine workstreams are accepted and no required review
+  finding remains. The workflow is complete.
+- Known evidence limitation: the four application and provisioning digest values matched during
+  physical testing but their literal values were not retained. Aidan accepted this limitation.
+- Deferred hardware work: design and validate the console display spacer that mitigates measured
+  2.4 GHz DSI/display proximity interference. This does not block the completed software and image
+  workflow.
