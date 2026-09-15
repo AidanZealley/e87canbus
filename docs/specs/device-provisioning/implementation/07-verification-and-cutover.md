@@ -79,7 +79,7 @@ Record rather than hide any check unavailable on the implementation host.
 
 ## External validation
 
-- Gate and placement: complete provisioned pair, after workstream 8 closure.
+- Gate and placement: complete provisioned pair, after workstream 9 closure.
 - Status: `Troubleshooting`
 - Candidate: corrective software commit `f67e02e226491b7211c61ffd97bc73ce0c3a2792`;
   fresh images have not yet been built. The successful `eda0d12` device evidence remains in

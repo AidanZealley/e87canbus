@@ -1,6 +1,6 @@
 # Device lifecycle tooling whole-feature review
 
-Status: focused closure accepted; provisioned-pair gate troubleshooting.
+Status: prior closure accepted; reopen whole-feature review after workstream 9 acceptance.
 
 ## Reviewer task packet
 
@@ -184,3 +184,9 @@ when the original is unavailable, and record why.
 - Specification drift: No unrecorded implementation drift. Aidan classified mechanical
   DSI/display spacing as separate hardware integration work rather than a software gate blocker.
 - Completion report delivered: `TBD`
+
+Workstream 9 was approved after this review because the physical gate exposed avoidable operator
+friction. After accepting it, run the documented whole-feature review against the new head. Keep
+that review focused on CLI compatibility, reuse of the accepted verifier, secret-free evidence and
+documentation agreement. The provisioned-pair gate remains `Troubleshooting` until the new guided
+command and all outstanding physical evidence pass.
