@@ -7,8 +7,8 @@ from typing import Literal, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict
 
-from e87ctl.application import build_application
-from e87ctl.artifacts import Role, load_image_manifest
+from e87ctl.application import ApplicationBuildError, build_application
+from e87ctl.artifacts import ArtifactError, Role, load_image_manifest
 from e87ctl.macos import (
     DiskError,
     DiskIdentity,
@@ -21,9 +21,10 @@ from e87ctl.macos import (
 )
 from e87ctl.provisioning import (
     DeploymentProfile,
+    ProvisioningError,
     build_provisioning_bundle,
 )
-from e87ctl.recovery import load_recovery_package
+from e87ctl.recovery import RecoveryPackageError, load_recovery_package
 
 _Choice = TypeVar("_Choice")
 
@@ -126,6 +127,13 @@ def provision_card(
     except ProvisionCommandError:
         raise
     except DiskError as error:
+        raise ProvisionCommandError(str(error)) from None
+    except (
+        RecoveryPackageError,
+        ArtifactError,
+        ApplicationBuildError,
+        ProvisioningError,
+    ) as error:
         raise ProvisionCommandError(str(error)) from None
     except Exception:
         raise ProvisionCommandError("could not provision the selected disk") from None
