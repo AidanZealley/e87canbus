@@ -80,9 +80,10 @@ Record rather than hide any check unavailable on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after workstream 8 closure.
-- Status: `Troubleshooting`
-- Candidate: `b944952b8672b601d11cb0f83feaf4c4ef4d4da4` failed its WPA3 access-point
-  check. The approved WPA2-Personal correction is pending review and publication.
+- Status: `Passed`
+- Candidate: `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b`, built clean with the accepted
+  coordinator HTTPS correction. Complete evidence is recorded in
+  [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md).
 - Required evidence: candidate hash and clean/dirty build context; both image and application
   manifests/digests; MacBook builds; two safe SD writes/readbacks; coordinator and console first
   boot; unique hostname/machine ID/SSH keys; ZIP and staged-secret removal; marker transition;
@@ -98,8 +99,11 @@ Record rather than hide any check unavailable on the implementation host.
   `get_throttled=0x0` ruled out a power fault. Together with the earlier iwd rejection, this
   triggered Aidan's approval of the one WPA2-Personal, RSN-only, CCMP-only fallback. Required PMF
   remains because the evidence isolates SAE.
-- Resume condition: all required evidence passes on one recorded candidate using the approved
-  WPA2-Personal fallback.
+- Result: Both fresh images provisioned successfully and their complete streamed image checkers
+  passed. The console associated immediately under WPA2-RSN/CCMP/required-PMF, Chromium mutual TLS
+  loaded settings through the coordinator, the authenticated HTTPS boundary remained stable and
+  port 80 was absent. Aidan accepted the result as passing the software and image workflow. The
+  remaining display spacer is hardware integration work outside this gate.
 
 ### Candidate procedure
 

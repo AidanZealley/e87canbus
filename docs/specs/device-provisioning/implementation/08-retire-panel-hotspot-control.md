@@ -1,6 +1,6 @@
 # Workstream 8: Retire the panel hotspot control
 
-Status: closure accepted; external validation pending.
+Status: accepted.
 
 ## Why this exists
 
@@ -108,11 +108,10 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Troubleshooting`
-- Candidate and instructions: `417d4b47ba7746b8da5472bc364b230a29d0e5eb` retains normal pinned
-  `rpi-image-gen` Raspberry Pi Trixie package resolution and corrects the coordinator's authenticated
-  nginx boundary. Build and provision clean cards only when the display assembly has an acceptable
-  production interference mitigation, then repeat the complete procedure in workstream 7.
+- Status: `Passed`
+- Candidate and evidence: `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b` was built clean and passed
+  the software and image workflow. See
+  [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md).
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -200,10 +199,11 @@ external and must not be claimed on the implementation host.
   listener while rejecting port 80. The configured Claude review call exhausted its session quota
   without returning a review; the documented fresh in-session fallback accepted the correction
   with no findings.
-- Resume condition: Aidan chooses or implements an acceptable display-interference mitigation,
-  then candidate `417d4b47ba7746b8da5472bc364b230a29d0e5eb` passes all workstream 7 and 8
-  physical evidence from clean cards with the display operating normally, authenticated HTTPS
-  listening on `10.42.0.1:443` and no listener on port 80.
+- Result: Fresh coordinator and console cards provisioned successfully. Both complete streamed
+  image checkers passed; the console associated immediately while physically separated from the
+  display, Chromium mutual TLS loaded settings through the authenticated API, port 443 remained
+  stable and port 80 was absent. Aidan accepted this as passing the software and image workflow.
+  Designing and validating the mechanical spacer remains separate hardware integration work.
 
 ## Implementation handoff
 
@@ -294,4 +294,4 @@ external and must not be claimed on the implementation host.
 - Remaining required findings: None. The reviewer verified both required corrections and every
   promoted cleanup, including the durable privilege checks and UART failure behavior. PlatformIO,
   image assembly, NetworkManager and physical Pi behavior remain assigned to external validation.
-- Accepted commit: `TBD`
+- Accepted commit: `f4c775f36f05292615308828ac7151aa5d64bdb1`
