@@ -30,7 +30,12 @@ jobs:
       - run: uv run pytest -q
       - run: uv run mypy
       - run: uv run ruff check e87ctl hosts scripts/watch_frontend_contracts.py
-      - run: bash -n e87ctl/scripts/build-pi-image scripts/*.sh deploy/bin/* deploy/kiosk/*.sh
+      - run: |
+          for script in e87ctl/scripts/build-pi-image deploy/bin/e87canbus-firewall \
+            deploy/kiosk/*.sh images/*/customize.sh images/e87canbus-image-check; do
+            bash -n "$script"
+          done
+      - run: python3 -m py_compile deploy/bin/e87canbus-provision
       - run: uv run lint-imports
       - run: pnpm typecheck
         working-directory: frontend
