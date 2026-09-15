@@ -108,10 +108,13 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Passed`
-- Candidate and evidence: `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b` was built clean and passed
-  the software and image workflow. See
-  [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md).
+- Status: `Troubleshooting`
+- Candidate and evidence: corrective software commit
+  `f67e02e226491b7211c61ffd97bc73ce0c3a2792`; fresh images have not yet been built. Candidate
+  `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b` passed its deployed device path, but the subsequent
+  workstation verification exposed three CLI, release-construction and certificate-generation
+  defects. See [the physical report](evidence/eda0d12-physical-gate-report.md) and
+  [the verifier follow-up](evidence/eda0d12-e87ctl-verification-diagnostics.md).
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
