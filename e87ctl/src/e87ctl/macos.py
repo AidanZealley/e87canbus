@@ -11,8 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from e87ctl.artifacts import ImageManifest, digest_file
-from e87ctl.provisioning import ProvisioningArtifact, validate_provisioning_bundle
+from e87ctl.artifacts import ArtifactError, ImageManifest, digest_file
+from e87ctl.provisioning import (
+    ProvisioningArtifact,
+    ProvisioningError,
+    validate_provisioning_bundle,
+)
 
 _DISK_IDENTIFIER = re.compile(r"disk[0-9]+")
 _PARTITION_IDENTIFIER = re.compile(r"disk[0-9]+s[0-9]+(?:s[0-9]+)?")
@@ -133,10 +137,13 @@ def write_card(
         validate_provisioning_bundle(provisioning.path, image=image)
     except DiskError:
         raise
+    except (ArtifactError, ProvisioningError) as error:
+        raise DiskError(str(error)) from None
     except Exception:
         raise DiskError("provisioning artifacts changed after validation") from None
 
     wrote_image = False
+    write_error: DiskError | None = None
     try:
         diskutil.run("unmountDisk", target.identity.device_node)
         wrote_image = True
@@ -174,16 +181,26 @@ def write_card(
         _copy_and_sync(provisioning.path, destination)
         if digest_file(destination, max_bytes=provisioning.size_bytes) != provisioning.sha256:
             raise DiskError("provisioning bundle failed readback verification")
-    except DiskError:
-        raise
+    except DiskError as error:
+        write_error = error
+    except (ArtifactError, ProvisioningError) as error:
+        write_error = DiskError(str(error))
     except Exception:
-        raise DiskError("could not write the selected disk") from None
+        write_error = DiskError("could not write the selected disk")
     finally:
         if wrote_image:
             try:
                 diskutil.run("unmountDisk", target.identity.device_node)
             except Exception:
+                if write_error is not None:
+                    raise DiskError(
+                        f"{write_error}; cleanup also failed: "
+                        "could not unmount the written disk"
+                    ) from write_error
                 raise DiskError("could not unmount the written disk") from None
+
+    if write_error is not None:
+        raise write_error
 
 
 def _eligible(identity: DiskIdentity, protected: set[str]) -> bool:
