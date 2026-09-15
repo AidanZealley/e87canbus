@@ -17,12 +17,12 @@ Status: implementation in progress.
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
 | 1 | [CLI boundary and image build](01-cli-and-image-build.md) | Approved specs | Accepted | `3a1f0a2a0b65ae96b31d7be13281619408cbc7eb`; corrections `d0a22c191e8402602f299ec2b77006c9a59e400d`, `aa5f0f3280f987ce2ffd669120e677e3f2b8a405` |
-| 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e` |
+| 2 | [Installation authority](02-installation-authority.md) | 1 accepted | Accepted | `11fae1dc10680678987d1db6fbfed03b921e2b1e`; final simplification `08700e459c90287273858b3c3caf0b5afcc0f577` |
 | 3 | [Provisioning artifacts](03-provisioning-artifacts.md) | 2 accepted | Accepted | `fff702367bed156640f52085d6cc5c48ba196815`; corrections `924514ea061bb69a825efe19ebfec742c698bdf6`, `0f29317e2887975b29e218e653314bd83d8a8597` |
 | 4 | [Safe macOS card provisioning](04-macos-provisioning.md) | 3 accepted | Accepted | `3d01f300aee37d9cf0b3818143877083522c4374`; corrections `d93bf23afae5bbf1a3e8fed9ef16fe0ef454903e`, `2e29008c5d271fff3cc21fe9e3544f6ecead90b9` |
 | 5 | [Authenticated transport](05-authenticated-transport.md) | 3 accepted | Accepted | `d896b526f66765219db2718bef81efb888f3f72e` |
-| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; corrections `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`, `9924947eacd209fc00b9eaa7fb0df5098c63892b`, `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`, `3631bfcdf655f5af73162b3903fcccc9d197e166`, `8ed08b2152f4aaf93a64c4388604f853020f1e7a`, `ca6a8267201b3ef82fcf47030d2cefdb0761ac74`, `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`, `7a87845f15ba59d30ecd38772b985fa4ae0c34ca`, `417d4b47ba7746b8da5472bc364b230a29d0e5eb` |
-| 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b` |
+| 6 | [Provisionable host images](06-provisionable-images.md) | 4 and 5 accepted | Accepted | `3bac67b68a265b10508effced7930ae6c82beef7`; corrections `2e29008c5d271fff3cc21fe9e3544f6ecead90b9`, `9924947eacd209fc00b9eaa7fb0df5098c63892b`, `b944952b8672b601d11cb0f83feaf4c4ef4d4da4`, `3631bfcdf655f5af73162b3903fcccc9d197e166`, `8ed08b2152f4aaf93a64c4388604f853020f1e7a`, `ca6a8267201b3ef82fcf47030d2cefdb0761ac74`, `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`, `7a87845f15ba59d30ecd38772b985fa4ae0c34ca`, `417d4b47ba7746b8da5472bc364b230a29d0e5eb`, `06462fe30af212546f28f67d60b5d256d90b9243` |
+| 7 | [Verification and cutover](07-verification-and-cutover.md) | 6 accepted and macOS writer gate passed | Accepted | `90d456e2ef4eab1fedd43fb2f15ddc87e4f8ad8b`; final correction `ce16ae39f564774b53aa4ab2e0ee55aed81049df` |
 | 8 | [Retire panel hotspot control](08-retire-panel-hotspot-control.md) | 7 accepted | Accepted | `f4c775f36f05292615308828ac7151aa5d64bdb1` |
 
 Use only `Not started`, `Implementing`, `Review`, `Remediation`, `Closure review` or `Accepted`.
