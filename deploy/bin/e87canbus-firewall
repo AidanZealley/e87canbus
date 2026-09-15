@@ -6,7 +6,7 @@ if /usr/sbin/nft list table inet e87canbus >/dev/null 2>&1; then
     {
         echo 'delete table inet e87canbus'
         cat /etc/e87canbus/nftables.conf
-    } | exec /usr/sbin/nft --file -
+    } | /usr/sbin/nft --file -
+else
+    /usr/sbin/nft --file /etc/e87canbus/nftables.conf
 fi
-
-exec /usr/sbin/nft --file /etc/e87canbus/nftables.conf
