@@ -262,6 +262,7 @@ defect, so none is promoted during closure.
   filename audit and `git diff --check`.
 - Both external gates are `Passed`, all nine workstreams are accepted and no required review
   finding remains. The workflow is complete.
+- Accepted correction commit: `ee547ed57015d632764059c23a327547ed9afb45`.
 - Known evidence limitation: the four application and provisioning digest values matched during
   physical testing but their literal values were not retained. Aidan accepted this limitation.
 - Deferred hardware work: design and validate the console display spacer that mitigates measured
