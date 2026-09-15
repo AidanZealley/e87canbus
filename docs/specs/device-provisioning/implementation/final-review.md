@@ -190,3 +190,10 @@ friction. After accepting it, run the documented whole-feature review against th
 that review focused on CLI compatibility, reuse of the accepted verifier, secret-free evidence and
 documentation agreement. The provisioned-pair gate remains `Troubleshooting` until the new guided
 command and all outstanding physical evidence pass.
+
+Workstream 9 implementation and its Claude review are complete at `8205dbb`, followed by the
+format-only `f8b8e02` sweep. Real hardware produced four passing guided-verifier results, two per
+role, with stable exact releases and complete SSH and mutual-TLS checks. The shared external gate
+still lacks the exact image-build provenance and the rest of the workstream 7 and 8 evidence, so
+workstream 9 remains at closure rather than final acceptance and the reopened whole-feature review
+has not started.
