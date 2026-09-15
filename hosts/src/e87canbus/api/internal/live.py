@@ -364,9 +364,7 @@ def install_socket_handlers(
     async def connect(sid: str, environ: dict[str, Any], auth: object) -> bool:
         del auth
         principal = (
-            await authenticator.authenticate_environ(environ)
-            if authenticator is not None
-            else None
+            await authenticator.authenticate_environ(environ) if authenticator is not None else None
         )
         if (
             principal is not None

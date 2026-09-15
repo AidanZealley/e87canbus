@@ -1,4 +1,3 @@
-
 import pytest
 from e87canbus.config import HighBeamStrobeConfig
 from e87canbus.domain.buttons.catalogue import (

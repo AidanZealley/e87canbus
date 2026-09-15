@@ -101,9 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "::1",
         "localhost",
     }:
-        raise ValueError(
-            "SocketCAN profiles may bind only to loopback; nginx owns external TLS"
-        )
+        raise ValueError("SocketCAN profiles may bind only to loopback; nginx owns external TLS")
     if args.dry_run:
         dry_run_output: dict[str, object] = {
             "profile": selected_profile.value,

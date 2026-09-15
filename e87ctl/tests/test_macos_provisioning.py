@@ -123,10 +123,7 @@ class FixtureDiskutil:
 
 class CleanupFailingDiskutil(FixtureDiskutil):
     def run(self, *arguments: str) -> None:
-        if (
-            arguments == ("unmountDisk", "/dev/disk4")
-            and self.calls.count(arguments) == 1
-        ):
+        if arguments == ("unmountDisk", "/dev/disk4") and self.calls.count(arguments) == 1:
             self.calls.append(arguments)
             raise DiskError("diskutil could not update disk mounts")
         super().run(*arguments)
@@ -235,9 +232,7 @@ def test_image_listing_excludes_non_regular_payload_without_opening_it(
     image_path.mkdir()
     manifest = manifest.model_copy(
         update={
-            "image": manifest.image.model_copy(
-                update={"size_bytes": image_path.stat().st_size}
-            )
+            "image": manifest.image.model_copy(update={"size_bytes": image_path.stat().st_size})
         }
     )
     manifest_path.write_bytes(canonical_json(manifest))
@@ -429,9 +424,7 @@ def test_internal_disk_is_rejected_when_it_does_not_back_system() -> None:
         ("/dev/disk4/../disk0", "exact"),
     ],
 )
-def test_partition_glob_alias_and_unresolved_path_are_rejected(
-    selector: str, message: str
-) -> None:
+def test_partition_glob_alias_and_unresolved_path_are_rejected(selector: str, message: str) -> None:
     with pytest.raises(DiskError, match=message):
         inspect_target(FixtureDiskutil(), selector)
 
@@ -486,9 +479,7 @@ def test_writer_unmounts_writes_raw_verifies_and_mounts_only_boot(
         provisioning=provisioning,
     )
 
-    assert privileged == [
-        ["dd", f"if={image_path}", "of=/dev/rdisk4", "bs=4m"]
-    ]
+    assert privileged == [["dd", f"if={image_path}", "of=/dev/rdisk4", "bs=4m"]]
     assert (boot / "e87canbus-provisioning-v1.zip").read_bytes() == provisioning.path.read_bytes()
     mutations = [call for call in diskutil.calls if call[0] in {"mount", "unmountDisk"}]
     assert mutations == [
@@ -511,9 +502,7 @@ def test_writer_uses_an_already_mounted_boot_partition(
         "e87ctl.macos._run_privileged",
         lambda command: setattr(diskutil, "written", True),
     )
-    monkeypatch.setattr(
-        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
-    )
+    monkeypatch.setattr("e87ctl.macos._readback_digest", lambda device, size: image.image.sha256)
 
     write_card(
         diskutil,
@@ -538,9 +527,7 @@ def test_writer_requires_the_exact_boot_partition_label(
         "e87ctl.macos._run_privileged",
         lambda command: setattr(diskutil, "written", True),
     )
-    monkeypatch.setattr(
-        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
-    )
+    monkeypatch.setattr("e87ctl.macos._readback_digest", lambda device, size: image.image.sha256)
 
     with pytest.raises(DiskError, match="exactly one BOOT partition"):
         write_card(
@@ -561,9 +548,7 @@ def test_writer_rejects_an_unexpected_mounted_partition_before_copy(
 ) -> None:
     boot = tmp_path / "boot"
     boot.mkdir()
-    diskutil = FixtureDiskutil(
-        mount_point=boot, automount_boot=True, unexpected_mount=True
-    )
+    diskutil = FixtureDiskutil(mount_point=boot, automount_boot=True, unexpected_mount=True)
     target = recheck_target(diskutil, inspect_target(diskutil, "disk4"))
     image, image_path, _ = _image(tmp_path)
     provisioning = _bundle(tmp_path, image, _application(tmp_path))
@@ -571,9 +556,7 @@ def test_writer_rejects_an_unexpected_mounted_partition_before_copy(
         "e87ctl.macos._run_privileged",
         lambda command: setattr(diskutil, "written", True),
     )
-    monkeypatch.setattr(
-        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
-    )
+    monkeypatch.setattr("e87ctl.macos._readback_digest", lambda device, size: image.image.sha256)
 
     with pytest.raises(DiskError, match="other than BOOT"):
         write_card(
@@ -636,9 +619,7 @@ def test_post_write_validation_preserves_safe_error(
         "e87ctl.macos._run_privileged",
         lambda command: setattr(diskutil, "written", True),
     )
-    monkeypatch.setattr(
-        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
-    )
+    monkeypatch.setattr("e87ctl.macos._readback_digest", lambda device, size: image.image.sha256)
 
     with pytest.raises(DiskError, match="^invalid provisioning artifact$"):
         write_card(
@@ -694,9 +675,7 @@ def test_cleanup_unmount_failure_is_reported_after_successful_write(
         "e87ctl.macos._run_privileged",
         lambda command: setattr(diskutil, "written", True),
     )
-    monkeypatch.setattr(
-        "e87ctl.macos._readback_digest", lambda device, size: image.image.sha256
-    )
+    monkeypatch.setattr("e87ctl.macos._readback_digest", lambda device, size: image.image.sha256)
 
     with pytest.raises(DiskError, match="^could not unmount the written disk$"):
         write_card(
@@ -763,9 +742,7 @@ def test_complete_provision_rechecks_identity_and_returns_secret_free_result(
         writes.append(provisioning)
 
     expected_image = image
-    monkeypatch.setattr(
-        "e87ctl.provision.build_application", lambda role, repository: application
-    )
+    monkeypatch.setattr("e87ctl.provision.build_application", lambda role, repository: application)
     monkeypatch.setattr("e87ctl.provision.write_card", writer)
 
     result = provision_card(
@@ -814,9 +791,7 @@ def test_provision_reports_safe_non_disk_failure(
         fail_to_load_recovery,
     )
 
-    with pytest.raises(
-        ProvisionCommandError, match="^invalid installation recovery package$"
-    ):
+    with pytest.raises(ProvisionCommandError, match="^invalid installation recovery package$"):
         provision_card(
             "coordinator",
             installation_path=tmp_path / "installation.json",
@@ -829,18 +804,14 @@ def test_provision_reports_safe_non_disk_failure(
         )
 
 
-def test_provision_reports_disk_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_provision_reports_disk_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _, _, manifest_path = _image(tmp_path)
     application = _application(tmp_path)
     recovery_path = tmp_path / "installation.json"
     write_recovery_package(recovery_path, create_recovery_package(NOW))
     diskutil = FixtureDiskutil()
     target = inspect_target(diskutil, "disk4")
-    monkeypatch.setattr(
-        "e87ctl.provision.build_application", lambda role, repository: application
-    )
+    monkeypatch.setattr("e87ctl.provision.build_application", lambda role, repository: application)
 
     def fail_to_recheck_target(_backend: Diskutil, _expected: object) -> None:
         raise DiskError("selected disk changed after confirmation")
@@ -850,9 +821,7 @@ def test_provision_reports_disk_failure(
         fail_to_recheck_target,
     )
 
-    with pytest.raises(
-        ProvisionCommandError, match="^selected disk changed after confirmation$"
-    ):
+    with pytest.raises(ProvisionCommandError, match="^selected disk changed after confirmation$"):
         provision_card(
             "coordinator",
             installation_path=recovery_path,

@@ -110,7 +110,8 @@ def test_application_archive_is_manifest_first_complete_and_reproducible(
     artifact = application_artifact(tmp_path, role)
 
     manifest = validate_application_archive(
-        artifact.path, expected_role=role  # type: ignore[arg-type]
+        artifact.path,
+        expected_role=role,  # type: ignore[arg-type]
     )
 
     assert manifest == artifact.manifest
@@ -127,9 +128,7 @@ def test_application_archive_is_manifest_first_complete_and_reproducible(
     "relative_path",
     ["venv/lib/module.pyc", "venv/lib/__pycache__/module.cpython-313.pyc"],
 )
-def test_application_packaging_rejects_python_bytecode(
-    tmp_path: Path, relative_path: str
-) -> None:
+def test_application_packaging_rejects_python_bytecode(tmp_path: Path, relative_path: str) -> None:
     payload = tmp_path / "payload"
     (payload / "venv/bin").mkdir(parents=True)
     (payload / "venv/bin/e87canbus").write_text("#!/bin/sh\n")
@@ -363,8 +362,10 @@ def test_packaged_entry_point_runs_after_release_relocation(tmp_path: Path) -> N
         git_dirty=False,
     )
 
-    release = tmp_path / "opt/e87canbus/releases" / digest_file(
-        archive_path, max_bytes=archive_path.stat().st_size
+    release = (
+        tmp_path
+        / "opt/e87canbus/releases"
+        / digest_file(archive_path, max_bytes=archive_path.stat().st_size)
     )
     with tarfile.open(archive_path, "r:gz") as archive:
         for member in archive.getmembers()[1:]:
@@ -639,9 +640,7 @@ def test_generated_device_chain_passes_strict_python_mtls(
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         server = executor.submit(serve)
-        with client_context.wrap_socket(
-            client_socket, server_hostname="10.42.0.1"
-        ) as connection:
+        with client_context.wrap_socket(client_socket, server_hostname="10.42.0.1") as connection:
             connection.sendall(b"ping")
             assert connection.recv(4) == b"pong"
         server.result()

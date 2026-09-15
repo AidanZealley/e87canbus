@@ -13,7 +13,9 @@ class ProvisioningStatusResponse(BaseModel):
     installation_id: Annotated[str, StringConstraints(pattern=r"^[a-z2-7]{52}$")]
     device_id: Annotated[
         str,
-        StringConstraints(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+        StringConstraints(
+            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        ),
     ]
     hostname: Annotated[
         str,

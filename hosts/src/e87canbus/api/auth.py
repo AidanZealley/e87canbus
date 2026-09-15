@@ -206,9 +206,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._authenticator = authenticator
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         principal = await self._authenticator.authenticate_request(request)
         permissions = http_permissions(request.method, request.url.path)
         if principal.kind not in permissions:
@@ -244,11 +242,7 @@ def _asgi_peer_address(environ: dict[str, Any]) -> str | None:
     if not isinstance(scope, Mapping):
         return None
     client = scope.get("client")
-    if (
-        not isinstance(client, (tuple, list))
-        or len(client) != 2
-        or not isinstance(client[0], str)
-    ):
+    if not isinstance(client, (tuple, list)) or len(client) != 2 or not isinstance(client[0], str):
         return None
     return client[0]
 
