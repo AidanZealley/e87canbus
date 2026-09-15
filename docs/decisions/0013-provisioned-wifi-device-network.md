@@ -31,13 +31,13 @@ configuration and diagnostics only. The cockpit remains deferred, and this decis
 select a replacement configuration transport for it.
 
 The coordinator panel is status-only. It reports `STARTING`, `READY`, `FAULT` and `OFF`, and has no
-host, simulator or firmware command that can change the provisioned network. The physical button
-remains wired and debounced but emits no UART event.
+host, simulator or firmware command that can change the provisioned network. The obsolete physical
+network control and its firmware input handling are removed.
 
 ## Consequences
 
 - The console connects without Ethernet, a login prompt or a manual panel action.
-- The healthy panel remains at `READY`; pressing its button does not interrupt the console.
+- The healthy panel remains at `READY` while the network operates independently.
 - Possessing only the Wi-Fi password grants liveness, not application or SSH access.
 - Console or Wi-Fi loss does not affect coordinator control. Disconnected commands fail without
   queuing and reconnection obtains a complete current snapshot.

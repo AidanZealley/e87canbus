@@ -10,7 +10,6 @@ constexpr uint8_t PIXEL_COUNT = 5;
 constexpr uint8_t MAX_CHANNEL = 127;
 constexpr uint32_t FIRST_STATUS_TIMEOUT_MS = 60000;
 constexpr uint32_t ESTABLISHED_STATUS_TIMEOUT_MS = 3000;
-constexpr uint32_t BUTTON_DEBOUNCE_MS = 30;
 constexpr size_t MAX_LINE_LENGTH = 63;
 
 enum class Display : uint8_t {
@@ -109,26 +108,6 @@ private:
     Display display_ = Display::STARTING;
     bool statusSeen_ = false;
     bool offLatched_ = false;
-};
-
-class ButtonDebouncer {
-public:
-    bool update(bool pressed, uint32_t now) {
-        if (pressed != rawPressed_) {
-            rawPressed_ = pressed;
-            rawChangedMs_ = now;
-        }
-        if (rawPressed_ != stablePressed_ && now - rawChangedMs_ >= BUTTON_DEBOUNCE_MS) {
-            stablePressed_ = rawPressed_;
-            return stablePressed_;
-        }
-        return false;
-    }
-
-private:
-    uint32_t rawChangedMs_ = 0;
-    bool rawPressed_ = false;
-    bool stablePressed_ = false;
 };
 
 inline Rgb bounded(uint8_t red, uint8_t green, uint8_t blue) {
