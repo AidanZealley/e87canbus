@@ -18,6 +18,12 @@ Both images intentionally resolve `firmware-brcm80211` from Debian. Raspberry Pi
 causes a Pi 4 local association rejection with status 16. Return to normal Raspberry Pi package
 resolution only after a replacement passes the complete physical gate without that regression.
 
+The images temporarily resolve only the Raspberry Pi `linux-image-rpi-v8` kernel family from the
+maintained Bookworm channel, selecting its rolling 6.12 LTS kernel while a Trixie 6.18 status-16
+regression is isolated. Every other Raspberry Pi Bookworm package is disabled. Return the kernel to
+the normal Trixie channel after a current Raspberry Pi kernel passes the complete physical gate
+without the local status-16 regression.
+
 ```bash
 git status --short
 docker info >/dev/null

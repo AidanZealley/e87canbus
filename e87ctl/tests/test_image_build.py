@@ -17,6 +17,7 @@ BUILD_SCRIPT = ROOT / "e87ctl/scripts/build-pi-image"
 BUILDER = ROOT / "images/builder"
 COMMON_CONFIG = ROOT / "images/common/image.yaml"
 COMMON_LAYER = ROOT / "images/layer/e87-common.yaml"
+KERNEL_LAYER = ROOT / "images/layer/e87-rpi-kernel-6.12.yaml"
 COORDINATOR = ROOT / "images/coordinator"
 COORDINATOR_CONFIG = COORDINATOR / "image.yaml"
 COORDINATOR_LAYER = ROOT / "images/layer/e87-coordinator.yaml"
@@ -609,6 +610,20 @@ def test_common_layer_contains_runtime_dependencies_without_build_tools() -> Non
         "uv ",
     ):
         assert prohibited not in layer.lower()
+
+
+def test_common_image_isolates_the_supported_rpi_612_kernel() -> None:
+    config = read(COMMON_CONFIG)
+    layer = read(KERNEL_LAYER)
+
+    assert "kernel: e87-rpi-kernel-6.12" in config
+    assert "${IGTOP}/templates/debian/apt/rpi-bookworm.sources" in layer
+    assert "Package: linux-image-rpi-v8 linux-image-6.12.*+rpt-rpi-v8" in layer
+    assert "Pin: release o=Raspberry Pi Foundation,n=bookworm" in layer
+    assert "Pin-Priority: 1001" in layer
+    assert "Package: *" in layer
+    assert "Pin-Priority: -1" in layer
+    assert "linux-image-6.18" not in layer
 
 
 def test_common_layer_creates_service_state_and_versioned_provisioning_boundary() -> None:

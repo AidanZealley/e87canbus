@@ -490,3 +490,58 @@ environment where available. Do not claim Pi radio compatibility from these chec
   found no remaining required issue. Physical firmware selection and association remain at the
   clean-card gate.
 - Accepted correction commit: `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`.
+
+### Provisioned-pair gate Raspberry Pi kernel isolation
+
+- Physical evidence: The clean-card report for candidate
+  `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3` is retained at
+  [`evidence/2827f7e-physical-gate-report.md`](evidence/2827f7e-physical-gate-report.md). Both roles
+  booted Raspberry Pi kernel `6.18.39+rpt-rpi-v8` and Debian firmware `7.45.234`. The coordinator
+  passed every check and the console passed every non-network check, including the stable kiosk.
+  Association still ended locally with status 16 before the coordinator received a station event.
+  This disproves the firmware-only correction and makes the kernel the next controlled variable.
+- Selection evidence: Raspberry Pi's signed Bookworm arm64 repository currently provides its
+  maintained `linux-image-rpi-v8` metapackage at `1:6.12.96-1+rpt1`, depending exactly on
+  `linux-image-6.12.96+rpt-rpi-v8`. Trixie provides `1:6.18.39-1+rpt1`. Retained Trixie kernel
+  `6.18.34` is not the repository's supported metapackage target, so selecting it would freeze a
+  historical package instead of following a maintained kernel line.
+- Correction: Add the existing pinned builder's Raspberry Pi Bookworm source and give only
+  `linux-image-rpi-v8` plus its `linux-image-6.12.*+rpt-rpi-v8` dependency priority 1001 from that
+  source. Give every other Raspberry Pi Bookworm package priority -1. The upstream `rpi4` device
+  and `rpi-linux-v8` layers remain unchanged; their existing metapackage request now selects the
+  rolling 6.12 LTS line. The separate Debian-origin firmware rule remains unchanged, keeping
+  firmware fixed while this candidate isolates the kernel.
+- Package and boot mechanics: APT policy simulation against the signed live Bookworm and Trixie
+  indexes selected Bookworm `linux-image-rpi-v8` and its exact 6.12.96 image dependency at priority
+  1001, retained Trixie `raspi-firmware` at priority 500 and rejected the Bookworm
+  `raspi-firmware` and `firmware-brcm80211` candidates at priority -1. The concrete kernel package
+  name is unique to that 6.12 ABI. With no 6.18 image selected, `raspi-firmware`'s normal kernel
+  post-install hook sees the sole installed v8 kernel and copies it to
+  `/boot/firmware/kernel8.img`. A later 6.12 Bookworm metapackage update follows the same supported
+  path; failure to provide a matching 6.12 dependency fails the build rather than falling through
+  to 6.18.
+- Security and architecture: The candidate stays on Raspberry Pi's maintained 6.12 LTS kernel and
+  signed archive instead of downloading a retained package or freezing one exact version. Trixie
+  remains the operating-system suite, every non-kernel Raspberry Pi package remains on Trixie and
+  Debian remains the source of `firmware-brcm80211`. NetworkManager, wpa_supplicant, WPA2-RSN,
+  required PMF and the single-owner network architecture do not change.
+- Focused coverage: The image contract test requires the common definition to select the kernel
+  isolation layer, that layer to use the pinned builder's Bookworm source, allow only the 6.12 v8
+  kernel family at priority 1001, reject the rest of Bookworm at priority -1 and contain no 6.18
+  package selection. The focused image suite passed (`42 passed`). Layer metadata lint, YAML
+  parsing, APT policy simulation and the remaining syntax and diff checks are part of final
+  verification.
+- Simplification pass: Reused the upstream device, kernel request, archive keyring and
+  `raspi-firmware` boot hook. The correction adds one mirror and two APT policy stanzas. It adds no
+  copied kernel, direct download, custom boot file, kernel hold, second installed kernel, hostapd
+  path or runtime repair.
+- Removal condition: Remove the Bookworm mirror and kernel preference after a current Raspberry Pi
+  Trixie kernel is physically shown to complete the full provisioned-pair gate without the local
+  status-16 regression. Do not retain the 6.12 selection merely because it passes this isolation
+  test.
+- External retest: Build both roles from the next exact clean candidate. Record `uname -r`,
+  `apt-cache policy linux-image-rpi-v8`, `dpkg-query -W 'linux-image*' firmware-brcm80211` and the
+  boot-time brcmfmac firmware identity on both devices. The expected controlled pair is the current
+  Raspberry Pi Bookworm 6.12 v8 kernel and Debian firmware 7.45.234. Repeat the complete clean-card
+  gate; the console must associate with the coordinator under required PMF and pass every network,
+  TLS, kiosk and cleanup check.
