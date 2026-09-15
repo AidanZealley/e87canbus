@@ -1,6 +1,6 @@
 # Workstream 9: Guided pair verification
 
-Status: implemented, awaiting independent review.
+Status: closure review; external validation troubleshooting.
 
 ## Task packet
 
@@ -135,34 +135,46 @@ machinery.
 
 ## Independent review
 
-- Reviewer: `TBD`
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Opus 5 in Aidan's dedicated workstream session. Aidan delegated implementation
+  and review together because only Claude usage remained, and later confirmed that review had
+  completed. The configured separate read-only review call was therefore not repeated.
+- Verdict: Accepted.
+- Required findings: None reported.
+- Optional observations: None promoted. The repository-wide Ruff formatting sweep was committed
+  separately as `f8b8e02`; it changes formatting only and is not part of the guided-flow design.
+- Questions for orchestrator: None outstanding.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No required finding remained.
+- Simplification/deletion pass: The guided flow stays in one focused module and calls
+  `verify_device` for every device check. It adds no alternate verification logic, recovery-package
+  inventory or network manager. Explicit role commands remain available.
+- Final verification: Claude recorded `161` e87ctl tests, Ruff, mypy over 143 files and
+  `git diff --check` before commit, then `1009` repository tests after the formatting sweep. The
+  orchestrator later passed `49` focused tests, Ruff check and format, mypy and strict model parsing
+  of the attached physical report.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
-- Accepted commit: `TBD`
+- Verdict: Implementation accepted. Final workstream acceptance waits at the shared external gate.
+- Remaining required findings: None in the guided verification implementation.
+- Accepted commit: Pending external-gate completion. Implementation commit
+  `8205dbbba820d4b1ba8795407d8b45b8046aed2b`; separate formatting commit
+  `f8b8e02617375dff694c69976849a6eabe9fc804`.
 
 ## External validation
 
 - Gate and placement: Complete provisioned pair after this workstream's closure.
 - Status: `Troubleshooting`
-- Candidate and instructions: `f67e02e226491b7211c61ffd97bc73ce0c3a2792` is the current software
-  correction. Nominate a new exact candidate after this workstream is accepted, then build a fresh
-  installation and cards and use the guided command.
+- Candidate and instructions: The device correction is `f67e02e226491b7211c61ffd97bc73ce0c3a2792`
+  and the guided workstation verifier is `f8b8e02617375dff694c69976849a6eabe9fc804`. The attached
+  report passed, but its exact image build provenance is not recorded.
 - Required evidence: All existing workstream 7 and 8 gate evidence, plus the saved report showing
   two passing checks for each role.
 - Attempts and lasting decisions: Preserve the successful `eda0d12` device result and its measured
-  verifier defects. The display-spacing mitigation remains hardware work.
+  verifier defects. The new guided report passed both roles twice and is recorded in
+  [the evidence summary](evidence/f8b8e02-guided-pair-verification.md). The display-spacing
+  mitigation remains hardware work.
 - Resume condition: Both passes for both roles succeed, the complete physical evidence is recorded
   and the provisioned-pair gate returns to `Passed`.
