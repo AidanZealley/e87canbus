@@ -545,3 +545,34 @@ environment where available. Do not claim Pi radio compatibility from these chec
   Raspberry Pi Bookworm 6.12 v8 kernel and Debian firmware 7.45.234. Repeat the complete clean-card
   gate; the console must associate with the coordinator under required PMF and pass every network,
   TLS, kiosk and cleanup check.
+
+### DSI interference supersession and package cleanup
+
+- Authoritative evidence: The
+  [DSI interference verification](evidence/2827f7e-dsi-interference-verification.md) repeated the
+  same physical change across three boots: ribbon disconnected, display attached and enabled, then
+  ribbon disconnected again. With the ribbon absent, candidate `2827f7e` on Raspberry Pi's normal
+  Trixie 6.18 kernel repeatedly discovered and joined the coordinator with the unchanged
+  WPA2-RSN/CCMP/required-PMF profile. With the display active, the 2.4 GHz scan census collapsed and
+  the coordinator usually disappeared. The same three 5 GHz networks remained visible throughout.
+- Superseded diagnosis: This A/B/A result invalidates the software-fault premise behind the Debian
+  firmware selection in `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3` and the Bookworm 6.12 kernel
+  isolation in `908f835be7fd16b68c684782dedbf816de91e882`. Both were proportionate diagnostic
+  corrections based on the evidence available at the time. Preserve their commits and reports as
+  history, but remove their package-selection behavior from the active images.
+- Correction: Return both roles to the pinned `rpi-image-gen` Raspberry Pi Trixie layers for the
+  kernel and `firmware-brcm80211`. Remove the additional Bookworm kernel layer, its source and APT
+  policy, and the Debian firmware preference. Remove their tests and active image documentation.
+  NetworkManager, wpa_supplicant and the provisioned security profile remain unchanged.
+- Limits: The split 5 GHz join experiment does not establish a production workaround, so this
+  correction does not select 5 GHz or change channels. A disconnected display is not an acceptable
+  product configuration. Do not build or flash another candidate until Aidan chooses or implements
+  a display-interference mitigation.
+- Historical evidence: Keep `2827f7e-physical-gate-report.md`, `2827f7e-wifi-research-brief.md`,
+  `2827f7e-pmf-akm-test.md` and `2827f7e-dsi-interference-verification.md` unchanged.
+- Verification: The focused image suite passed (`41 passed`). All six image YAML files parsed, and
+  shell syntax passed for the image builder, common/coordinator/console hooks and physical checker.
+  `git diff --check` passed. The active image and test tree contains no 6.12 layer selection,
+  Bookworm kernel source or pin, or Debian firmware preference. The common image definition and
+  layer match their pre-`2827f7e` package-resolution state.
+- Corrective commit: `TBD`.
