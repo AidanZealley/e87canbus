@@ -108,11 +108,11 @@ external and must not be claimed on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
-- Status: `Testing`
-- Candidate and instructions: Test corrected candidate
-  `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3`. Build both roles, confirm Debian's
-  `firmware-brcm80211` is installed, then repeat the complete procedure in workstream 7 from clean
-  cards.
+- Status: `Troubleshooting`
+- Candidate and instructions: `TBD` forward cleanup candidate restores normal pinned
+  `rpi-image-gen` Raspberry Pi Trixie package resolution. Do not build or flash it yet. Choose or
+  implement a production display-interference mitigation before repeating the complete procedure
+  in workstream 7 from clean cards.
 - Required evidence: All evidence listed in workstream 7 plus a healthy steady-state `READY`
   display and confirmation that panel presses do not change the provisioned network.
 - Attempts and lasting decisions: Attempt 1 reached `completed_phase=boot_removed`, then failed with
@@ -180,8 +180,18 @@ external and must not be claimed on the implementation host.
   tested PMF, band, power-saving or userspace-owner variation. Candidate
   `2827f7eaa2a69f5c1daf26910c4fe813a974b8e3` applies the evidence-backed correction by resolving
   only `firmware-brcm80211` from Debian for both roles. It leaves the Raspberry Pi kernel,
-  NetworkManager ownership and the WPA2-RSN/CCMP/required-PMF profile unchanged.
-- Resume condition: All workstream 7 and 8 physical evidence passes on one exact candidate.
+  NetworkManager ownership and the WPA2-RSN/CCMP/required-PMF profile unchanged. The clean-card
+  report proved that the Debian package loaded but did not restore association, so commit
+  `908f835be7fd16b68c684782dedbf816de91e882` next isolated Raspberry Pi's maintained Bookworm 6.12
+  kernel line. Before that image was built, the authoritative DSI A/B/A test on candidate
+  `2827f7e` superseded both software diagnoses. The unchanged production profile repeatedly joined
+  on Trixie 6.18 with the console ribbon disconnected. Attaching and enabling the display collapsed
+  only the 2.4 GHz scan census and usually removed the coordinator from view; disconnecting it
+  restored reception. The 5 GHz join test was split and supports no production choice. The forward
+  cleanup candidate removes both diagnostic package overrides without rewriting their history.
+- Resume condition: Aidan chooses or implements an acceptable display-interference mitigation,
+  then all workstream 7 and 8 physical evidence passes on one exact clean-card candidate with the
+  display operating normally.
 
 ## Implementation handoff
 

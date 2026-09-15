@@ -14,15 +14,8 @@ for the current gate status and evidence requirements.
 Use an arm64 Mac with Docker Desktop running. The build downloads Debian and Raspberry Pi packages
 and reuses the `e87canbus-pi-image-packages` Docker volume.
 
-Both images intentionally resolve `firmware-brcm80211` from Debian. Raspberry Pi's current package
-causes a Pi 4 local association rejection with status 16. Return to normal Raspberry Pi package
-resolution only after a replacement passes the complete physical gate without that regression.
-
-The images temporarily resolve only the Raspberry Pi `linux-image-rpi-v8` kernel family from the
-maintained Bookworm channel, selecting its rolling 6.12 LTS kernel while a Trixie 6.18 status-16
-regression is isolated. Every other Raspberry Pi Bookworm package is disabled. Return the kernel to
-the normal Trixie channel after a current Raspberry Pi kernel passes the complete physical gate
-without the local status-16 regression.
+Both images use the kernel and firmware packages selected by the pinned rpi-image-gen Raspberry Pi
+Trixie layers. They do not override kernel or `firmware-brcm80211` package resolution.
 
 ```bash
 git status --short

@@ -7,14 +7,6 @@
 # METAEND
 ---
 mmdebstrap:
-  setup-hooks:
-    - |-
-      install -d -m 0755 "$1/etc/apt/preferences.d"
-      cat > "$1/etc/apt/preferences.d/e87canbus-firmware-brcm80211" <<'EOF'
-      Package: firmware-brcm80211
-      Pin: release o=Debian
-      Pin-Priority: 1001
-      EOF
   packages:
     - ca-certificates
     - can-utils
