@@ -211,10 +211,6 @@ disposable card. Keep Ethernet disconnected for the whole successful-pair test. 
    association provide the approved WPA2-Personal and required-PMF evidence. Confirm no
    hotspot-reachable listener exists outside DHCP, HTTPS and SSH.
 
-   Confirm the coordinator panel settles at `READY`. Press its physical button several times,
-   then repeat both role-specific `nmcli` checks and confirm the access point remains active, the
-   console remains associated and the panel remains at `READY`.
-
 8. Prove the failure boundary. Power off or disconnect the console, confirm the coordinator stays
    ready, and attempt one reversible console command while disconnected. Confirm it fails at once,
    does not change coordinator state after reconnection, and a fresh complete snapshot restores

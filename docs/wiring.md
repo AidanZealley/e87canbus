@@ -18,10 +18,7 @@ Connect the detachable four-wire Pi 4 harness as follows:
 UART is 3.3 V logic at 115,200 baud. Cross transmit to receive as shown. Never connect vehicle
 12 V or Pi 5 V to either UART signal.
 
-The button is normally open between QT Py A0 and ground; firmware enables the internal pull-up.
-The firmware debounces this input but emits no event; the panel is a status indicator and the
-button has no network action. Pixel data is QT Py A3 through the BFF level shifter. Wire the power
-leg in this order:
+Pixel data is QT Py A3 through the BFF level shifter. Wire the power leg in this order:
 
 ```text
 Pi 5 V -- 500 mA fuse -- 1 A Schottky diode -- QT Py/BFF 5 V
@@ -33,7 +30,7 @@ before attaching QT Py USB-C for upload or service; never power it from the Pi a
 
 Before installation, bench-check harness polarity and continuity, `/dev/ttyAMA3` TX/RX, the five
 pixel order and colours, brightness, heartbeat fault/recovery, graceful off,
-steady-state `READY`, no network change after button presses, and the Wi-Fi no-forwarding policy.
+steady-state `READY`, and the Wi-Fi no-forwarding policy.
 These checks remain pending until the assembled hardware is available. Do not add further power
 switching, capacitors, data protection, or live-USB isolation unless the bench demonstrates a
 problem.

@@ -45,20 +45,6 @@ void test_status_timeouts_and_off_recover_on_the_next_valid_status() {
     TEST_ASSERT_EQUAL(Display::STARTING, status.display(200001));
 }
 
-void test_wired_button_input_remains_debounced() {
-    ButtonDebouncer button;
-    TEST_ASSERT_FALSE(button.update(true, 10));
-    TEST_ASSERT_FALSE(button.update(false, 20));
-    TEST_ASSERT_FALSE(button.update(true, 25));
-    TEST_ASSERT_FALSE(button.update(true, 54));
-    TEST_ASSERT_TRUE(button.update(true, 55));
-    TEST_ASSERT_FALSE(button.update(true, 100));
-    TEST_ASSERT_FALSE(button.update(false, 110));
-    TEST_ASSERT_FALSE(button.update(false, 140));
-    TEST_ASSERT_FALSE(button.update(true, 150));
-    TEST_ASSERT_TRUE(button.update(true, 180));
-}
-
 void test_rendering_has_four_semantics_and_hard_channel_cap() {
     Rgb pixels[PIXEL_COUNT];
     const Display displays[] = {Display::STARTING, Display::READY, Display::FAULT, Display::OFF};
@@ -84,7 +70,6 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parser_accepts_only_complete_bounded_status_lines);
     RUN_TEST(test_status_timeouts_and_off_recover_on_the_next_valid_status);
-    RUN_TEST(test_wired_button_input_remains_debounced);
     RUN_TEST(test_rendering_has_four_semantics_and_hard_channel_cap);
     return UNITY_END();
 }
