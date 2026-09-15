@@ -320,6 +320,8 @@ def _validate_authority(
         or certificate.not_valid_after_utc != expected_not_after
     ):
         raise ValueError("installation CA validity does not match creation time")
+
+
 def _validate_ssh_pair(private_key: ed25519.Ed25519PrivateKey, public_key: str) -> None:
     if public_key != _ssh_public_key_line(private_key):
         raise ValueError("SSH management key pair does not match")

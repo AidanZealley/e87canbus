@@ -190,9 +190,7 @@ def choose_profile(selection: str | None) -> DeploymentProfile:
     )
 
 
-def _choose(
-    name: str, choices: Sequence[_Choice], describe: Callable[[_Choice], str]
-) -> _Choice:
+def _choose(name: str, choices: Sequence[_Choice], describe: Callable[[_Choice], str]) -> _Choice:
     print(f"Available {name}s:")
     for index, item in enumerate(choices, start=1):
         print(f"  {index}. {describe(item)}")

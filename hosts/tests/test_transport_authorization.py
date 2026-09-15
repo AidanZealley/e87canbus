@@ -50,9 +50,7 @@ def authenticator(*, trust_test_client: bool = False) -> ApplicationAuthenticato
     )
 
 
-def certificate_header(
-    *, installation_id: str = INSTALLATION_ID, role: str = "console"
-) -> str:
+def certificate_header(*, installation_id: str = INSTALLATION_ID, role: str = "console") -> str:
     private_key = ec.generate_private_key(ec.SECP256R1())
     identity = f"urn:e87canbus:device:v1:{installation_id}:{role}:{DEVICE_ID}"
     now = datetime.now(UTC)
@@ -130,9 +128,7 @@ def test_http_table_is_the_exact_console_allowlist() -> None:
         ("PUT", "/api/button-pad/profiles/{profile_id}"),
         ("DELETE", "/api/button-pad/profiles/{profile_id}"),
     }
-    assert HTTP_PERMISSIONS[("GET", "/api/system/provisioning")] == {
-        PrincipalKind.OPERATOR
-    }
+    assert HTTP_PERMISSIONS[("GET", "/api/system/provisioning")] == {PrincipalKind.OPERATOR}
 
 
 def test_http_table_accounts_for_every_production_operation(tmp_path: Path) -> None:

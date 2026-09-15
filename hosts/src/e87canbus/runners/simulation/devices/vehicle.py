@@ -30,9 +30,7 @@ class SimulatedVehicleNode:
     signals: SyntheticVehicleSource = field(default_factory=SyntheticVehicleSource)
     high_beam_enabled: bool = False
 
-    def execute(
-        self, command: SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep
-    ) -> None:
+    def execute(self, command: SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep) -> None:
         self._send(self.signals.execute(command))
 
     def emit(self) -> None:

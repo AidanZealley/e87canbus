@@ -33,9 +33,7 @@ def _event_model(contract: EventContract) -> type[BaseModel]:
     if contract.payload is None:
         args_type: Any = tuple[()]
     else:
-        payload_type = (
-            LiveEnvelope[contract.payload] if contract.enveloped else contract.payload
-        )
+        payload_type = LiveEnvelope[contract.payload] if contract.enveloped else contract.payload
         args_type = tuple[payload_type]
     return create_model(
         _model_name(contract),

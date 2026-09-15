@@ -485,11 +485,11 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "ip -details link show fcan | grep -q 'bitrate 500000'",
         "10.42.0.1/24",
         "e87canbus-coordinator-wifi",
-        "key-mgmt connection show e87canbus-coordinator-wifi)\" = wpa-psk",
-        "proto connection show e87canbus-coordinator-wifi)\" = rsn",
-        "pairwise connection show e87canbus-coordinator-wifi)\" = ccmp",
-        "group connection show e87canbus-coordinator-wifi)\" = ccmp",
-        "pmf connection show e87canbus-coordinator-wifi)\" = 3",
+        'key-mgmt connection show e87canbus-coordinator-wifi)" = wpa-psk',
+        'proto connection show e87canbus-coordinator-wifi)" = rsn',
+        'pairwise connection show e87canbus-coordinator-wifi)" = ccmp',
+        'group connection show e87canbus-coordinator-wifi)" = ccmp',
+        'pmf connection show e87canbus-coordinator-wifi)" = 3',
         "net.ipv4.ip_forward",
         "controller service cannot gain privileges",
         "sudo -u e87canbus sudo -n -l",
@@ -502,11 +502,11 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         'bench) ! printf "%s\\n" "$details" | grep -Eq "listen-only on|LISTEN-ONLY"',
         "10.42.0.2/24",
         "e87canbus-console-wifi",
-        "key-mgmt connection show e87canbus-console-wifi)\" = wpa-psk",
-        "proto connection show e87canbus-console-wifi)\" = rsn",
-        "pairwise connection show e87canbus-console-wifi)\" = ccmp",
-        "group connection show e87canbus-console-wifi)\" = ccmp",
-        "pmf connection show e87canbus-console-wifi)\" = 3",
+        'key-mgmt connection show e87canbus-console-wifi)" = wpa-psk',
+        'proto connection show e87canbus-console-wifi)" = rsn',
+        'pairwise connection show e87canbus-console-wifi)" = ccmp',
+        'group connection show e87canbus-console-wifi)" = ccmp',
+        'pmf connection show e87canbus-console-wifi)" = 3',
         "/var/lib/e87-kiosk/.pki/nssdb/cert9.db",
         "command -v cage >/dev/null && command -v chromium >/dev/null",
         'find /dev/dri -maxdepth 1 -name "card*"',
@@ -610,6 +610,7 @@ def test_common_layer_contains_runtime_dependencies_without_build_tools() -> Non
         "uv ",
     ):
         assert prohibited not in layer.lower()
+
 
 def test_common_layer_creates_service_state_and_versioned_provisioning_boundary() -> None:
     layer = read(COMMON_LAYER)

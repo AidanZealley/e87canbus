@@ -10,6 +10,8 @@ from e87canbus.panel import CoordinatorStatus
 
 UART_DEVICE = "/dev/ttyAMA3"
 UART_BAUD_RATE = 115_200
+
+
 class SerialPort(Protocol):
     def write(self, data: bytes) -> int: ...
 
@@ -21,6 +23,7 @@ class UartPanelAdapter:
 
     def __init__(self, port: SerialPort) -> None:
         self._port = port
+
     def display(self, state: CoordinatorStatus) -> None:
         self._port.write(f"STATUS {state.value}\n".encode("ascii"))
 

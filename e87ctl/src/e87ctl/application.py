@@ -26,8 +26,7 @@ from e87ctl.artifacts import (
 )
 
 APPLICATION_BUILDER_BASE = (
-    "debian:trixie-slim@sha256:"
-    "c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0"
+    "debian:trixie-slim@sha256:c94f5ddd41327aa2d4a7cfba7889056c02936182fd76a513fec6160c97181fc0"
 )
 
 
@@ -273,9 +272,7 @@ def _export_locked_requirements(repository: Path, output: Path) -> None:
     )
 
 
-def _run(
-    arguments: list[str | Path], *, capture: bool = False, cwd: Path | None = None
-) -> str:
+def _run(arguments: list[str | Path], *, capture: bool = False, cwd: Path | None = None) -> str:
     try:
         result = subprocess.run(
             [str(argument) for argument in arguments],

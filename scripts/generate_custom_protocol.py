@@ -94,9 +94,10 @@ def _parse_transport_link(name: str, table: Mapping[str, Any]) -> TransportLinkD
     device_to_coordinator_id = table.get("device_to_coordinator_id")
     maximum_payload_length = table.get("maximum_payload_length")
     purpose = table.get("purpose")
-    if not all(isinstance(value, int) and 0 <= value <= 0x7FF for value in (
-        coordinator_to_device_id, device_to_coordinator_id
-    )):
+    if not all(
+        isinstance(value, int) and 0 <= value <= 0x7FF
+        for value in (coordinator_to_device_id, device_to_coordinator_id)
+    ):
         raise ValueError(f"{name} transport IDs must be standard CAN IDs")
     if coordinator_to_device_id == device_to_coordinator_id:
         raise ValueError(f"{name} transport IDs must differ")
@@ -256,9 +257,7 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
         if message.name == "button_event":
             constants.extend((f"BUTTON_{name.upper()}", value) for name, value in message.values)
         elif message.values and message.name != "led_snapshot":
-            constants.extend(
-                (f"{prefix}_{name.upper()}", value) for name, value in message.values
-            )
+            constants.extend((f"{prefix}_{name.upper()}", value) for name, value in message.values)
         elif message.name == "led_snapshot":
             constants.extend(
                 [
@@ -386,11 +385,9 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
             definition
         ),
         root / "devices" / "button-pad" / "include" / "can_ids.h": render_header(definition),
-        root
-        / "devices"
-        / "servotronic-controller"
-        / "include"
-        / "can_ids.h": render_header(definition),
+        root / "devices" / "servotronic-controller" / "include" / "can_ids.h": render_header(
+            definition
+        ),
         markdown_path: markdown,
     }
 

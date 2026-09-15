@@ -106,9 +106,7 @@ def inspect_target(diskutil: Diskutil, selector: str) -> DiskIdentity:
     if identity.identifier in protected:
         raise DiskError("the selected disk backs the running system")
     if not _supported_media(identity):
-        raise DiskError(
-            "the selected internal disk is not removable Secure Digital media"
-        )
+        raise DiskError("the selected internal disk is not removable Secure Digital media")
     return identity
 
 
@@ -155,9 +153,7 @@ def write_card(
                 "bs=4m",
             ]
         )
-        written_digest = _readback_digest(
-            target.identity.raw_device_node, image.image.size_bytes
-        )
+        written_digest = _readback_digest(target.identity.raw_device_node, image.image.size_bytes)
         if written_digest != image.image.sha256:
             raise DiskError("written image failed readback verification")
 
@@ -175,9 +171,7 @@ def write_card(
             raise DiskError("a partition other than BOOT is mounted")
         destination = Path(mount_point) / "e87canbus-provisioning-v1.zip"
         available = shutil.disk_usage(mount_point).free
-        validate_provisioning_bundle(
-            provisioning.path, image=image, available_boot_bytes=available
-        )
+        validate_provisioning_bundle(provisioning.path, image=image, available_boot_bytes=available)
         _copy_and_sync(provisioning.path, destination)
         if digest_file(destination, max_bytes=provisioning.size_bytes) != provisioning.sha256:
             raise DiskError("provisioning bundle failed readback verification")
@@ -194,8 +188,7 @@ def write_card(
             except Exception:
                 if write_error is not None:
                     raise DiskError(
-                        f"{write_error}; cleanup also failed: "
-                        "could not unmount the written disk"
+                        f"{write_error}; cleanup also failed: could not unmount the written disk"
                     ) from write_error
                 raise DiskError("could not unmount the written disk") from None
 

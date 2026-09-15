@@ -96,16 +96,12 @@ def build_provisioning_bundle(
 ) -> ProvisioningArtifact:
     try:
         created_at = (created_at or datetime.now(UTC)).astimezone(UTC).replace(microsecond=0)
-        application_manifest = validate_application_archive(
-            application.path, expected_role=role
-        )
+        application_manifest = validate_application_archive(application.path, expected_role=role)
         if image.role != role or application_manifest.provisioning_interface_version != (
             image.provisioning_interface_version
         ):
             raise ValueError("artifact roles or interfaces do not match")
-        application_digest = digest_file(
-            application.path, max_bytes=application.size_bytes
-        )
+        application_digest = digest_file(application.path, max_bytes=application.size_bytes)
         if application_digest != application.sha256:
             raise ValueError("application artifact changed after validation")
 
@@ -513,9 +509,7 @@ def _write_zip(
         raise
 
 
-def _write_zip_entry(
-    archive: zipfile.ZipFile, name: str, contents: _ProvisioningEntry
-) -> None:
+def _write_zip_entry(archive: zipfile.ZipFile, name: str, contents: _ProvisioningEntry) -> None:
     info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
     info.compress_type = zipfile.ZIP_DEFLATED
     info.create_system = 3
@@ -550,9 +544,7 @@ def _validate_embedded_application(
         raise ValueError("application archive is oversized")
     descriptor, temporary_name = tempfile.mkstemp(prefix="e87-application-", suffix=".tar.gz")
     try:
-        with os.fdopen(descriptor, "wb") as temporary, archive.open(
-            "application.tar.gz"
-        ) as source:
+        with os.fdopen(descriptor, "wb") as temporary, archive.open("application.tar.gz") as source:
             remaining = info.file_size
             while remaining:
                 chunk = source.read(min(1024 * 1024, remaining))
