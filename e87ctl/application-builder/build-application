@@ -26,6 +26,8 @@ python3 -m venv --copies /output/venv
 python3 /usr/local/bin/make-entry-points-relocatable \
     /output/venv/bin/e87canbus \
     /output/venv/bin/e87canbus-console
+# Bytecode records the build path and becomes stale when the release is relocated.
+find /output/venv -type d -name __pycache__ -prune -exec rm -rf {} +
 mkdir /work/frontend
 tar \
     --directory /source/frontend \

@@ -301,7 +301,18 @@ def _validate_authority(
         or usage.crl_sign
     ):
         raise ValueError("invalid installation CA key usage")
-    if len(certificate.extensions) != 2:
+    subject_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.SubjectKeyIdentifier
+    )
+    expected_subject_key_identifier = x509.SubjectKeyIdentifier.from_public_key(
+        certificate_public_key
+    )
+    if (
+        subject_key_identifier.critical
+        or subject_key_identifier.value != expected_subject_key_identifier
+    ):
+        raise ValueError("invalid installation CA key identifier")
+    if len(certificate.extensions) != 3:
         raise ValueError("unexpected installation CA certificate extension")
     expected_not_before, expected_not_after = installation_ca_validity(created_at.astimezone(UTC))
     if (

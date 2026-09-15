@@ -284,6 +284,7 @@ def _ssh_checks(
                         "sudo",
                         "-n",
                         "/opt/e87canbus/current/venv/bin/python",
+                        "-B",
                         "-",
                         role,
                         recovery.installation_id,
@@ -358,7 +359,11 @@ def _scan_and_pin_host_key(address: str, expected_fingerprint: str, directory: P
             scanned = source.read(16 * 1024 + 1)
         if scan.returncode != 0 or len(scanned) > 16 * 1024:
             return None
-        lines = [line for line in scanned.decode("ascii").splitlines() if line]
+        lines = [
+            line
+            for raw_line in scanned.decode("ascii").splitlines()
+            if (line := raw_line.strip()) and not line.startswith("#")
+        ]
         if len(lines) != 1:
             return None
         host, key_type, encoded_key = lines[0].split()

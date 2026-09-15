@@ -105,6 +105,11 @@ def archive_path(name: str) -> None:
         fail("unsafe_archive_path")
 
 
+def python_bytecode_path(name: str) -> bool:
+    path = PurePosixPath(name)
+    return path.suffix == ".pyc" or "__pycache__" in path.parts
+
+
 def digest_stream(stream: BinaryIO, size: int, limit: int) -> str:
     if not isinstance(size, int) or isinstance(size, bool) or size < 0 or size > limit:
         fail("oversized_entry")
@@ -200,7 +205,10 @@ def validate_application(stream: BinaryIO, expected_role: str) -> tuple[dict[str
         total = 0
         for name, record in files.items():
             archive_path(name)
-            if not re.fullmatch(r"(?:venv|frontend)/[^\x00]+", name):
+            if (
+                not re.fullmatch(r"(?:venv|frontend)/[^\x00]+", name)
+                or python_bytecode_path(name)
+            ):
                 fail("invalid_application_path")
             records[name] = validate_record(record, MAX_APPLICATION_CONTENT)
             total += records[name][0]

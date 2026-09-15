@@ -263,6 +263,10 @@ def _validate_public_ca(
         raise ValueError("installation authority validity is invalid")
     constraints = certificate.extensions.get_extension_for_class(x509.BasicConstraints)
     usage = certificate.extensions.get_extension_for_class(x509.KeyUsage)
+    subject_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.SubjectKeyIdentifier
+    )
+    expected_subject_key_identifier = x509.SubjectKeyIdentifier.from_public_key(public_key)
     if (
         not constraints.critical
         or not constraints.value.ca
@@ -274,7 +278,9 @@ def _validate_public_ca(
         or usage.value.key_agreement
         or not usage.value.key_cert_sign
         or usage.value.crl_sign
-        or len(certificate.extensions) != 2
+        or subject_key_identifier.critical
+        or subject_key_identifier.value != expected_subject_key_identifier
+        or len(certificate.extensions) != 3
     ):
         raise ValueError("installation authority profile is invalid")
 
@@ -350,6 +356,7 @@ def _create_leaf(
             ]
         )
         eku = ExtendedKeyUsageOID.SERVER_AUTH
+    subject_key_identifier = x509.SubjectKeyIdentifier.from_public_key(private_key.public_key())
     certificate = (
         x509.CertificateBuilder()
         .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, configuration.hostname)]))
@@ -375,6 +382,11 @@ def _create_leaf(
         )
         .add_extension(x509.SubjectAlternativeName(alternative_names), critical=False)
         .add_extension(x509.ExtendedKeyUsage([eku]), critical=False)
+        .add_extension(subject_key_identifier, critical=False)
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(authority.private_key.public_key()),
+            critical=False,
+        )
         .sign(authority.private_key, hashes.SHA256())
     )
     return private_key, certificate
@@ -428,6 +440,12 @@ def _validate_leaf(
         raise ValueError("device certificate role is invalid")
     constraints = certificate.extensions.get_extension_for_class(x509.BasicConstraints)
     usage = certificate.extensions.get_extension_for_class(x509.KeyUsage)
+    subject_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.SubjectKeyIdentifier
+    )
+    authority_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.AuthorityKeyIdentifier
+    )
     if (
         not constraints.critical
         or constraints.value.ca
@@ -439,9 +457,15 @@ def _validate_leaf(
         or usage.value.key_agreement
         or usage.value.key_cert_sign
         or usage.value.crl_sign
+        or subject_key_identifier.critical
+        or subject_key_identifier.value
+        != x509.SubjectKeyIdentifier.from_public_key(certificate_key)
+        or authority_key_identifier.critical
+        or authority_key_identifier.value
+        != x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key)
     ):
         raise ValueError("device certificate key usage is invalid")
-    if len(certificate.extensions) != 4:
+    if len(certificate.extensions) != 6:
         raise ValueError("device certificate has unexpected extensions")
     if configuration.role == "coordinator":
         if san.get_values_for_type(x509.IPAddress) != [ipaddress.ip_address("10.42.0.1")]:
