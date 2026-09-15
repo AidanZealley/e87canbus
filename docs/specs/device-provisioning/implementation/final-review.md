@@ -105,16 +105,59 @@ when the original is unavailable, and record why.
 - Verdict: Accepted with no further remediation cycle; the evidence decision remains outside code
   closure.
 
+## Aidan's post-closure decisions
+
+- Broaden the corrected CI syntax coverage to the three general hardware shell scripts and the
+  application-builder shell script. Compile both Python-shebang build/provisioning helpers rather
+  than passing them to `bash -n`.
+- Surface the original message from the existing safe recovery, artifact, application-build,
+  provisioning and disk exception types. Unexpected exceptions retain the generic provisioning
+  failure message.
+- When card writing and final unmount both fail, retain the write/readback failure as the primary
+  message and append the cleanup failure. An unmount-only failure still fails normally.
+- Remove every remaining active coordinator-panel button concept: firmware input setup, debounce
+  logic, tests, wiring asset and current documentation. Preserve historical ADR and implementation
+  records until the planned documentation cleanup.
+- Keep the fixed application-builder Debian snapshot. Its reproducible build-toolchain role is
+  intentionally distinct from the rolling Raspberry Pi image package policy.
+- No production CORS correction is needed. The installed systemd override already replaces the
+  base command and supplies only the console origin.
+
+### Post-closure review and resolution
+
+- Reviewer: Claude Code Opus at medium effort through the configured read-only command.
+- Initial verdict: Changes required. The implementation was accepted, but the current Wi-Fi
+  specification retained one obsolete physical-button sentence and this record had not
+  superseded the earlier decisions. The reviewer optionally identified the second Python helper
+  for CI compilation and questioned safe validation errors inside `write_card`.
+- Resolution: Removed the stale active-specification sentence and button-press step from the active
+  physical procedure. Updated ADR 0013 and active wiring documentation for complete button
+  removal. Added both Python helpers to CI compilation. Preserved only the already-approved safe
+  artifact and provisioning messages through both writer validation boundaries; arbitrary
+  exceptions remain sanitized. Historical decisions above remain unchanged and are superseded by
+  this additive record.
+- Closure verdict: Accepted. Claude verified the complete remediated diff and found no required
+  issue or release-blocking defect introduced by the changes. Accepted commits are
+  `3fa1571708c5e5027d848c15b54b7c08da5b75e6`,
+  `5c70dac02052bcd67085c7d94128c51fdf53cd30` and
+  `b1bc43ede509f1fae43956e2b7423d9af62fa332`.
+- Revised physical evidence gap: Complete the real `e87ctl verify` runs, laptop DHCP and
+  authorization checks, console disconnect/no-replay recovery, distinct machine-ID evidence,
+  Ethernet-disconnected operation and invalid-bundle disposable-card result. Panel-button
+  invariance is no longer applicable because the button is absent from the product.
+
 ## Orchestrator completion record
 
 - Final head and verification: Code corrections end at
-  `08700e459c90287273858b3c3caf0b5afcc0f577`. Final verification passed: `979` Python tests,
+  `b1bc43ede509f1fae43956e2b7423d9af62fa332`. Final verification passed: `984` Python tests,
   mypy over 142 source files, Ruff, import contracts, generated protocol checks, provisioning
-  consumer compilation, per-file shell syntax, frontend API checks, lint, typecheck, `208` tests,
-  both production builds and `git diff --check`.
+  consumer and application-builder helper compilation, per-file shell syntax and
+  `git diff --check`. The unchanged frontend had already passed API checks, lint, typecheck, `208`
+  tests and both production builds at whole-feature closure. PlatformIO native tests passed (`3`
+  tests) and the RP2040 production firmware built after complete button removal.
 - External validation pending: Both documented gates are marked `Passed`. Completion still awaits
-  the decision whether to supply the physical checks absent from the `eda0d12` report or accept
-  them as explicit evidence limitations.
+  the additional physical checks absent from the `eda0d12` report; Aidan assigned them to the local
+  verification agent rather than accepting evidence limitations.
 - Specification drift: No unrecorded implementation drift. Aidan classified mechanical
   DSI/display spacing as separate hardware integration work rather than a software gate blocker.
 - Completion report delivered: `TBD`
