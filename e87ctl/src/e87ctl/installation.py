@@ -35,6 +35,7 @@ def create_installation_authority(created_at: datetime) -> InstallationAuthority
     installation_id = derive_installation_id(private_key.public_key())
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "e87canbus installation CA")])
     valid_from, valid_until = installation_ca_validity(created_at)
+    subject_key_identifier = x509.SubjectKeyIdentifier.from_public_key(private_key.public_key())
 
     certificate = (
         x509.CertificateBuilder()
@@ -59,6 +60,7 @@ def create_installation_authority(created_at: datetime) -> InstallationAuthority
             ),
             critical=True,
         )
+        .add_extension(subject_key_identifier, critical=False)
         .sign(private_key, algorithm=hashes.SHA256())
     )
     return InstallationAuthority(installation_id, private_key, certificate)

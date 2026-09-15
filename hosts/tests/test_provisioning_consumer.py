@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import importlib.machinery
 import importlib.util
+import io
 import json
+import tarfile
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -124,6 +126,44 @@ def replace_bundle_entry(bundle: Path, name: str, contents: bytes) -> None:
             info.create_system = 3
             info.external_attr = 0o100600 << 16
             archive.writestr(info, entries[entry_name])
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    ["venv/lib/module.pyc", "venv/lib/__pycache__/module.py"],
+)
+def test_consumer_rejects_application_bytecode(tmp_path: Path, relative_path: str) -> None:
+    bundle, _ = make_bundle(tmp_path, "coordinator")
+    with zipfile.ZipFile(bundle) as provisioning:
+        application = provisioning.read("application.tar.gz")
+    with tarfile.open(fileobj=io.BytesIO(application), mode="r:gz") as source:
+        members = {
+            member.name: (member.mode, source.extractfile(member).read())
+            for member in source.getmembers()
+        }
+    bytecode = b"bytecode"
+    manifest = json.loads(members["manifest.json"][1])
+    manifest["files"][relative_path] = {
+        "size_bytes": len(bytecode),
+        "sha256": hashlib.sha256(bytecode).hexdigest(),
+    }
+    members["manifest.json"] = (
+        0o644,
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(),
+    )
+    members[relative_path] = (0o644, bytecode)
+    rebuilt = io.BytesIO()
+    with tarfile.open(fileobj=rebuilt, mode="w:gz") as archive:
+        for name in ["manifest.json", *sorted(set(members) - {"manifest.json"})]:
+            mode, contents = members[name]
+            info = tarfile.TarInfo(name)
+            info.size = len(contents)
+            info.mode = mode
+            archive.addfile(info, io.BytesIO(contents))
+
+    consumer = load_consumer()
+    with pytest.raises(consumer.BundleError, match="invalid_application_path"):
+        consumer.validate_application(io.BytesIO(rebuilt.getvalue()), "coordinator")
 
 
 def test_host_identity_initialization_creates_a_missing_machine_id(

@@ -49,6 +49,11 @@ _PROVISIONING_ENTRY_LIMITS = {
 }
 
 
+def _is_python_bytecode_path(path: str | PurePosixPath) -> bool:
+    candidate = PurePosixPath(path)
+    return candidate.suffix == ".pyc" or "__pycache__" in candidate.parts
+
+
 class _Readable(Protocol):
     def read(self, size: int = -1) -> bytes: ...
 
@@ -281,6 +286,7 @@ def validate_application_archive(
                     or member.mode & 0o7000
                     or member.name in seen
                     or member.name not in manifest.files
+                    or _is_python_bytecode_path(member.name)
                 ):
                     raise ValueError("invalid application archive entry")
                 record = manifest.files[member.name]

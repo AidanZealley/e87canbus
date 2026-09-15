@@ -103,12 +103,20 @@ def test_generated_ca_has_the_fixed_profile_and_validity() -> None:
 
     constraints = certificate.extensions.get_extension_for_class(x509.BasicConstraints)
     usage = certificate.extensions.get_extension_for_class(x509.KeyUsage)
+    subject_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.SubjectKeyIdentifier
+    )
     assert constraints.critical
     assert constraints.value == x509.BasicConstraints(ca=True, path_length=None)
     assert usage.critical
     assert usage.value.key_cert_sign
     assert not usage.value.digital_signature
     assert not usage.value.crl_sign
+    assert not subject_key_identifier.critical
+    assert subject_key_identifier.value == x509.SubjectKeyIdentifier.from_public_key(
+        certificate.public_key()
+    )
+    assert len(certificate.extensions) == 3
     assert certificate.not_valid_before_utc == CREATED_AT - timedelta(hours=24)
     assert certificate.not_valid_after_utc == CREATED_AT.replace(year=2046)
     assert certificate.subject == certificate.issuer

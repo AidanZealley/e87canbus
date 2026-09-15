@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
+import socket
+import ssl
 import subprocess
 import sys
 import tarfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +22,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID
 from e87ctl.application import (
     APPLICATION_BUILDER_BASE,
     ApplicationArtifact,
+    ApplicationBuildError,
     package_application,
 )
 from e87ctl.artifacts import (
@@ -116,6 +121,70 @@ def test_application_archive_is_manifest_first_complete_and_reproducible(
     first_bytes = artifact.path.read_bytes()
     rebuilt = application_artifact(tmp_path / "again", role)
     assert rebuilt.path.read_bytes() == first_bytes
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    ["venv/lib/module.pyc", "venv/lib/__pycache__/module.cpython-313.pyc"],
+)
+def test_application_packaging_rejects_python_bytecode(
+    tmp_path: Path, relative_path: str
+) -> None:
+    payload = tmp_path / "payload"
+    (payload / "venv/bin").mkdir(parents=True)
+    (payload / "venv/bin/e87canbus").write_text("#!/bin/sh\n")
+    (payload / "frontend").mkdir()
+    (payload / "frontend/index.html").write_text("release")
+    bytecode = payload / relative_path
+    bytecode.parent.mkdir(parents=True, exist_ok=True)
+    bytecode.write_bytes(b"bytecode")
+
+    with pytest.raises(ApplicationBuildError, match="contains Python bytecode"):
+        package_application(
+            payload,
+            tmp_path / "application.tar.gz",
+            role="coordinator",
+            built_at=NOW,
+            git_commit=None,
+            git_dirty=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    ["venv/lib/module.pyc", "venv/lib/__pycache__/module.py"],
+)
+def test_application_archive_validation_rejects_python_bytecode(
+    tmp_path: Path, relative_path: str
+) -> None:
+    artifact = application_artifact(tmp_path, "coordinator")
+    bytecode = b"bytecode"
+    with tarfile.open(artifact.path, "r:gz") as source:
+        members = {
+            member.name: (member.mode, source.extractfile(member).read())
+            for member in source.getmembers()
+        }
+    manifest = json.loads(members["manifest.json"][1])
+    manifest["files"][relative_path] = {
+        "size_bytes": len(bytecode),
+        "sha256": hashlib.sha256(bytecode).hexdigest(),
+    }
+    members["manifest.json"] = (
+        0o644,
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(),
+    )
+    members[relative_path] = (0o644, bytecode)
+    malicious = tmp_path / "bytecode.tar.gz"
+    with tarfile.open(malicious, "w:gz") as archive:
+        for name in ["manifest.json", *sorted(set(members) - {"manifest.json"})]:
+            mode, contents = members[name]
+            info = tarfile.TarInfo(name)
+            info.size = len(contents)
+            info.mode = mode
+            archive.addfile(info, io.BytesIO(contents))
+
+    with pytest.raises(ArtifactError, match="invalid application artifact"):
+        validate_application_archive(malicious)
 
 
 @pytest.mark.parametrize("bad_name", ["../escape", "/absolute", "venv/../../escape"])
@@ -222,6 +291,7 @@ def test_application_builder_is_pinned_and_builds_only_runtime_payload() -> None
     assert "--no-build-isolation" in script
     assert "pip install --disable-pip-version-check --no-cache-dir /source" not in script
     assert "/source/e87ctl" not in script
+    assert "find /output/venv -type d -name __pycache__ -prune -exec rm -rf {} +" in script
 
 
 def test_locked_exports_cover_runtime_and_pep517_build_requirements() -> None:
@@ -274,8 +344,11 @@ def test_packaged_entry_point_runs_after_release_relocation(tmp_path: Path) -> N
     interpreter = bin_directory / "python3"
     interpreter.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
     interpreter.chmod(0o755)
+    (bin_directory / "runtime_module.py").write_text("VALUE = 'relocated entry point'\n")
     entry_point = bin_directory / "e87canbus"
-    entry_point.write_text("#!/output/venv/bin/python3\nprint('relocated entry point')\n")
+    entry_point.write_text(
+        "#!/output/venv/bin/python3\nfrom runtime_module import VALUE\nprint(VALUE)\n"
+    )
     entry_point.chmod(0o755)
     (payload / "frontend").mkdir()
     (payload / "frontend/index.html").write_text("release")
@@ -306,9 +379,14 @@ def test_packaged_entry_point_runs_after_release_relocation(tmp_path: Path) -> N
         text=True,
         capture_output=True,
         check=True,
-        env={**os.environ, "PATH": f"{release / 'venv/bin'}:{os.environ['PATH']}"},
+        env={
+            **os.environ,
+            "PATH": f"{release / 'venv/bin'}:{os.environ['PATH']}",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
     )
     assert result.stdout == "relocated entry point\n"
+    assert not (release / "venv/bin/__pycache__").exists()
 
 
 @pytest.mark.parametrize("deployment_profile", ["car", "bench"])
@@ -415,6 +493,21 @@ def test_coordinator_leaf_has_exact_identity_role_and_server_names(
     assert certificate.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value == (
         x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH])
     )
+    subject_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.SubjectKeyIdentifier
+    )
+    authority_key_identifier = certificate.extensions.get_extension_for_class(
+        x509.AuthorityKeyIdentifier
+    )
+    assert not subject_key_identifier.critical
+    assert subject_key_identifier.value == x509.SubjectKeyIdentifier.from_public_key(
+        certificate.public_key()
+    )
+    assert not authority_key_identifier.critical
+    assert authority_key_identifier.value == x509.AuthorityKeyIdentifier.from_issuer_public_key(
+        recovery.authority.certificate.public_key()
+    )
+    assert len(certificate.extensions) == 6
     assert certificate.not_valid_before_utc == NOW - timedelta(hours=24)
     assert certificate.not_valid_after_utc == NOW.replace(year=NOW.year + 10)
     assert private_key.public_key().public_numbers() == certificate.public_key().public_numbers()
@@ -474,6 +567,84 @@ def test_console_pkcs12_contains_only_its_client_identity(
     san = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert san.get_values_for_type(x509.IPAddress) == []
     assert san.get_values_for_type(x509.DNSName) == []
+    assert certificate.extensions.get_extension_for_class(
+        x509.AuthorityKeyIdentifier
+    ).value == x509.AuthorityKeyIdentifier.from_issuer_public_key(
+        recovery.authority.certificate.public_key()
+    )
+    assert len(certificate.extensions) == 6
+
+
+def test_generated_device_chain_passes_strict_python_mtls(
+    tmp_path: Path, recovery: RecoveryPackage
+) -> None:
+    coordinator = build_provisioning_bundle(
+        "coordinator",
+        recovery=recovery,
+        deployment_profile="car",
+        image=image_manifest("coordinator"),
+        application=application_artifact(tmp_path, "coordinator"),
+        output=tmp_path / "coordinator.zip",
+        created_at=NOW,
+    )
+    console = build_provisioning_bundle(
+        "console",
+        recovery=recovery,
+        deployment_profile="car",
+        image=image_manifest("console"),
+        application=application_artifact(tmp_path, "console"),
+        output=tmp_path / "console.zip",
+        created_at=NOW,
+    )
+    ca_path = tmp_path / "ca.pem"
+    server_certificate_path = tmp_path / "server-certificate.pem"
+    server_key_path = tmp_path / "server-key.pem"
+    client_certificate_path = tmp_path / "client-certificate.pem"
+    client_key_path = tmp_path / "client-key.pem"
+    ca_path.write_text(recovery.installation_ca_certificate)
+    with zipfile.ZipFile(coordinator.path) as archive:
+        server_certificate_path.write_bytes(archive.read("identity/server-certificate.pem"))
+        server_key_path.write_bytes(archive.read("identity/server-private-key.pem"))
+    with zipfile.ZipFile(console.path) as archive:
+        password = archive.read("identity/chromium-client-password")
+        client_key, client_certificate, _ = pkcs12.load_key_and_certificates(
+            archive.read("identity/chromium-client.p12"), password
+        )
+    assert client_key is not None and client_certificate is not None
+    client_certificate_path.write_bytes(client_certificate.public_bytes(serialization.Encoding.PEM))
+    client_key_path.write_bytes(
+        client_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+
+    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.load_cert_chain(server_certificate_path, server_key_path)
+    server_context.load_verify_locations(cafile=ca_path)
+    server_context.verify_mode = ssl.CERT_REQUIRED
+    server_context.verify_flags |= ssl.VERIFY_X509_STRICT
+    client_context = ssl.create_default_context(cafile=ca_path)
+    client_context.load_cert_chain(client_certificate_path, client_key_path)
+    client_context.verify_flags |= ssl.VERIFY_X509_STRICT
+    server_socket, client_socket = socket.socketpair()
+    server_socket.settimeout(5)
+    client_socket.settimeout(5)
+
+    def serve() -> None:
+        with server_context.wrap_socket(server_socket, server_side=True) as connection:
+            assert connection.recv(4) == b"ping"
+            connection.sendall(b"pong")
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        server = executor.submit(serve)
+        with client_context.wrap_socket(
+            client_socket, server_hostname="10.42.0.1"
+        ) as connection:
+            connection.sendall(b"ping")
+            assert connection.recv(4) == b"pong"
+        server.result()
 
 
 def _rewrite_zip(

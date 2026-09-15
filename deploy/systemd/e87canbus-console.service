@@ -9,6 +9,7 @@ User=e87canbus
 Group=e87canbus
 WorkingDirectory=/opt/e87canbus/current
 EnvironmentFile=/etc/e87canbus/console.env
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/e87canbus/current/venv/bin/e87canbus-console --host 127.0.0.1 --port ${E87CANBUS_CONSOLE_PORT} --frontend-directory ${E87CANBUS_CONSOLE_FRONTEND}
 Restart=on-failure
 RestartSec=5s

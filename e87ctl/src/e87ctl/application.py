@@ -19,6 +19,7 @@ from e87ctl.artifacts import (
     ApplicationManifest,
     FileRecord,
     Role,
+    _is_python_bytecode_path,
     canonical_json,
     digest_file,
     validate_application_archive,
@@ -142,6 +143,8 @@ def package_application(
                     continue
                 raise ApplicationBuildError("application output contains a non-regular file")
             name = path.relative_to(payload).as_posix()
+            if _is_python_bytecode_path(name):
+                raise ApplicationBuildError("application output contains Python bytecode")
             size = path.stat().st_size
             total_size += size
             if total_size > MAX_APPLICATION_CONTENT_BYTES:

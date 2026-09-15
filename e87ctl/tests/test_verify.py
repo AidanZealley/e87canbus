@@ -244,6 +244,13 @@ def test_ssh_command_uses_a_temporary_key_without_secret_arguments(
     assert recovery.operator_password.get_secret_value() not in arguments
     assert observed["input"] == _REMOTE_VERIFIER.encode()
     assert "StrictHostKeyChecking=yes" in command
+    assert command[-5:] == [
+        "/opt/e87canbus/current/venv/bin/python",
+        "-B",
+        "-",
+        "coordinator",
+        recovery.installation_id,
+    ]
 
 
 def test_host_key_scan_pins_only_the_expected_ed25519_fingerprint(
@@ -255,7 +262,10 @@ def test_host_key_scan_pins_only_the_expected_ed25519_fingerprint(
         commands.append(command)
         output = kwargs["stdout"]
         if command[0] == "ssh-keyscan":
-            output.write(b"10.42.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA==\n")  # type: ignore[union-attr]
+            output.write(  # type: ignore[union-attr]
+                b"# 10.42.0.1:22 SSH-2.0-OpenSSH_10.0\n\n"
+                b"10.42.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA==\n"
+            )
         else:
             output.write(f"256 {HOST_KEY_FINGERPRINT} 10.42.0.1 (ED25519)\n".encode())  # type: ignore[union-attr]
         return subprocess.CompletedProcess(args=command, returncode=0)
@@ -268,6 +278,23 @@ def test_host_key_scan_pins_only_the_expected_ed25519_fingerprint(
     assert commands[0][:6] == ["ssh-keyscan", "-T", "10", "-t", "ed25519", "10.42.0.1"]
     assert commands[1][:5] == ["ssh-keygen", "-l", "-E", "sha256", "-f"]
     assert _scan_and_pin_host_key("10.42.0.1", "SHA256:" + "B" * 43, tmp_path) is None
+
+
+def test_host_key_scan_rejects_multiple_key_records(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        assert command[0] == "ssh-keyscan"
+        kwargs["stdout"].write(  # type: ignore[union-attr]
+            b"# 10.42.0.1:22 SSH-2.0-OpenSSH_10.0\n"
+            b"10.42.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA==\n"
+            b"10.42.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB==\n"
+        )
+        return subprocess.CompletedProcess(args=command, returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert _scan_and_pin_host_key("10.42.0.1", HOST_KEY_FINGERPRINT, tmp_path) is None
 
 
 def test_remote_output_is_bounded(
