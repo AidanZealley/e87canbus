@@ -109,7 +109,7 @@ external and must not be claimed on the implementation host.
 
 - Gate and placement: complete provisioned pair, after closure and before acceptance.
 - Status: `Troubleshooting`
-- Candidate and instructions: `TBD` forward cleanup candidate restores normal pinned
+- Candidate and instructions: `7a87845f15ba59d30ecd38772b985fa4ae0c34ca` restores normal pinned
   `rpi-image-gen` Raspberry Pi Trixie package resolution. Do not build or flash it yet. Choose or
   implement a production display-interference mitigation before repeating the complete procedure
   in workstream 7 from clean cards.
