@@ -1,12 +1,11 @@
 # Coordinator Waveshare three-channel CAN stack
 
 This document records why the coordinator Raspberry Pi CAN stack works, how Linux discovers it,
-and the electrical constraints that must remain true. It is the hardware rationale behind
-`scripts/setup_coordinator.sh`, not a substitute for the executable two-host procedure in
-[the deployment runbook](../deploy/README.md).
+and the electrical constraints that must remain true. It is the hardware rationale behind the
+coordinator image, not a substitute for [the provisioning runbook](../deploy/README.md).
 
 The console does not use this stack. It uses only the 2-CH CAN HAT+ first controller for
-receive-only K-CAN; see [console wiring](wiring.md#console-can-and-ethernet).
+receive-only K-CAN; see [console wiring](wiring.md#console-can-and-wi-fi).
 
 ## Supported boards
 
@@ -51,9 +50,9 @@ solder changes. It must remain configured for:
 The original HAT's unused RS485 transceiver occupies the primary UART on BCM14/15, so those pins
 cannot also carry the bidirectional coordinator-panel link. The panel instead uses UART3 on BCM4/5.
 On the original HAT's factory automatic-direction configuration, the optional BCM4 `RSE` link is
-not populated; do not fit that link or enable UART3 CTS/RTS. Setup continues to remove Waveshare's
-unnecessary header `i2c0` overlay so it does not claim that separate internal allocation. The
-coordinator itself is headless.
+not populated; do not fit that link or enable UART3 CTS/RTS. The coordinator image omits
+Waveshare's unnecessary header `i2c0` overlay so it does not claim that separate internal
+allocation. The coordinator itself is headless.
 
 The HAT+ goes directly on the Pi and the original HAT stacks above it. Correct spacers are required
 to prevent terminal blocks or solder joints touching another board or the Pi connectors.
@@ -85,8 +84,8 @@ not be confused with CAN bus bitrates. SocketCAN bitrates are applied later by s
 The generic overlay disables the corresponding `spidev` node so the kernel MCP2515 driver, rather
 than a userspace SPI client, owns each selected device.
 
-Waveshare's example also enables `dtoverlay=i2c0`, but neither MCP2515 uses I2C, so setup
-deliberately removes it. The HAT+ identification EEPROM is not used at runtime.
+Waveshare's example also enables `dtoverlay=i2c0`, but neither MCP2515 uses I2C, so the coordinator
+image does not include it. The HAT+ identification EEPROM is not used at runtime.
 
 No Waveshare BCM2835, WiringPi, or Python demo library is required. The project uses the kernel
 driver, SocketCAN, `ip`, `can-utils`, and `python-can` through its SocketCAN adapter.
@@ -103,9 +102,9 @@ ptcan -> spi1.1
 fcan -> spi1.2
 ```
 
-The setup script validates the resolved `/sys/class/net/INTERFACE/device` parent for every interface
-before enabling the controller. A missing controller or different mapping fails closed. This is
-what makes the application's stable semantic assignment safe:
+The physical image checkpoint validates the resolved `/sys/class/net/INTERFACE/device` parent for
+every interface. A missing controller or different mapping fails acceptance. This is what makes
+the application's stable semantic assignment safe:
 
 | Interface | Application network | Service bitrate |
 |---|---|---:|

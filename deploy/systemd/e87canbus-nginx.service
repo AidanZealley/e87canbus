@@ -1,0 +1,23 @@
+[Unit]
+Description=E87 authenticated HTTPS boundary
+ConditionPathExists=!/var/lib/e87canbus-provisioning/unprovisioned
+After=e87canbus-controller.service NetworkManager-wait-online.service
+Requires=e87canbus-controller.service
+Wants=NetworkManager-wait-online.service
+
+[Service]
+Type=forking
+PIDFile=/run/e87canbus-nginx/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -q -c /etc/e87canbus/nginx.conf
+ExecStart=/usr/sbin/nginx -c /etc/e87canbus/nginx.conf
+ExecReload=/usr/sbin/nginx -s reload
+ExecStop=/usr/sbin/nginx -s quit
+Restart=on-failure
+RestartSec=5s
+RuntimeDirectory=e87canbus-nginx
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=e87canbus-role.target

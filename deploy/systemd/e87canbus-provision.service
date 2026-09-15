@@ -1,0 +1,14 @@
+[Unit]
+Description=E87 one-time device provisioning
+ConditionPathExists=/var/lib/e87canbus-provisioning/unprovisioned
+After=local-fs.target
+Before=NetworkManager.service ssh.service e87canbus-role.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/e87canbus-provision
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

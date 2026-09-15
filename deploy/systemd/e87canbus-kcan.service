@@ -13,5 +13,5 @@ ExecStart=/usr/sbin/ip link set kcan up
 ExecStop=-/usr/sbin/ip link set kcan down
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=e87canbus-role.target
 RequiredBy=e87canbus-controller.service

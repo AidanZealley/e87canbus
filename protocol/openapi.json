@@ -713,18 +713,6 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "HotspotStatus": {
-        "enum": [
-          "disabled",
-          "starting",
-          "waiting",
-          "connected",
-          "stopping",
-          "failed"
-        ],
-        "title": "HotspotStatus",
-        "type": "string"
-      },
       "LivenessResponse": {
         "additionalProperties": false,
         "properties": {
@@ -738,17 +726,92 @@
         "title": "LivenessResponse",
         "type": "object"
       },
-      "PanelDisplay": {
-        "enum": [
-          "starting",
-          "ready",
-          "hotspot_waiting",
-          "hotspot_connected",
-          "fault",
-          "off"
+      "ProvisioningStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_digests": {
+            "maxProperties": 8,
+            "patternProperties": {
+              "^[a-z][a-z0-9_-]{0,31}$": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "title": "Artifact Digests",
+            "type": "object"
+          },
+          "completed_phase": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Completed Phase",
+            "type": "string"
+          },
+          "device_id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "format_version": {
+            "const": 1,
+            "title": "Format Version",
+            "type": "integer"
+          },
+          "hostname": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+            "title": "Hostname",
+            "type": "string"
+          },
+          "installation_id": {
+            "pattern": "^[a-z2-7]{52}$",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "pending",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "coordinator",
+              "console"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format_version",
+          "role",
+          "installation_id",
+          "device_id",
+          "hostname",
+          "completed_phase",
+          "artifact_digests",
+          "result",
+          "error_code"
         ],
-        "title": "PanelDisplay",
-        "type": "string"
+        "title": "ProvisioningStatusResponse",
+        "type": "object"
       },
       "ReadinessResponse": {
         "additionalProperties": false,
@@ -957,23 +1020,10 @@
                 "type": "null"
               }
             ]
-          },
-          "display": {
-            "$ref": "#/components/schemas/PanelDisplay"
-          },
-          "failure_armed": {
-            "title": "Failure Armed",
-            "type": "boolean"
-          },
-          "hotspot_status": {
-            "$ref": "#/components/schemas/HotspotStatus"
           }
         },
         "required": [
           "coordinator_status",
-          "display",
-          "hotspot_status",
-          "failure_armed",
           "coordinator_status_preview"
         ],
         "title": "SimulationCoordinatorPanelState",
@@ -1903,129 +1953,6 @@
         ]
       }
     },
-    "/api/dev/simulation/coordinator-panel/button": {
-      "post": {
-        "operationId": "pressSimulationCoordinatorPanelButton",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Press Button",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/client/connect": {
-      "post": {
-        "operationId": "connectSimulationHotspotClient",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Connect Client",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/client/disconnect": {
-      "post": {
-        "operationId": "disconnectSimulationHotspotClient",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Disconnect Client",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
     "/api/dev/simulation/coordinator-panel/coordinator-status": {
       "put": {
         "operationId": "previewSimulationCoordinatorStatus",
@@ -2072,37 +1999,6 @@
           }
         },
         "summary": "Preview Coordinator Status",
-        "tags": [
-          "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation": {
-      "post": {
-        "operationId": "failNextSimulationHotspotOperation",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCoordinatorPanelState"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Fail Next Operation",
         "tags": [
           "development simulation: coordinator panel"
         ]
@@ -3914,6 +3810,30 @@
         "summary": "Update Steering Profile",
         "tags": [
           "steering"
+        ]
+      }
+    },
+    "/api/system/provisioning": {
+      "get": {
+        "operationId": "getProvisioningStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisioningStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "description": "Provisioning status unavailable"
+          }
+        },
+        "summary": "Provisioning Status",
+        "tags": [
+          "system"
         ]
       }
     },

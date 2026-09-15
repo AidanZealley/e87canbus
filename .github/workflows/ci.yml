@@ -29,8 +29,18 @@ jobs:
         working-directory: frontend
       - run: uv run pytest -q
       - run: uv run mypy
-      - run: uv run ruff check hosts scripts/watch_frontend_contracts.py
-      - run: bash -n scripts/*.sh deploy/bin/* deploy/kiosk/*.sh
+      - run: uv run ruff check e87ctl hosts scripts/watch_frontend_contracts.py
+      - run: |
+          for script in e87ctl/scripts/build-pi-image \
+            e87ctl/application-builder/build-application \
+            deploy/bin/e87canbus-firewall deploy/kiosk/*.sh \
+            images/*/customize.sh images/e87canbus-image-check scripts/*.sh; do
+            bash -n "$script"
+          done
+      - run: |
+          python3 -m py_compile \
+            deploy/bin/e87canbus-provision \
+            e87ctl/application-builder/make-entry-points-relocatable
       - run: uv run lint-imports
       - run: pnpm typecheck
         working-directory: frontend

@@ -455,12 +455,6 @@ export type HttpValidationError = {
 }
 
 /**
- * HotspotStatus
- */
-export type HotspotStatus =
-  "disabled" | "starting" | "waiting" | "connected" | "stopping" | "failed"
-
-/**
  * LivenessResponse
  */
 export type LivenessResponse = {
@@ -471,15 +465,48 @@ export type LivenessResponse = {
 }
 
 /**
- * PanelDisplay
+ * ProvisioningStatusResponse
  */
-export type PanelDisplay =
-  | "starting"
-  | "ready"
-  | "hotspot_waiting"
-  | "hotspot_connected"
-  | "fault"
-  | "off"
+export type ProvisioningStatusResponse = {
+  /**
+   * Artifact Digests
+   */
+  artifact_digests: {
+    [key: string]: unknown | string
+  }
+  /**
+   * Completed Phase
+   */
+  completed_phase: string
+  /**
+   * Device Id
+   */
+  device_id: string
+  /**
+   * Error Code
+   */
+  error_code: string | null
+  /**
+   * Format Version
+   */
+  format_version: 1
+  /**
+   * Hostname
+   */
+  hostname: string
+  /**
+   * Installation Id
+   */
+  installation_id: string
+  /**
+   * Result
+   */
+  result: "pending" | "succeeded" | "failed"
+  /**
+   * Role
+   */
+  role: "coordinator" | "console"
+}
 
 /**
  * ReadinessResponse
@@ -609,12 +636,6 @@ export type SimulationCommandAcknowledgement = {
 export type SimulationCoordinatorPanelState = {
   coordinator_status: CoordinatorStatus
   coordinator_status_preview: CoordinatorStatus | null
-  display: PanelDisplay
-  /**
-   * Failure Armed
-   */
-  failure_armed: boolean
-  hotspot_status: HotspotStatus
 }
 
 /**
@@ -1201,99 +1222,6 @@ export type GetSimulationCoordinatorPanelResponses = {
 export type GetSimulationCoordinatorPanelResponse =
   GetSimulationCoordinatorPanelResponses[keyof GetSimulationCoordinatorPanelResponses]
 
-export type PressSimulationCoordinatorPanelButtonData = {
-  body?: never
-  path?: never
-  query?: never
-  url: "/api/dev/simulation/coordinator-panel/button"
-}
-
-export type PressSimulationCoordinatorPanelButtonErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type PressSimulationCoordinatorPanelButtonError =
-  PressSimulationCoordinatorPanelButtonErrors[keyof PressSimulationCoordinatorPanelButtonErrors]
-
-export type PressSimulationCoordinatorPanelButtonResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCoordinatorPanelState
-}
-
-export type PressSimulationCoordinatorPanelButtonResponse =
-  PressSimulationCoordinatorPanelButtonResponses[keyof PressSimulationCoordinatorPanelButtonResponses]
-
-export type ConnectSimulationHotspotClientData = {
-  body?: never
-  path?: never
-  query?: never
-  url: "/api/dev/simulation/coordinator-panel/client/connect"
-}
-
-export type ConnectSimulationHotspotClientErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type ConnectSimulationHotspotClientError =
-  ConnectSimulationHotspotClientErrors[keyof ConnectSimulationHotspotClientErrors]
-
-export type ConnectSimulationHotspotClientResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCoordinatorPanelState
-}
-
-export type ConnectSimulationHotspotClientResponse =
-  ConnectSimulationHotspotClientResponses[keyof ConnectSimulationHotspotClientResponses]
-
-export type DisconnectSimulationHotspotClientData = {
-  body?: never
-  path?: never
-  query?: never
-  url: "/api/dev/simulation/coordinator-panel/client/disconnect"
-}
-
-export type DisconnectSimulationHotspotClientErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type DisconnectSimulationHotspotClientError =
-  DisconnectSimulationHotspotClientErrors[keyof DisconnectSimulationHotspotClientErrors]
-
-export type DisconnectSimulationHotspotClientResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCoordinatorPanelState
-}
-
-export type DisconnectSimulationHotspotClientResponse =
-  DisconnectSimulationHotspotClientResponses[keyof DisconnectSimulationHotspotClientResponses]
-
 export type PreviewSimulationCoordinatorStatusData = {
   body: SimulationCoordinatorStatusRequest
   path?: never
@@ -1324,33 +1252,6 @@ export type PreviewSimulationCoordinatorStatusResponses = {
 
 export type PreviewSimulationCoordinatorStatusResponse =
   PreviewSimulationCoordinatorStatusResponses[keyof PreviewSimulationCoordinatorStatusResponses]
-
-export type FailNextSimulationHotspotOperationData = {
-  body?: never
-  path?: never
-  query?: never
-  url: "/api/dev/simulation/coordinator-panel/hotspot/fail-next-operation"
-}
-
-export type FailNextSimulationHotspotOperationErrors = {
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type FailNextSimulationHotspotOperationError =
-  FailNextSimulationHotspotOperationErrors[keyof FailNextSimulationHotspotOperationErrors]
-
-export type FailNextSimulationHotspotOperationResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCoordinatorPanelState
-}
-
-export type FailNextSimulationHotspotOperationResponse =
-  FailNextSimulationHotspotOperationResponses[keyof FailNextSimulationHotspotOperationResponses]
 
 export type TapSimulationButtonData = {
   body?: never
@@ -2454,6 +2355,30 @@ export type UpdateSteeringProfileResponses = {
 
 export type UpdateSteeringProfileResponse =
   UpdateSteeringProfileResponses[keyof UpdateSteeringProfileResponses]
+
+export type GetProvisioningStatusData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/system/provisioning"
+}
+
+export type GetProvisioningStatusErrors = {
+  /**
+   * Provisioning status unavailable
+   */
+  503: unknown
+}
+
+export type GetProvisioningStatusResponses = {
+  /**
+   * Successful Response
+   */
+  200: ProvisioningStatusResponse
+}
+
+export type GetProvisioningStatusResponse =
+  GetProvisioningStatusResponses[keyof GetProvisioningStatusResponses]
 
 export type CheckLivenessData = {
   body?: never

@@ -2,7 +2,8 @@
 
 This PlatformIO project targets the Adafruit QT Py RP2040 mounted with an Adafruit NeoPixel Driver
 BFF. It drives exactly five WS2812B/SK6812-compatible pixels and implements only the coordinator
-panel's fixed newline-delimited UART protocol.
+panel's fixed newline-delimited status protocol. The panel displays `STARTING`, `READY`, `FAULT` and
+`OFF`.
 
 ## Connections
 
@@ -10,11 +11,9 @@ Use the standalone wiring diagrams for assembly:
 
 - [Raspberry Pi 4 harness](wiring-pi4.svg)
 - [RGB strip](wiring-rgb-strip.svg)
-- [Four-pin tactile button](wiring-button.svg)
 
 | Function | QT Py connection |
 |---|---|
-| Button | A0 to ground; firmware enables the internal pull-up |
 | NeoPixel data | A3 through the NeoPixel Driver BFF level shifter |
 | UART from Pi | Pi BCM4/TXD3, physical pin 7, to the QT Py pin labelled RX |
 | UART to Pi | Pi BCM5/RXD3, physical pin 29, from the QT Py pin labelled TX |
@@ -52,5 +51,5 @@ BOOT, tap RESET, release BOOT, then rerun the upload command. The exact serial d
 host and USB port.
 
 Compilation and native tests do not validate physical pixel order/colour, perceived brightness,
-3.3 V UART, button wiring, or heartbeat behaviour on the assembled harness. Complete those checks
+3.3 V UART or heartbeat behaviour on the assembled harness. Complete those checks
 on a fused bench supply with the Pi harness disconnected whenever USB-C is attached.

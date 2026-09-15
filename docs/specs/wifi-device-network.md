@@ -55,16 +55,22 @@ Unrelated host services do not listen on or accept traffic from the Wi-Fi interf
 The existing `10.43.0.0/30` coordinator-to-console Ethernet profiles, application proxy units,
 checks and documentation are removed. Ethernet is not a fallback transport after cutover.
 
+The coordinator panel reports only coordinator lifecycle state. NetworkManager autoconnect is the
+sole runtime owner of access-point activation.
+
 ## Wi-Fi security
 
-The initial configuration uses WPA3-SAE with Protected Management Frames required. NetworkManager
-stores the generated password in a root-owned connection profile. It is never committed, passed as
-a process argument or written to logs.
+The physical Pi 4 stack cannot start an SAE access point through either tested NetworkManager
+backend. The approved fallback is WPA2-Personal with RSN only, CCMP only and Protected Management
+Frames required. There is one fixed mode. NetworkManager remains the sole network owner and uses
+wpa_supplicant as its sole backend.
 
-The rebuilt coordinator and console images must pass a physical compatibility checkpoint using the
-selected Pi Wi-Fi hardware. If either Pi cannot connect reliably with WPA3-SAE and required
-management-frame protection, record the evidence and make one explicit fallback decision. Do not
-implement several selectable Wi-Fi security modes in advance.
+This loses SAE forward secrecy and resistance to offline password guessing. The generated
+32-character random installation password makes guessing impractical. Required management-frame
+protection still prevents unauthenticated deauthentication, and TLS, mutual TLS, SSH, the firewall
+and disabled forwarding retain their separate boundaries. NetworkManager stores the password in a
+root-owned connection profile. It is never committed, passed as a process argument or written to
+logs.
 
 Possession of the Wi-Fi password grants network access only. It grants neither application access
 nor Linux login.
@@ -233,10 +239,10 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 
 ## Acceptance criteria
 
-- The coordinator access point starts without a panel button press.
+- The coordinator access point starts automatically.
 - The console joins automatically and reaches all current console features without a human login.
-- WPA3-SAE and required management-frame protection pass on both Pi Wi-Fi devices, or one approved
-  evidence-backed fallback replaces them.
+- Both Pi Wi-Fi devices use the one approved WPA2-Personal, RSN-only and CCMP-only profile with
+  required management-frame protection.
 - The hotspot advertises no gateway or DNS server and forwards no traffic.
 - Disconnecting Ethernet does not change behavior because no runtime path uses it.
 - The console verifies the coordinator certificate for `10.42.0.1`.

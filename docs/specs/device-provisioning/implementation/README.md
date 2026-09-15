@@ -1,7 +1,6 @@
 # Device lifecycle tooling implementation workflow
 
-Status: draft orchestration instructions; implementation must not start until Aidan approves this
-workflow.
+Status: approved and in progress.
 
 This directory is the complete handoff for a fresh orchestration agent.
 
@@ -31,8 +30,9 @@ Each fresh implementation agent owns one workstream through at most one remediat
 implements the smallest complete result, runs focused checks, performs a deletion and
 simplification pass and fills in that workstream's handoff.
 
-A different fresh agent independently reviews each workstream. The reviewer may edit only the
-`Independent review` and `Closure review` sections of its record. Classify findings as:
+A different fresh agent independently reviews each workstream. External reviewers run read-only;
+the orchestrator records their results in `Independent review`. In-session closure reviewers may
+edit only `Closure review`. Classify findings as:
 
 - **Required:** a correctness or security defect, unmet acceptance criterion, boundary violation,
   meaningful regression or unjustified complexity that blocks acceptance.
@@ -62,12 +62,12 @@ provisioning bundles, recovery packages and removable-media contents never enter
    implementation agent.
 2. **Implement.** Change only owned files and approved integration exceptions. Run targeted checks,
    simplify the result and complete `Implementation handoff`.
-3. **Review.** A different fresh agent reviews the entire uncommitted workstream diff against the
-   specifications, task packet and surrounding code.
+3. **Review.** Run the review command with a fresh prompt for the workstream. The reviewer inspects
+   the entire uncommitted diff against the specifications, task packet and surrounding code.
 4. **Remediate.** The orchestrator accepts or rejects findings with reasons. The original
    implementation agent resolves all accepted required findings in one batch.
-5. **Close.** The original reviewer checks the accepted findings and only release-blocking defects
-   introduced by their fixes.
+5. **Close.** A fresh in-session reviewer checks the accepted findings and only release-blocking
+   defects introduced by their fixes.
 6. **Accept or escalate.** Accept the stream or resolve persistent disagreement. Do not start an
    automatic third review loop.
 7. **Verify and commit.** The implementation agent reruns focused checks and commits. The
@@ -90,8 +90,8 @@ documented external gate or material specification drift.
 
 ```text
 Independently review the current uncommitted workstream diff against its task packet, approved
-specifications and surrounding code. Do not edit implementation files. Record evidence-backed
-required findings, optional observations and questions in the workstream review section.
+specifications and surrounding code. Do not edit files. Return evidence-backed required findings,
+optional observations and questions for the orchestrator to record and triage.
 ```
 
 ### Closure prompt
@@ -102,17 +102,36 @@ then check only for release-blocking defects introduced by remediation. Update t
 Do not begin another broad review or promote optional observations.
 ```
 
+## Review command
+
+Use this read-only command for every remaining review, including workstream closure and both
+whole-feature review calls. Replace `<prompt>` with the applicable review prompt and task packet:
+
+```bash
+claude -p "<prompt>" --model opus --effort medium --permission-mode plan
+```
+
+The orchestrator records Claude's evidence under `Required`, `Optional` and `Question`, then owns
+triage. Run each closure as a fresh Claude call against the recorded accepted findings and fixes.
+
+If the command fails because Claude Code is missing, logged out, out of quota or otherwise cannot
+complete the review, assign a fresh reviewer in the current session. Record the substitution in
+the workstream or whole-feature review record and continue the same bounded loop.
+
 ## External validation gates
 
-Workstream 4 has a macOS writer gate. After its automated review closes, push one candidate and
-give Aidan the commands in that record. Evidence must cover structured disk discovery, rejection
-of protected/internal/partition targets, target-identity recheck, one successful spare-card write,
-image-region readback and boot-only mounting. Resume when the result and candidate hash are
-recorded.
+Workstream 4 has a macOS writer gate after workstream 6 and before workstream 7. Workstream 4's
+reviewed implementation may be accepted before the gate because workstream 6 produces the first
+truthful compatible image. After workstream 6 is accepted, push one combined candidate and give
+Aidan the commands in the workstream 4 record. Evidence must cover structured disk discovery,
+rejection of protected/ineligible-internal/partition targets, target-identity recheck, one successful
+spare-card write, image-region readback and boot-only mounting. Start workstream 7 only after the
+result and combined candidate hash are recorded.
 
-Workstream 7 has the final MacBook and two-Pi gate. Its candidate must build, provision and boot one
-coordinator and one console, exercise failure reporting with a separate disposable card or fixture,
-and pass the network, identity, authorization and service checks listed in that record.
+Workstream 8 has the final MacBook and two-Pi gate. Its combined candidate must build, provision
+and boot one coordinator and one console, exercise failure reporting with a separate disposable
+card, prove the panel is status-only, and pass the network, identity, authorization and service
+checks listed in workstreams 7 and 8.
 
 A failed attempt enters `Troubleshooting`, not a new implementation-review cycle. Record the
 candidate, command, useful output, diagnosis, correction owner and next attempt. Use the original
@@ -123,10 +142,11 @@ orchestration when the gate evidence is `Passed`.
 
 ## Final whole-feature review
 
-After every workstream and gate is accepted, assign a fresh reviewer to
+After every workstream and gate is accepted, run the review command with the task packet in
 [final-review.md](final-review.md). The reviewer inspects the complete branch from the recorded
 starting commit. The orchestrator triages findings and sends one accepted correction batch to each
-original owner. The same reviewer performs focused closure. Do not start open-ended review loops.
+original owner. A fresh in-session reviewer performs focused closure. Do not start open-ended
+review loops.
 
 ## Completion report
 

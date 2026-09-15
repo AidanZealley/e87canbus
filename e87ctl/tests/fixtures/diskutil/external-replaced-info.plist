@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>DeviceIdentifier</key><string>disk4</string><key>DeviceNode</key><string>/dev/disk4</string><key>WholeDisk</key><true/><key>Internal</key><false/><key>VirtualOrPhysical</key><string>Physical</string>
+<key>BusProtocol</key><string>USB</string><key>TotalSize</key><integer>31914983424</integer><key>MediaName</key><string>Different SD Card</string>
+<key>SerialNumber</key><string>SPARE002</string><key>DeviceTreePath</key><string>IODeviceTree:/usb/card-reader</string>
+<key>MediaUUID</key><string>FFFFFFFF-BBBB-CCCC-DDDD-EEEEEEEEEEEE</string>
+</dict></plist>

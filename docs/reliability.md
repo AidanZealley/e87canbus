@@ -52,16 +52,16 @@ task has one owner and a bounded join/cancellation check.
 On physical Raspberry Pi deployments, `kcan`, `ptcan`, and `fcan` are boot-managed by dedicated
 `systemd` units that apply their SocketCAN bitrates and raise the interfaces before the controller
 starts. The controller requires all three units on physical installations, so a failed CAN bootstrap
-also fails the controller start. Setup validates their SPI parents before starting the controller.
-That keeps transport stable across reboot and makes device reconnects independent from any manual
-bench script.
+also fails the controller start. The provisioned image fixes their SPI assignments, and the
+physical checkpoint validates those parents before release acceptance. That keeps transport stable
+across reboot and makes device reconnects independent from any manual bench script.
 
 The console has an independent, smaller lifecycle. `e87canbus-console-kcan.service` raises only
 `kcan` at 100 kbit/s before `e87canbus-console.service` starts. The car console profile uses kernel
 listen-only mode; the bench profile permits ACKs without granting application transmission. Its
 health and complete `console.snapshot` report local CAN connection, frame activity and faults
-without changing coordinator readiness or exposing raw frames. Coordinator or Ethernet failure
-affects coordinator-backed console state but does not stop local K-CAN observation; console failure
+without changing coordinator readiness or exposing raw frames. Coordinator or Wi-Fi failure
+affects coordinator-backed console state but does not stop local K-CAN observation. Console failure
 does not affect coordinator control.
 
 The canonical CLI exits nonzero for fatal controller termination, unexpected owner/timer/shutdown
@@ -69,5 +69,5 @@ failure, or failure to complete Uvicorn startup, allowing the bounded `systemd` 
 act. Each role's same-origin frontend boundary falls back to its `index.html` only for client
 routes. Missing assets and unknown `/api`, `/health` or Socket.IO paths remain real 404 responses.
 
-For the canonical loopback, same-origin `systemd` deployment and operator commands, see
-[coordinator and console operation](../deploy/README.md#routine-operation).
+For the canonical provisioned hosts, authenticated network and operator access, see the
+[coordinator and console provisioning runbook](../deploy/README.md).

@@ -3,15 +3,27 @@ from __future__ import annotations
 import json
 import threading
 import time
+from pathlib import Path
 
 import pytest
+from argon2 import PasswordHasher
 from e87canbus.api import main as api_main
 from e87canbus.cli import main as cli
 from e87canbus.deployment import DeploymentProfile
 
 
+def configure_transport_authentication(
+    monkeypatch: pytest.MonkeyPatch, temporary_directory: Path
+) -> None:
+    password_hash = temporary_directory / "operator-password.hash"
+    password_hash.write_text(PasswordHasher().hash("test-only-password"))
+    monkeypatch.setenv(cli.INSTALLATION_ID_ENVIRONMENT_VARIABLE, "a" * 52)
+    monkeypatch.setattr(cli, "OPERATOR_PASSWORD_HASH_PATH", password_hash)
+
+
 def test_canonical_cli_selects_car_profile_without_opening_adapters_before_lifespan(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     calls: list[object] = []
 
@@ -27,10 +39,12 @@ def test_canonical_cli_selects_car_profile_without_opening_adapters_before_lifes
 
     monkeypatch.delenv(cli.DEPLOYMENT_PROFILE_ENVIRONMENT_VARIABLE, raising=False)
     monkeypatch.setattr(cli.uvicorn, "Server", FakeServer)
+    configure_transport_authentication(monkeypatch, tmp_path)
 
     assert cli.main(("run", "--profile", "car")) == 0
     assert api_main.app.state.deployment_profile is DeploymentProfile.CAR
     assert len(calls) == 1
+    assert vars(calls[0])["proxy_headers"] is False
 
 
 @pytest.mark.parametrize(
@@ -69,7 +83,7 @@ def test_profile_environment_variable_is_used_for_dry_run(
     assert json.loads(capsys.readouterr().out)["profile"] == "bench"
 
 
-def test_live_profile_rejects_unauthenticated_non_loopback_bind() -> None:
+def test_live_profile_rejects_non_loopback_bind() -> None:
     with pytest.raises(ValueError, match="loopback"):
         cli.main(
             (
@@ -85,6 +99,7 @@ def test_live_profile_rejects_unauthenticated_non_loopback_bind() -> None:
 
 def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class FatalService:
         stopped_event = threading.Event()
@@ -116,12 +131,14 @@ def test_fatal_controller_stop_makes_canonical_cli_return_nonzero(
 
     monkeypatch.setattr(cli, "create_app", create_app_with_fatal_service)
     monkeypatch.setattr(cli.uvicorn, "Server", FatalServer)
+    configure_transport_authentication(monkeypatch, tmp_path)
 
     assert cli.main(("run", "--profile", "car")) == 1
 
 
 def test_canonical_cli_returns_nonzero_when_uvicorn_never_started(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class StartupFailedServer:
         should_exit = False
@@ -134,6 +151,6 @@ def test_canonical_cli_returns_nonzero_when_uvicorn_never_started(
             return
 
     monkeypatch.setattr(cli.uvicorn, "Server", StartupFailedServer)
+    configure_transport_authentication(monkeypatch, tmp_path)
 
     assert cli.main(("run", "--profile", "car")) == 1
-

@@ -38,12 +38,15 @@ EOF
 }
 
 install_runtime_assets() {
+    [ "${IGconf_image_boot_part_size}" = 2G ]
+    [ "${IGconf_image_root_part_size}" = 4G ]
     install -d -m 0755 \
         "${target}/etc/systemd/system" \
         "${target}/etc/systemd/system/e87canbus-console.service.d" \
         "${target}/etc/systemd/system/e87canbus-console-kiosk.service.d" \
         "${target}/etc/udev/rules.d" \
-        "${target}/usr/local/bin"
+        "${target}/usr/local/bin" \
+        "${target}/usr/share/e87canbus"
 
     for unit in \
         e87canbus-console-kcan.service \
@@ -67,6 +70,9 @@ install_runtime_assets() {
     install -m 0640 "${deploy}/systemd/console.env.example" \
         "${target}/etc/e87canbus/console.env"
     chroot "${target}" chown root:e87canbus /etc/e87canbus/console.env
+    cat >"${target}/usr/share/e87canbus/image-contract.json" <<EOF
+{"architecture":"arm64","boot_partition_size_bytes":$((2 * 1024 * 1024 * 1024)),"format_version":1,"os_release":"Raspberry Pi OS Lite Trixie","provisioning_interface_version":1,"raspberry_pi_model":"Raspberry Pi 4 Model B","role":"console","root_filesystem_size_bytes":$((4 * 1024 * 1024 * 1024))}
+EOF
 }
 
 configure_boot
