@@ -1,6 +1,6 @@
 # Device lifecycle tooling whole-feature review
 
-Status: focused closure accepted; physical-evidence decision pending.
+Status: focused closure accepted; provisioned-pair gate troubleshooting.
 
 ## Reviewer task packet
 
@@ -167,15 +167,20 @@ when the original is unavailable, and record why.
 ## Orchestrator completion record
 
 - Final head and verification: Code corrections end at
-  `1034e87222a1ac6d54835fbda34e9e0fa87c9621`. Final whole-feature verification passed: `987` Python tests,
+  `f67e02e226491b7211c61ffd97bc73ce0c3a2792`. The physical-verifier correction passed `995`
+  Python tests under independent Claude closure, plus Ruff and mypy. The orchestrator separately
+  passed `96` focused tests, Ruff, mypy over 142 source files, provisioning-consumer compilation,
+  application-builder shell syntax and `git diff --check`. Earlier whole-feature verification passed: `987` Python tests,
   mypy over 142 source files, Ruff, import contracts, generated protocol checks, provisioning
   consumer and application-builder helper compilation, per-file shell syntax and
   `git diff --check`. The unchanged frontend had already passed API checks, lint, typecheck, `208`
   tests and both production builds at whole-feature closure. PlatformIO native tests passed (`3`
   tests) and the RP2040 production firmware built after complete button removal.
-- External validation pending: Both documented gates are marked `Passed`. Completion still awaits
-  the additional physical checks absent from the `eda0d12` report; Aidan assigned them to the local
-  verification agent rather than accepting evidence limitations.
+- External validation pending: The macOS writer gate remains `Passed`. The provisioned-pair gate is
+  `Troubleshooting` after real `e87ctl verify` exposed three measured defects despite the successful
+  `eda0d12` deployed-device result. Build fresh artifacts, create a new installation, reprovision
+  both cards and run the corrected verifier at least twice before completing the outstanding
+  physical checks. Mechanical display spacing remains separate hardware work.
 - Specification drift: No unrecorded implementation drift. Aidan classified mechanical
   DSI/display spacing as separate hardware integration work rather than a software gate blocker.
 - Completion report delivered: `TBD`

@@ -80,10 +80,12 @@ Record rather than hide any check unavailable on the implementation host.
 ## External validation
 
 - Gate and placement: complete provisioned pair, after workstream 8 closure.
-- Status: `Passed`
-- Candidate: `eda0d12cfb56a23ed71bd1a3e33eb40be229b75b`, built clean with the accepted
-  coordinator HTTPS correction. Complete evidence is recorded in
-  [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md).
+- Status: `Troubleshooting`
+- Candidate: corrective software commit `f67e02e226491b7211c61ffd97bc73ce0c3a2792`;
+  fresh images have not yet been built. The successful `eda0d12` device evidence remains in
+  [the candidate physical-gate report](evidence/eda0d12-physical-gate-report.md), and the verifier
+  diagnosis and correction are recorded in
+  [the follow-up report](evidence/eda0d12-e87ctl-verification-diagnostics.md).
 - Required evidence: candidate hash and clean/dirty build context; both image and application
   manifests/digests; MacBook builds; two safe SD writes/readbacks; coordinator and console first
   boot; unique hostname/machine ID/SSH keys; ZIP and staged-secret removal; marker transition;
@@ -99,11 +101,36 @@ Record rather than hide any check unavailable on the implementation host.
   `get_throttled=0x0` ruled out a power fault. Together with the earlier iwd rejection, this
   triggered Aidan's approval of the one WPA2-Personal, RSN-only, CCMP-only fallback. Required PMF
   remains because the evidence isolates SAE.
-- Result: Both fresh images provisioned successfully and their complete streamed image checkers
+- Prior device result: Both fresh images provisioned successfully and their complete streamed image checkers
   passed. The console associated immediately under WPA2-RSN/CCMP/required-PMF, Chromium mutual TLS
   loaded settings through the coordinator, the authenticated HTTPS boundary remained stable and
   port 80 was absent. Aidan accepted the result as passing the software and image workflow. The
   remaining display spacer is hardware integration work outside this gate.
+- Reopening result: The required real workstation verifier reached both devices and direct
+  authenticated SSH succeeded, but three measured defects prevented valid CLI evidence: macOS
+  `ssh-keyscan` comments were counted as key records, relocated Python bytecode broke exact release
+  hashing, and strict Python TLS rejected the generated certificates for a missing authority key
+  identifier. Commit `f67e02e` fixes all three and passed independent Claude closure. Rebuild the
+  application, create a fresh installation and reprovision both cards before retesting. Run
+  `e87ctl verify` at least twice to prove exact release stability, host-key pinning and console mTLS.
+
+### Physical-verifier troubleshooting correction
+
+- Implementation owners: Three fresh focused agents corrected the macOS host-key scan, immutable
+  release construction and certificate profile independently. One implementation owner integrated
+  the accepted 15-file result after review.
+- Review: Claude Code Opus at medium effort found one required issue in the initial cumulative
+  review: the privileged verifier imported the release environment without `-B` and could create
+  bytecode before checking it. The release owner corrected the invocation and added matching
+  producer, archive, first-boot consumer and service boundaries. The fresh focused closure accepted
+  the cumulative correction with no release-blocking finding.
+- Verification: Claude's closure run passed `995` Python tests, Ruff and mypy. The orchestrator's
+  focused run passed `96` tests, Ruff, mypy over 142 files, provisioning-consumer compilation,
+  application-builder shell syntax and `git diff --check`.
+- Accepted correction: `f67e02e226491b7211c61ffd97bc73ce0c3a2792`.
+- External requirement: Create a fresh installation and cards, then run the real verifier at least
+  twice. Earlier recovery packages and application artifacts cannot validate the corrected
+  certificate and immutable-release contracts.
 
 ### Candidate procedure
 
