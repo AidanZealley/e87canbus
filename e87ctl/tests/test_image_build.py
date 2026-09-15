@@ -712,7 +712,8 @@ def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
     assert "Before=NetworkManager.service" in firewall_unit
     assert "WantedBy=multi-user.target" in firewall_unit
     assert "delete table inet e87canbus" in firewall_helper
-    assert "| exec /usr/sbin/nft --file -" in firewall_helper
+    assert "} | /usr/sbin/nft --file -\nelse\n" in firewall_helper
+    assert firewall_helper.count("/usr/sbin/nft --file") == 2
     assert "listen 10.42.0.1:443 ssl" in nginx
     assert "ssl_verify_client optional" in nginx
     assert "X-E87-Client-Verify $ssl_client_verify" in nginx
