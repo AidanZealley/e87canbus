@@ -472,6 +472,11 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "test -L /opt/e87canbus/current",
         "test -e /dev/ttyAMA3",
         "e87canbus-controller.service e87canbus-firewall.service",
+        "authenticated HTTPS listener active at 10.42.0.1:443",
+        "ss -H -ltn 'sport = :443'",
+        "no HTTP listener exposed on port 80",
+        "ss -H -ltn 'sport = :80'",
+        "systemctl is-enabled nginx.service",
         "readlink -f /sys/class/net/kcan/device | grep -q '/spi0[.]0$'",
         "readlink -f /sys/class/net/ptcan/device | grep -q '/spi1[.]1$'",
         "readlink -f /sys/class/net/fcan/device | grep -q '/spi1[.]2$'",
@@ -714,10 +719,19 @@ def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
     assert "X-E87-Client-Certificate $ssl_client_escaped_cert" in nginx
     assert "X-Forwarded-Host 10.42.0.1" in nginx
     assert "X-Forwarded-Proto https" in nginx
+    assert "user www-data;" in nginx
+    for temp_path in ("client_body", "proxy", "fastcgi", "uwsgi", "scgi"):
+        assert f"{temp_path}_temp_path /run/e87canbus-nginx/" in nginx
     assert "RuntimeDirectory=e87canbus-nginx" in nginx_unit
     assert "After=e87canbus-controller.service NetworkManager-wait-online.service" in nginx_unit
     assert "ExecStartPre=/usr/sbin/nginx -t -q -c /etc/e87canbus/nginx.conf" in nginx_unit
     assert "Restart=on-failure" in nginx_unit
+
+
+def test_coordinator_masks_the_stock_nginx_service() -> None:
+    customize = read(COORDINATOR / "customize.sh")
+
+    assert 'ln -sfn /dev/null "${target}/etc/systemd/system/nginx.service"' in customize
 
 
 def test_coordinator_application_is_gated_until_provisioning_installs_it() -> None:
