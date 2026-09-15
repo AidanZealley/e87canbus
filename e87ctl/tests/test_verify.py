@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -10,13 +11,18 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
-from e87ctl.recovery import create_recovery_package
+from e87ctl.recovery import (
+    create_recovery_package,
+    load_recovery_package,
+    write_recovery_package,
+)
 from e87ctl.verify import (
     _REMOTE_VERIFIER,
     REMOTE_COMMON_CHECKS,
     REMOTE_CONSOLE_CHECKS,
     VerificationCheck,
     VerificationResult,
+    VerifyCommandError,
     _coordinator_https_checks,
     _scan_and_pin_host_key,
     _ssh_checks,
@@ -24,7 +30,7 @@ from e87ctl.verify import (
     render_human,
 )
 
-from e87ctl import cli
+from e87ctl import cli, guided
 
 INSTALLATION_ID = "a" * 52
 DEVICE_ID = "12345678-1234-4234-8234-123456789abc"
@@ -497,3 +503,265 @@ def test_remote_verifier_is_valid_python() -> None:
     ):
         assert expected in _REMOTE_VERIFIER
     assert 'key-mgmt") == "sae"' not in _REMOTE_VERIFIER
+
+
+def role_result(role: str, *states: str) -> VerificationResult:
+    checks = tuple(
+        VerificationCheck(name=f"check_{index}", status=state, detail="diagnostic detail")
+        for index, state in enumerate(states)
+    )
+    return VerificationResult(
+        result="passed" if all(state == "passed" for state in states) else "failed",
+        role=role,
+        installation_id=INSTALLATION_ID,
+        device_id=DEVICE_ID,
+        hostname=f"e87-{role}-12345678",
+        checks=checks,
+    )
+
+
+def scripted(answers: list[str], asked: list[str]) -> Callable[[str], str]:
+    def prompt(question: str) -> str:
+        asked.append(question)
+        if not answers:
+            raise EOFError
+        return answers.pop(0)
+
+    return prompt
+
+
+@pytest.fixture
+def installation(tmp_path: Path) -> Path:
+    path = tmp_path / "e87canbus-installation-v1.json"
+    write_recovery_package(path, create_recovery_package())
+    return path
+
+
+def guided_inputs(installation: Path, report: Path) -> guided.GuidedInputs:
+    return guided.GuidedInputs(
+        installation_path=installation,
+        installation_id=load_recovery_package(installation).installation_id,
+        fingerprints={"coordinator": HOST_KEY_FINGERPRINT, "console": HOST_KEY_FINGERPRINT},
+        report_path=report,
+    )
+
+
+def stub_verifier(
+    results: dict[tuple[str, int], VerificationResult] | None = None,
+    *,
+    fail_after: int | None = None,
+) -> Callable[..., VerificationResult]:
+    calls: list[str] = []
+
+    def verify(role: str, installation_path: Path, **keywords: object) -> VerificationResult:
+        calls.append(role)
+        if fail_after is not None and len(calls) > fail_after:
+            raise VerifyCommandError("could not verify the selected device")
+        attempt = calls.count(role)
+        if results is not None and (role, attempt) in results:
+            return results[(role, attempt)]
+        return role_result(role, "passed")
+
+    verify.calls = calls  # type: ignore[attr-defined]
+    return verify
+
+
+def test_guided_flow_collects_every_local_input_before_the_network_switch(
+    installation: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    asked: list[str] = []
+    prompt = scripted(
+        [
+            str(installation),
+            HOST_KEY_FINGERPRINT,
+            HOST_KEY_FINGERPRINT,
+            str(tmp_path / "report.json"),
+            guided.NETWORK_CONFIRMATION,
+        ],
+        asked,
+    )
+
+    inputs = guided.collect_inputs(prompt)
+    guided.confirm_network(prompt)
+
+    assert [question.split(":")[0] for question in asked] == [
+        "Installation recovery package path",
+        "Coordinator SSH host-key fingerprint (SHA256",
+        "Console SSH host-key fingerprint (SHA256",
+        "Report output path",
+        f"Type '{guided.NETWORK_CONFIRMATION}' once connected",
+    ]
+    assert inputs.installation_id == load_recovery_package(installation).installation_id
+    assert "installation Wi-Fi network" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("index", "answer", "message"),
+    [
+        (0, "recovery.json", "could not read the installation recovery package"),
+        (1, "SHA256:short", "the coordinator SSH host-key fingerprint is invalid"),
+        (2, "not-a-fingerprint", "the console SSH host-key fingerprint is invalid"),
+        (3, "gone/report.json", "the report directory does not exist"),
+        (3, "existing.json", "the report path already exists"),
+    ],
+)
+def test_guided_flow_rejects_invalid_local_input_before_any_device_call(
+    installation: Path,
+    tmp_path: Path,
+    index: int,
+    answer: str,
+    message: str,
+) -> None:
+    (tmp_path / "existing.json").write_text("{}", encoding="utf-8")
+    answers = [
+        str(installation),
+        HOST_KEY_FINGERPRINT,
+        HOST_KEY_FINGERPRINT,
+        str(tmp_path / "report.json"),
+    ]
+    # Fingerprint answers are literal; the path answers are resolved inside the temporary tree.
+    answers[index] = answer if index in {1, 2} else str(tmp_path / answer)
+    asked: list[str] = []
+
+    with pytest.raises(VerifyCommandError) as failure:
+        guided.collect_inputs(scripted(answers, asked))
+
+    assert str(failure.value) == message
+    assert all("once connected" not in question for question in asked)
+
+
+def test_guided_flow_requires_an_explicit_network_confirmation(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(VerifyCommandError) as failure:
+        guided.confirm_network(lambda question: "no")
+    assert str(failure.value) == "the network switch was not confirmed"
+
+
+def test_guided_run_verifies_both_roles_twice_and_records_elapsed_times(
+    installation: Path, tmp_path: Path
+) -> None:
+    ticks = iter(range(100))
+    verify = stub_verifier()
+
+    report = guided.run_passes(
+        guided_inputs(installation, tmp_path / "report.json"),
+        clock=lambda: float(next(ticks)),
+        verify=verify,
+    )
+
+    assert verify.calls == ["coordinator", "console", "coordinator", "console"]  # type: ignore[attr-defined]
+    assert [(entry.pass_number, entry.role) for entry in report.passes] == [
+        (1, "coordinator"),
+        (1, "console"),
+        (2, "coordinator"),
+        (2, "console"),
+    ]
+    assert all(entry.elapsed_seconds == 1.0 for entry in report.passes)
+    assert report.result == "passed"
+    assert report.incomplete_reason is None
+
+
+def test_guided_report_keeps_a_failing_second_pass_visible(
+    installation: Path, tmp_path: Path
+) -> None:
+    mutated = role_result("coordinator", "passed", "failed")
+    verify = stub_verifier({("coordinator", 2): mutated})
+
+    report = guided.run_passes(
+        guided_inputs(installation, tmp_path / "report.json"),
+        clock=lambda: 0.0,
+        verify=verify,
+    )
+
+    assert report.result == "failed"
+    assert len(report.passes) == 4
+    failed = [entry for entry in report.passes if entry.verification.result == "failed"]
+    assert [(entry.pass_number, entry.role) for entry in failed] == [(2, "coordinator")]
+    assert "failed" in guided.render_report_human(report)
+
+
+def test_guided_report_keeps_completed_evidence_when_a_device_call_aborts(
+    installation: Path, tmp_path: Path
+) -> None:
+    report = guided.run_passes(
+        guided_inputs(installation, tmp_path / "report.json"),
+        clock=lambda: 0.0,
+        verify=stub_verifier(fail_after=1),
+    )
+
+    assert report.result == "failed"
+    assert [(entry.pass_number, entry.role) for entry in report.passes] == [(1, "coordinator")]
+    assert report.incomplete_reason == "could not verify the selected device"
+
+
+def test_guided_report_cannot_claim_success_without_four_passing_passes() -> None:
+    with pytest.raises(ValueError):
+        guided.PairVerificationReport(
+            result="passed",
+            installation_id=INSTALLATION_ID,
+            passes=(
+                guided.PairVerificationPass(
+                    pass_number=1,
+                    role="coordinator",
+                    elapsed_seconds=0.0,
+                    verification=role_result("coordinator", "passed"),
+                ),
+            ),
+            incomplete_reason=None,
+        )
+
+
+def test_guided_command_writes_a_secret_free_report_and_exits_nonzero(
+    installation: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report_path = tmp_path / "report.json"
+    answers = [
+        str(installation),
+        HOST_KEY_FINGERPRINT,
+        HOST_KEY_FINGERPRINT,
+        str(report_path),
+        guided.NETWORK_CONFIRMATION,
+    ]
+    monkeypatch.setattr("builtins.input", lambda question: answers.pop(0))
+    monkeypatch.setattr(
+        cli,
+        "run_passes",
+        lambda inputs: guided.run_passes(
+            inputs,
+            clock=lambda: 0.0,
+            verify=stub_verifier({("console", 2): role_result("console", "failed")}),
+        ),
+    )
+
+    assert cli.main(["verify"]) == 1
+
+    document = json.loads(report_path.read_text(encoding="utf-8"))
+    assert document["format_version"] == 1
+    assert document["result"] == "failed"
+    assert len(document["passes"]) == 4
+    package = load_recovery_package(installation)
+    captured = capsys.readouterr()
+    for secret in (
+        package.installation_ca_private_key.get_secret_value(),
+        package.wifi_password.get_secret_value(),
+        package.operator_password.get_secret_value(),
+        package.ssh_private_key.get_secret_value(),
+    ):
+        assert secret not in report_path.read_text(encoding="utf-8")
+        assert secret not in captured.out
+        assert secret not in captured.err
+    assert str(report_path) in captured.out
+
+
+def test_guided_form_rejects_explicit_role_options(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["verify", "--installation", "recovery.json"]) == 1
+    assert "guided verification takes no --installation" in capsys.readouterr().err
+
+
+def test_explicit_role_still_requires_an_installation(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["verify", "console"]) == 1
+    assert "--installation is required" in capsys.readouterr().err

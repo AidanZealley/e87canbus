@@ -51,8 +51,23 @@ During physical commissioning, use each Pi's local debug shell to record its tru
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 ```
 
-Join the generated Wi-Fi network from the Mac. Set the two fingerprint variables to the complete
-`SHA256:` values recorded from the matching physical Pis, then run both online checks:
+Start the guided pair check before joining the Wi-Fi network. It asks for the recovery-package
+path, both recorded `SHA256:` fingerprints and a report path, then tells you when to switch
+networks:
+
+```bash
+uv run e87ctl verify
+```
+
+After you confirm the switch it verifies the coordinator and the console twice each, prints every
+check, and saves one secret-free JSON report of all four results and their elapsed times. Bad
+local input fails before the network switch, so you keep your internet connection while correcting
+it. A device failure exits nonzero and still saves the evidence collected so far, which you can
+read once the Mac is back on its normal network. Choose a new report path for each attempt: the
+command refuses to overwrite an existing file.
+
+For automation or focused troubleshooting, run a single role directly instead. Set each variable
+to the complete `SHA256:` value recorded from its physical Pi:
 
 ```bash
 uv run e87ctl verify coordinator \
@@ -63,12 +78,12 @@ uv run e87ctl verify console \
   --host-key-fingerprint "$E87_CONSOLE_SSH_FINGERPRINT"
 ```
 
-The commands scan the fixed role address and accept SSH only when its Ed25519 host key matches the
-explicit fingerprint. They fail if authenticated SSH, provisioning state, installed identity,
-release, role services, Wi-Fi, trusted HTTPS readiness or an authorization check fails or is
-unavailable. Console verification uses the installed Chromium identity to prove HTTP and
-Socket.IO mutual TLS and rejection by the operator-only provisioning endpoint. `--json` returns
-the same checks as a versioned document.
+Both forms run the same checks. They scan the fixed role address and accept SSH only when its
+Ed25519 host key matches the explicit fingerprint. They fail if authenticated SSH, provisioning
+state, installed identity, release, role services, Wi-Fi, trusted HTTPS readiness or an
+authorization check fails or is unavailable. Console verification uses the installed Chromium
+identity to prove HTTP and Socket.IO mutual TLS and rejection by the operator-only provisioning
+endpoint. `--json` returns the same checks as a versioned document for a single role.
 
 Import the public CA sidecar on a service laptop, open `https://10.42.0.1`, and sign in as
 `operator` with the password in the recovery package. A laptop with only the Wi-Fi password may

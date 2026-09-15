@@ -105,11 +105,20 @@ uv run e87ctl installation create --output <recovery-package>
 uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
 
+uv run e87ctl verify
 uv run e87ctl verify coordinator --installation <recovery-package> \
   --host-key-fingerprint <trusted-sha256-fingerprint>
 uv run e87ctl verify console --installation <recovery-package> \
   --host-key-fingerprint <trusted-sha256-fingerprint>
 ```
+
+`e87ctl verify` with no role is the guided pair check. It collects the recovery-package path, both
+trusted Ed25519 host-key fingerprints and a report path, then asks the operator to join the
+installation network. After that confirmation it verifies the coordinator and the console twice
+each and writes one versioned, secret-free report of all four results and their elapsed times.
+Invalid local input fails before the network switch, and a device failure exits nonzero while still
+saving the evidence gathered so far. The guided flow calls the same per-role verification as the
+explicit commands, which remain available for automation and offline status checks.
 
 Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
 profile and requires confirmation of the resolved destructive action. Every interactive selection
