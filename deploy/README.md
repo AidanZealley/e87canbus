@@ -7,8 +7,8 @@ software during first boot.
 
 ## Prepare the workstation
 
-Use an arm64 Mac with Docker Desktop, two blank SD cards, and a third disposable card for the
-failure check. Keep the recovery package outside the repository and back it up in a password
+Use an arm64 Mac with Docker Desktop, `jq`, two blank SD cards, and a third disposable card for
+the failure check. Keep the recovery package outside the repository and back it up in a password
 manager or equivalent secret store.
 
 ```bash
@@ -45,45 +45,14 @@ Fit the coordinator card to the headless Pi 4 with its three fixed CAN controlle
 the console card to the Pi 4 with its single connected K-CAN controller, display and touchscreen.
 Ethernet stays disconnected. Power the coordinator first, then the console.
 
-During physical commissioning, use each Pi's local debug shell to record its trusted host key:
+On each Pi's local debug shell, record its SSH Ed25519 host-key fingerprint:
 
 ```bash
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 ```
 
-Start the guided pair check before joining the Wi-Fi network. It asks for the recovery-package
-path, both recorded `SHA256:` fingerprints and a report path, then tells you when to switch
-networks:
-
-```bash
-uv run e87ctl verify
-```
-
-After you confirm the switch it verifies the coordinator and the console twice each, prints every
-check, and saves one secret-free JSON report of all four results and their elapsed times. Bad
-local input fails before the network switch, so you keep your internet connection while correcting
-it. A device failure exits nonzero and still saves the evidence collected so far, which you can
-read once the Mac is back on its normal network. Choose a new report path for each attempt: the
-command refuses to overwrite an existing file.
-
-For automation or focused troubleshooting, run a single role directly instead. Set each variable
-to the complete `SHA256:` value recorded from its physical Pi:
-
-```bash
-uv run e87ctl verify coordinator \
-  --installation /secure/path/e87canbus-installation-v1.json \
-  --host-key-fingerprint "$E87_COORDINATOR_SSH_FINGERPRINT"
-uv run e87ctl verify console \
-  --installation /secure/path/e87canbus-installation-v1.json \
-  --host-key-fingerprint "$E87_CONSOLE_SSH_FINGERPRINT"
-```
-
-Both forms run the same checks. They scan the fixed role address and accept SSH only when its
-Ed25519 host key matches the explicit fingerprint. They fail if authenticated SSH, provisioning
-state, installed identity, release, role services, Wi-Fi, trusted HTTPS readiness or an
-authorization check fails or is unavailable. Console verification uses the installed Chromium
-identity to prove HTTP and Socket.IO mutual TLS and rejection by the operator-only provisioning
-endpoint. `--json` returns the same checks as a versioned document for a single role.
+This physical reading establishes the trusted value to compare on the operator's first
+maintenance SSH connection.
 
 On the coordinator panel, confirm that the display settles at `READY`. The panel is status-only;
 the former network-control button and its host, simulator and firmware paths no longer exist.
@@ -93,19 +62,32 @@ Import the public CA sidecar on a service laptop, open `https://e87.local`, and 
 use `/health/live` but cannot read application state. SSH is available as `e87-admin` with the
 management private key in the recovery package. Password and root login are disabled.
 
+Confirm that the console dashboard displays current coordinator-backed state without a prompt or
+login. Disconnect the console Wi-Fi and confirm that it reports the coordinator state as
+disconnected and rejects an attempted command. Reconnect Wi-Fi and confirm that the dashboard
+receives fresh current state without replaying the rejected command. This console check and the
+authenticated maintenance session at `https://e87.local` provide the image runbook's end-to-end
+TLS evidence.
+
 ## First-boot failure
 
 If a Pi never reaches the network, power it down and return its card to the Mac. Mount only its
 `BOOT` partition and read the non-secret status:
 
 ```bash
-uv run e87ctl verify coordinator \
-  --installation /secure/path/e87canbus-installation-v1.json \
-  --status /Volumes/BOOT/e87canbus-status-v1.json
+(
+  set -euo pipefail
+  E87_STATUS=/Volumes/BOOT/e87canbus-status-v1.json
+  test "$(stat -f %z "$E87_STATUS")" -le 65536
+  jq . "$E87_STATUS"
+)
 ```
 
-Offline status is diagnostic and therefore always leaves online verification unavailable. The
-command exits nonzero even when the status says first boot succeeded.
+The strict first-boot consumer writes exactly these nine fields, so its status contract contains no
+secret. Compare the printed role, installation ID, device ID and hostname with the expected card.
+A failed result and its bounded `error_code` identify the phase to troubleshoot. An identical copy
+remains on the root filesystem at `/var/lib/e87canbus-provisioning/status.json` for local
+maintenance.
 
 For release acceptance, provision the separate disposable card and add the test-only local debug
 shell through the guarded procedure in the image runbook. Set `E87_INVALID_DISK` to the card's
@@ -153,18 +135,21 @@ power down the Pi. Return the card to the Mac and mount only its `BOOT` partitio
 bounded failure status, using the card's role:
 
 ```bash
-# Use console if that is the disposable card's role.
-E87_INVALID_ROLE=coordinator
-E87_RECOVERY=/secure/path/e87canbus-installation-v1.json
-uv run e87ctl verify "$E87_INVALID_ROLE" \
-  --installation "$E87_RECOVERY" \
-  --status /Volumes/BOOT/e87canbus-status-v1.json \
-  --json
+(
+  set -euo pipefail
+  E87_STATUS=/Volumes/BOOT/e87canbus-status-v1.json
+  test "$(stat -f %z "$E87_STATUS")" -le 65536
+  jq -e '.result == "failed" and .error_code == "invalid_bundle"' "$E87_STATUS"
+  jq . "$E87_STATUS"
+)
 ```
 
-The command must exit nonzero, report the safe `invalid_bundle` error, leave online verification
-unavailable and contain no secret. The device must retain `unprovisioned`, and both activation
-timestamps above must remain zero. Reprovision the disposable card before any later use.
+The status must report the safe `invalid_bundle` error and the expected role. Because the corrupt
+bundle cannot supply trusted identity, it must use an installation ID of 52 `a` characters,
+device ID `00000000-0000-4000-8000-000000000000` and hostname
+`unprovisioned`. The strict consumer contract keeps the status secret-free. The device must retain
+`unprovisioned`, and both activation timestamps above must remain zero. Reprovision the disposable
+card before any later use.
 
 ## Network and failure behavior
 
