@@ -48,8 +48,13 @@ NetworkManager shared mode. One minimal `dnsmasq` instance bound to the coordina
 interface supplies service-laptop addresses with DNS disabled and without advertising a default
 gateway or DNS server. The statically configured console does not depend on DHCP.
 
+Avahi advertises `e87.local` over IPv4 mDNS on the AP interface for maintenance-laptop
+discovery. This is link-local discovery, not a DNS or internet service. macOS therefore continues
+to show its expected no-internet indicator while connected to the isolated AP.
+
 IP forwarding is disabled. The host firewall drops forwarded traffic and permits Wi-Fi ingress
-only for DHCP, HTTPS and key-only SSH plus traffic required for normal local network operation.
+only for DHCP, IPv4 mDNS multicast, HTTPS and key-only SSH plus ICMP. The firewall permits the
+mDNS multicast transport; Avahi constrains the advertised name and interface.
 Unrelated host services do not listen on or accept traffic from the Wi-Fi interface.
 
 The existing `10.43.0.0/30` coordinator-to-console Ethernet profiles, application proxy units,
@@ -84,7 +89,7 @@ Provisioning gives the coordinator:
 
 - the public installation CA certificate;
 - a private server key; and
-- a CA-signed server certificate valid for `10.42.0.1` and its provisioned hostname.
+- a CA-signed server certificate valid for `10.42.0.1`, `e87.local` and its provisioned hostname.
 
 Provisioning gives the console:
 
@@ -220,7 +225,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 3. Chromium verifies the coordinator and supplies the console client certificate automatically.
 4. Nginx verifies the certificate and passes its signed identity to the loopback application.
 5. FastAPI applies the `console` allowlist to HTTP and Socket.IO traffic.
-6. A service laptop without a client certificate uses operator authentication.
+6. A service laptop resolves `e87.local` through mDNS and uses operator authentication.
 7. The old Ethernet transport and proxies are absent.
 
 ## Failure and compromise limits
@@ -245,6 +250,10 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 - Both Pi Wi-Fi devices use the one approved WPA2-Personal, RSN-only and CCMP-only profile with
   required management-frame protection.
 - The AP advertises no gateway or DNS server and forwards no traffic.
+- A service laptop on the AP resolves `e87.local` to `10.42.0.1`, whose certificate includes that
+  DNS name.
+- Existing installed devices remain usable by IP and require a fresh generated bundle and
+  reprovisioning only if the friendly name is wanted.
 - Disconnecting Ethernet does not change behavior because no runtime path uses it.
 - The console verifies the coordinator certificate for `10.42.0.1`.
 - Chromium selects the console certificate without exposing its private key to frontend code.

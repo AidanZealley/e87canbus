@@ -52,7 +52,17 @@ if [ "$role" = coordinator ]; then
     check "coordinator services active" systemctl is-active --quiet \
         e87canbus-kcan.service e87canbus-ptcan.service e87canbus-fcan.service \
         e87canbus-controller.service e87canbus-firewall.service \
-        e87canbus-dnsmasq.service e87canbus-nginx.service
+        e87canbus-dnsmasq.service e87canbus-nginx.service avahi-daemon.service
+    check_shell "e87.local mDNS advertisement configured" '
+        grep -qx "host-name=e87" /etc/avahi/avahi-daemon.conf &&
+        grep -qx "allow-interfaces=wlan0" /etc/avahi/avahi-daemon.conf &&
+        grep -qx "use-ipv4=yes" /etc/avahi/avahi-daemon.conf &&
+        grep -qx "use-ipv6=no" /etc/avahi/avahi-daemon.conf &&
+        grep -qx "enable-wide-area=no" /etc/avahi/avahi-daemon.conf &&
+        grep -qx "enable-reflector=no" /etc/avahi/avahi-daemon.conf &&
+        [ "$(busctl call org.freedesktop.Avahi / org.freedesktop.Avahi.Server GetHostName)" = "s \"e87\"" ] &&
+        ss -H -lun4 "sport = :5353" | grep -q . &&
+        ! ss -H -lun6 "sport = :5353" | grep -q .'
     check_shell "authenticated HTTPS listener active at 10.42.0.1:443" \
         "ss -H -ltn 'sport = :443' | awk '\$4 == \"10.42.0.1:443\" { found=1 } END { exit !found }'"
     check_shell "no HTTP listener exposed on port 80" "! ss -H -ltn 'sport = :80' | grep -q ."

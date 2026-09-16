@@ -349,6 +349,7 @@ def _create_leaf(
             [
                 x509.IPAddress(ipaddress.ip_address("10.42.0.1")),
                 x509.DNSName(configuration.hostname),
+                x509.DNSName("e87.local"),
             ]
         )
         eku = ExtendedKeyUsageOID.SERVER_AUTH
@@ -466,7 +467,7 @@ def _validate_leaf(
     if configuration.role == "coordinator":
         if san.get_values_for_type(x509.IPAddress) != [ipaddress.ip_address("10.42.0.1")]:
             raise ValueError("coordinator IP SAN is invalid")
-        if san.get_values_for_type(x509.DNSName) != [configuration.hostname]:
+        if san.get_values_for_type(x509.DNSName) != [configuration.hostname, "e87.local"]:
             raise ValueError("coordinator hostname SAN is invalid")
 
 

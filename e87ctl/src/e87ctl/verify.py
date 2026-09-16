@@ -44,6 +44,7 @@ REMOTE_COMMON_CHECKS = (
     "wifi",
     "ssh_policy",
 )
+REMOTE_COORDINATOR_CHECKS = ("mdns",)
 REMOTE_CONSOLE_CHECKS = (
     "console_http_mtls",
     "console_socketio_mtls",
@@ -193,7 +194,9 @@ def _verify_online(
     remote = _ssh_checks(role, recovery, expected_host_key_fingerprint)
     if remote is None:
         names = ["ssh_access", *REMOTE_COMMON_CHECKS]
-        if role == "console":
+        if role == "coordinator":
+            names.extend(REMOTE_COORDINATOR_CHECKS)
+        else:
             names.extend(REMOTE_CONSOLE_CHECKS)
         checks.extend(
             VerificationCheck(
@@ -314,7 +317,7 @@ def _ssh_checks(
         raw_checks = document["checks"]
         expected_checks = {
             *REMOTE_COMMON_CHECKS,
-            *(REMOTE_CONSOLE_CHECKS if role == "console" else ()),
+            *(REMOTE_CONSOLE_CHECKS if role == "console" else REMOTE_COORDINATOR_CHECKS),
         }
         if not isinstance(raw_checks, dict) or set(raw_checks) != expected_checks:
             raise ValueError
@@ -414,6 +417,12 @@ def _coordinator_https_checks(
         certificate_device_id = _certificate_device_id(
             certificate, recovery.installation_id, "coordinator"
         )
+        certificate_names = cast(
+            x509.SubjectAlternativeName,
+            certificate.extensions.get_extension_for_oid(
+                ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+            ).value,
+        ).get_values_for_type(x509.DNSName)
     except Exception:
         return [
             VerificationCheck(
@@ -481,8 +490,11 @@ def _coordinator_https_checks(
             detail="coordinator status is unavailable for complete identity comparison",
         )
     else:
-        matches = certificate_device_id == identity_reference and (
-            coordinator_status is not None and coordinator_status.device_id == identity_reference
+        matches = (
+            certificate_device_id == identity_reference
+            and "e87.local" in certificate_names
+            and coordinator_status is not None
+            and coordinator_status.device_id == identity_reference
         )
         identity = VerificationCheck(
             name="coordinator_identity",
@@ -490,7 +502,7 @@ def _coordinator_https_checks(
             detail=(
                 "trusted coordinator certificate and status match the complete device identity"
                 if matches
-                else "coordinator certificate or status device identity does not match"
+                else "coordinator certificate name or status device identity does not match"
             ),
         )
     return [identity, *(results[name] for name in HTTPS_CHECKS[1:])]
@@ -561,7 +573,8 @@ application_digest = digests.get("application", "")
 current = pathlib.Path("/opt/e87canbus/current")
 services = (["e87canbus-kcan.service", "e87canbus-ptcan.service", "e87canbus-fcan.service",
              "e87canbus-controller.service", "e87canbus-firewall.service",
-             "e87canbus-dnsmasq.service", "e87canbus-nginx.service"] if role == "coordinator"
+             "e87canbus-dnsmasq.service", "e87canbus-nginx.service",
+             "avahi-daemon.service"] if role == "coordinator"
             else ["e87canbus-console-kcan.service", "e87canbus-console.service",
                   "e87canbus-console-kiosk.service"])
 
@@ -680,6 +693,16 @@ if role == "coordinator":
     ) and command_ok(
         ["dnsmasq", "--test", "--conf-file=/etc/e87canbus/dnsmasq.conf"]
     )
+    avahi = "/etc/avahi/avahi-daemon.conf"
+    checks["mdns"] = all(command_ok(["grep", "-qx", line, avahi]) for line in (
+        "host-name=e87", "allow-interfaces=wlan0", "use-ipv4=yes", "use-ipv6=no",
+        "enable-wide-area=no", "enable-reflector=no",
+    )) and subprocess.run(
+        ["busctl", "call", "org.freedesktop.Avahi", "/", "org.freedesktop.Avahi.Server",
+         "GetHostName"], text=True, capture_output=True
+    ).stdout.strip() == 's "e87"' and command_ok(
+        ["sh", "-c", "ss -H -lun4 'sport = :5353' | grep -q ."]
+    ) and command_ok(["sh", "-c", "! ss -H -lun6 'sport = :5353' | grep -q ."])
 
 if role == "console":
     try:

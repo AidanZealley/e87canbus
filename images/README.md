@@ -66,14 +66,18 @@ WPA2-Personal RSN/CCMP access-point profile with required management-frame prote
 identity. Nginx listens at `10.42.0.1:443`, requests a client certificate and replaces the two
 trusted identity headers before proxying to the loopback
 application. Dnsmasq offers only `10.42.0.100` through `10.42.0.150`, with no DNS or default
-gateway. The firewall drops forwarding and permits Wi-Fi ingress only for DHCP, HTTPS, SSH and
-ICMP. The controller service has no privileged NetworkManager helper or sudo rule. NetworkManager
+gateway. Avahi advertises `e87.local` only through IPv4 mDNS on `wlan0`; the certificate includes
+that name. The firewall drops forwarding and permits Wi-Fi ingress only for DHCP, mDNS, HTTPS, SSH
+and ICMP. The controller service has no privileged NetworkManager helper or sudo rule. NetworkManager
 autoconnect owns access-point activation, and the coordinator panel cannot change it.
 
 The console image contains Cage, Chromium and NSS tools. Provisioning supplies the same Wi-Fi
 security policy with static address `10.42.0.2/24`, imports its client identity into the
 `e87-kiosk` Chromium profile and installs automatic certificate selection only for
-`https://10.42.0.1`.
+`https://10.42.0.1`. Maintenance laptops can use `https://e87.local`. The isolated AP intentionally
+has no internet route, so a maintenance laptop may show a no-internet indicator. Existing devices
+remain available by IP and need a fresh generated bundle and reprovisioning to gain the friendly
+name in their server certificate.
 
 First boot does not run `apt`, `pip`, `uv`, `npm` or `pnpm`. It installs the ready application under
 `/opt/e87canbus/releases/<digest>` and activates `/opt/e87canbus/current` only after complete bundle
@@ -135,8 +139,8 @@ The executable is the source of checkpoint assertions. It checks the Raspberry P
 Trixie arm64 base, unique host state, successful provisioning status, `BOOT` label, active
 release, key-only SSH and role services. Coordinator checks cover the panel UART and three CAN
 interfaces, and confirm the legacy panel network-control helper and sudo rule are absent. Console
-checks cover the provisioned `kcan` mode, listen-only for `car` and acknowledgement-enabled for `bench`, plus
-DRM and touchscreen input. Network checks cover the `10.42.0.1/24`
+checks cover the provisioned `kcan` mode, listen-only for `car` and acknowledgement-enabled for
+`bench`, plus DRM and touchscreen input. Network checks cover the `10.42.0.1/24`
 coordinator access point, `10.42.0.2/24` console client, exact
 WPA2-RSN/CCMP and required-PMF policy, no forwarding and the console Chromium certificate store.
 The physical observation also confirms that the coordinator panel settles at `READY`. There is no

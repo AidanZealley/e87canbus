@@ -490,7 +490,10 @@ def test_coordinator_leaf_has_exact_identity_role_and_server_names(
     )
     assert san.get_values_for_type(x509.UniformResourceIdentifier) == [expected_uri]
     assert san.get_values_for_type(x509.IPAddress)[0].compressed == "10.42.0.1"
-    assert san.get_values_for_type(x509.DNSName) == [artifact.configuration.hostname]
+    assert san.get_values_for_type(x509.DNSName) == [
+        artifact.configuration.hostname,
+        "e87.local",
+    ]
     assert certificate.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value == (
         x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH])
     )
