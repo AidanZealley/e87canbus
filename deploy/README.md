@@ -45,22 +45,15 @@ Fit the coordinator card to the headless Pi 4 with its three fixed CAN controlle
 the console card to the Pi 4 with its single connected K-CAN controller, display and touchscreen.
 Ethernet stays disconnected. Power the coordinator first, then the console.
 
-On each Pi's local debug shell, record its SSH Ed25519 host-key fingerprint:
-
-```bash
-ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
-```
-
-This physical reading establishes the trusted value to compare on the operator's first
-maintenance SSH connection.
-
 On the coordinator panel, confirm that the display settles at `READY`. The panel is status-only;
 the former network-control button and its host, simulator and firmware paths no longer exist.
 
 Import the public CA sidecar on a service laptop, open `https://e87.local`, and sign in as
 `operator` with the password in the recovery package. A laptop with only the Wi-Fi password may
 use `/health/live` but cannot read application state. SSH is available as `e87-admin` with the
-management private key in the recovery package. Password and root login are disabled.
+management private key in the recovery package. Password and root login are disabled. The first
+connection accepts the Pi's host key on trust and records it in `known_hosts`, as with any new
+host on this isolated, physically controlled network.
 
 Confirm that the console dashboard displays current coordinator-backed state without a prompt or
 login. Disconnect the console Wi-Fi and confirm that it reports the coordinator state as
