@@ -85,6 +85,9 @@ authorization check fails or is unavailable. Console verification uses the insta
 identity to prove HTTP and Socket.IO mutual TLS and rejection by the operator-only provisioning
 endpoint. `--json` returns the same checks as a versioned document for a single role.
 
+On the coordinator panel, confirm that the display settles at `READY`. The panel is status-only;
+the former network-control button and its host, simulator and firmware paths no longer exist.
+
 Import the public CA sidecar on a service laptop, open `https://10.42.0.1`, and sign in as
 `operator` with the password in the recovery package. A laptop with only the Wi-Fi password may
 use `/health/live` but cannot read application state. SSH is available as `e87-admin` with the
@@ -104,10 +107,64 @@ uv run e87ctl verify coordinator \
 Offline status is diagnostic and therefore always leaves online verification unavailable. The
 command exits nonzero even when the status says first boot succeeded.
 
-For release acceptance, provision the separate disposable card, remount its `BOOT` partition,
-replace `e87canbus-provisioning-v1.zip` with invalid bytes, unmount it, and boot the matching Pi.
-The Pi must keep `unprovisioned`, start no role services, and write a bounded failure status to
-`BOOT`. Never reuse that card as one of the successful pair without provisioning it again.
+For release acceptance, provision the separate disposable card and add the test-only local debug
+shell through the guarded procedure in the image runbook. Set `E87_INVALID_DISK` to the card's
+confirmed whole-disk identifier. Corrupt only its provisioning ZIP with this fail-fast command:
+
+```bash
+(
+  set -euo pipefail
+  E87_INVALID_DISK_ID=${E87_INVALID_DISK#/dev/}
+  [[ "$E87_INVALID_DISK_ID" =~ ^disk[0-9]+$ ]]
+  E87_INVALID_PARTITION="/dev/${E87_INVALID_DISK_ID}s1"
+  diskutil info -plist "/dev/$E87_INVALID_DISK_ID" |
+    plutil -extract WholeDisk raw - | grep -qx true
+  diskutil info -plist "$E87_INVALID_PARTITION" |
+    plutil -extract ParentWholeDisk raw - | grep -qx "$E87_INVALID_DISK_ID"
+  diskutil info -plist "$E87_INVALID_PARTITION" |
+    plutil -extract VolumeName raw - | grep -qx BOOT
+  trap 'diskutil unmountDisk "/dev/$E87_INVALID_DISK_ID" >/dev/null 2>&1 || true' EXIT
+  diskutil mount "$E87_INVALID_PARTITION"
+  diskutil info -plist "$E87_INVALID_PARTITION" |
+    plutil -extract MountPoint raw - | grep -qx /Volumes/BOOT
+  printf 'invalid provisioning fixture\n' > /Volumes/BOOT/e87canbus-provisioning-v1.zip
+  sync
+  diskutil unmountDisk "/dev/$E87_INVALID_DISK_ID"
+  trap - EXIT
+)
+```
+
+Set `E87_INVALID_ROLE` to `coordinator` or `console`, boot that role once, and run these checks on
+its local debug shell:
+
+```bash
+test -e /var/lib/e87canbus-provisioning/unprovisioned
+test "$(systemctl show -p ActiveEnterTimestampMonotonic --value e87canbus-role.target)" = 0
+case "$E87_INVALID_ROLE" in
+  coordinator) E87_INVALID_SERVICE=e87canbus-controller.service ;;
+  console) E87_INVALID_SERVICE=e87canbus-console.service ;;
+  *) exit 2 ;;
+esac
+test "$(systemctl show -p ActiveEnterTimestampMonotonic --value "$E87_INVALID_SERVICE")" = 0
+```
+
+Remove the temporary checker and debug-shell boot argument as described in the image runbook, then
+power down the Pi. Return the card to the Mac and mount only its `BOOT` partition. Record the
+bounded failure status, using the card's role:
+
+```bash
+# Use console if that is the disposable card's role.
+E87_INVALID_ROLE=coordinator
+E87_RECOVERY=/secure/path/e87canbus-installation-v1.json
+uv run e87ctl verify "$E87_INVALID_ROLE" \
+  --installation "$E87_RECOVERY" \
+  --status /Volumes/BOOT/e87canbus-status-v1.json \
+  --json
+```
+
+The command must exit nonzero, report the safe `invalid_bundle` error, leave online verification
+unavailable and contain no secret. The device must retain `unprovisioned`, and both activation
+timestamps above must remain zero. Reprovision the disposable card before any later use.
 
 ## Network and failure behavior
 

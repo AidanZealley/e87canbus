@@ -1,6 +1,6 @@
 # Device lifecycle tooling
 
-- **Status:** Approved for implementation
+- **Status:** Implemented and accepted
 - **Date:** 2026-09-10
 
 ## Goal
@@ -276,13 +276,13 @@ The digest identifies the artifact. Git metadata is diagnostic context.
 
 ## Host image contract
 
-The current validated Pi images are non-provisionable prototypes. They have a versioned interface
-marker and fail-closed role services, but no consumer. Cards written from one artifact also share
-the upstream builder hostname.
+The reusable Pi images contain a versioned interface marker, one root-owned first-boot consumer and
+fail-closed role services. Before publication, the build removes the builder hostname,
+`/etc/machine-id` and SSH host keys. First boot creates unique host identity and installs the
+provisioned hostname before enabling role services.
 
-This feature adds the consumer and unique-host-identity behavior to the image source, then rebuilds
-both images through `e87ctl image build`. Rebuilt images must repeat the relevant automated,
-MacBook, Raspberry Pi Imager and Pi 4 checks before provisioning accepts them.
+Changes to image contents or first-boot behavior must repeat the relevant automated, MacBook,
+Raspberry Pi Imager and Pi 4 checks before provisioning accepts them.
 
 Each provisionable image exposes a machine-readable contract containing its role, board,
 architecture, OS version, provisioning-interface version and storage limits. The CLI validates the
@@ -535,5 +535,5 @@ existing recovery package. The old credential remains valid until the installati
 The [Wi-Fi device network](wifi-device-network.md) defines the network, HTTPS and authorization
 behavior enabled by this provisioning path.
 
-The [Raspberry Pi host images](raspberry-pi-image-building.md) specification defines the
-reusable images and the hardware checks that their provisionable successors must repeat.
+The [Raspberry Pi host images](raspberry-pi-image-building.md) specification defines the reusable
+images, their change boundary and the physical checks required after image changes.

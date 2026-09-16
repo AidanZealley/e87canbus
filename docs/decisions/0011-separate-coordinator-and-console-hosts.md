@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-10
+- **Partially superseded by:** [ADR 0013](0013-provisioned-wifi-device-network.md), which replaces
+  the direct Ethernet link and plain HTTP proxy. The separate host roles remain in force.
 
 ## Context
 

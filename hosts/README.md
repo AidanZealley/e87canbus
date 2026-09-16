@@ -160,10 +160,10 @@ output instead of replaying a stale intermediate one.
 **Nothing is bridged between networks automatically.** Any cross-network forwarding would
 have to be written deliberately.
 
-**The API is unauthenticated and binds to loopback.** A non-loopback bind is rejected for
-SocketCAN profiles. Do not expose it until authentication, origin policy and an
-editing-while-moving policy exist. The simulator is a development tool, not an
-authorization boundary.
+**The application binds to loopback.** A non-loopback bind is rejected for SocketCAN profiles.
+The provisioned coordinator exposes it only through the nginx HTTPS boundary, which authenticates
+the console certificate or operator credentials before the application applies its route
+allowlist. The simulator is a development tool, not an authorization boundary.
 
 **The high-beam strobe is simulator-only.** It is a synthetic frame to a virtual car, not a
 BMW protocol claim. The live router cannot encode or decode it, so granting live K-CAN
