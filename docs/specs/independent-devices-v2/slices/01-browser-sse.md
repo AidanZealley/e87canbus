@@ -1,6 +1,6 @@
 # Slice 01: browser SSE migration
 
-- **Status:** Draft for approval
+- **Status:** Approved
 - **Depends on:** [Architecture and boundaries](../architecture-and-boundaries.md) and
   [Live and device API](../live-and-device-api.md)
 
@@ -49,11 +49,15 @@ This slice removes:
 - the Python live-event registries and both live JSON Schema files;
 - the Python and JavaScript live-contract generators and their generated TypeScript mappings;
 - protocol-version envelopes and resync messages made unnecessary by initial snapshots;
-- trace subscribe and unsubscribe messages, the browser trace store and the trace UI; and
-- the driving console's connected-device view and live device-registry projection.
+- trace subscribe and unsubscribe messages, the browser trace store and the trace UI;
+- the driving console's connected-device view and live device-registry projection; and
+- the coordinator workbench's legacy custom-CAN device cards, network topology and controls that
+  depend on that projection.
 
 The simulation CAN trace buffer remains because tests use it. The CAN device registry and ISO-TP
-paths also remain because the physical button pad and Servotronic controller still use them.
+paths also remain because the physical button pad and Servotronic controller still use them. The
+simulator's vehicle and coordinator-panel HTTP controls remain. Later slices add new independent
+device simulations instead of preserving the retired custom-CAN device UI.
 
 ## Outside this slice
 
@@ -73,5 +77,5 @@ The slice is complete when:
 - malformed events fail visibly without replacing valid state;
 - no runtime or build dependency on Socket.IO or Engine.IO remains;
 - no bespoke live-contract schema or generator remains; and
-- existing non-trace simulation behavior and internal trace tests still pass.
-
+- the remaining vehicle and coordinator-panel simulation controls work; and
+- internal simulation and protocol tests retain their trace and custom-CAN coverage.
