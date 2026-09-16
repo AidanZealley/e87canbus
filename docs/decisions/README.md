@@ -22,7 +22,6 @@ complete.
 | [0014](0014-use-wpa2-personal-for-pi-network.md) | WPA2-Personal fallback for the Pi network | Accepted |
 | [0015](0015-offline-device-provisioning.md) | Offline installation authority and first-boot provisioning | Accepted |
 | [0016](0016-advertise-friendly-maintenance-url.md) | Friendly maintenance URL over IPv4 mDNS | Accepted |
-| [0017](0017-independent-devices-over-wifi.md) | Independent devices configured over Wi-Fi | Proposed |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old

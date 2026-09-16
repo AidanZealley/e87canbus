@@ -11,6 +11,10 @@ from confirmed bench wiring.
 - `servotronic-controller/` — fan-bench CAN-to-PWM prototype. It has bounded PWM and local
   failsafes, but no current feedback and is not suitable for a steering-rack solenoid or a car.
 
+The approved replacement firmware for both roles targets the
+[WeAct CAN485 ESP32 device board](../docs/weact-can485-esp32.md). The current AVR projects remain
+the live implementations until each role reaches its independent-device cutover.
+
 Device firmware should own hardware scanning, fast local control, watchdogs, and failsafe behavior.
 The coordinator owns vehicle-level decisions and sends desired state over CAN.
 
