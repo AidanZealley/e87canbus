@@ -15,7 +15,7 @@ Status: in progress.
 
 | # | Workstream | Depends on | Status | Accepted commit |
 |---:|---|---|---|---|
-| 1 | [Retire legacy live UI](01-retire-legacy-live-ui.md) | Approved Slice 01 | Not started | - |
+| 1 | [Retire legacy live UI](01-retire-legacy-live-ui.md) | Approved Slice 01 | Implementing | - |
 | 2 | [Coordinator SSE server and contract](02-coordinator-sse-server.md) | Workstream 1 | Not started | - |
 | 3 | [Coordinator browser cutover](03-coordinator-browser-cutover.md) | Workstream 2 | Not started | - |
 | 4 | [Console SSE server and contract](04-console-sse-server.md) | Workstream 3 | Not started | - |
