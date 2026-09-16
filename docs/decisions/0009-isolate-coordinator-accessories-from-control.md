@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-10
+- **Partially superseded by:** [ADR 0013](0013-provisioned-wifi-device-network.md), which removes
+  the hotspot mechanism and every panel-button control path. The isolation of panel status from
+  controller work remains in force.
 
 ## Context
 

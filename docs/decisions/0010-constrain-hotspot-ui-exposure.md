@@ -1,6 +1,6 @@
 # ADR 0010: Constrain hotspot UI exposure
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0013](0013-provisioned-wifi-device-network.md)
 - **Date:** 2026-08-10
 
 ## Context

@@ -2,6 +2,9 @@
 
 - **Status:** Proposed
 - **Date:** 2026-08-12
+- **Partially superseded by:** [ADR 0013](0013-provisioned-wifi-device-network.md), which removes
+  the proposed K-CAN configuration transport. The cockpit architecture and its requirement for a
+  coordinator-owned configuration contract remain proposed.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Wi-Fi device network
 
-- **Status:** Approved supporting contract
+- **Status:** Implemented and accepted
 - **Date:** 2026-09-10
 
 ## Goal
@@ -44,11 +44,11 @@ Provisioning assigns:
 - service-laptop DHCP range `10.42.0.100` through `10.42.0.150`.
 
 NetworkManager owns both Wi-Fi connections and their manual IPv4 configuration. Do not use
-NetworkManager shared mode. One minimal `dnsmasq` instance bound to the coordinator hotspot
+NetworkManager shared mode. One minimal `dnsmasq` instance bound to the coordinator AP
 interface supplies service-laptop addresses with DNS disabled and without advertising a default
 gateway or DNS server. The statically configured console does not depend on DHCP.
 
-IP forwarding is disabled. The host firewall drops forwarded traffic and permits hotspot ingress
+IP forwarding is disabled. The host firewall drops forwarded traffic and permits Wi-Fi ingress
 only for DHCP, HTTPS and key-only SSH plus traffic required for normal local network operation.
 Unrelated host services do not listen on or accept traffic from the Wi-Fi interface.
 
@@ -131,9 +131,10 @@ Chromium performs the TLS handshake. Frontend JavaScript cannot read the private
 no credential, password or generated secret. The kiosk must connect without a certificate chooser
 or login prompt.
 
-This path requires a physical checkpoint on the rebuilt console image. If unattended certificate
-selection is unreliable, stop and replace it with one local console gateway design. Do not build
-both paths.
+The accepted console image passed the physical unattended-certificate-selection checkpoint. Any
+change to Chromium, NSS, certificate installation or kiosk policy must repeat it. A candidate that
+cannot select the certificate unattended is not acceptable; reassess the design instead of adding
+a competing authentication path.
 
 ## Operator access
 
@@ -210,7 +211,7 @@ After reconnection and mutual-TLS authentication, the console obtains a complete
 coordinator snapshot through the existing live-state recovery contract. Console failure or
 disconnection does not affect coordinator operation.
 
-## First implementation flow
+## Installed flow
 
 Provisioning and network cutover ship as one coordinator-to-console result:
 
@@ -232,7 +233,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
   settings and commands exposed by that UI. It cannot use operator-only or simulator operations.
 - A client with only the Wi-Fi password cannot read application state.
 - The console exposes disconnection rather than presenting coordinator state as current.
-- The first implementation cannot revoke one device. Suspected compromise requires a new
+- The current version cannot revoke one device. Suspected compromise requires a new
   installation and reprovisioning of both Pis.
 - No part of this work enables internet access, cloud communication, remote vehicle access or
   wireless CAN bridging.
@@ -243,7 +244,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 - The console joins automatically and reaches all current console features without a human login.
 - Both Pi Wi-Fi devices use the one approved WPA2-Personal, RSN-only and CCMP-only profile with
   required management-frame protection.
-- The hotspot advertises no gateway or DNS server and forwards no traffic.
+- The AP advertises no gateway or DNS server and forwards no traffic.
 - Disconnecting Ethernet does not change behavior because no runtime path uses it.
 - The console verifies the coordinator certificate for `10.42.0.1`.
 - Chromium selects the console certificate without exposing its private key to frontend code.
@@ -253,7 +254,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 - A valid console certificate cannot use the operator-only provisioning-status endpoint.
 - Removing Wi-Fi leaves the coordinator ready and makes the console visibly disconnected.
 - No command attempted while disconnected runs after reconnection.
-- Hotspot clients cannot reach another coordinator network or unrelated host service.
+- Wi-Fi clients cannot reach another coordinator network or unrelated host service.
 - SSH is the only non-HTTPS service exception and accepts only the provisioned key.
 - No secret appears in the repository, process command line, generated frontend bundle or logs.
 - Documentation describes Wi-Fi as the only coordinator-to-console network after cutover.
@@ -266,11 +267,8 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 - A network or credential management UI.
 - Internet routing, remote access and network telemetry.
 
-## Documentation impact
+## Architecture records
 
-Once implemented, this specification supersedes the Ethernet transport decision in
-[ADR 0011](../decisions/0011-separate-coordinator-and-console-hosts.md), changes the hotspot policy
-in [ADR 0010](../decisions/0010-constrain-hotspot-ui-exposure.md), and replaces the cockpit CAN
-configuration transport proposed in
-[ADR 0012](../decisions/0012-kcan-cockpit-display.md). Record those changes in new ADRs rather than
-rewriting accepted history.
+[ADR 0013](../decisions/0013-provisioned-wifi-device-network.md) records the network cutover and
+[ADR 0014](../decisions/0014-use-wpa2-personal-for-pi-network.md) records the target-hardware
+security fallback. Earlier Ethernet and hotspot decisions remain as superseded history.

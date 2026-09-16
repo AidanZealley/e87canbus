@@ -14,12 +14,13 @@ complete.
 | [0006](0006-evidence-gated-hardware-behavior.md) | Evidence-gated hardware behavior | Accepted |
 | [0007](0007-servotronic-controller-owns-assistance-mapping.md) | Servotronic-controller-owned assistance mapping | Proposed |
 | [0008](0008-unified-controller-architecture.md) | Unified modular controller and transport ownership | Accepted |
-| [0009](0009-isolate-coordinator-accessories-from-control.md) | Isolated coordinator accessories | Accepted |
-| [0010](0010-constrain-hotspot-ui-exposure.md) | Constrained hotspot UI exposure | Accepted |
-| [0011](0011-separate-coordinator-and-console-hosts.md) | Separate coordinator and console hosts | Accepted |
-| [0012](0012-kcan-cockpit-display.md) | K-CAN cockpit display with coordinator-owned configuration | Proposed |
+| [0009](0009-isolate-coordinator-accessories-from-control.md) | Isolated coordinator accessories | Partially superseded |
+| [0010](0010-constrain-hotspot-ui-exposure.md) | Constrained hotspot UI exposure | Superseded |
+| [0011](0011-separate-coordinator-and-console-hosts.md) | Separate coordinator and console hosts | Partially superseded |
+| [0012](0012-kcan-cockpit-display.md) | K-CAN cockpit display with coordinator-owned configuration | Proposed, transport superseded |
 | [0013](0013-provisioned-wifi-device-network.md) | Provisioned authenticated Wi-Fi device network | Accepted |
 | [0014](0014-use-wpa2-personal-for-pi-network.md) | WPA2-Personal fallback for the Pi network | Accepted |
+| [0015](0015-offline-device-provisioning.md) | Offline installation authority and first-boot provisioning | Accepted |
 
 New records should be numbered sequentially and contain `Status`, `Context`, `Decision`, and
 `Consequences` sections. Supersede an accepted record with a new ADR instead of rewriting the old

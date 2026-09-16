@@ -4,10 +4,10 @@ This directory builds the provisionable Raspberry Pi 4 coordinator and console i
 Each image contains the stable OS configuration and one strict first-boot consumer. It contains no
 application release, installation credential, operator account or reusable host identity.
 
-The device lifecycle workflow owns acceptance. Automated image checks do not prove Raspberry Pi
-radio behavior, Chromium certificate selection or the macOS writer. See
-[`docs/specs/device-provisioning/implementation/README.md`](../docs/specs/device-provisioning/implementation/README.md)
-for the current gate status and evidence requirements.
+Automated image checks do not prove Raspberry Pi radio behavior, Chromium certificate selection or
+the macOS writer. The accepted implementation was validated on the target Mac and Raspberry Pi 4
+hardware. Repeat the physical checkpoint below after changes to image contents, provisioning,
+networking, certificates or kiosk setup.
 
 ## Build on Apple silicon
 
@@ -66,7 +66,7 @@ WPA2-Personal RSN/CCMP access-point profile with required management-frame prote
 identity. Nginx listens at `10.42.0.1:443`, requests a client certificate and replaces the two
 trusted identity headers before proxying to the loopback
 application. Dnsmasq offers only `10.42.0.100` through `10.42.0.150`, with no DNS or default
-gateway. The firewall drops forwarding and permits hotspot ingress only for DHCP, HTTPS, SSH and
+gateway. The firewall drops forwarding and permits Wi-Fi ingress only for DHCP, HTTPS, SSH and
 ICMP. The controller service has no privileged NetworkManager helper or sudo rule. NetworkManager
 autoconnect owns access-point activation, and the coordinator panel cannot change it.
 
@@ -91,8 +91,8 @@ uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
 ```
 
-The workflow records the exact image, provisioning and application digests. It also owns the
-deliberately invalid-bundle card used to prove offline failure status.
+Record the exact image, provisioning and application digests. Use a separate disposable card to
+prove offline failure status with a deliberately invalid bundle.
 
 For the successful pair, copy `images/e87canbus-image-check` to the test card's `BOOT` partition
 and use a test-only local console such as `systemd.debug_shell=1`. This changes only the flashed
@@ -134,11 +134,13 @@ sh /boot/firmware/e87canbus-image-check console
 The executable is the source of checkpoint assertions. It checks the Raspberry Pi 4 Model B and
 Trixie arm64 base, unique host state, successful provisioning status, `BOOT` label, active
 release, key-only SSH and role services. Coordinator checks cover the panel UART and three CAN
-interfaces, and confirm the panel hotspot helper and sudo rule are absent. Console checks cover
-the provisioned `kcan` mode, listen-only for `car` and acknowledgement-enabled for `bench`, plus
+interfaces, and confirm the legacy panel network-control helper and sudo rule are absent. Console
+checks cover the provisioned `kcan` mode, listen-only for `car` and acknowledgement-enabled for `bench`, plus
 DRM and touchscreen input. Network checks cover the `10.42.0.1/24`
 coordinator access point, `10.42.0.2/24` console client, exact
 WPA2-RSN/CCMP and required-PMF policy, no forwarding and the console Chromium certificate store.
+The physical observation also confirms that the coordinator panel settles at `READY`. There is no
+panel network-control input to test.
 
 Remove the temporary debug shell and checker before reusing a card:
 
@@ -150,8 +152,8 @@ sync
 systemctl poweroff
 ```
 
-Do not report the images as accepted until the workflow contains the complete MacBook, Raspberry
-Pi Imager, Pi 4, network, TLS and cleanup evidence for the exact candidate.
+Do not accept a changed image until the exact candidate has complete MacBook writer, Raspberry Pi
+4, network, TLS and cleanup evidence.
 
 After both Pis boot, run `uv run e87ctl verify` and follow its prompts. It collects the recovery
 package, both host-key fingerprints and a report path, then guides the Wi-Fi switch and checks both
