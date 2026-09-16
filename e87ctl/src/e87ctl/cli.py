@@ -6,6 +6,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from cryptography.hazmat.primitives import hashes
 
 from e87ctl.environment import (
     environment_path,
@@ -26,6 +27,8 @@ from e87ctl.provision import (
 from e87ctl.recovery import (
     InstallationSummary,
     create_recovery_package,
+    ca_sidecar_path,
+    load_recovery_package,
     write_recovery_package,
 )
 
@@ -77,6 +80,16 @@ def _parser() -> argparse.ArgumentParser:
     )
     provision.add_argument("--non-interactive", action="store_true")
     provision.add_argument("--json", action="store_true", help="Print a machine-readable result")
+
+    for name, help_text in (("trust", "Trust an installation CA on this Mac"), ("untrust", "Remove an installation CA from this Mac")):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument(
+            "--installation",
+            type=Path,
+            metavar="PATH",
+            default=environment_path("E87CTL_INSTALLATION"),
+            help="Recovery package; defaults to $E87CTL_INSTALLATION",
+        )
 
     return parser
 
@@ -200,6 +213,44 @@ def _provision(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _trust(arguments: argparse.Namespace, *, remove: bool) -> int:
+    if sys.platform != "darwin":
+        print("error: certificate trust management is supported only on macOS", file=sys.stderr)
+        return 1
+    installation = arguments.installation
+    if installation is None:
+        print("error: --installation or E87CTL_INSTALLATION is required", file=sys.stderr)
+        return 1
+    try:
+        package = load_recovery_package(installation)
+        certificate = ca_sidecar_path(installation)
+        if certificate.read_text() != package.installation_ca_certificate:
+            raise ValueError("CA sidecar does not match the recovery package")
+        fingerprint = package.authority.certificate.fingerprint(hashes.SHA1()).hex().upper()
+        command = ["security", "delete-certificate", "-Z", fingerprint]
+        if not remove:
+            command = [
+                "security",
+                "add-trusted-cert",
+                "-d",
+                "-r",
+                "trustRoot",
+                "-k",
+                "/Library/Keychains/System.keychain",
+                str(certificate),
+            ]
+        else:
+            command.append("/Library/Keychains/System.keychain")
+        subprocess.run(["sudo", *command], check=True)
+    except Exception:
+        action = "remove" if remove else "trust"
+        print(f"error: could not {action} installation CA", file=sys.stderr)
+        return 1
+    print(f"{'Removed' if remove else 'Trusted'} installation {package.installation_id}")
+    print(f"SHA-256: {fingerprint}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     load_environment()
     arguments = _parser().parse_args(argv)
@@ -216,4 +267,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _create_installation(output, json_output)
     if arguments.command == "provision":
         return _provision(arguments)
+    if arguments.command == "trust":
+        return _trust(arguments, remove=False)
+    if arguments.command == "untrust":
+        return _trust(arguments, remove=True)
     raise AssertionError("command was not parsed")
