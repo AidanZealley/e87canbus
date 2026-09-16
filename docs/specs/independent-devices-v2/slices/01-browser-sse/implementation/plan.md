@@ -8,7 +8,7 @@ Status: in progress.
 - Starting commit: `4f3539d`
 - Orchestrator: `Codex in T3 Code`
 - Review command: packet-specific Claude Code command using `--model opus --effort medium --permission-mode plan`
-- Specification approved at commit: `pending initial workflow commit`
+- Specification approved at commit: `2ab06f36b141c941824195cb818b5cce1a48aa26`
 - Started: `2026-09-16`
 
 ## Workstream order
