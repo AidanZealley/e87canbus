@@ -500,6 +500,7 @@ dependencies = [
     { name = "argon2-cffi" },
     { name = "cryptography" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -507,6 +508,7 @@ requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1" },
     { name = "cryptography", specifier = ">=46.0" },
     { name = "pydantic", specifier = ">=2.12" },
+    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 
 [[package]]

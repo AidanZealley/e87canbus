@@ -7,6 +7,12 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from e87ctl.environment import (
+    environment_path,
+    environment_value,
+    load_environment,
+    repository_root,
+)
 from e87ctl.macos import SystemDiskutil
 from e87ctl.provision import (
     ProvisionCommandError,
@@ -39,15 +45,32 @@ def _parser() -> argparse.ArgumentParser:
     create = installation_commands.add_parser(
         "create", help="Create an installation recovery package"
     )
-    create.add_argument("--output", required=True, type=Path, metavar="PATH")
+    create.add_argument(
+        "--output",
+        type=Path,
+        metavar="PATH",
+        default=environment_path("E87CTL_INSTALLATION"),
+        help="Recovery package to write; defaults to $E87CTL_INSTALLATION",
+    )
     create.add_argument("--json", action="store_true", help="Print a machine-readable summary")
 
     provision = commands.add_parser("provision", help="Prepare a Raspberry Pi SD card")
     provision.add_argument("role", choices=("coordinator", "console"))
-    provision.add_argument("--installation", required=True, type=Path, metavar="PATH")
+    provision.add_argument(
+        "--installation",
+        type=Path,
+        metavar="PATH",
+        default=environment_path("E87CTL_INSTALLATION"),
+        help="Recovery package to read; defaults to $E87CTL_INSTALLATION",
+    )
     provision.add_argument("--image", type=Path, metavar="MANIFEST")
     provision.add_argument("--disk", metavar="DISK")
-    provision.add_argument("--profile", choices=("car", "bench"))
+    provision.add_argument(
+        "--profile",
+        choices=("car", "bench"),
+        default=environment_value("E87CTL_PROFILE"),
+        help="Deployment profile; defaults to $E87CTL_PROFILE",
+    )
     provision.add_argument("--hostname")
     provision.add_argument(
         "--confirm", metavar="TEXT", help="Supply the exact confirmation text for the disk"
@@ -63,7 +86,11 @@ def _build_image(role: str) -> int:
     return subprocess.run([script, role], check=False).returncode
 
 
-def _create_installation(output: Path, json_output: bool) -> int:
+def _create_installation(output: Path | None, json_output: bool) -> int:
+    if output is None:
+        print("error: --output or E87CTL_INSTALLATION is required", file=sys.stderr)
+        return 1
+
     # Nothing below this boundary may expose an exception carrying generated material.
     try:
         package = create_recovery_package()
@@ -93,6 +120,9 @@ def _provision(arguments: argparse.Namespace) -> int:
     if arguments.json and not arguments.non_interactive:
         print("error: --json requires --non-interactive", file=sys.stderr)
         return 1
+    if arguments.installation is None:
+        print("error: --installation or E87CTL_INSTALLATION is required", file=sys.stderr)
+        return 1
     if arguments.non_interactive:
         missing = [
             option
@@ -111,7 +141,7 @@ def _provision(arguments: argparse.Namespace) -> int:
             )
             return 1
 
-    repository = Path(__file__).resolve().parents[3]
+    repository = repository_root()
     diskutil = SystemDiskutil()
     try:
         image = choose_image(
@@ -171,6 +201,7 @@ def _provision(arguments: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_environment()
     arguments = _parser().parse_args(argv)
     if arguments.command == "image":
         role = getattr(arguments, "role", None)
@@ -180,7 +211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "installation":
         output = getattr(arguments, "output", None)
         json_output = getattr(arguments, "json", None)
-        if not isinstance(output, Path) or not isinstance(json_output, bool):
+        if not isinstance(output, Path | None) or not isinstance(json_output, bool):
             raise AssertionError("installation create arguments were not parsed")
         return _create_installation(output, json_output)
     if arguments.command == "provision":

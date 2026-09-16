@@ -33,3 +33,6 @@ node_modules/
 /.cache/pi-image-build/
 /artifacts/images/
 /artifacts/applications/
+
+# Local workstation tooling defaults
+/.env
