@@ -1,6 +1,6 @@
 # Workstream 1: retire legacy live UI
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -106,7 +106,7 @@ claude -p "Perform the focused closure review for Workstream 1 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `ee27897ebb6e9f17fba97ce232edbc68b51d3aaa`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
