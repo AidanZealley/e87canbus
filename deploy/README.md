@@ -11,10 +11,15 @@ Use an arm64 Mac with Docker Desktop, `jq`, two blank SD cards, and a third disp
 the failure check. Keep the recovery package outside the repository and back it up in a password
 manager or equivalent secret store.
 
+Copy `.env.example` to `.env` at the repository root and point `E87CTL_INSTALLATION` at the
+recovery package you are about to create. Every `e87ctl` command below then finds it without
+`--installation`, and a flag still overrides it for a one-off run.
+
 ```bash
 git status --short
 uv sync --locked
-uv run e87ctl installation create --output /secure/path/e87canbus-installation-v1.json
+cp .env.example .env
+uv run e87ctl installation create
 uv run e87ctl image build coordinator
 uv run e87ctl image build console
 ```
@@ -32,10 +37,8 @@ Run each command with its role's blank card inserted. Interactive mode lists com
 eligible disks, asks for `car` or `bench`, and prints the exact destructive target before writing.
 
 ```bash
-uv run e87ctl provision coordinator \
-  --installation /secure/path/e87canbus-installation-v1.json
-uv run e87ctl provision console \
-  --installation /secure/path/e87canbus-installation-v1.json
+uv run e87ctl provision coordinator
+uv run e87ctl provision console
 ```
 
 Keep the printed image, application and provisioning digests. `Prepared` and `First boot: pending`

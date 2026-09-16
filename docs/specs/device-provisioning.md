@@ -106,6 +106,12 @@ uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
 ```
 
+`e87ctl` loads the repository `.env` at startup, documented by the committed `.env.example`.
+`E87CTL_INSTALLATION` and `E87CTL_PROFILE` supply defaults for the matching flags, so an option
+resolves as flag, then environment, then interactive prompt. A real environment variable wins over
+`.env`. The frequently rebuilt image manifest and the target disk have no variables: a stale default
+would name a superseded image, or aim a destructive write at the wrong device.
+
 Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
 profile and requires confirmation of the resolved destructive action. Every interactive selection
 has an explicit non-interactive input. `--non-interactive` fails if any required value is absent.
