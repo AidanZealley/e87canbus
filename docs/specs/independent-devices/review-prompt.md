@@ -69,6 +69,30 @@ and do not propose implementing them:
   - No device-to-device communication on any transport, and no CAN fallback for degraded
     operation.
   - The simulator loses all frame visibility when the trace view is deleted.
+  - The Servotronic device knows nothing about discrete manual levels. It receives a
+    resolved 0 to 1 fraction, and maximum assistance is that fraction at 1.0 rather than
+    a separate device mode.
+  - Configuration writes are not gated on device presence. Saving while a device is
+    disconnected is accepted and the UI says the change is not reaching the device.
+  - No status heartbeat and no staleness rule. An open stream is presence; status is
+    posted on change only.
+  - Button presses are never retried and carry no sequence or idempotency key, and no
+    device sends a timestamp.
+  - No installation-composition source. A role appears in the UI because it is in
+    DeviceRole.
+  - The identity partition is NVS rather than a custom binary layout, and firmware does
+    not verify the certificate chain, the key pair or the validity window.
+  - Simulated devices authenticate by injecting the same headers nginx injects, against
+    the unchanged production authentication path.
+  - The live contract is generated from OpenAPI by the existing hey-api pipeline. The
+    bespoke JSON Schema generators and json-schema-to-typescript are deleted rather
+    than ported.
+  - The live channel is one stream per topic, not one multiplexed stream. There are no
+    event names on the wire. HTTP/2 is enabled in nginx to carry the connection count.
+  - No button availability. A button whose command the car cannot currently obey renders
+    like any other assigned button. The replacement design is described and deferred.
+  - The button pad document carries an animation type and its parameters, not a compiled
+    animation. An unknown type is ignored by the pad.
 
 If you believe one of those decisions is wrong, report it as a Question that engages with
 the reasoning the specification gives, and say what that reasoning fails to account for.

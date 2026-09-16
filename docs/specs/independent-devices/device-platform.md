@@ -77,7 +77,6 @@ envelope:
 {
   "schema_version": 1,
   "generation": 42,
-  "payload_sha256": "<64 hex characters>",
   "payload": "<base64, at most 8192 decoded bytes>"
 }
 ```
@@ -85,22 +84,239 @@ envelope:
 `schema_version` belongs to that device role's document type and is not a global version.
 `generation` is monotonic per device and increments on any change.
 
-The coordinator publishes the document as a `configuration` event on the device's stream, so a
-change reaches the device as soon as it is made. There is no polling interval. A device that has
-just connected receives the current document before anything else, and `Last-Event-ID` resume works
-as described in the transport specification.
+There is no payload digest. The document arrives over authenticated TLS, the device stores the
+whole envelope as one atomically committed NVS entry, and the device's own parser rejects a payload
+its schema does not accept. A digest would add machinery without adding a distinct boundary.
 
-Three rules make opacity safe:
+The coordinator publishes the document as a `configuration` event on the device's stream, so a
+change reaches the device as soon as it is made. There is no polling interval and no replay. Every
+connection begins with the current document, as described in
+[the live event transport](live-event-transport.md).
+
+Four rules make opacity safe:
 
 - A document replaces the entire configuration atomically. A partial or failed write is never
   applied. This carries ADR 0005's whole-scene semantics onto the new transport.
 - A device that does not recognise `schema_version` keeps its last stored document and reports the
   mismatch in its status. It never merges, migrates or guesses.
-- A device validates length and digest before committing, and rejects a payload over the 8 KiB
-  bound without reading it.
+- A device bounds its `data:` line buffer and abandons a record that exceeds it, without
+  attempting to decode. It cannot avoid reading bytes from an open stream, so the bound is on what
+  it accumulates rather than on what arrives.
+- The current authenticated document always wins, whatever its generation. A device never rejects a
+  document for carrying an equal or lower generation than the one it holds. The coordinator is
+  authoritative, and a counter that resets after a database restore, a reprovision or a bug must
+  not leave a device permanently stuck on stale configuration. `generation` exists to let the
+  coordinator recognise a no-op, not to let a device overrule its owner.
 
 Adding a device means adding a document type on the coordinator and a parser in that device's
 firmware. It changes nothing in this specification, in the configuration store, or in `e87ctl`.
+
+## The button pad configuration document
+
+This is the first document type defined, and it is the worked example the others follow.
+
+The coordinator already computes this. `domain/controller/button_leds.py` takes application state
+and the active profile and derives the complete desired pad scene. Nothing about that derivation
+changes. What changes is that its output is serialised into a configuration document instead of
+being compiled into an ISO-TP track and pushed as a CAN effect.
+
+**One layer, reissued.** There is no base scene and no override. The coordinator regenerates the
+whole document whenever anything feeding the derivation changes, bumps `generation`, and publishes
+it. A button becoming unassigned is a new document, not a patch to the old one.
+
+**Shape it against the pad, not against the old frames.** `ButtonPadTrackPayload` was sized by a
+16-byte ISO-TP command and its shape exists to fit that. The document is JSON inside the envelope
+and inherits none of those bounds. Do not port the track encoding.
+
+Sixteen entries, one per button, each a complete state object:
+
+```json
+{
+  "schema_version": 1,
+  "buttons": [
+    {"state": "assigned", "colour": [0, 0, 255], "animation": {"type": "breathe", "period_ms": 2000, "minimum": 8, "maximum": 255}},
+    {"state": "unassigned", "colour": [0, 0, 0], "animation": null}
+  ]
+}
+```
+
+**Colour is raw RGB, already resolved.** The coordinator resolves the authored colour and the
+button's current state into the exact channels the pad lights. The pad does no brightness scaling
+and knows nothing about active, inactive or resting. Today's `resting_rgb` scaling stays
+coordinator-side.
+
+**Constants are named for their role, never for their value.** `SOFT_AMBER` and every other
+colour-named constant goes. What remains is named for what it means: `UNASSIGNED_COLOUR`,
+`UNASSIGNED_BRIGHTNESS`, `INACTIVE_BRIGHTNESS`. Authored colours are stored as RGB by the
+configurator and travel as RGB, so no constant in the coordinator names a hue an operator chose.
+
+**Animation is a name and its parameters, not a compiled track.** The document carries
+`{"type": "breathe", ...}` and the pad decides how to render it. This couples the generator loosely
+to the pad's repertoire, which is accepted: compiling keyframes on the coordinator would put a
+renderer on the wrong side of the link and make every animation change a coordinator change. A pad
+that receives a type it does not implement ignores the animation and lights the button solid in its
+colour. It never rejects the document over it.
+
+**The per-button state value travels even though the colour is already resolved.** The pad needs it
+to decide local behaviour the coordinator cannot see, primarily whether a press flashes feedback at
+all. An unassigned button does nothing when pressed.
+
+**Press feedback is firmware behaviour.** Nothing about the feedback blink is in the document and
+nothing about it comes from the coordinator, which is what removes the override channel described
+above.
+
+### Availability is deferred
+
+A button whose command the car cannot currently obey renders as `UNAVAILABLE` today, in amber.
+That is removed rather than carried across, and nothing replaces it in this milestone.
+
+The design that would have replaced it had the device publish evidence in its status and the
+coordinator turn that into a boolean, in one pattern shared by every device it listens to. It is a
+reasonable design and it is not being built now: it is a distinct feature on top of an already large
+set of changes, and the operator configuring these devices knows what is fitted. Unassigned covers
+what the document actually needs today.
+
+The consequence, so it is not discovered mid-implementation: `ButtonVisual.UNAVAILABLE`,
+`BUTTON_FEEDBACK_UNAVAILABLE`, the `servotronic_usable` parameter on `derived_button_led_state` and
+the `ButtonLedPresenter` seam all go.
+
+`_servotronic_usable` in `kernel/kernel.py` goes with them, and so does everything it gates. All
+four of its conditions are facts about the CAN control path: `servotronic_output_available` is
+wired from `servotronic_can_control_available` in `runners/live.py`, `steering_actuator_fault` is
+raised by the CAN effect executor, and the other two read the registry. None of them survives the
+transport change, so nothing is left to AND. `_require_servotronic`, the steering clause in
+`_gate_effects` and the `FeatureUnavailable` responses on the steering routes go with it: the
+coordinator now updates configuration whether or not the device is connected, and the device
+collects it when it returns. That is the behaviour this architecture is for.
+
+## The Servotronic configuration document
+
+The Servotronic controller is where the transport rule changes the most, because the coordinator
+currently computes the answer and the device only holds it.
+
+Today `domain/controller/steering.py` evaluates the curve against speed the coordinator decoded,
+and sends the resulting assistance value as a `SetSteeringAssistance` effect on every change. The
+device is a PWM output with a watchdog. Under this specification the device decodes speed from CAN
+itself and evaluates its own stored curve, which makes the coordinator's evaluation both redundant
+and the thing that breaks when the link drops.
+
+So the assistance value stops travelling. What travels is everything needed to compute it:
+
+```json
+{
+  "schema_version": 1,
+  "mode": "auto",
+  "assistance": 0.5,
+  "curve": {
+    "schema_version": 1,
+    "points": [[0, 1000], [100, 900], [200, 780], [300, 640], [600, 420], [1000, 260], [1600, 140], [2500, 60]]
+  },
+  "speed_timeout_ms": 1000
+}
+```
+
+`mode` is `auto` or `fixed`. In `auto` the device interpolates the curve against decoded speed. In
+`fixed` it holds `assistance` and ignores speed entirely.
+
+**The device knows nothing about steps.** `assistance` is a resolved fraction between 0 and 1.
+Discrete manual levels are a coordinator and UI concern: however many steps the UI offers, step 5
+of 10 travels as `0.5`. Changing the step count is then a coordinator change alone, and no device
+has to be told about it.
+
+**Maximum assistance is not a device mode.** It is `fixed` at `1.0`. Keeping it distinct on the
+device would add a third mode that behaves identically to one that already exists.
+
+Both distinctions stay coordinator-side, where they mean something. `MaximumAssistance` wraps the
+previous `NormalSteering` so the toggle restores what came before, and the manual level index is
+what the console's control binds to. Neither wrapper nor index travels. Every document is a
+complete statement of what to do, so the device holds no toggle history and no step arithmetic.
+
+The curve keeps the existing schema-version-1 shape: the fixed eight-point deci-kph grid with
+per-mille assistance, already validated as monotonic and on-grid in `domain/steering/curves.py`.
+Keeping it means the device interpolates in integers over a grid it can hold in flash, and the
+coordinator's existing validation is what the device relies on rather than repeating.
+
+`speed_timeout_ms` comes from `SteeringConfig`. It travels rather than being compiled into firmware
+because the device applies the staleness rule now while the coordinator's UI presents it, and the
+two must not be able to disagree. `manual_level_count` stays on the coordinator, because it is
+exactly the step count the device does not need.
+
+**The device owns the fallbacks it can observe.** Stale or never-observed speed resolves to zero
+assistance, which is the car's unassisted behaviour and the same choice the coordinator makes
+today. So does an unparseable or unrecognised document, except that the device keeps its last good
+one. The PWM ceiling and the local watchdog stay firmware concerns and are not configurable.
+
+`SteeringCommandReason` goes entirely. Its `AUTO`, `MANUAL` and `MAXIMUM` members annotated a
+value the coordinator computed, and `CAN_READER_FAILURE`, `INBOX_OVERFLOW` and `SHUTDOWN` described
+a coordinator that could no longer compute one, which is no longer something that affects
+steering.
+
+### Defaults and disconnection
+
+The role default is `auto` with `BUILT_IN_STEERING_CURVE` from `domain/steering/curves.py`, which
+is already what the database seeds. The firmware's compiled-in fallback, required of every device
+by the device contract, is the same curve in the same mode. A device that has never reached the
+coordinator and one that has just received its role default therefore behave identically, so first
+contact changes nothing an operator could feel.
+
+Configuration saves whether or not the controller is connected. The request is accepted, the
+document is stored, the generation increments, and the device collects it when its stream returns.
+There is no server-side rejection based on presence; `_require_servotronic` existed to provide one
+and goes.
+
+The console makes the consequence visible rather than preventing the action. Steering controls stay
+usable, and the UI states plainly that the Servotronic controller is disconnected and that changes
+are not reaching it. It has the two facts it needs already: whether the stream is open, and whether
+the device's `applied_generation` matches the published one. Blocking the control instead would
+mean the operator cannot prepare a setting for a device that is merely powered down, which is the
+behaviour this architecture removes.
+
+### Servotronic status
+
+The console currently shows what the controller is doing, and it must keep showing it. That
+information now arrives as status rather than as the coordinator's own projection of a command it
+sent. `ObservedServotronicSnapshot` already has close to the right shape, because it was a
+projection of the controller's status frame:
+
+```json
+{
+  "effective_assistance": 0.64,
+  "observed_speed_kph": 31.2,
+  "speed_fresh": true,
+  "pwm_duty": 163,
+  "inhibit_reason": null
+}
+```
+
+`effective_assistance` is now reported rather than commanded, which is the point: it is what the
+device resolved, not what the coordinator asked for. `active_curve_source`, `active_curve_revision`
+and `active_curve_crc32` go, replaced by the generation echo below. `last_command_reason` goes,
+because the coordinator no longer issues commands and the device's mode is already in the
+configuration the coordinator published.
+
+`watchdog_timed_out` goes too, and it is worth saying why rather than leaving it to look like an
+oversight. That watchdog's subject is the command stream: it trips when no assistance command has
+arrived inside `steering_watchdog_timeout_s`, so with commands gone there is nothing left for it to
+watch. `steering_watchdog_timeout_s` in `config.py` goes with it. The device's own failure modes
+are already reported as `speed_fresh` and `inhibit_reason`, and the MCU watchdog that protects the
+PWM output is a firmware concern that never had a wire field.
+
+### The generation echo replaces curve activation
+
+The curve activation handshake disappears. `SteeringCurveActivationStatus`,
+`ConfigureServotronicCurve`, `ActiveSteeringCurve.activation_revision`, the CRC32 fingerprint
+comparison, `_servotronic_curve_matches` and `_servotronic_config_available` all exist to answer
+one question: has the device got the curve
+the coordinator thinks it has.
+
+Every device status carries `applied_generation`, the `generation` of the document it currently
+holds, and that answers the same question for every role at once. The console derives what it shows
+from two facts it already has: whether the device's stream is open, and whether `applied_generation`
+equals the generation the coordinator last published. Pending, applied, absent. There is no
+per-feature activation state machine and no second confirmation path.
+
+This is a common status field rather than a Servotronic one. The button pad reports it too, and so
+does every device added later.
 
 ## Persistence
 
@@ -141,17 +357,21 @@ urn:e87canbus:device:v1:<installation>:<role>:<device-id>
 The role selects the document type. The device ID selects which document. A device advertises
 nothing; both values are authenticated rather than claimed.
 
-Configuration is keyed by device ID from the start. With one device per role that is a dictionary
-with one entry per role, and it costs nothing, but it means a role with several installed devices,
-a sensor repeated in different positions, needs no change to the transport or the addressing.
+Configuration is keyed by device ID from the start, so a role with several installed devices, a
+sensor repeated in different positions, needs no change to the transport or the addressing. This is
+not free. Role keying would have no orphan rows and no default-assignment behaviour, and device
+keying has both. The cost is accepted because a repeated role is expected and a later migration
+would have to rewrite stored configuration on a live installation.
 
 A connecting device with no stored configuration receives its role's default document. With one
 device per role that is always correct and no unconfigured state is ever visible. Assigning a
 specific configuration to a specific device belongs in the console UI and is built when a role
 first has more than one device, not before.
 
-Reflashing a device generates a new device ID, so it returns as a device with no stored
-configuration and receives the role default. That is rare and arguably correct.
+Reflashing firmware does not change the device ID. Identity lives in its own partition precisely so
+firmware can be replaced without it. Only reprovisioning identity mints a new device ID, and a
+device that has been reprovisioned returns with no stored configuration and receives the role
+default.
 
 Per-device configuration on the coordinator is application state of the same kind as the existing
 steering profiles. It is not the device inventory ADR 0015 refuses, which is about `e87ctl` holding
@@ -166,17 +386,15 @@ Presence is three separate things, two of which already exist:
 
 - `DeviceRole` in `hosts/src/e87canbus/domain/devices/catalogue.py` is the vocabulary of roles the
   repository knows about. It is a compile-time constant.
-- `DeviceSource`, already `physical`, `emulated` or `disabled` per composition, says which roles
-  this installation has. This is what stops the console showing a permanently disconnected
-  servotronic in a car without one.
+- `DeviceSource`, already `physical`, `emulated` or `disabled` per composition, was intended to say
+  which roles this installation has, and cannot. See "Every known role is shown" below for what
+  happens to it.
 - An open stream says whether a composed device is present right now. This is the only new piece
   and it replaces the CAN `HEARTBEAT` frame.
 
-The coordinator holds at most one stream per device ID and lets a new connection supersede the old
-one. A device whose TCP connection black-holes will reconnect while the coordinator still believes
-the previous stream is alive, and without replacement those accumulate as writes into dead sockets.
-
-Devices report status with `POST /api/devices/status` on change and on a heartbeat interval.
+A device whose TCP connection black-holes reconnects while the coordinator still believes the
+previous stream is alive, so streams are superseded rather than accumulated. The fencing rule that
+makes that safe is in the device API contract below.
 
 ## Device contract
 
@@ -238,10 +456,13 @@ Four regions matter:
 - `e87id`, the provisioned identity partition; and
 - `e87cfg`, the configuration store.
 
+The sizes are in [device firmware provisioning](device-firmware-provisioning.md), which owns the
+table because it writes to its offsets. This section says which regions exist and why.
+
 `e87id` and `e87cfg` are separate NVS partitions rather than namespaces in one, so provisioning can
 replace identity without destroying stored configuration and reflashing firmware destroys neither.
-NVS provides atomic commit and wear levelling, so the store does not hand-roll slot flipping: a
-document commits payload, generation and digest together or not at all.
+NVS provides atomic commit and wear levelling, so the store does not hand-roll slot flipping: the
+whole envelope commits or none of it does.
 
 Reserving two OTA slots is deliberate machinery for work that is out of scope. Network firmware
 update is not in this milestone and may never be built. But these boards end up behind a dash, the
@@ -265,8 +486,12 @@ deliberately building a device-to-device path rather than from one being reachab
 rule, kept by writing it down. Revisit only if a device that is not built here ever joins.
 
 The identity partition holds the SSID, the Wi-Fi password, the installation CA certificate, and the
-device's private key and certificate. It holds no address and no configuration. Its layout is
-specified in [device firmware provisioning](device-firmware-provisioning.md).
+device's private key and certificate. It holds no address, because the coordinator's certificate
+already covers the fixed `10.42.0.1`, and no configuration.
+
+[Device firmware provisioning](device-firmware-provisioning.md) owns its binary layout, bounds,
+versioning and validation rules. Earlier drafts had each specification defer to the other, which
+left the format defined nowhere and blocked workflow 05.
 
 ADR 0015's boundary applies unchanged: the partition is not encrypted, so physical possession of a
 device exposes that device's secrets. Flash encryption and secure boot are rejected for the same
@@ -274,10 +499,11 @@ reasons the SD cards are unencrypted. The mitigation is authorisation, not stora
 
 ## Coordinator changes
 
-**Authorisation.** `PrincipalKind` gains one member per device role, and the closed
-`HTTP_PERMISSIONS` table gains explicit entries for the device stream and status endpoints. No
-device role receives console permissions. A device can read its own configuration stream and post
-its own status, and nothing else.
+**Authorisation.** One new `PrincipalKind` member, `DEVICE`, rather than one per role: every device
+role has the same route permissions, and a per-role kind would duplicate `DeviceRole` and force an
+authorisation change every time a role is added. The closed `HTTP_PERMISSIONS` table gains explicit
+entries for the three device routes, and no device receives console permissions. The device API
+contract below states the rest.
 
 **Input path.** Button events arrive as authenticated HTTPS requests rather than routed CAN frames.
 This is the largest piece of work here and it is coordinator work, not firmware work:
@@ -290,8 +516,148 @@ contract and both frontends change together. This is the second change to that c
 transport swap; keeping them separate means a failure during either is unambiguous.
 
 **Simulation.** The simulated devices in `runners/simulation/devices/` currently speak the CAN
-registry. They become HTTPS clients following this contract, preserving ADR 0003's requirement that
-simulation uses the production path.
+registry and become HTTPS clients following this contract, preserving ADR 0003's requirement that
+simulation uses the production path. How they authenticate is in the device API contract below.
+
+## The device API contract
+
+Three endpoints and one stream. Every one of them is mutually authenticated HTTPS on the device
+network, authorised through the closed `HTTP_PERMISSIONS` table.
+
+### Authentication
+
+`PrincipalKind` gains `DEVICE` and `Principal` gains `role`. `_console_principal` in `auth.py`
+becomes `_certificate_principal`: it already loads the PEM, reads the single URI SAN, matches
+`DEVICE_IDENTITY_PATTERN` and checks the installation ID. The only change is that instead of
+rejecting every role but `console`, it accepts any role in `DeviceRole` and returns
+`Principal(DEVICE, installation, device_id, role)`. Console keeps its own kind, because its
+permissions are entirely different.
+
+Certificates are already ECDSA P-256 (`_create_leaf` in `e87ctl/src/e87ctl/provisioning.py:338`),
+which is the right choice for an ESP32 handshake and needs no change.
+
+A device reaches its own configuration and its own status and nothing else. Scoping is by the
+authenticated device ID, never by a value in the request body, so no device can name another.
+
+### `GET /api/devices/stream`
+
+The device's SSE stream, on the transport defined in
+[the live event transport](live-event-transport.md). It carries exactly one event type:
+
+```text
+data: {"schema_version":1,"generation":42,"payload":"<base64>"}
+
+: keepalive
+
+```
+
+One type per stream is the rule everywhere, not a device concession; see the live event transport.
+For the device it means the firmware reader is a loop that accumulates a `data:` line and hands it
+to one parser, with no event names, no dispatch table and no unknown-event handling. Anything else
+the coordinator might want to tell a device belongs in the configuration document, or in a second
+stream if one is ever warranted.
+
+The current document is sent immediately on connect, as every stream does.
+
+**Superseded streams.** The coordinator holds at most one stream per device ID, and a new
+connection replaces the old one. Presence is keyed by the stream rather than by the device: each
+accepted connection gets a token, and a disconnect clears presence only if the closing stream's
+token is still the registered one. Without that, a black-holed connection's late disconnect clears
+the presence its own replacement established.
+
+### `POST /api/devices/status`
+
+The device reports what it is doing. The response is `204` with no body, because there is nothing
+for the device to do with one.
+
+```json
+{
+  "status_version": 1,
+  "applied_generation": 42,
+  "configuration_error": null,
+  "device": { }
+}
+```
+
+The common fields are the same for every role. `applied_generation` is the generation of the
+document the device currently holds, or `null` when it holds none. `configuration_error` is `null`
+in normal operation and otherwise names why the last document was not applied, most importantly an
+unrecognised `schema_version`, which the opacity rules require a device to report rather than guess
+at.
+
+`device` holds the role's typed status, the Servotronic body above being the worked example. This
+is the asymmetry worth naming: configuration is opaque to the coordinator and typed only by the
+device, while status is typed by the coordinator and acted on. They are not two instances of one
+mechanism and should not be made to share one.
+
+**There is no heartbeat.** An open stream is presence, and the coordinator learns a stream is dead
+from a failed keepalive write within the keepalive interval. A status post that carries no new
+information would duplicate that signal with a second staleness rule to reconcile against it. So
+status is posted on change only: once when the stream opens, and thereafter whenever a reported
+value changes, rate-limited to at most 5 Hz so a continuously varying value like road speed cannot
+saturate the link.
+
+The consequence is that a device's last posted status stays correct until it posts again, and
+absence is shown from the stream rather than inferred from silence. Earlier drafts specified a
+heartbeat interval and a staleness rule; both were removed once presence had a direct signal.
+
+### `POST /api/devices/button-press`
+
+```json
+{"button_index": 4}
+```
+
+Responds `204`. This replaces `protocol/router.py` turning a `0x700` frame into a `ButtonPressed`
+event; the kernel's single-owner semantics are untouched.
+
+**The coordinator assigns the timestamp.** Devices send none. They have no synchronised clock, the
+transit delay is one hop on a local link, and `observed_at` exists to order events inside the
+kernel rather than to record wall-clock truth. This removes clock synchronisation from the device
+contract entirely.
+
+**Presses are never retried and carry no sequence number.** A lost response leaves a toggle
+ambiguous, and the two ways out are an idempotency key or not retrying. Not retrying is both
+simpler and more correct here: re-sending a toggle that did land inverts the operator's intent,
+whereas dropping one is visible and recoverable. It is visible because the button scene is the
+acknowledgement. A toggle that did not reach the kernel produces no new configuration document, the
+button does not change state, and the operator presses again.
+
+That makes press latency the round trip from press to relit button, which is the measurement
+already recorded as an open question below.
+
+**Presence does not gate it.** A device posting a press is self-evidently present. The
+`_gate_effects` check that dropped button effects for an inactive pad has no subject left.
+
+### Simulated devices
+
+The simulated devices in `runners/simulation/devices/` become HTTPS clients of these endpoints,
+which ADR 0003 requires: simulation exercises the production path.
+
+They authenticate through the production path unchanged. `auth.py` does not verify a certificate
+chain; nginx does, and the application trusts `X-E87-Client-Verify: SUCCESS` from a trusted proxy
+address and parses the PEM in `X-E87-Client-Certificate` for identity. So the simulator mints a
+self-signed P-256 certificate per simulated device at startup, with the correct URI SAN, and sends
+the same two headers nginx would. Every line of authentication logic that runs in the car runs in
+simulation, and `auth.py` gains nothing simulator-specific.
+
+The simulator composition adds its own loopback address to `_trusted_proxy_addresses`. That is the
+existing mechanism, and the live composition is not changed.
+
+The alternatives were a real HTTPS boundary with real certificates, which means running nginx under
+the simulator, and a simulator-only principal, which puts a branch inside the code ADR 0003 exists
+to exercise.
+
+### Every known role is shown
+
+`DeviceSource` was intended to say which roles an installation has, and cannot: the closed `car` and
+`bench` compositions in `deployment.py` hard-code both roles as `physical` and `DeploymentSpec`
+rejects variation.
+
+Accept that. A role appears in the UI because it is in `DeviceRole`, and adding a role to that enum
+is the act of saying the installation has one. The car has one of each, a role absent from the
+installation would be a role nobody had written firmware for, and an installation-composition source
+is configuration for a variation that does not exist. If a second installation ever has a different
+set, build it then.
 
 ## Removal
 
@@ -303,6 +669,13 @@ new boards. Git retains it if it is ever wanted.
 The work is not complete while any of the following still exists. Removal is part of the same
 change, not a follow-up.
 
+This inventory is a guide to the areas that need looking at, not a checklist that can be worked
+through and ticked off. It cannot be exhaustive. Its first draft was built by searching for protocol
+symbols, which finds transport modules and misses every place the wire vocabulary was deliberately
+promoted into the domain, as `domain/buttons/pad.py` did on purpose. An independent review found
+that whole category afterwards. Expect the same to happen again: search for consumers of the types
+as well as the modules, and treat anything the list does not name as still in scope.
+
 Protocol definitions:
 
 - `protocol/custom.toml` and `scripts/generate_custom_protocol.py`
@@ -310,7 +683,7 @@ Protocol definitions:
   sections of `protocol/README.md`
 - `protocol/test-vectors/button-pad-program-v2.json`
 
-Coordinator modules:
+Coordinator transport modules:
 
 - `hosts/src/e87canbus/protocol/generated.py`, `router.py` and `servotronic_protocol.py`
 - `hosts/src/e87canbus/protocol/can.py`, reduced to vehicle frame handling only
@@ -319,8 +692,46 @@ Coordinator modules:
 - registry state in `kernel/kernel.py`, `service/diagnostics.py`, `adapters/output.py`,
   `api/models/live.py`, `api/internal/commands.py`, `config.py` (`CustomCanIds`) and
   `runners/live.py`
+
+Application code carrying the wire vocabulary. `domain/buttons/pad.py` re-exports the CAN codec's
+track types so the rest of the domain names them there, and those types reach application effects,
+the controller snapshot, every state commit and the live contract. Each of these needs an explicit
+replacement or deletion, not an import fix:
+
+- `domain/buttons/pad.py`
+- `domain/controller/button_leds.py`, `intents.py` and `snapshot.py`
+- `domain/controller/steering.py` entirely, with `SetSteeringAssistance`, `SteeringCommandReason`,
+  the `SteeringActuator` protocol and `SteeringActuatorFailure`. The device evaluates the curve
+  now, so the coordinator has no assistance value to compute or send.
+- the curve activation handshake: `SteeringCurveActivationStatus`, `ConfigureServotronicCurve`,
+  `ActiveSteeringCurve.activation_revision`, the CRC32 comparison, `_servotronic_curve_matches`,
+  `_servotronic_config_available` and the activation status in the live contract
+- `_servotronic_usable`, `_require_servotronic`, `_servotronic_output_available`,
+  `steering_actuator_fault` and the steering clause in `_gate_effects`
+- `watchdog_timed_out` through the diagnostics and live models, and
+  `SimulationConfig.steering_watchdog_timeout_s`, whose subject was the removed command stream
+- device-specific effects and feedback state in `domain/events.py` and `domain/state.py`
+- `kernel/inputs.py`, `kernel/health.py` and their package exports
+- the Servotronic projections in `service/diagnostics.py`
+- `frontend/apps/coordinator/src/hooks/use-button-pad-program.ts`
+- both Servotronic availability implementations and the device-status presentation that consumes
+  them, including `frontend/apps/console/src/components/car-layout/car-ui.ts`
+
+Simulation. Deleting the registry modules alone leaves imports and generated clients broken:
+
 - `runners/simulation/devices/peer.py`, and the registry paths in `neotrellis.py`, `session.py` and
   `runtime.py`
+- `runners/simulation/devices/servotronic.py`, which subclasses the registry peer
+- `runners/simulation/commands.py`, which exposes protocol-version and status-code mutations, and
+  the simulator HTTP routes and models in `runners/simulation/api/routes/devices.py`
+- `deployment.py` and `runners/composition.py`, which encode the registry-era role and source
+  composition
+- the generated OpenAPI operations and simulator frontend client code built from those routes
+
+Dependencies and configuration:
+
+- `can-isotp` in the root `pyproject.toml`, with the lock regenerated
+- the import-linter exceptions in `pyproject.toml` that exist for the removed layering
 
 Firmware and libraries:
 
@@ -360,13 +771,19 @@ link to the Pi is its own. It stays live and untouched.
 transport-independent, independently tested, and still what the device does under this
 specification. If the replacement firmware does not adopt it, delete it then.
 
-Tests: `test_device_registry.py`, `test_isotp_transport.py`, `test_generated_protocol.py`,
-`test_servotronic_protocol.py`, `test_button_pad_firmware_host.py`, which tests firmware that no
-longer exists, and `test_can_protocol.py` are
-deleted or reduced to vehicle decoding. Registry assertions are removed from the roughly fifteen
-other suites that carry them, including `test_live.py`, `test_runtime.py`, `test_output.py`,
-`test_controller_loop.py`, `test_simulation_devices.py` and `test_live_contract.py`. Do not leave a
-test asserting that a removed feature is absent.
+Tests. Deleted or reduced to vehicle decoding: `test_device_registry.py`,
+`test_isotp_transport.py`, `test_generated_protocol.py`, `test_servotronic_protocol.py`,
+`test_can_protocol.py`, `test_button_pad_program_vectors.py`, and the two AVR host-compilation
+suites `test_button_pad_firmware_host.py` and `test_servotronic_firmware_host.py`, which test
+firmware that no longer exists. Registry and effect assertions are removed from the suites that
+carry them, including `test_live.py`, `test_runtime.py`, `test_output.py`,
+`test_controller_loop.py`, `test_simulation_devices.py`, `test_live_contract.py` and
+`test_application_controller.py`. Do not
+leave a test asserting that a removed feature is absent.
+
+`e87ctl/tests/test_provisioning_artifacts.py` asserts `can-isotp` appears in the application
+bundle and changes with the dependency. This is the one place workflow 04 writes inside `e87ctl/`,
+so it is an explicit handoff rather than a violation of workflow 05's ownership.
 
 Documentation: `devices/README.md`, `protocol/README.md`, `docs/setup.md`, `docs/simulation.md`,
 `docs/reliability.md` and the root `README.md` all describe the CAN handshake or ISO-TP snapshots
@@ -385,5 +802,5 @@ project devices.
   they will live and the engine running. If not, ADR 0017 keeps `0x700`–`0x70F` available for
   moving small command and status frames onto CAN under unchanged coordinator ownership. Measure
   p99 latency and reconnect frequency over a session before deciding.
-- The configuration document type for each role, which this specification deliberately does not
-  define.
+- Whether button availability returns, and if so whether the device-evidence pattern described
+  above is the right shape for it.

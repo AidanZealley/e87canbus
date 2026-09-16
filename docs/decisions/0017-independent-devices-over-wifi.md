@@ -55,7 +55,8 @@ rather than surprising. That assumption is recorded rather than enforced: earlie
 durable indication, which would have made one device's behaviour depend on another device's
 configuration.
 
-Push uses server-sent events, replacing Socket.IO everywhere including the frontends. Commands stay
+Push uses server-sent events, replacing Socket.IO in both hosts and both frontends. Every
+connection begins with a complete snapshot; there is no replay, event ID or retention. Commands stay
 on HTTP, because request and response semantics belong there and rebuilding them over a socket is
 more code, not less. The frontend migration is sequenced first so the transport is proven in a
 browser before firmware depends on it.
@@ -86,8 +87,11 @@ remaining consumer. Arbitration IDs `0x700`–`0x70F` stay reserved for project 
   question is answered without a new transport.
 - The button pad's LED override channel and its compositing rules disappear, along with the
   coordinator-triggered flash they existed to carry.
-- Socket.IO, Engine.IO and the bounded-queue machinery written to give them backpressure are
-  removed. TCP provides it for SSE.
+- Socket.IO and Engine.IO are removed. Their bounded-queue and slow-peer rules survive, because one
+  producer still fans out to independent response bodies and one blocked client must not stop the
+  others; only the Engine.IO-shaped implementation goes.
+- Both live channels move, the coordinator's and the console host's own local one. The shared
+  adapter cannot be removed while either remains.
 - The workbench's simulated CAN trace view is removed with them. Its subscribe and unsubscribe
   messages were the last client-to-server members of the live contract, so the push channel becomes
   one-way as a fact rather than as a constraint of the transport. The simulation bus keeps its own
