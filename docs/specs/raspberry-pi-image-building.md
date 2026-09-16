@@ -16,9 +16,9 @@ artifacts/images/coordinator/
 artifacts/images/console/
 ```
 
-The [device lifecycle specification](device-provisioning.md) defines provisioning, identity,
-application bundles and verification. The [image runbook](../../images/README.md) contains current
-build and physical-check instructions.
+The [device lifecycle specification](device-provisioning.md) defines provisioning, identity and
+application bundles. The [image runbook](../../images/README.md) contains current build and
+physical-check instructions.
 
 ## Build architecture
 

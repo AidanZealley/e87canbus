@@ -16,7 +16,7 @@ every project device or every later lifecycle operation.
 The tool is called `e87ctl`. It is separate from the two programs that run on the Pis:
 
 ```text
-e87ctl             workstation image, provisioning and verification tool
+e87ctl             workstation image and provisioning tool
 e87canbus          coordinator runtime
 e87canbus-console  console runtime
 ```
@@ -34,7 +34,7 @@ The first implementation must:
 - install the application and secrets through a one-time first-boot consumer;
 - configure the isolated coordinator Wi-Fi network;
 - authenticate console HTTP and Socket.IO traffic with mutual TLS; and
-- report offline preparation and online first-boot verification separately.
+- report card preparation without claiming first-boot success.
 
 Routine deployment and microcontroller support are later milestones. They must not add unused
 abstractions to this implementation.
@@ -104,21 +104,7 @@ uv run e87ctl installation create --output <recovery-package>
 
 uv run e87ctl provision coordinator --installation <recovery-package>
 uv run e87ctl provision console --installation <recovery-package>
-
-uv run e87ctl verify
-uv run e87ctl verify coordinator --installation <recovery-package> \
-  --host-key-fingerprint <trusted-sha256-fingerprint>
-uv run e87ctl verify console --installation <recovery-package> \
-  --host-key-fingerprint <trusted-sha256-fingerprint>
 ```
-
-`e87ctl verify` with no role is the guided pair check. It collects the recovery-package path, both
-trusted Ed25519 host-key fingerprints and a report path, then asks the operator to join the
-installation network. After that confirmation it verifies the coordinator and the console twice
-each and writes one versioned, secret-free report of all four results and their elapsed times.
-Invalid local input fails before the network switch, and a device failure exits nonzero while still
-saving the evidence gathered so far. The guided flow calls the same per-role verification as the
-explicit commands, which remain available for automation and offline status checks.
 
 Interactive provisioning lists compatible images and eligible disks, selects a `car` or `bench`
 profile and requires confirmation of the resolved destructive action. Every interactive selection
@@ -448,37 +434,19 @@ targets remain unavailable until the confirmed operation unmounts them.
 The low-level writer accepts only a validated target value produced by these checks. It cannot
 accept an arbitrary path through another call site.
 
-## First-boot reporting and verification
+## First-boot reporting
 
-Card preparation and first-boot verification are separate facts. `provision` reports only the
-former.
+Card preparation and first-boot status are separate facts. `provision` reports only the former.
 
 The consumer writes detailed non-secret state to
-`/var/lib/e87canbus-provisioning/status.json` and a smaller status document to the boot partition.
+`/var/lib/e87canbus-provisioning/status.json` and the same status document to the boot partition.
 Both identify the format version, role, installation ID, device ID, hostname, completed phase,
 artifact digests, result and a bounded safe error code. Neither contains raw configuration or
 secrets.
 
-If networking starts, `e87ctl verify` uses the coordinator HTTPS endpoint and key-only SSH access
-to the selected host as appropriate. The operator supplies the role's Ed25519 host-key SHA-256
-fingerprint from a trusted local physical check. Verification rejects another SSH server at the
-fixed address. It checks:
-
-- coordinator certificate trust and expected installation identity;
-- successful bundle consumption and marker removal;
-- installed application identity;
-- host role, device ID and hostname;
-- application and role-service health;
-- Wi-Fi association and expected network configuration;
-- console mutual-TLS authentication for HTTP and Socket.IO; and
-- rejection of console identity on an operator-only endpoint.
-
-An offline target is not fully verified. If first boot fails before networking starts, the operator
-can power down the Pi, return the card to the Mac and read the non-secret boot-partition status.
-
-Each check reports `passed`, `failed` or `unavailable`. Human output explains unavailable checks.
-`--json` returns the same versioned structured result without prompts. The command exits nonzero if
-any required check fails or remains unavailable.
+If first boot fails before networking starts, the operator can power down the Pi, return the card
+to the Mac and inspect the bounded, non-secret boot-partition status. Runtime and image acceptance
+checks remain in the repository-owned image checker; they are not a routine workstation command.
 
 ## Installation replacement
 
@@ -515,7 +483,6 @@ existing recovery package. The old credential remains valid until the installati
 - The writer detects changes in macOS-reported target identity before writing and verifies image
   and bundle bytes.
 - Provisioning reports card preparation without claiming first-boot success.
-- Online verification proves the installed identities, network path and application health.
 - Rebuilt coordinator and console images pass the relevant automated and physical checks.
 
 ## Deferred work

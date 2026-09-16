@@ -59,8 +59,8 @@ implied by local send success.
 
 For blank coordinator and console Pi 4s, follow the
 [provisioning runbook](deploy/README.md). It covers image builds, installation recovery, safe SD
-writing, first boot, authenticated Wi-Fi and online verification. The electrical rationale for the
-coordinator's combined Waveshare boards is recorded in the
+writing, first boot and authenticated Wi-Fi. The electrical rationale for the coordinator's
+combined Waveshare boards is recorded in the
 [three-channel CAN stack design](docs/waveshare-three-channel-stack.md).
 
 ## Local Setup

@@ -7,13 +7,6 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from e87ctl.guided import (
-    collect_inputs,
-    confirm_network,
-    render_report_human,
-    run_passes,
-    write_report,
-)
 from e87ctl.macos import SystemDiskutil
 from e87ctl.provision import (
     ProvisionCommandError,
@@ -29,7 +22,6 @@ from e87ctl.recovery import (
     create_recovery_package,
     write_recovery_package,
 )
-from e87ctl.verify import VerifyCommandError, render_human, verify_device
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -63,39 +55,6 @@ def _parser() -> argparse.ArgumentParser:
     provision.add_argument("--non-interactive", action="store_true")
     provision.add_argument("--json", action="store_true", help="Print a machine-readable result")
 
-    verify = commands.add_parser(
-        "verify",
-        help="Verify a provisioned Raspberry Pi, or omit the role for the guided pair check",
-        description=(
-            "With no role, e87ctl verify guides the operator through the complete coordinator "
-            "and console pair check and saves one secret-free report. With a role, it runs that "
-            "single check from explicit arguments."
-        ),
-    )
-    verify.add_argument(
-        "role",
-        nargs="?",
-        choices=("coordinator", "console"),
-        help="Omit to run the guided coordinator and console pair verification",
-    )
-    verify.add_argument(
-        "--installation",
-        type=Path,
-        metavar="PATH",
-        help="Required with an explicit role; the guided form asks for it",
-    )
-    verify.add_argument(
-        "--status",
-        type=Path,
-        metavar="PATH",
-        help="Read an offline e87canbus-status-v1.json from the BOOT partition",
-    )
-    verify.add_argument(
-        "--host-key-fingerprint",
-        metavar="SHA256:FINGERPRINT",
-        help="Expected SHA-256 fingerprint of the selected device's Ed25519 SSH host key",
-    )
-    verify.add_argument("--json", action="store_true", help="Print a machine-readable result")
     return parser
 
 
@@ -211,59 +170,6 @@ def _provision(arguments: argparse.Namespace) -> int:
     return 0
 
 
-def _verify(arguments: argparse.Namespace) -> int:
-    if arguments.role is None:
-        supplied = [
-            option
-            for option, value in (
-                ("--installation", arguments.installation),
-                ("--status", arguments.status),
-                ("--host-key-fingerprint", arguments.host_key_fingerprint),
-                ("--json", arguments.json or None),
-            )
-            if value is not None
-        ]
-        if supplied:
-            print(
-                f"error: guided verification takes no {', '.join(supplied)}",
-                file=sys.stderr,
-            )
-            return 1
-        return _guided_verify()
-    if arguments.installation is None:
-        print("error: --installation is required with an explicit role", file=sys.stderr)
-        return 1
-    try:
-        result = verify_device(
-            arguments.role,
-            arguments.installation,
-            offline_status_path=arguments.status,
-            expected_host_key_fingerprint=arguments.host_key_fingerprint,
-        )
-    except VerifyCommandError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    if arguments.json:
-        print(json.dumps(result.model_dump(), separators=(",", ":")))
-    else:
-        print(render_human(result))
-    return 0 if result.result == "passed" else 1
-
-
-def _guided_verify() -> int:
-    try:
-        inputs = collect_inputs(input)
-        confirm_network(input)
-        report = run_passes(inputs)
-        write_report(inputs.report_path, report)
-    except VerifyCommandError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    print(render_report_human(report))
-    print(f"Report: {inputs.report_path}")
-    return 0 if report.result == "passed" else 1
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "image":
@@ -279,6 +185,4 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _create_installation(output, json_output)
     if arguments.command == "provision":
         return _provision(arguments)
-    if arguments.command == "verify":
-        return _verify(arguments)
     raise AssertionError("command was not parsed")

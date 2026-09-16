@@ -159,7 +159,5 @@ systemctl poweroff
 Do not accept a changed image until the exact candidate has complete MacBook writer, Raspberry Pi
 4, network, TLS and cleanup evidence.
 
-After both Pis boot, run `uv run e87ctl verify` and follow its prompts. It collects the recovery
-package, both host-key fingerprints and a report path, then guides the Wi-Fi switch and checks both
-Pis twice. The [provisioning runbook](../deploy/README.md) contains the complete pair and
+The [provisioning runbook](../deploy/README.md) contains the complete commissioning and
 invalid-bundle acceptance procedure.
