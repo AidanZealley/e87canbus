@@ -20,6 +20,7 @@ from e87ctl.verify import (
     _REMOTE_VERIFIER,
     REMOTE_COMMON_CHECKS,
     REMOTE_CONSOLE_CHECKS,
+    REMOTE_COORDINATOR_CHECKS,
     VerificationCheck,
     VerificationResult,
     VerifyCommandError,
@@ -226,7 +227,9 @@ def test_ssh_command_uses_a_temporary_key_without_secret_arguments(
             json.dumps(
                 {
                     "status": provisioning_status(recovery.installation_id),
-                    "checks": {name: True for name in REMOTE_COMMON_CHECKS},
+                    "checks": {
+                        name: True for name in (*REMOTE_COMMON_CHECKS, *REMOTE_COORDINATOR_CHECKS)
+                    },
                 }
             ).encode()
         )
@@ -357,7 +360,9 @@ def test_remote_identity_cannot_overclaim_a_different_installation(
             json.dumps(
                 {
                     "status": provisioning_status("b" * 52),
-                    "checks": {name: True for name in REMOTE_COMMON_CHECKS},
+                    "checks": {
+                        name: True for name in (*REMOTE_COMMON_CHECKS, *REMOTE_COORDINATOR_CHECKS)
+                    },
                 }
             ).encode()
         )
@@ -376,10 +381,19 @@ def test_remote_identity_cannot_overclaim_a_different_installation(
     assert identity.status == "failed"
 
 
-def certificate(installation_id: str, device_id: str) -> x509.Certificate:
+def certificate(
+    installation_id: str, device_id: str, *, include_friendly_name: bool = True
+) -> x509.Certificate:
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.now(UTC)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "coordinator")])
+    alternative_names: list[x509.GeneralName] = [
+        x509.UniformResourceIdentifier(
+            f"urn:e87canbus:device:v1:{installation_id}:coordinator:{device_id}"
+        )
+    ]
+    if include_friendly_name:
+        alternative_names.append(x509.DNSName("e87.local"))
     return (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -389,13 +403,7 @@ def certificate(installation_id: str, device_id: str) -> x509.Certificate:
         .not_valid_before(now - timedelta(minutes=1))
         .not_valid_after(now + timedelta(days=1))
         .add_extension(
-            x509.SubjectAlternativeName(
-                [
-                    x509.UniformResourceIdentifier(
-                        f"urn:e87canbus:device:v1:{installation_id}:coordinator:{device_id}"
-                    )
-                ]
-            ),
+            x509.SubjectAlternativeName(alternative_names),
             critical=False,
         )
         .sign(key, hashes.SHA256())
@@ -492,6 +500,35 @@ def test_https_identity_binds_ssh_and_operator_status_to_the_same_device(
     )
 
 
+def test_https_identity_requires_the_friendly_name_in_the_served_certificate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recovery = create_recovery_package()
+    encoded = certificate(
+        recovery.installation_id, DEVICE_ID, include_friendly_name=False
+    ).public_bytes(serialization.Encoding.DER)
+    context = FakeContext(encoded)
+    monkeypatch.setattr("ssl.create_default_context", lambda **kwargs: context)
+    monkeypatch.setattr("socket.create_connection", lambda *args, **kwargs: FakeTls(b""))
+
+    def request(
+        context_arg: object, method: str, path: str, headers: dict[str, str]
+    ) -> tuple[int, bytes]:
+        if path == "/api/system/provisioning":
+            return 200, json.dumps(provisioning_status(recovery.installation_id)).encode()
+        if path == "/health/ready":
+            return (200 if headers else 401), b""
+        return 200, b""
+
+    monkeypatch.setattr("e87ctl.verify._https_request", request)
+
+    checks = _coordinator_https_checks(recovery, expected_device_id=DEVICE_ID)
+
+    assert (
+        next(check for check in checks if check.name == "coordinator_identity").status == "failed"
+    )
+
+
 def test_remote_verifier_is_valid_python() -> None:
     compile(_REMOTE_VERIFIER, "<e87ctl remote verifier>", "exec")
     for expected in (
@@ -503,6 +540,18 @@ def test_remote_verifier_is_valid_python() -> None:
     ):
         assert expected in _REMOTE_VERIFIER
     assert 'key-mgmt") == "sae"' not in _REMOTE_VERIFIER
+    for evidence in (
+        '"host-name=e87"',
+        '"allow-interfaces=wlan0"',
+        '"use-ipv4=yes"',
+        '"use-ipv6=no"',
+        '"enable-wide-area=no"',
+        '"enable-reflector=no"',
+        '"GetHostName"',
+        "ss -H -lun4",
+        "ss -H -lun6",
+    ):
+        assert evidence in _REMOTE_VERIFIER
 
 
 def role_result(role: str, *states: str) -> VerificationResult:

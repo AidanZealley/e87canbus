@@ -451,7 +451,7 @@ def test_hardware_runbook_uses_public_builds_and_test_card_only_access() -> None
     assert "sh /boot/firmware/e87canbus-image-check console" in runbook
     assert "changes only the flashed" in runbook
     assert "It creates no user or credential" in runbook
-    assert "Do not report the images as accepted" in runbook
+    assert "Do not accept a changed image" in runbook
     assert "source of checkpoint assertions" in runbook
 
 
@@ -472,6 +472,10 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         "test -L /opt/e87canbus/current",
         "test -e /dev/ttyAMA3",
         "e87canbus-controller.service e87canbus-firewall.service",
+        "e87.local mDNS advertisement configured",
+        "GetHostName",
+        'ss -H -lun4 "sport = :5353"',
+        'ss -H -lun6 "sport = :5353"',
         "authenticated HTTPS listener active at 10.42.0.1:443",
         "ss -H -ltn 'sport = :443'",
         "no HTTP listener exposed on port 80",
@@ -540,8 +544,8 @@ def test_hardware_runbook_covers_both_role_boundaries() -> None:
         "provisionable Raspberry Pi 4 coordinator and console image candidates",
         "e87canbus-provision.service",
         "unique host state",
-        "MacBook, Raspberry",
-        "Do not report the images as accepted",
+        "complete MacBook writer, Raspberry Pi",
+        "Do not accept a changed image",
     ):
         assert boundary in runbook
     assert "ft5|goodix" not in runbook
@@ -668,7 +672,7 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
     customize = read(COORDINATOR / "customize.sh")
 
     assert "X-Env-Layer-Requires: e87-common" in layer
-    for package in ("dnsmasq-base", "nftables", "nginx-light"):
+    for package in ("avahi-daemon", "dnsmasq-base", "nftables", "nginx-light"):
         assert f"    - {package}\n" in layer
     assert "    - iw\n" not in layer
     for prohibited in ("git", "nodejs", "npm", "pnpm", "uv ", "build-essential"):
@@ -682,6 +686,7 @@ def test_coordinator_layer_installs_only_stable_runtime_packages_and_assets() ->
         "e87canbus-firewall.service",
         "e87canbus-dnsmasq.service",
         "e87canbus-nginx.service",
+        "avahi-daemon.conf",
         "70-e87canbus-coordinator-can.rules",
         "controller.env.example",
     )
@@ -698,6 +703,7 @@ def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
     assert not (COORDINATOR / "network-manager.cmds").exists()
     dnsmasq = read(ROOT / "deploy/network/dnsmasq.conf")
     firewall = read(ROOT / "deploy/network/nftables.conf")
+    avahi = read(ROOT / "deploy/network/avahi-daemon.conf")
     nginx = read(ROOT / "deploy/nginx/e87canbus.conf")
     dnsmasq_unit = read(ROOT / "deploy/systemd/e87canbus-dnsmasq.service")
     firewall_unit = read(ROOT / "deploy/systemd/e87canbus-firewall.service")
@@ -710,6 +716,13 @@ def test_coordinator_network_prerequisites_are_fixed_and_secret_free() -> None:
     assert "StateDirectory=e87canbus-dnsmasq" in dnsmasq_unit
     assert "chain forward" in firewall and "policy drop" in firewall
     assert 'iifname "wlan0" tcp dport { 22, 443 } accept' in firewall
+    assert "ip daddr 224.0.0.251 udp dport 5353 accept" in firewall
+    assert "host-name=e87" in avahi
+    assert "allow-interfaces=wlan0" in avahi
+    assert "enable-wide-area=no" in avahi
+    assert "enable-reflector=no" in avahi
+    assert "use-ipv4=yes" in avahi
+    assert "use-ipv6=no" in avahi
     assert "Before=NetworkManager.service" in firewall_unit
     assert "WantedBy=multi-user.target" in firewall_unit
     assert "delete table inet e87canbus" in firewall_helper

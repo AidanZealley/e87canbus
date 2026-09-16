@@ -69,6 +69,8 @@ install_runtime_assets() {
         "${target}/etc/e87canbus/controller.env"
     install -m 0644 "${deploy}/network/dnsmasq.conf" \
         "${target}/etc/e87canbus/dnsmasq.conf"
+    install -m 0644 "${deploy}/network/avahi-daemon.conf" \
+        "${target}/etc/avahi/avahi-daemon.conf"
     install -m 0644 "${deploy}/network/nftables.conf" \
         "${target}/etc/e87canbus/nftables.conf"
     install -m 0644 "${deploy}/network/90-e87canbus-no-forwarding.conf" \

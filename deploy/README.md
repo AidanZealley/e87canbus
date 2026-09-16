@@ -88,7 +88,7 @@ endpoint. `--json` returns the same checks as a versioned document for a single 
 On the coordinator panel, confirm that the display settles at `READY`. The panel is status-only;
 the former network-control button and its host, simulator and firmware paths no longer exist.
 
-Import the public CA sidecar on a service laptop, open `https://10.42.0.1`, and sign in as
+Import the public CA sidecar on a service laptop, open `https://e87.local`, and sign in as
 `operator` with the password in the recovery package. A laptop with only the Wi-Fi password may
 use `/health/live` but cannot read application state. SSH is available as `e87-admin` with the
 management private key in the recovery package. Password and root login are disabled.
@@ -172,7 +172,8 @@ The coordinator owns `10.42.0.1/24` and the console owns `10.42.0.2/24` on one W
 RSN/CCMP network with required management-frame protection. Laptop DHCP is limited to
 `10.42.0.100-150` and advertises neither DNS nor a default gateway. Forwarding is disabled and the
 firewall accepts
-only DHCP, HTTPS, key-only SSH and normal local-network traffic.
+only DHCP, IPv4 mDNS discovery for `e87.local`, HTTPS, key-only SSH and ICMP. The AP deliberately
+has no internet route, so macOS's no-internet indicator is expected.
 
 The coordinator remains the only controller owner. Turning off the console or removing Wi-Fi must
 leave it ready. The console keeps local K-CAN status, marks coordinator-backed state disconnected,
