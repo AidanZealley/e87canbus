@@ -1,6 +1,6 @@
 # Workstream 4: console SSE server and contract
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -165,4 +165,4 @@ claude -p "Perform the focused closure review for Workstream 4 of the browser SS
   the `console.snapshot` discriminator, and the focused negative validation test rejects its
   omission.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `8e64ab4e0868d8bdf1314fd7ce99e8f23daf0c04`
