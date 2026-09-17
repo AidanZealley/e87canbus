@@ -1,6 +1,6 @@
 # Browser SSE whole-feature review
 
-Status: not started. Begin only after all six workstreams are accepted.
+Status: initial whole-feature review in progress.
 
 ## Reviewer task packet
 
@@ -122,7 +122,8 @@ accepted workstream returns to the orchestrator for a focused review before rete
 ## Initial whole-feature review
 
 - Reviewer: `TBD`
-- Branch, base and reviewed head: `TBD`
+- Branch, base and reviewed head: `feature/browser-sse`; base `4f3539d`; reviewed head
+  `fb1bd7eae99a0a514b3b660dabcf9cbe9ae653db`.
 - Verification run: `TBD`
 - Acceptance-criteria audit: `TBD`
 - Required findings by owner: `TBD`
