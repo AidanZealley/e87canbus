@@ -1,6 +1,6 @@
 # Workstream 3: coordinator browser cutover
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -119,7 +119,7 @@ claude -p "Perform the focused closure review for Workstream 3 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `176802cca0576a633aa7cd49538917d5c4f26e20`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
