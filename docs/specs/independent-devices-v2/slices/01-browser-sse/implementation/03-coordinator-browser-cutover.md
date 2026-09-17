@@ -1,6 +1,6 @@
 # Workstream 3: coordinator browser cutover
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -188,4 +188,4 @@ claude -p "Perform the focused closure review for Workstream 3 of the browser SS
   stale post-abort writes and permits a single replacement connection. The accepted type and
   fixture simplifications also passed focused tests and typecheck.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `39ec49790c04344bb0dfff7e9c1561cb703e189b`
