@@ -17,7 +17,7 @@ Status: in progress.
 |---:|---|---|---|---|
 | 1 | [Retire legacy live UI](01-retire-legacy-live-ui.md) | Approved Slice 01 | Accepted | `77e97e7` |
 | 2 | [Coordinator SSE server and contract](02-coordinator-sse-server.md) | Workstream 1 | Accepted | `53d5950` |
-| 3 | [Coordinator browser cutover](03-coordinator-browser-cutover.md) | Workstream 2 | Accepted | pending implementation commit |
+| 3 | [Coordinator browser cutover](03-coordinator-browser-cutover.md) | Workstream 2 | Accepted | `39ec497` |
 | 4 | [Console SSE server and contract](04-console-sse-server.md) | Workstream 3 | Not started | - |
 | 5 | [Console browser cutover](05-console-browser-cutover.md) | Workstream 4 | Not started | - |
 | 6 | [Final transport cleanup](06-final-transport-cleanup.md) | Workstream 5 | Not started | - |
