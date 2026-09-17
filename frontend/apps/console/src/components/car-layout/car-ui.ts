@@ -1,6 +1,5 @@
 import type { ApplicationSettingsResponse } from "@e87canbus/coordinator-client/api/http/types.gen"
 import type {
-  DeviceRegistryEntryState,
   EngineTelemetryValue,
   RuntimeFaultState,
   SteeringState,
@@ -15,13 +14,11 @@ export type ServotronicAvailability = {
 
 export const deriveServotronicAvailability = ({
   synchronized,
-  status,
   steering,
   steeringFault,
   adapterFault,
 }: {
   synchronized: boolean
-  status: DeviceRegistryEntryState["status"]
   steering: SteeringState | null
   steeringFault: RuntimeFaultState | null
   adapterFault: RuntimeFaultState | null
@@ -38,11 +35,11 @@ export const deriveServotronicAvailability = ({
   if (steeringFault !== null || adapterFault !== null) {
     return unavailable("servotronic output adapter is faulted")
   }
-  if (status !== "active") {
-    return unavailable(`servotronic controller is ${status}`)
+  if (steering.servotronic === null) {
+    return unavailable("live servotronic state unavailable")
   }
   return {
-    telemetry: steering.servotronic !== null,
+    telemetry: true,
     modeControl: true,
     activation: steering.curve_activation_available,
     reason: "",

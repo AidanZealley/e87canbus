@@ -11,7 +11,7 @@ Two independently built React applications: the coordinator workbench and the in
 - TanStack Router with generated file-based routes and automatic code splitting
 - TypeScript 6
 - Socket.IO client with one application-scoped transport owner
-- Zustand for current live state and bounded diagnostic trace
+- Zustand for current live state
 - TanStack Query for durable HTTP resources and mutations
 
 ## Development
@@ -45,22 +45,16 @@ serving origin. Its distinct `/console/socket.io` path proxies only to the local
 local `kcan` interface, the development service remains live and reports the expected CAN fault.
 Socket.IO owns reconnection and the UI remains unsynchronized until the backend's complete
 protocol-v1 snapshot arrives. Unknown protocol versions fail visibly. Strict Mode and route changes
-reuse the same client and listener set. If the trace view remains logically open across a transport
-reconnect, its owner re-subscribes on the new connection epoch; leaving the trace route removes the
-subscription and retains only the fixed local trace capacity.
+reuse the same client and listener set.
 HTTP commands and development controls return acknowledgements only. Components never merge an
 HTTP response into live state; Socket.IO remains the sole path into Zustand.
 
-The workbench displays the isolated K-CAN, PT-CAN, and F-CAN topology plus one chronological trace.
-Its simulated-vehicle card controls speed and independently sets or silences RPM, oil temperature
+The workbench exposes the coordinator-panel simulator and button-profile editor. The toolbar's
+simulated-vehicle popover controls speed and independently sets or silences RPM, oil temperature
 and coolant temperature. Engine controls show valid, never-observed and stale states without
 substituting numeric zero; their PT-CAN identifiers are simulation-only and are not BMW
-definitions. The button-pad card separates semantic controller commands from explicitly labeled
-emulator exercise. Emulator controls are enabled only for the `emulated` source role, emit the
-generated wire protocol, and display LEDs actually decoded by that emulator. Physical and observer
-roles show controller-desired LEDs with observation marked unknown; no UI control fabricates device
-health.
-Network filtering is local UI state and remains selected when the simulator is reset.
+definitions. CAN topology, trace, custom-protocol and simulated-device lifecycle controls are not
+browser features.
 
 ## Applications and routes
 
@@ -77,22 +71,19 @@ directly.
 
 ## Car data and instrument foundation
 
-One Zustand store owns complete current vehicle, engine, steering, button, device and health
+One Zustand store owns complete current vehicle, engine, steering, button, lighting and health
 projections with independent topic revisions. Components subscribe to the smallest stable value
-they need; no car-layout context copies or rebroadcasts live state. A separate 2,000-row store owns
-opt-in trace only while the trace UI is open. When Socket.IO is connecting or reconnecting, retained
-live values are presented as unavailable while navigation and cached durable settings remain usable.
+they need; no car-layout context copies or rebroadcasts live state. When Socket.IO is connecting or
+reconnecting, retained live values are presented as unavailable while navigation and cached durable
+settings remain usable.
 A separate compact configuration warning identifies
 compiled defaults when authoritative settings fail to load; the original settings error remains
 available to the later settings screen.
 
 Canonical speed/temperature conversions, three-degree Celsius temperature hysteresis and RPM stage
 derivation are pure utilities. Threshold changes re-evaluate the current valid temperature without
-carrying impossible old severity forward. `telemetry-value`, `temperature-gauge`, `rpm-bar` and
-`device-status-footer` are API-independent presentation components: missing values use an em dash
-and text status, the RPM bar clamps only its visual position at redline, and absent devices remain
-unavailable. The footer displays the selected source role and reports connection unknown when the
-protocol supplies no evidence; it does not turn desired output into observed state.
+carrying impossible old severity forward. Missing values use an em dash and text status, and the RPM
+bar clamps only its visual position at redline.
 
 ## Application settings data
 
@@ -110,8 +101,8 @@ drafts and theme choice are not stored in the settings query cache.
 ## In-car screens
 
 The overview deliberately excludes speed and RPM. It reports the steering mode, effective
-assistance, one-based manual level when relevant, honest active-profile provenance, persistent
-oil/coolant severity and the stable device-health footer. The drive screen keeps speed dominant,
+assistance, one-based manual level when relevant, honest active-profile provenance and persistent
+oil/coolant severity. The drive screen keeps speed dominant,
 adds RPM stage presentation and uses the selected speed and temperature units. Both screens mask
 live values as unavailable or stale whenever the shared car connection is not healthy.
 

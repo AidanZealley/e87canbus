@@ -18,9 +18,7 @@ import {
   type TemperatureSeverity,
 } from "./car-ui.ts"
 
-const steeringState = (
-  overrides: Partial<SteeringState> = {}
-): SteeringState =>
+const steeringState = (overrides: Partial<SteeringState> = {}): SteeringState =>
   ({
     mode: "auto",
     manual_assistance_level: 0,
@@ -37,7 +35,6 @@ const availability = (
 ) =>
   deriveServotronicAvailability({
     synchronized: true,
-    status: "active",
     steering: steeringState(),
     steeringFault: null,
     adapterFault: null,
@@ -68,7 +65,7 @@ test("servotronic availability drops all capabilities while unsynchronised or ab
   })
 })
 
-test("servotronic availability reports faults ahead of controller status", () => {
+test("servotronic availability reports projection faults", () => {
   const fault: RuntimeFaultState = {
     kind: "device_adapter",
     message: "boom",
@@ -78,23 +75,10 @@ test("servotronic availability reports faults ahead of controller status", () =>
     availability({ steeringFault: fault }).reason,
     "servotronic output adapter is faulted"
   )
-  assert.equal(
-    availability({ adapterFault: fault }).modeControl,
-    false
-  )
+  assert.equal(availability({ adapterFault: fault }).modeControl, false)
 })
 
-test("servotronic availability gates on the controller status", () => {
-  const result = availability({ status: "stale" })
-  assert.deepEqual(result, {
-    telemetry: false,
-    modeControl: false,
-    activation: false,
-    reason: "servotronic controller is stale",
-  })
-})
-
-test("servotronic activation and telemetry track their extra conditions", () => {
+test("servotronic activation tracks its explicit capability", () => {
   assert.deepEqual(
     availability({
       steering: steeringState({ curve_activation_available: false }),
@@ -106,13 +90,16 @@ test("servotronic activation and telemetry track their extra conditions", () => 
       reason: "",
     }
   )
+})
+
+test("servotronic availability requires its live projection", () => {
   assert.deepEqual(
     availability({ steering: steeringState({ servotronic: null }) }),
     {
       telemetry: false,
-      modeControl: true,
-      activation: true,
-      reason: "",
+      modeControl: false,
+      activation: false,
+      reason: "live servotronic state unavailable",
     }
   )
 })

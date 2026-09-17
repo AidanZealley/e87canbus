@@ -7,9 +7,6 @@ import { useLiveStore } from "@e87canbus/coordinator-client/live/live-store"
 export const CarSteeringEditor = () => {
   const steering = useLiveStore((state) => state.steering)
   const vehicle = useLiveStore((state) => state.vehicle)
-  const servotronicRegistry = useLiveStore(
-    (state) => state.devices.registry.servotronic_controller
-  )
   const connected = useLiveStore((state) => state.connection.synchronized)
   const availability = useServotronicAvailability()
   const steeringFault = useLiveStore((state) => state.health.steering.fault)
@@ -43,7 +40,6 @@ export const CarSteeringEditor = () => {
         ? (steering.servotronic?.effective_assistance ?? null)
         : null
   const operation = controllerOperation(
-    servotronicRegistry.status,
     steering.servotronic?.inhibit_reason ?? null,
     steering.mode,
     steering.maximum_assistance_active,
@@ -92,14 +88,6 @@ export const CarSteeringEditor = () => {
 }
 
 const controllerOperation = (
-  status:
-    | "disabled"
-    | "not_found"
-    | "pending"
-    | "active"
-    | "stale"
-    | "incompatible"
-    | "fault",
   inhibit: string | null,
   mode: "auto" | "manual",
   maximum: boolean,
@@ -110,7 +98,7 @@ const controllerOperation = (
   detail: string
   variant: "default" | "secondary" | "destructive"
 } => {
-  if (faulted || status === "fault") {
+  if (faulted) {
     return {
       label: "Controller fault",
       detail:
@@ -118,19 +106,11 @@ const controllerOperation = (
       variant: "destructive",
     }
   }
-  if (status !== "active") {
-    return {
-      label: `Controller ${status.replace("_", " ")}`,
-      detail:
-        "The saved curve remains visible, but it cannot be applied and output controls are disabled until the controller is active.",
-      variant: "secondary",
-    }
-  }
   if (!telemetryAvailable) {
     return {
-      label: "Waiting for telemetry",
+      label: "Servotronic unavailable",
       detail:
-        "The controller is registered, but no Servotronic status sample has arrived yet.",
+        "No live Servotronic state is available. Mode and curve controls are disabled.",
       variant: "secondary",
     }
   }

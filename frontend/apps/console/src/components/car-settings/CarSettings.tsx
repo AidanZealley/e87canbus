@@ -1,5 +1,4 @@
 import {
-  CpuIcon,
   GaugeIcon,
   LayoutDashboardIcon,
   MonitorCogIcon,
@@ -9,7 +8,6 @@ import {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEffectiveApplicationSettings } from "@e87canbus/coordinator-client/application-settings-query"
-import { DevicesPanel } from "./components/devices-panel"
 import { DisplayPanel } from "./components/display-panel"
 import { SettingsUnavailable } from "./components/settings-unavailable"
 import { ShiftPanel } from "./components/shift-panel"
@@ -24,7 +22,6 @@ const TABS = [
   { value: "temperature", label: "Temps", icon: ThermometerIcon },
   { value: "shift", label: "Shift", icon: GaugeIcon },
   { value: "display", label: "Display", icon: LayoutDashboardIcon },
-  { value: "devices", label: "Devices", icon: CpuIcon },
   { value: "system", label: "System", icon: MonitorCogIcon },
 ] as const
 
@@ -114,10 +111,6 @@ export const CarSettings = () => {
         ) : (
           unavailable
         )}
-      </TabsContent>
-
-      <TabsContent value="devices" className={PANEL_CLASS}>
-        <DevicesPanel />
       </TabsContent>
 
       <TabsContent value="system" className={PANEL_CLASS}>

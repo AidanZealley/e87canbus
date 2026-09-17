@@ -27,9 +27,6 @@ export const ButtonProfileEditor = ({
   const savedProfile = profileOverride ?? profileQuery.data
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const steering = useLiveStore((state) => state.steering)
-  const servotronicStatus = useLiveStore(
-    (state) => state.devices.registry.servotronic_controller.status
-  )
   const steeringFault = useLiveStore((state) => state.health.steering.fault)
   const servotronicFault = useLiveStore(
     (state) =>
@@ -44,7 +41,7 @@ export const ButtonProfileEditor = ({
     servotronicUsable:
       synchronized &&
       steering !== null &&
-      servotronicStatus === "active" &&
+      steering.servotronic !== null &&
       steeringFault === null &&
       servotronicFault === null,
   }

@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, expect, it, vi } from "vitest"
@@ -105,6 +106,20 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   useLiveStore.getState().reset()
+})
+
+it("marks Servotronic bindings unavailable without a live Servotronic projection", () => {
+  mocks.profile = profile(1, 2)
+  synchronize()
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ButtonProfileEditor profile={mocks.profile} />
+    </QueryClientProvider>
+  )
+
+  expect(
+    within(screen.getByLabelText("Button 0: Assist 2")).getByText("Unavailable")
+  ).toBeTruthy()
 })
 
 it("renders a newer saved revision when the profile changes", async () => {
