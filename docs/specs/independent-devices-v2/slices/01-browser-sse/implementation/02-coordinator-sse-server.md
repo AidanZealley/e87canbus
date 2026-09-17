@@ -1,6 +1,6 @@
 # Workstream 2: coordinator SSE server and contract
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -110,7 +110,7 @@ claude -p "Perform the focused closure review for Workstream 2 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `88b85e91a32952e18912e72b2aba561967c02d65`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
