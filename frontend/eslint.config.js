@@ -9,6 +9,7 @@ export default defineConfig([
   globalIgnores([
     "**/dist",
     "apps/*/src/routeTree.gen.ts",
+    "apps/console/src/api/console-host/**",
     "packages/coordinator-client/src/api/http/**",
   ]),
   {

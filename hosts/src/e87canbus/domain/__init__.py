@@ -57,7 +57,7 @@ carries them out.
     runners/    the two things the kernel can drive - real CAN hardware (``live``) or
                 an in-memory simulated car (``simulation``).
     adapters/   the outside world: SQLite storage, CAN transmission, effect execution.
-    api/        HTTP and Socket.IO. Translates requests into kernel inputs and
+    api/        HTTP and SSE. Translates requests into kernel inputs and
                 snapshots into JSON; holds no rules of its own.
     protocol/   frame encoding and decoding, shared with the firmware in ``devices/``.
 

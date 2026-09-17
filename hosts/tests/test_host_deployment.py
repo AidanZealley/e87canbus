@@ -72,6 +72,9 @@ def test_coordinator_sse_disables_proxy_buffering_with_a_bounded_idle_timeout() 
     assert "proxy_read_timeout 30s;" in live_location
     assert "X-E87-Client-Verify $ssl_client_verify" in live_location
     assert "X-E87-Client-Certificate $ssl_client_escaped_cert" in live_location
+    assert "$http_upgrade" not in nginx
+    assert "proxy_set_header Upgrade" not in nginx
+    assert "proxy_set_header Connection" not in nginx
 
 
 @pytest.mark.parametrize("origin", controller_origins())

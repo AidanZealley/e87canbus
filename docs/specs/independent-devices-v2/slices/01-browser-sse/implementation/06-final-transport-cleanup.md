@@ -1,6 +1,6 @@
 # Workstream 6: final transport cleanup
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -111,29 +111,76 @@ claude -p "Perform the focused closure review for Workstream 6 of the browser SS
 ## Implementation handoff
 
 - Base commit: `75e715a8678f9af619e268a7ecf64df47d77434c`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: Removed the final shared Socket.IO and Engine.IO adapter, tests, dependencies, lock
+  entries, SPA exclusions, dead configuration, script aliases and current documentation claims.
+  Both browser contracts now generate and drift-check through the two root API commands only.
+- Files changed: Deleted the bounded Socket.IO adapter and its tests; reduced host configuration,
+  SPA routing and affected tests; removed Python and frontend dependencies and lock entries;
+  flattened the frontend API scripts; updated root, frontend, host, protocol, simulation,
+  reliability, network, provisioning and deployment documentation. Added the console generated
+  client to the existing generated-code lint exclusions and made four accepted empty-stream test
+  helpers lint-clean without changing their behavior. Formatted `e87ctl/src/e87ctl/cli.py` to clear
+  two inherited Ruff violations required by the packet's broad command.
+- Decisions: Kept only SSE-used publication rates, subscriber capacity and shutdown timeout.
+  Removed the old `http:*` and `console-api:*` command aliases instead of forwarding them.
+  Preserved backend CAN trace, device registry, simulation protocol-version controls and generated
+  custom protocol. Preserved the historical Socket.IO ADR and approved migration source text.
+- Verification: `pnpm api:generate` regenerated both OpenAPI documents and both Hey API clients,
+  then `pnpm api:check` passed without changing tracked output. The custom protocol check passed;
+  backend tests passed 960 tests; mypy passed 142 source files; Ruff, both import contracts and
+  `git diff --check` passed. Frontend typecheck and lint passed; tests passed 8 files/18 tests for
+  coordinator-client, 25 files/102 tests for console and 11 files/38 tests for coordinator; both
+  application builds passed with the existing coordinator chunk-size warning. Precise repository
+  searches found no runtime, build, manifest, lock, alias or current-document reference to the
+  retired transports or browser protocol names.
+- Known limitations or external checks: The workflow's final local browser validation gate remains
+  pending. Search matches intentionally remain in ADR 0008, the approved migration requirements,
+  ignored local package-store artifacts, backend controller snapshot method names and the retained
+  custom-CAN protocol-version implementation and tests.
+- Specification drift: None. The only inherited correction outside the cleanup files was
+  formatting-only: Ruff initially reported unsorted imports at `e87ctl/src/e87ctl/cli.py:1` and an
+  overlong line at `e87ctl/src/e87ctl/cli.py:84`; import ordering and line wrapping now pass without
+  behavior changes.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: Approve with required changes. Source, dependency, lock, configuration, generation and
+  documentation cleanup passed, but one deployment remnant remains.
+- Required findings: Remove nginx's Engine.IO-era WebSocket upgrade map and the `Upgrade` and
+  `Connection` proxy headers from the ordinary HTTP location. Nothing serves WebSockets now, and
+  the map forces `Connection: close` for normal upstream requests.
+- Optional observations: Replace a stale `live-events contract` source comment; make the root README
+  Ruff command match CI by including `e87ctl`; keep the existing list punctuation; comments on
+  lint-only empty async generators are unnecessary; slow-disconnect counters belong to their
+  accepted publisher owners.
+- Questions for orchestrator: Preserve accepted ADR 0008 as historical evidence; the approved v2
+  specifications supersede it for current behavior. Let removed `/ws` paths fall through to the SPA
+  like any other unknown client route now that no server owns that prefix.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted the nginx finding as Required because the packet explicitly owns
+  deployment remnants and the headers affect ordinary HTTP keepalive. Promoted the stale source
+  comment and README Ruff command to the same cleanup batch. Rejected new explanatory lint comments
+  and changes to accepted publisher diagnostics. Historical ADR 0008 remains untouched.
+- Simplification/deletion pass: Removed the unused nginx WebSocket upgrade map and both upgrade
+  proxy headers instead of replacing them with SSE-specific compatibility settings. Added focused
+  negative assertions to the existing coordinator SSE deployment test. Updated the button-pad
+  packing comment to name the coordinator projection and made the root Ruff command match CI and
+  this packet. ADR 0008, accepted SSE code, publisher diagnostics, list punctuation and the
+  lint-only generator helpers remain unchanged.
+- Final verification: Focused deployment tests passed 50 tests, and focused searches found the
+  removed nginx directives only in their negative assertions. Every packet command passed: the
+  custom protocol check; 960 backend tests; mypy over 142 source files; Ruff; both import contracts;
+  `git diff --check`; frontend API drift check, typecheck and lint; 8 files/18 coordinator-client
+  tests, 25 files/102 console tests and 11 files/38 coordinator tests; and both application builds.
+  The coordinator build retains its existing chunk-size warning.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. The focused reviewer confirmed the Engine.IO-era nginx map and upgrade headers
+  are absent, the SSE location retains its required streaming settings, current source/docs no
+  longer cite the retired contract, and the documented Ruff command matches CI.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

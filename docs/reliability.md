@@ -1,8 +1,8 @@
 # Reliability, health and service operation
 
 `ControllerService` owns the process-local failure policy and bounded operational projection. Its
-owner thread is the only controller mutation/effect path; HTTP, Socket.IO, CAN readers and device
-adapters submit work without becoming alternate state owners.
+owner thread is the only controller mutation/effect path; HTTP, SSE publication, CAN readers and
+device adapters submit work without becoming alternate state owners.
 
 ## Failure policy
 
@@ -14,8 +14,8 @@ adapters submit work without becoming alternate state owners.
 | CAN output failure | Effect executor/controller runtime | Record desired/output fault, dispatch the configured fallback once and terminate for supervisor restart. An unknown send result is never retried; software does not prove a physical safe state. |
 | Steering actuator failure | Controller runtime | Mark fatal and execute the software safe request; do not claim a physical safe state. |
 | SQLite read/write failure | Resource repository/API | Reject that resource operation, mark persistence unavailable and preserve already-loaded runtime operation where safe. |
-| Publisher or socket failure | Live-state publisher | Mark UI transport unhealthy without blocking or recursively notifying the controller owner. |
-| Slow socket or trace client | Live-state publisher | Coalesce live intermediates, bound trace/event queues and disconnect a peer whose fixed Engine.IO queue saturates. |
+| SSE publisher failure | Live-state publisher | End affected requests without blocking or recursively notifying the controller owner. |
+| Slow SSE subscriber | Live-state publisher | Coalesce projection intermediates, bound pending records and disconnect the saturated request. |
 | Emulator failure | Simulation runtime | Detach the failed emulator and report a typed adapter fault without claiming physical behavior. |
 | Shutdown | Controller service/lifespan | Reject commands, stop ingress, commit the safe request, drain bounded completion, stop publication, close adapters and verify owned threads/tasks stop. |
 
@@ -29,24 +29,15 @@ successful durable-storage initialization, a running controller owner and no fat
 fault. Publisher failures and browser disconnects remain transport concerns and do not make the
 controller itself unready.
 
-The fixed `controller.health` projection contains the opaque process boot ID, readiness and fatal
-truth, explicit network/device/steering faults, bounded inbox depth/capacity/current latency and
-overflow truth, persistence status, and publisher failure/drop/slow-client-isolation counters.
-Network availability and selected device/capability state remain in the canonical `devices.state`
-projection instead of being copied into health. Health is coalesced to at most 1 Hz. Per-event trace
-detail is limited to 2,000 rows and publisher/client queues have fixed capacities.
-
-Persistence, readiness and decision-useful publisher diagnostic changes commit a new global
-revision and health topic revision even while controller input is idle. Those publisher changes
-are running/fault transitions, publication failures, trace/resource drops and slow-peer queue
-saturations; ordinary socket connections and trace subscription changes do not advance health.
-Publisher-owned changes enter its one-slot health handoff directly, rather than calling the
-publisher back through the service notification; failed `controller.health` delivery is diagnosed
-but does not enqueue itself recursively.
+The `health` SSE projection contains readiness and fatal truth, explicit network, device and
+steering faults, bounded inbox depth, capacity and current latency, overflow truth, and persistence
+status. Health is coalesced to at most 1 Hz. The internal simulation trace remains limited to 2,000
+rows for backend tests. Each SSE subscriber has a fixed pending-record capacity, and saturation
+cancels that request.
 
 Startup validates authority, initializes SQLite, starts the controller and readers, starts the
 publisher, then marks ready. Shutdown reverses ownership deliberately: not-ready/reject, stop
-ingress and commit safe state, stop publisher/socket tasks, then close adapters. Each thread and
+ingress and commit safe state, stop SSE publisher tasks, then close adapters. Each thread and
 task has one owner and a bounded join/cancellation check.
 
 On physical Raspberry Pi deployments, `kcan`, `ptcan`, and `fcan` are boot-managed by dedicated
@@ -67,7 +58,7 @@ does not affect coordinator control.
 The canonical CLI exits nonzero for fatal controller termination, unexpected owner/timer/shutdown
 failure, or failure to complete Uvicorn startup, allowing the bounded `systemd` restart policy to
 act. Each role's same-origin frontend boundary falls back to its `index.html` only for client
-routes. Missing assets and unknown `/api`, `/health` or Socket.IO paths remain real 404 responses.
+routes. Missing assets and unknown `/api` or `/health` paths remain real 404 responses.
 
 For the canonical provisioned hosts, authenticated network and operator access, see the
 [coordinator and console provisioning runbook](../deploy/README.md).

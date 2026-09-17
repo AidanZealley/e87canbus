@@ -108,7 +108,7 @@ request signatures or another proof protocol.
 
 The coordinator application continues to bind only to loopback. An OS-packaged nginx instance owns
 the external HTTPS listener, verifies certificates against the installation CA and proxies HTTP
-and WebSocket traffic to the loopback application.
+and SSE traffic to the loopback application.
 
 Nginx requests but does not require a client certificate at the common HTTPS listener. This allows
 both access modes:
@@ -126,7 +126,7 @@ implementation or configurable cipher-suite policy.
 ## Console certificate handling
 
 The console frontend remains locally served by `e87canbus-console`. It sends coordinator HTTP and
-Socket.IO traffic directly to `https://10.42.0.1`.
+SSE traffic directly to `https://10.42.0.1`.
 
 Provisioning imports the console client key and certificate into the `e87-kiosk` Chromium profile
 and installs a policy that automatically selects that certificate only for the coordinator HTTPS
@@ -163,8 +163,7 @@ Authentication establishes one of three request classes:
 - provisioned `console` device; or
 - operator.
 
-The authorization layer denies requests unless the route or Socket.IO action explicitly permits
-that class.
+The authorization layer denies requests unless the HTTP route explicitly permits that class.
 
 Unauthenticated clients may use only the external liveness check. It returns process availability,
 not application state, configuration or identity details.
@@ -186,10 +185,9 @@ UI:
 | `GET` | `/api/button-pad/profile` |
 | `GET`, `PUT`, `DELETE` | `/api/button-pad/profiles/{profile_id}` |
 
-The console may connect to Socket.IO, send `controller.resync`, `trace.subscribe` and
-`trace.unsubscribe`, and receive `controller.snapshot`, `vehicle.state`, `engine.state`,
-`steering.state`, `buttons.state`, `lighting.state`, `devices.state`, `controller.health`,
-`resources.changed` and `trace.batch`.
+The console may open `GET /api/live`. It receives a complete `snapshot` first, then complete
+vehicle, engine, steering, buttons, lighting and health projection replacements plus precise
+`resource.changed` invalidations. It sends no messages on the stream.
 
 This is a closed allowlist derived from the current console client. New API routes or events do not
 become console-accessible automatically. Simulator-only operations and installation administration
@@ -200,9 +198,8 @@ The operator may use all production application routes and the operator-only
 The executable route-to-permission table lives next to the API routes and has focused tests. Nginx
 authenticates certificates but does not duplicate application authorization.
 
-Socket.IO establishes identity during the initial authenticated connection and retains it for that
-connection. Reconnection performs authentication again. A failed connection does not leave a
-usable session.
+Each SSE request authenticates through the same route authorization as other HTTP requests.
+Reconnection performs authentication again. A failed request does not leave a usable session.
 
 ## Console behavior
 
@@ -224,7 +221,7 @@ Provisioning and network cutover ship as one coordinator-to-console result:
 2. A freshly provisioned console joins the access point.
 3. Chromium verifies the coordinator and supplies the console client certificate automatically.
 4. Nginx verifies the certificate and passes its signed identity to the loopback application.
-5. FastAPI applies the `console` allowlist to HTTP and Socket.IO traffic.
+5. FastAPI applies the `console` allowlist to HTTP and SSE requests.
 6. A service laptop resolves `e87.local` through mDNS and uses operator authentication.
 7. The old Ethernet transport and proxies are absent.
 

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+
 from cryptography.hazmat.primitives import hashes
 
 from e87ctl.environment import (
@@ -26,8 +27,8 @@ from e87ctl.provision import (
 )
 from e87ctl.recovery import (
     InstallationSummary,
-    create_recovery_package,
     ca_sidecar_path,
+    create_recovery_package,
     load_recovery_package,
     write_recovery_package,
 )
@@ -81,7 +82,10 @@ def _parser() -> argparse.ArgumentParser:
     provision.add_argument("--non-interactive", action="store_true")
     provision.add_argument("--json", action="store_true", help="Print a machine-readable result")
 
-    for name, help_text in (("trust", "Trust an installation CA on this Mac"), ("untrust", "Remove an installation CA from this Mac")):
+    for name, help_text in (
+        ("trust", "Trust an installation CA on this Mac"),
+        ("untrust", "Remove an installation CA from this Mac"),
+    ):
         command = commands.add_parser(name, help=help_text)
         command.add_argument(
             "--installation",

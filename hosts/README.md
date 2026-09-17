@@ -22,7 +22,7 @@ timer     ─┘   (one thread)                            │
                                                        │
                                                        ▼
                                      Commit ─▶ effects executed ─▶ CAN out
-                                            └▶ snapshot published ─▶ Socket.IO
+                                            └▶ projections published ─▶ SSE
 ```
 
 - The **domain** is pure. No I/O, no clock, no threads. Time is passed in as an argument.
@@ -51,7 +51,7 @@ which API routes exist are fixed by the profile and cannot be recombined with ot
 | **Transmit granted** | **none** | K-CAN | K-CAN |
 | Simulation API | absent (404) | vehicle only | full |
 
-All three run the same HTTP and Socket.IO application. `car` transmits nothing: in-vehicle
+All three run the same HTTP and SSE application. `car` transmits nothing: in-vehicle
 CAN transmission stays denied until it is separately validated.
 
 ## Running it
@@ -80,20 +80,17 @@ so a supervisor restarts it.
 
 The split is deliberate and absolute:
 
-- **Socket.IO carries state, one namespace at `/socket.io`.** On connect a client gets
-  `controller.snapshot` — the complete current projection, a boot ID and per-topic
-  revisions. After that it gets incremental `vehicle.state`, `engine.state`,
-  `steering.state`, `buttons.state`, `lighting.state`, `devices.state`,
-  `controller.health`, `resources.changed` and opt-in `trace.batch`. Only resync and trace
-  subscription are accepted *from* a socket.
+- **SSE carries state at `GET /api/live`.** Every connection starts with a complete `snapshot`.
+  Later records replace one complete vehicle, engine, steering, buttons, lighting or health
+  projection, or report one durable `resource.changed` invalidation. The browser sends no stream
+  messages and reconnects to another complete snapshot after any termination.
 - **HTTP carries commands.** Every command enters the bounded inbox and returns just
   `accepted`, `boot_id` and the commit `revision`. Handlers never touch the kernel directly.
 
-No client can slow the controller. Publication is coalesced on a timer — telemetry at 25 Hz,
-health at 1 Hz, trace at 10 Hz by default — each topic keeps only its latest unsent value,
-and every client has a finite outbound queue. Fill it and you are disconnected and counted,
-rather than blocking anyone else. Reconnecting clients get a full snapshot, so there is no
-missed-event replay to reason about.
+No client can slow the controller. Publication is coalesced on a timer, telemetry at 25 Hz and
+health at 1 Hz, and each projection keeps only its latest unsent value. Every subscriber has a
+finite pending queue. Filling it disconnects that request rather than blocking anyone else.
+Reconnecting clients get a full snapshot, so there is no missed-event replay to reason about.
 
 The wire contract is generated, not hand-written; see [`protocol/README.md`](../protocol/README.md).
 
@@ -111,7 +108,7 @@ read fails.
 
 Errors are typed and consistent: `422` validation, `404` missing, `409` conflict (name or
 revision), `503` storage or overload. Successful writes publish a precise
-`resources.changed` event carrying the resource ID and new revision.
+`resource.changed` event carrying the resource ID and new revision.
 
 ## Steering curves
 
@@ -209,8 +206,7 @@ uv run lint-imports      # layering contracts — see pyproject.toml
 The layering is enforced, not merely documented: `lint-imports` fails if the domain reaches
 outward or the controller flow inverts.
 
-Two contracts are generated and checked rather than maintained by hand — the CAN protocol
-from `protocol/custom.toml`, and the OpenAPI and live-event schemas from the API models.
-Both have a `--check` mode that CI runs, so a single-artifact drift in IDs, byte positions,
-colour codes or request shapes fails the build. Regenerate rather than editing generated
-files.
+Three contracts are generated and checked rather than maintained by hand: the CAN protocol from
+`protocol/custom.toml`, the coordinator OpenAPI document, and the console-host OpenAPI document.
+CI checks the CAN outputs and runs `pnpm api:check` for both OpenAPI documents and their generated
+Hey API clients. Regenerate rather than editing generated files.

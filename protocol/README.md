@@ -62,27 +62,27 @@ BMW message definitions remain unverified until backed by a named capture in
 
 ## Frontend contracts
 
-Python is the source of truth for the frontend transport contracts. FastAPI routes and Pydantic
-models generate the canonical simulator-superset `openapi.json`; the coordinator event registry
-generates `live-events-v1.schema.json`, and the console's bounded local snapshot model generates
-`console-live-v1.schema.json`. Runtime publication and handlers consume those same definitions.
+FastAPI routes and Pydantic models are the source of truth for two browser contracts.
+`openapi.json` describes the coordinator, including its multiplexed `GET /api/live` event union.
+`console-openapi.json` independently describes the console host and its complete
+`console.snapshot` stream. Hey API generates each TypeScript client, types and Zod validators.
 
-The schemas in this directory and the TypeScript outputs under
-`frontend/packages/coordinator-client/src/api/` and
-`frontend/apps/console/src/local-live/contract.gen.ts` are committed generated artifacts. Never
-edit them by hand. From `frontend/`, use `pnpm api:generate` to regenerate the artifacts in dependency order and
-`pnpm api:check` to check them without changing the worktree. The narrower `http:*` and `live:*`
-commands are available when working on only one contract. No backend process or hardware is needed.
+The OpenAPI documents and TypeScript outputs under
+`frontend/packages/coordinator-client/src/api/http/` and
+`frontend/apps/console/src/api/console-host/` are committed generated artifacts. Never edit them by
+hand. From `frontend/`, use `pnpm api:generate` to regenerate both paths in dependency order and
+`pnpm api:check` for the non-mutating drift check used by CI. No backend process or hardware is
+needed.
 
 The OpenAPI document deliberately describes the simulator deployment, which is the superset of the
 HTTP surface. Generated methods therefore do not prove that a car or bench deployment exposes a
 simulator-only capability; the UI must still respect the deployment capabilities reported at
 runtime.
 
-The device-registry phase owns the static role vocabulary and wire codecs. The current adapter
-projection remains a temporary pre-registry transport surface until the registry kernel and live
-contract phases replace it. `buttons.program` remains the canonical controller-requested device
-program; a successful send is not an acknowledgement or evidence of physical output application.
+The custom CAN device registry and codecs remain backend and firmware concerns while their physical
+consumers still use them. They are not part of either browser stream. `buttons.program` remains the
+canonical controller-requested device program; a successful send is not an acknowledgement or
+evidence of physical output application.
 
 `buttons.program.commands` are the exact ordered command bytes sent to the device, and `generation` is the
 buttons-topic revision at which it changed. The browser observer renders those opaque wire bytes
@@ -97,11 +97,7 @@ forward its bytes without reconstructing or re-encoding the selected effect. Nor
 `protocol/test-vectors/button-pad-program-v2.json` are consumed by the Python codec, TypeScript
 renderer, and native C++ firmware-renderer tests.
 
-`controller.health` is a bounded, process-local operational projection rather than durable event
-history or arbitrary logs. It contains readiness and fatal truth, explicit capability faults,
-current inbox bounds/latency/overflow state, persistence status, and publisher failure,
-trace/resource-drop and slow-client-isolation counters. Network availability and selected device
-evidence remain in `devices.state`. Publication is coalesced to 1 Hz; reconnecting clients receive
-the current complete health state in `controller.snapshot`. A service-only change advances both the
-global envelope revision and health topic revision, so an already-synchronized client applies
-persistence, readiness and decision-useful publisher changes without a controller input.
+The coordinator `health` projection contains readiness and fatal truth, explicit network, device
+and steering faults, current inbox bounds and latency, overflow truth, and persistence status.
+Publication is coalesced to 1 Hz. Reconnecting clients receive current health inside the complete
+`snapshot` event.

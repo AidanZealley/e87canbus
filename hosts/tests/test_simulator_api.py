@@ -146,10 +146,6 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     )
 
 
-def test_coordinator_does_not_serve_socketio(client: TestClient) -> None:
-    assert client.get("/socket.io/?EIO=4&transport=polling").status_code == 404
-
-
 def test_browser_cors_accepts_an_explicit_development_origin() -> None:
     with TemporaryDirectory() as profile_directory:
         app = create_app(

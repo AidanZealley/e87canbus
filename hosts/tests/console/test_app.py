@@ -57,11 +57,3 @@ def test_live_route_is_a_same_origin_uncached_event_stream() -> None:
         return response.media_type, response.headers.get("cache-control")
 
     assert asyncio.run(response_metadata()) == ("text/event-stream", "no-store")
-
-
-def test_console_host_does_not_serve_socketio() -> None:
-    app = create_app(receiver_factory=FakeReceiver)
-    with TestClient(app) as client:
-        response = client.get("/console/socket.io/?EIO=4&transport=polling")
-
-    assert response.status_code == 404
