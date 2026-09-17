@@ -1,6 +1,6 @@
 # Workstream 5: console browser cutover
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -111,29 +111,63 @@ claude -p "Perform the focused closure review for Workstream 5 of the browser SS
 ## Implementation handoff
 
 - Base commit: `6d2135991f56de5c83c1f4a55bf56dd03683f475`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: The console browser now consumes complete local CAN snapshots through the generated
+  app-local Hey API SSE operation while retaining its accepted coordinator stream. The console
+  host no longer serves Socket.IO or carries the old versioned live contract.
+- Files changed: Replaced the local Socket.IO transport, versioned store, fixtures and focused tests
+  with an app-local SSE lifecycle and complete projection store; added duplicate-start and HMR
+  disposal coverage; split console development routing between direct coordinator requests and the
+  same-origin console proxy; admitted the standard console Vite origins in simulator CORS; removed
+  console-host Socket.IO composition, publication and tests; deleted the console live schema,
+  Python and JavaScript generators, generated mapping and related package scripts.
+- Decisions: The generated console operation owns HTTP, network and read retry, SSE parsing and Zod
+  validation. The local wrapper adds only a 25-second receive watchdog, clean-EOF reconnect and the
+  generated runtime's malformed-JSON string guard. It counts keepalive comments as receive
+  activity, retains the last valid projection after errors, and replaces all local CAN state on
+  each valid snapshot. Development sends coordinator HTTP and SSE directly to
+  `http://127.0.0.1:8000`; same-origin `/api` and `/health` requests reach the console backend at
+  `http://127.0.0.1:8001`. Shared Socket.IO dependencies and current documentation remain for
+  Workstream 6.
+- Verification: Every packet command passed. `api:check` passed; console passed 25 files and 102
+  tests plus typecheck and build; coordinator-client passed 8 files and 18 tests plus typecheck.
+  The selected backend suite passed 22 tests; mypy, Ruff and `git diff --check` passed. An expanded
+  backend run passed 62 console, deployment and simulator API tests, including standard console
+  origin CORS coverage.
+- Known limitations or external checks: No manual browser session was run. The workflow's final
+  local browser validation gate must confirm the two `/api/live` requests use distinct origins and
+  remain open without proxy buffering. Repository-level Socket.IO dependencies and documentation
+  cleanup remain assigned to Workstream 6.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: Approved. All packet criteria and verification commands passed.
+- Required findings: None.
+- Optional observations: The local store retains connection status/error fields that currently have
+  no rendering consumer; its pending-state branch mirrors the coordinator store but is not reached
+  by current paths. Generated retry backoff can extend worst-case reconnection. The SPA prefix and
+  current documentation still contain Socket.IO remnants assigned to Workstream 6.
+- Questions for orchestrator: The final browser gate remains the required proof that Vite streams
+  both distinct-origin requests without buffering. Production builds are not ambiguous: the
+  application builder sets `VITE_COORDINATOR_ORIGIN=https://10.42.0.1` for the console artifact.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No Required findings and no remediation pass. Deferred the local connection
+  state reduction because connection/error state is explicitly in scope and useful for final browser
+  diagnostics. Deferred generated retry behavior, SPA prefix and documentation to their assigned
+  dependency/cleanup work.
+- Simplification/deletion pass: The implementation already removed the console Socket.IO server,
+  client, schema, generators, generated mapping and protocol state. No further accepted change.
+- Final verification: Independent review reran both frontend suites, API drift checks, build,
+  typechecks, 62 backend tests, mypy, Ruff, import contracts, Prettier and `git diff --check`; all
+  passed.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. With no remediation findings, the focused reviewer rechecked the generated
+  operation seams, reconnect behavior, distinct origins, lifecycle guards, contract independence
+  and scoped Socket.IO removal.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

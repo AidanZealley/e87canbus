@@ -8,9 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",
-    "preview": "vite preview",
-    "live:generate": "uv run --project ../../.. python ../../../scripts/generate_console_live_contract.py && node scripts/generate-live-contract.mjs",
-    "live:check": "uv run --project ../../.. python ../../../scripts/generate_console_live_contract.py --check && node scripts/generate-live-contract.mjs --check"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

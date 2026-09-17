@@ -1,68 +1,186 @@
-import { beforeEach, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
+import {
+  streamConsoleLiveApiLiveGet,
+  type StreamConsoleLiveApiLiveGetResponse,
+} from "@/api/console-host"
 import { consoleSnapshot } from "./test-fixtures"
 import { useConsoleLiveStore } from "./store"
-import { consoleSocketOptions, createConsoleLiveTransport } from "./transport"
+import { createConsoleLiveTransport } from "./transport"
 
-class FakeSocket {
-  handlers = new Map<string, Set<(payload?: unknown) => void>>()
-  connects = 0
+type StreamOptions = NonNullable<
+  Parameters<typeof streamConsoleLiveApiLiveGet>[0]
+>
 
-  on(event: string, listener: (payload?: unknown) => void) {
-    const listeners = this.handlers.get(event) ?? new Set()
-    listeners.add(listener)
-    this.handlers.set(event, listeners)
-    return this
-  }
-
-  connect() {
-    this.connects += 1
-    return this
-  }
-
-  fire(event: string, payload?: unknown) {
-    for (const listener of this.handlers.get(event) ?? []) listener(payload)
-  }
+const blockUntilAborted = async function* (signal?: AbortSignal) {
+  await new Promise<void>((resolve) => {
+    if (signal?.aborted) resolve()
+    else signal?.addEventListener("abort", () => resolve(), { once: true })
+  })
 }
 
-beforeEach(() => useConsoleLiveStore.getState().reset())
+const stream = async function* (
+  values: readonly StreamConsoleLiveApiLiveGetResponse[]
+) {
+  yield* values
+}
 
-it("uses the console-only Socket.IO path", () => {
-  expect(consoleSocketOptions).toEqual({
-    autoConnect: false,
-    path: "/console/socket.io",
-    transports: ["websocket", "polling"],
+const snapshotThenBlock = async function* (
+  framesReceived: number,
+  signal?: AbortSignal
+) {
+  yield {
+    type: "console.snapshot",
+    data: consoleSnapshot(framesReceived),
+  } as const
+  yield* blockUntilAborted(signal)
+}
+
+describe("console SSE transport", () => {
+  it("applies complete generated snapshots", async () => {
+    useConsoleLiveStore.getState().reset()
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      options?.onSseError?.(new Error("read failed"))
+      return {
+        stream: snapshotThenBlock(7, options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
+
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      sleep: () => new Promise(() => undefined),
+    })
+
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().can.frames_received).toBe(7)
+    )
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(useConsoleLiveStore.getState().connection).toMatchObject({
+      status: "connected",
+      synchronized: true,
+      error: null,
+    })
+    stop()
   })
-})
 
-it("owns one local connection and applies the first complete snapshot", () => {
-  const socket = new FakeSocket()
-  createConsoleLiveTransport(() => socket as never)
+  it("reconnects after clean EOF and replaces the complete projection", async () => {
+    useConsoleLiveStore.getState().reset()
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? stream([{ type: "console.snapshot", data: consoleSnapshot(1) }])
+            : snapshotThenBlock(2, options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
 
-  expect(socket.connects).toBe(1)
-  expect(socket.handlers.get("console.snapshot")?.size).toBe(1)
-  socket.fire("connect")
-  expect(useConsoleLiveStore.getState().connection.status).toBe("synchronizing")
-  socket.fire("console.snapshot", consoleSnapshot("console-boot", 1, 7))
-  expect(useConsoleLiveStore.getState()).toMatchObject({
-    bootId: "console-boot",
-    can: { frames_received: 7 },
-    connection: { status: "connected", synchronized: true },
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
+    })
+
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().can.frames_received).toBe(2)
+    )
+    stop()
   })
-  socket.fire("disconnect")
-  expect(useConsoleLiveStore.getState().connection.status).toBe("reconnecting")
-})
 
-it("stays synchronized when the server snapshot arrives before connect", () => {
-  const socket = new FakeSocket()
-  createConsoleLiveTransport(() => socket as never)
+  it("aborts an idle connection and reconnects", async () => {
+    useConsoleLiveStore.getState().reset()
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? blockUntilAborted(options?.signal ?? undefined)
+            : snapshotThenBlock(2, options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
 
-  socket.fire("console.snapshot", consoleSnapshot("early-boot", 1, 3))
-  socket.fire("connect")
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      idleTimeoutMs: 100,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
+    })
 
-  expect(useConsoleLiveStore.getState()).toMatchObject({
-    bootId: "early-boot",
-    can: { frames_received: 3 },
-    connection: { status: "connected", synchronized: true },
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().connection.synchronized).toBe(true)
+    )
+    expect(operation).toHaveBeenCalledTimes(2)
+    stop()
+  })
+
+  it("counts keepalive comments as receive activity", async () => {
+    useConsoleLiveStore.getState().reset()
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      setTimeout(() => options?.onSseEvent?.({ data: undefined } as never), 60)
+      return { stream: blockUntilAborted(options?.signal ?? undefined) }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
+
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      idleTimeoutMs: 100,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    expect(operation).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  it("surfaces malformed data without replacing the last valid projection", async () => {
+    useConsoleLiveStore.getState().reset()
+    useConsoleLiveStore.getState().applySnapshot(consoleSnapshot(7))
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      options?.onSseEvent?.({ data: "not-json" } as never)
+      return {
+        stream: stream([
+          "not-json" as unknown as StreamConsoleLiveApiLiveGetResponse,
+        ]),
+      }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
+
+    const stop = createConsoleLiveTransport({
+      reconnectDelayMs: 0,
+      streamOperation: operation,
+      sleep: () => new Promise(() => undefined),
+    })
+
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().connection.error).toMatch(
+        /malformed/
+      )
+    )
+    expect(useConsoleLiveStore.getState().can.frames_received).toBe(7)
+    stop()
+  })
+
+  it("retains the last projection when generated validation rejects an event", async () => {
+    useConsoleLiveStore.getState().reset()
+    useConsoleLiveStore.getState().applySnapshot(consoleSnapshot(7))
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      options?.onSseError?.(new Error("Invalid input: frames_received"))
+      return { stream: blockUntilAborted(options?.signal ?? undefined) }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
+
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      sleep: () => new Promise(() => undefined),
+    })
+
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().connection.error).toMatch(
+        /frames_received/
+      )
+    )
+    expect(useConsoleLiveStore.getState().can.frames_received).toBe(7)
+    stop()
   })
 })

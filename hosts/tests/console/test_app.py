@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
 from queue import Empty, Queue
 
-from e87canbus.console.app import CONSOLE_SOCKET_PATH, create_app
+from e87canbus.console.app import create_app
 from e87canbus.protocol.can import CanFrame
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -26,44 +24,12 @@ class FakeReceiver:
         self.closed = True
 
 
-def test_fake_frame_reaches_socketio_as_a_complete_bounded_snapshot() -> None:
+def test_console_lifecycle_starts_and_stops_the_receiver() -> None:
     receiver = FakeReceiver()
     app = create_app(receiver_factory=lambda: receiver)
     with TestClient(app) as client:
         assert client.get("/health/live").json() == {"status": "live"}
         assert client.get("/health/ready").status_code == 200
-        handshake = client.get(f"{CONSOLE_SOCKET_PATH}/?EIO=4&transport=polling")
-        sid = json.loads(handshake.text[1:])["sid"]
-        session_path = f"{CONSOLE_SOCKET_PATH}/?EIO=4&transport=polling&sid={sid}"
-        assert client.post(session_path, content="40").status_code == 200
-        initial_packets = client.get(session_path).text.split("\x1e")
-        initial = next(packet for packet in initial_packets if packet.startswith("42"))
-        event, payload = json.loads(initial[2:])
-        assert event == "console.snapshot"
-        assert payload["data"]["can"] == {
-            "interface": "kcan",
-            "connected": True,
-            "frames_received": 0,
-            "fault": None,
-        }
-
-        receiver.frames.put(CanFrame(0x777, b"must not escape"))
-        deadline = time.monotonic() + 1.0
-        while app.state.console_service.snapshot().frames_received != 1:
-            assert time.monotonic() < deadline
-            time.sleep(0.005)
-        changed_packets = client.get(session_path).text.split("\x1e")
-        changed = next(packet for packet in changed_packets if packet.startswith("42"))
-        event, payload = json.loads(changed[2:])
-
-        assert event == "console.snapshot"
-        assert payload["data"]["can"]["frames_received"] == 1
-        assert set(payload["data"]["can"]) == {
-            "interface",
-            "connected",
-            "frames_received",
-            "fault",
-        }
     assert receiver.closed is True
 
 
@@ -91,3 +57,11 @@ def test_live_route_is_a_same_origin_uncached_event_stream() -> None:
         return response.media_type, response.headers.get("cache-control")
 
     assert asyncio.run(response_metadata()) == ("text/event-stream", "no-store")
+
+
+def test_console_host_does_not_serve_socketio() -> None:
+    app = create_app(receiver_factory=FakeReceiver)
+    with TestClient(app) as client:
+        response = client.get("/console/socket.io/?EIO=4&transport=polling")
+
+    assert response.status_code == 404

@@ -19,7 +19,7 @@ Status: in progress.
 | 2 | [Coordinator SSE server and contract](02-coordinator-sse-server.md) | Workstream 1 | Accepted | `53d5950` |
 | 3 | [Coordinator browser cutover](03-coordinator-browser-cutover.md) | Workstream 2 | Accepted | `39ec497` |
 | 4 | [Console SSE server and contract](04-console-sse-server.md) | Workstream 3 | Accepted | `8e64ab4` |
-| 5 | [Console browser cutover](05-console-browser-cutover.md) | Workstream 4 | Implementing | - |
+| 5 | [Console browser cutover](05-console-browser-cutover.md) | Workstream 4 | Accepted | pending implementation commit |
 | 6 | [Final transport cleanup](06-final-transport-cleanup.md) | Workstream 5 | Not started | - |
 
 ## Why these boundaries
