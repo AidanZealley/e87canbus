@@ -1,6 +1,6 @@
 # Workstream 5: console browser cutover
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -110,7 +110,7 @@ claude -p "Perform the focused closure review for Workstream 5 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `6d2135991f56de5c83c1f4a55bf56dd03683f475`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
