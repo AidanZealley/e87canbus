@@ -1,6 +1,6 @@
 # Browser SSE whole-feature review
 
-Status: initial whole-feature review in progress.
+Status: whole-feature corrections in progress.
 
 ## Reviewer task packet
 
@@ -121,22 +121,38 @@ accepted workstream returns to the orchestrator for a focused review before rete
 
 ## Initial whole-feature review
 
-- Reviewer: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
 - Branch, base and reviewed head: `feature/browser-sse`; base `4f3539d`; reviewed head
-  `fb1bd7eae99a0a514b3b660dabcf9cbe9ae653db`.
-- Verification run: `TBD`
-- Acceptance-criteria audit: `TBD`
-- Required findings by owner: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
-- Verdict: `TBD`
+  `f95f50ed2a25ced29f2b7cf225f04a97aae808c0`.
+- Verification run: All final-review commands passed: custom protocol drift; 960 backend tests;
+  mypy; Ruff; both import contracts; diff check; both API drift paths; frontend typecheck, lint, 158
+  tests and both builds. The coordinator build retained its known chunk-size warning.
+- Acceptance-criteria audit: Host lifecycles, authorization, atomic snapshots, bounds, generated
+  OpenAPI/Zod seams, distinct origins, Zustand scope, dependency removal, deleted UI and current
+  documentation matched the approved sources. Reconnect behavior works for all four termination
+  modes, but production configuration and tests did not directly verify generated-client ownership
+  of HTTP and read failures.
+- Required findings by owner: Workstream 3 must set `sseMaxRetryAttempts: 1` for the coordinator
+  generated operation and test rejected HTTP/fetch plus mid-stream read failures. Workstream 5 must
+  make the same correction and tests for the local console operation. This removes nested indefinite
+  generated retries and makes the wrapper the bounded owner of all four reconnect modes.
+- Optional observations: The local console store retains unused status/error detail; deletion-only
+  negative UI assertions remain; generated clients expose simulator operations without current UI
+  consumers; the coordinator publisher wakes at its telemetry cadence while idle.
+- Questions: `health.devices` is approved per-role runtime fault health, not the removed live device
+  registry. Removing the coordinator steering editor was intentional with the legacy Servotronic
+  card; the driving console retains curve editing.
+- Verdict: Approve after the two owner-assigned reconnect corrections and focused closure.
 
 ## Orchestrator triage
 
-- Accepted findings and owners: `TBD`
-- Rejected findings and reasons: `TBD`
-- Deferred optional observations: `TBD`
-- Drift requiring user decision: `TBD`
+- Accepted findings and owners: Workstream 3 owns the coordinator retry option and failure tests;
+  Workstream 5 owns the equivalent local console correction.
+- Rejected findings and reasons: No change to health projections or coordinator editor ownership;
+  both match approved scope. No generated-runtime fork or shared reconnect framework.
+- Deferred optional observations: Local status detail, deletion-only test assertions, unused
+  generated simulator operations and idle publisher wakeups do not block acceptance.
+- Drift requiring user decision: None.
 
 ## Focused closure
 
