@@ -11,21 +11,24 @@ const runtime = vi.hoisted(() => ({
   simulatedVehicle: false,
 }))
 
-vi.mock("@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen")
-  >()),
-  getRuntimeConfigurationOptions: () => ({
-    queryKey: ["runtime-configuration"],
-    queryFn: async () => ({
-      profile: runtime.simulatedVehicle ? "simulator" : "car",
-      capabilities: {
-        simulated_vehicle: runtime.simulatedVehicle,
-        simulation_workbench: runtime.simulatedVehicle,
-      },
+vi.mock(
+  "@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen")
+    >()),
+    getRuntimeConfigurationOptions: () => ({
+      queryKey: ["runtime-configuration"],
+      queryFn: async () => ({
+        profile: runtime.simulatedVehicle ? "simulator" : "car",
+        capabilities: {
+          simulated_vehicle: runtime.simulatedVehicle,
+          simulation_workbench: runtime.simulatedVehicle,
+        },
+      }),
     }),
-  }),
-}))
+  })
+)
 
 vi.mock(
   "@/components/simulator-workbench/LiveSimulatedVehicleControls",
@@ -81,9 +84,9 @@ it("renders a floating trigger when simulated vehicle control is available", asy
 
 it("makes the power shortcut destructive while the car is running", async () => {
   runtime.simulatedVehicle = true
-  const live = snapshot("running-car", 1)
+  const live = snapshot(1)
   live.data.vehicle = { speed_kph: 0, speed_valid: true }
-  useLiveStore.getState().applySnapshot(live)
+  useLiveStore.getState().applyEvent(live)
   renderPopover()
 
   expect(

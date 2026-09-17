@@ -1,11 +1,13 @@
 import { Gauge, Minus, Plus, RotateCcw, Save } from "lucide-react"
 
-import type { Mode } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringState } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { LoadingButton } from "@/components/loading-button"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { PendingCurveAction } from "../../types"
+
+type Mode = SteeringState["mode"]
 
 export const CurveActions = ({
   mode,

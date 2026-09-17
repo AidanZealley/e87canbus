@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { SteeringState } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringState } from "@e87canbus/coordinator-client/api/http/types.gen"
 import type { ButtonCommand, ButtonCommandSlot } from "./types"
 import {
   BUTTON_LED_RGB,

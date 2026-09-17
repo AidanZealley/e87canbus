@@ -5,13 +5,10 @@ import base64
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock
 from urllib.parse import quote
 
 import pytest
-import socketio  # type: ignore[import-untyped]
 from argon2 import PasswordHasher
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -21,20 +18,14 @@ from e87canbus.api.auth import (
     CLIENT_CERTIFICATE_HEADER,
     CLIENT_VERIFY_HEADER,
     HTTP_PERMISSIONS,
-    SOCKET_RECEIVE_PERMISSIONS,
-    SOCKET_SEND_PERMISSIONS,
     ApplicationAuthenticator,
     PrincipalKind,
 )
-from e87canbus.api.internal.live import install_socket_handlers
 from e87canbus.api.main import create_app
-from e87canbus.api.models.live_contract import ClientEvent, ServerEvent
 from e87canbus.deployment import DeploymentProfile
-from engineio.async_drivers.asgi import translate_request  # type: ignore[import-untyped]
 from fastapi.testclient import TestClient
 
 INSTALLATION_ID = "a" * 52
-OTHER_INSTALLATION_ID = "b" * 52
 DEVICE_ID = "12345678-1234-4234-9234-123456789abc"
 PASSWORD = "test-only-operator-password"
 ROOT = Path(__file__).resolve().parents[2]
@@ -166,18 +157,6 @@ def test_served_sse_schema_matches_the_exported_event_union(tmp_path: Path) -> N
     assert "type" not in schema
 
 
-def test_socket_table_matches_the_closed_live_contract() -> None:
-    assert set(SOCKET_SEND_PERMISSIONS) == set(ClientEvent)
-    assert set(ServerEvent) == set(SOCKET_RECEIVE_PERMISSIONS)
-    assert all(
-        permissions == {PrincipalKind.CONSOLE, PrincipalKind.OPERATOR}
-        for permissions in (
-            *SOCKET_SEND_PERMISSIONS.values(),
-            *SOCKET_RECEIVE_PERMISSIONS.values(),
-        )
-    )
-
-
 def test_unauthenticated_client_gets_only_liveness(tmp_path: Path) -> None:
     app = create_app(
         profile=DeploymentProfile.CAR,
@@ -211,31 +190,6 @@ def test_cors_handles_preflight_before_authorization(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
-
-
-@pytest.mark.asyncio
-async def test_console_identity_uses_the_asgi_peer_and_requires_matching_identity() -> None:
-    auth = authenticator()
-
-    async def classify(remote: str, **identity: str) -> PrincipalKind:
-        environ = await translated_socket_environ(
-            remote,
-            {
-                **console_headers(**identity),
-                "x-forwarded-for": "127.0.0.1",
-            },
-        )
-        assert environ["REMOTE_ADDR"] == "127.0.0.1"
-        principal = await auth.authenticate_environ(environ)
-        return principal.kind
-
-    assert await classify("127.0.0.1") is PrincipalKind.CONSOLE
-    assert await classify("10.42.0.2") is PrincipalKind.UNAUTHENTICATED
-    assert (
-        await classify("127.0.0.1", installation_id=OTHER_INSTALLATION_ID)
-        is PrincipalKind.UNAUTHENTICATED
-    )
-    assert await classify("127.0.0.1", role="coordinator") is PrincipalKind.UNAUTHENTICATED
 
 
 def test_console_and_operator_http_permissions(tmp_path: Path) -> None:
@@ -295,9 +249,7 @@ async def test_console_and_operator_can_open_the_live_stream(tmp_path: Path) -> 
             "path": "/api/live",
             "raw_path": b"/api/live",
             "query_string": b"",
-            "headers": [
-                (key.lower().encode(), value.encode()) for key, value in headers.items()
-            ],
+            "headers": [(key.lower().encode(), value.encode()) for key, value in headers.items()],
         }
         request_task = asyncio.create_task(app(scope, receive, send))  # type: ignore[arg-type]
         try:
@@ -314,58 +266,3 @@ async def test_console_and_operator_can_open_the_live_stream(tmp_path: Path) -> 
     async with app.router.lifespan_context(app):
         await open_stream(console_headers())
         await open_stream(basic_headers())
-
-
-@pytest.mark.asyncio
-async def test_socket_connection_authenticates_once_and_drops_failed_sessions() -> None:
-    sio = socketio.AsyncServer(async_mode="asgi")
-    send_snapshot = AsyncMock()
-    publisher = SimpleNamespace(
-        send_snapshot=send_snapshot,
-        disconnect=lambda _sid: None,
-        subscribe_trace=AsyncMock(),
-        unsubscribe_trace=AsyncMock(),
-    )
-    install_socket_handlers(sio, publisher, authenticator())
-    connect = sio.handlers["/"]["connect"]
-    resync = sio.handlers["/"][ClientEvent.CONTROLLER_RESYNC]
-
-    accepted = await translated_socket_environ("127.0.0.1", console_headers())
-    spoofed = await translated_socket_environ("10.42.0.2", console_headers())
-    assert await connect("accepted", accepted, None) is True
-    assert await connect("rejected", spoofed, None) is False
-    assert await connect("missing-scope", {"REMOTE_ADDR": "127.0.0.1"}, None) is False
-
-    send_snapshot.side_effect = RuntimeError("snapshot failed")
-    with pytest.raises(RuntimeError, match="snapshot failed"):
-        await connect("snapshot-failed", accepted, None)
-    send_snapshot.side_effect = None
-    await resync("rejected")
-    await resync("snapshot-failed")
-    assert send_snapshot.await_count == 2
-
-
-async def translated_socket_environ(
-    peer_address: str, headers: dict[str, str]
-) -> dict[str, object]:
-    scope = {
-        "type": "websocket",
-        "asgi": {"version": "3.0", "spec_version": "2.3"},
-        "http_version": "1.1",
-        "scheme": "ws",
-        "server": ("127.0.0.1", 8000),
-        "client": (peer_address, 45678),
-        "root_path": "",
-        "path": "/socket.io/",
-        "raw_path": b"/socket.io/",
-        "query_string": b"EIO=4&transport=websocket",
-        "headers": [(key.encode(), value.encode()) for key, value in headers.items()],
-    }
-
-    async def receive() -> dict[str, str]:
-        return {"type": "websocket.connect"}
-
-    async def send(_message: object) -> None:
-        return None
-
-    return await translate_request(scope, receive, send)

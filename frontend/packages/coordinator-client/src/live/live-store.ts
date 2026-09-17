@@ -1,28 +1,18 @@
 import { create } from "zustand"
 
-import {
-  LIVE_PROTOCOL_VERSION,
-  type ButtonsState,
-  type ControllerHealthState,
-  type EngineState,
-  type LightingState,
-  type ServerEventPayload,
-  type ServerToClientEvents,
-  type SteeringState,
-  type TopicRevisions,
-  type VehicleState,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type {
+  ButtonsState,
+  CoordinatorHealthState,
+  EngineState,
+  LightingState,
+  SnapshotEvent,
+  SteeringState,
+  StreamCoordinatorLiveApiLiveGetResponse,
+  VehicleState,
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 
 export type LiveConnectionStatus =
-  | "connecting"
-  | "synchronizing"
-  | "connected"
-  | "reconnecting"
-  | "disconnected"
-  | "incompatible"
-
-export type TopicApplyDecision =
-  "applied" | "ignored" | "resync" | "incompatible"
+  "connecting" | "connected" | "reconnecting" | "disconnected"
 
 type LiveConnection = {
   status: LiveConnectionStatus
@@ -30,73 +20,24 @@ type LiveConnection = {
   error: string | null
 }
 
-type RetainedTopicRevisions = Omit<TopicRevisions, "devices">
-
-type LiveSlices = {
-  bootId: string | null
-  topicRevisions: RetainedTopicRevisions
-  simulationSessionId: number | null
+type LiveProjections = {
   vehicle: VehicleState
   engine: EngineState
   steering: SteeringState | null
   buttons: ButtonsState
   lighting: LightingState
-  health: ControllerHealthState
+  health: CoordinatorHealthState
 }
 
-export type LiveState = LiveSlices & {
+export type LiveState = LiveProjections & {
   connection: LiveConnection
-  transportConnected: (reconnecting: boolean) => void
-  transportDisconnected: () => void
-  transportError: (message: string) => void
-  applySnapshot: (
-    envelope: ServerEventPayload<"controller.snapshot">
-  ) => boolean
-  applyVehicle: (
-    envelope: ServerEventPayload<"vehicle.state">
-  ) => TopicApplyDecision
-  applyEngine: (
-    envelope: ServerEventPayload<"engine.state">
-  ) => TopicApplyDecision
-  applySteering: (
-    envelope: ServerEventPayload<"steering.state">
-  ) => TopicApplyDecision
-  applyButtons: (
-    envelope: ServerEventPayload<"buttons.state">
-  ) => TopicApplyDecision
-  applyLighting: (
-    envelope: ServerEventPayload<"lighting.state">
-  ) => TopicApplyDecision
-  applyHealth: (
-    envelope: ServerEventPayload<"controller.health">
-  ) => TopicApplyDecision
+  connectionPending: () => void
+  connectionFailed: (message: string) => void
+  applyEvent: (event: StreamCoordinatorLiveApiLiveGetResponse) => void
   reset: () => void
 }
 
-const zeroRevisions = (): RetainedTopicRevisions => ({
-  vehicle: 0,
-  engine: 0,
-  steering: 0,
-  buttons: 0,
-  lighting: 0,
-  health: 0,
-})
-
-const retainTopicRevisions = (
-  revisions: TopicRevisions
-): RetainedTopicRevisions => ({
-  vehicle: revisions.vehicle,
-  engine: revisions.engine,
-  steering: revisions.steering,
-  buttons: revisions.buttons,
-  lighting: revisions.lighting,
-  health: revisions.health,
-})
-
-const emptySlices = (): LiveSlices => ({
-  bootId: null,
-  topicRevisions: zeroRevisions(),
-  simulationSessionId: null,
+const emptyProjections = (): LiveProjections => ({
   vehicle: { speed_kph: 0, speed_valid: false },
   engine: {
     rpm: { value: null, status: "never_observed" },
@@ -131,18 +72,8 @@ const emptySlices = (): LiveSlices => ({
       overflow_latched: false,
     },
     devices: [],
-    steering: {
-      fault: null,
-    },
+    steering: { fault: null },
     persistence: { available: false, fault: "not initialized" },
-    publisher: {
-      running: false,
-      failures: 0,
-      trace_rows_dropped: 0,
-      resource_changes_dropped: 0,
-      transport_queue_saturations: 0,
-      fault: "not started",
-    },
   },
 })
 
@@ -152,66 +83,33 @@ const initialConnection = (): LiveConnection => ({
   error: null,
 })
 
-const incompatibleMessage = (version: number) =>
-  `Live protocol ${version} is incompatible; this application requires version ${LIVE_PROTOCOL_VERSION}.`
-
 export const useLiveStore = create<LiveState>((set, get) => {
-  type TopicName = keyof RetainedTopicRevisions
-  type TopicEventName = Exclude<
-    keyof ServerToClientEvents,
-    | "controller.snapshot"
-    | "devices.state"
-    | "resources.changed"
-    | "trace.batch"
-  >
-  const applyTopic = (
-    topic: TopicName,
-    field: TopicName,
-    envelope: ServerEventPayload<TopicEventName>
-  ): TopicApplyDecision => {
-    const current = get()
-    if (envelope.protocol_version !== LIVE_PROTOCOL_VERSION) {
-      set({
-        connection: {
-          status: "incompatible",
-          synchronized: false,
-          error: incompatibleMessage(envelope.protocol_version),
-        },
-      })
-      return "incompatible"
-    }
-    if (current.bootId !== envelope.boot_id) return "resync"
-    if (envelope.revision <= current.topicRevisions[topic]) return "ignored"
+  const applySnapshot = (event: SnapshotEvent) => {
     set({
-      [field]: envelope.data,
-      topicRevisions: {
-        ...current.topicRevisions,
-        [topic]: envelope.revision,
+      ...event.data,
+      connection: {
+        status: "connected",
+        synchronized: true,
+        error: null,
       },
-    } as Partial<LiveState>)
-    return "applied"
+    })
   }
 
   return {
-    ...emptySlices(),
+    ...emptyProjections(),
     connection: initialConnection(),
-    transportConnected: (reconnecting) =>
-      set({
-        connection: {
-          status: reconnecting ? "reconnecting" : "synchronizing",
-          synchronized: false,
-          error: null,
-        },
-      }),
-    transportDisconnected: () =>
+    connectionPending: () =>
       set((state) => ({
         connection: {
-          status: state.bootId === null ? "connecting" : "reconnecting",
+          status:
+            state.connection.status === "connecting"
+              ? "connecting"
+              : "reconnecting",
           synchronized: false,
-          error: null,
+          error: state.connection.error,
         },
       })),
-    transportError: (message) =>
+    connectionFailed: (message) =>
       set({
         connection: {
           status: "disconnected",
@@ -219,55 +117,37 @@ export const useLiveStore = create<LiveState>((set, get) => {
           error: message,
         },
       }),
-    applySnapshot: (envelope) => {
-      if (envelope.protocol_version !== LIVE_PROTOCOL_VERSION) {
-        set({
-          connection: {
-            status: "incompatible",
-            synchronized: false,
-            error: incompatibleMessage(envelope.protocol_version),
-          },
-        })
-        return false
+    applyEvent: (event) => {
+      if (event.type === "snapshot") {
+        applySnapshot(event)
+        return
       }
-      const current = get()
-      const sameBoot = current.bootId === envelope.boot_id
-      const nextTopicRevisions = retainTopicRevisions(
-        envelope.data.topic_revisions
-      )
-      if (
-        sameBoot &&
-        Object.entries(nextTopicRevisions).some(
-          ([topic, revision]) =>
-            revision < current.topicRevisions[topic as TopicName]
-        )
-      ) {
-        return false
+      if (event.type === "resource.changed" || !get().connection.synchronized)
+        return
+      switch (event.type) {
+        case "vehicle":
+          set({ vehicle: event.data })
+          return
+        case "engine":
+          set({ engine: event.data })
+          return
+        case "steering":
+          set({ steering: event.data })
+          return
+        case "buttons":
+          set({ buttons: event.data })
+          return
+        case "lighting":
+          set({ lighting: event.data })
+          return
+        case "health":
+          set({ health: event.data })
+          return
       }
-      set({
-        bootId: envelope.boot_id,
-        topicRevisions: nextTopicRevisions,
-        simulationSessionId: envelope.data.simulation_session_id,
-        vehicle: envelope.data.vehicle,
-        engine: envelope.data.engine,
-        steering: envelope.data.steering,
-        buttons: envelope.data.buttons,
-        lighting: envelope.data.lighting,
-        health: envelope.data.health,
-        connection: {
-          status: "connected",
-          synchronized: true,
-          error: null,
-        },
-      })
-      return true
+      const unhandledEvent: never = event
+      return unhandledEvent
     },
-    applyVehicle: (envelope) => applyTopic("vehicle", "vehicle", envelope),
-    applyEngine: (envelope) => applyTopic("engine", "engine", envelope),
-    applySteering: (envelope) => applyTopic("steering", "steering", envelope),
-    applyButtons: (envelope) => applyTopic("buttons", "buttons", envelope),
-    applyLighting: (envelope) => applyTopic("lighting", "lighting", envelope),
-    applyHealth: (envelope) => applyTopic("health", "health", envelope),
-    reset: () => set({ ...emptySlices(), connection: initialConnection() }),
+    reset: () =>
+      set({ ...emptyProjections(), connection: initialConnection() }),
   }
 })

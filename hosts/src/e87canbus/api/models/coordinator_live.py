@@ -20,7 +20,7 @@ from e87canbus.api.models.live import (
     VehicleState,
     buttons_state,
     engine_state,
-    health_state,
+    fault_state,
     lighting_state,
     steering_state,
     vehicle_state,
@@ -129,7 +129,7 @@ def snapshot_event(snapshot: ControllerLoopSnapshot) -> SnapshotEvent:
             buttons=buttons_state(snapshot),
             lighting=lighting_state(snapshot),
             health=coordinator_health_state(snapshot),
-        )
+        ),
     )
 
 
@@ -155,13 +155,31 @@ def resource_changed_event(event: ResourceChangedEvent) -> ResourceChangedSseEve
 
 
 def coordinator_health_state(snapshot: ControllerLoopSnapshot) -> CoordinatorHealthState:
-    health = health_state(snapshot)
+    health = snapshot.diagnostics.health
+    device_faults = {item.role: item.fault for item in health.devices}
     return CoordinatorHealthState(
-        ready=health.ready,
+        ready=snapshot.service.ready,
         fatal=health.fatal,
-        networks=health.networks,
-        inbox=health.inbox,
-        devices=health.devices,
-        steering=health.steering,
-        persistence=health.persistence,
+        networks=tuple(
+            NetworkHealthState(
+                network=network.network.value,
+                fault=fault_state(network.fault),
+            )
+            for network in health.networks
+        ),
+        inbox=InboxHealthState.model_validate(snapshot.service.inbox, from_attributes=True),
+        devices=tuple(
+            DeviceHealthState(
+                role=device.role.value,
+                fault=fault_state(device_faults.get(device.role)),
+            )
+            for device in health.devices
+        ),
+        steering=SteeringCapabilityHealthState(
+            fault=fault_state(health.steering_actuator_fault),
+        ),
+        persistence=PersistenceHealthState.model_validate(
+            snapshot.service.persistence,
+            from_attributes=True,
+        ),
     )

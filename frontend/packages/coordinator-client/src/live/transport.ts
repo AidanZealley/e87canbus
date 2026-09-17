@@ -1,107 +1,130 @@
 import type { QueryClient } from "@tanstack/react-query"
-import { io, type Socket } from "socket.io-client"
 
-import { COORDINATOR_ORIGIN } from "@e87canbus/coordinator-client/api/http-client-config"
 import {
-  reconcileDurableResources,
   invalidateChangedResource,
+  reconcileDurableResources,
 } from "@e87canbus/coordinator-client/api/durable-query-ownership"
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
-import { useLiveStore, type TopicApplyDecision } from "./live-store"
+import { streamCoordinatorLiveApiLiveGet } from "@e87canbus/coordinator-client/api/http/sdk.gen"
+import { useLiveStore } from "./live-store"
 
-type LiveSocket = Socket<ServerToClientEvents, ClientToServerEvents>
-type RetainedServerEvent = Exclude<
-  keyof ServerToClientEvents,
-  "devices.state" | "trace.batch"
->
+const IDLE_TIMEOUT_MS = 25_000
+const RECONNECT_DELAY_MS = 3_000
+
+type StreamOperation = typeof streamCoordinatorLiveApiLiveGet
 
 type TransportDependencies = {
   queryClient: QueryClient
-  createSocket?: () => LiveSocket
+  streamOperation?: StreamOperation
+  idleTimeoutMs?: number
+  reconnectDelayMs?: number
+  sleep?: (milliseconds: number) => Promise<void>
 }
+
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Coordinator live stream failed"
 
 export const createLiveTransport = ({
   queryClient,
-  createSocket = () =>
-    io(COORDINATOR_ORIGIN, {
-      autoConnect: false,
-      transports: ["websocket", "polling"],
-    }) as LiveSocket,
+  streamOperation = streamCoordinatorLiveApiLiveGet,
+  idleTimeoutMs = IDLE_TIMEOUT_MS,
+  reconnectDelayMs = RECONNECT_DELAY_MS,
+  sleep = (milliseconds) =>
+    new Promise((resolve) => window.setTimeout(resolve, milliseconds)),
 }: TransportDependencies) => {
-  const socket = createSocket()
-  let synchronizedOnce = false
-  let connectionEpoch = 0
-  let reconciledEpoch = -1
-  let connectEventSeen = false
-  let snapshotBeforeConnect = false
+  const transportAbort = new AbortController()
 
-  const requestResync = () => socket.emit("controller.resync")
-  const applyTopic = (decision: TopicApplyDecision) => {
-    if (decision === "resync") requestResync()
-  }
-  const reconcileCurrentConnection = () => {
-    if (reconciledEpoch === connectionEpoch) return
-    reconciledEpoch = connectionEpoch
-    void reconcileDurableResources(queryClient)
-  }
+  const run = async () => {
+    while (!transportAbort.signal.aborted) {
+      const connectionAbort = new AbortController()
+      const stopTransport = () => connectionAbort.abort()
+      transportAbort.signal.addEventListener("abort", stopTransport, {
+        once: true,
+      })
+      let idleTimer: ReturnType<typeof setTimeout> | undefined
+      let idleTimedOut = false
+      let malformedRecord = false
 
-  const listeners: {
-    [Event in RetainedServerEvent]: ServerToClientEvents[Event]
-  } = {
-    "controller.snapshot": (payload) => {
-      if (!useLiveStore.getState().applySnapshot(payload)) return
-      synchronizedOnce = true
-      if (connectEventSeen) reconcileCurrentConnection()
-      else snapshotBeforeConnect = true
-    },
-    "vehicle.state": (payload) =>
-      applyTopic(useLiveStore.getState().applyVehicle(payload)),
-    "engine.state": (payload) =>
-      applyTopic(useLiveStore.getState().applyEngine(payload)),
-    "steering.state": (payload) =>
-      applyTopic(useLiveStore.getState().applySteering(payload)),
-    "buttons.state": (payload) =>
-      applyTopic(useLiveStore.getState().applyButtons(payload)),
-    "lighting.state": (payload) =>
-      applyTopic(useLiveStore.getState().applyLighting(payload)),
-    "controller.health": (payload) =>
-      applyTopic(useLiveStore.getState().applyHealth(payload)),
-    "resources.changed": (payload) => {
-      void invalidateChangedResource(queryClient, payload)
-    },
-  }
+      const resetIdleTimer = () => {
+        clearTimeout(idleTimer)
+        idleTimer = setTimeout(() => {
+          idleTimedOut = true
+          useLiveStore
+            .getState()
+            .connectionFailed("Coordinator live stream timed out")
+          connectionAbort.abort()
+        }, idleTimeoutMs)
+      }
 
-  socket.on("connect", () => {
-    connectionEpoch += 1
-    connectEventSeen = true
-    if (snapshotBeforeConnect) {
-      snapshotBeforeConnect = false
-      reconcileCurrentConnection()
-    } else {
-      useLiveStore.getState().transportConnected(synchronizedOnce)
+      try {
+        resetIdleTimer()
+        const { stream } = await streamOperation({
+          signal: connectionAbort.signal,
+          onSseEvent: (event) => {
+            resetIdleTimer()
+            if (event.data === undefined) return
+            if (typeof event.data === "object" && event.data !== null) return
+            malformedRecord = true
+            useLiveStore
+              .getState()
+              .connectionFailed("Coordinator sent malformed live data")
+            connectionAbort.abort()
+          },
+          onSseError: (error) => {
+            if (
+              idleTimedOut ||
+              malformedRecord ||
+              transportAbort.signal.aborted
+            )
+              return
+            useLiveStore.getState().connectionFailed(errorMessage(error))
+          },
+        })
+
+        for await (const value of stream) {
+          if (malformedRecord) continue
+          if (value.type === "resource.changed") {
+            void invalidateChangedResource(queryClient, value.data)
+            continue
+          }
+          useLiveStore.getState().applyEvent(value)
+          if (value.type === "snapshot")
+            void reconcileDurableResources(queryClient)
+        }
+
+        if (!transportAbort.signal.aborted && !idleTimedOut && !malformedRecord)
+          useLiveStore
+            .getState()
+            .connectionFailed("Coordinator live stream ended")
+      } catch (error) {
+        if (!transportAbort.signal.aborted && !idleTimedOut && !malformedRecord)
+          useLiveStore.getState().connectionFailed(errorMessage(error))
+      } finally {
+        clearTimeout(idleTimer)
+        connectionAbort.abort()
+        transportAbort.signal.removeEventListener("abort", stopTransport)
+      }
+
+      if (transportAbort.signal.aborted) return
+      await sleep(reconnectDelayMs)
+      if (!transportAbort.signal.aborted)
+        useLiveStore.getState().connectionPending()
     }
-  })
-  socket.on("disconnect", () => {
-    connectEventSeen = false
-    snapshotBeforeConnect = false
-    useLiveStore.getState().transportDisconnected()
-  })
-  socket.on("connect_error", (error) => {
-    useLiveStore.getState().transportError(error.message)
-  })
-  for (const [event, listener] of Object.entries(listeners)) {
-    socket.on(event as keyof ServerToClientEvents, listener as never)
   }
-  socket.connect()
+
+  void run()
+  return () => transportAbort.abort()
 }
 
-let liveTransportStarted = false
+let activeLiveTransport: (() => void) | null = null
 
 export const startLiveTransport = (queryClient: QueryClient) => {
-  if (liveTransportStarted) return
-  createLiveTransport({ queryClient })
-  liveTransportStarted = true
+  if (activeLiveTransport !== null) return
+  activeLiveTransport = createLiveTransport({ queryClient })
 }
+
+export const disposeLiveTransport = () => {
+  activeLiveTransport?.()
+  activeLiveTransport = null
+}
+
+if (import.meta.hot) import.meta.hot.dispose(disposeLiveTransport)

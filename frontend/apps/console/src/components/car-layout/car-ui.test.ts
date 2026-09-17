@@ -4,7 +4,7 @@ import { test } from "vitest"
 import type {
   RuntimeFaultState,
   SteeringState,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 import { DEFAULT_APPLICATION_SETTINGS } from "@e87canbus/coordinator-client/application-settings"
 import {
   celsiusToFahrenheit,

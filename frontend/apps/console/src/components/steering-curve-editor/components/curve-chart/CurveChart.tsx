@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
-import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import {
   assistanceToPercent,

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { PowerIcon } from "lucide-react"
-import type { EngineState } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { EngineState } from "@e87canbus/coordinator-client/api/http/types.gen"
 
 import {
   setCoolantTemperatureMutation,

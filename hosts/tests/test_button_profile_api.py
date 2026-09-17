@@ -157,7 +157,6 @@ def test_update_publishes_selected_profile_resource_change(client: TestClient) -
     assert response.status_code == 200
     assert [event.model_dump() for event in events] == [
         {
-            "type": "resources.changed",
             "resource": "button_profile",
             "id": created["profile_id"],
             "revision": 2,

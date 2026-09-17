@@ -1,6 +1,11 @@
-import { ZIndexLayer, useXAxisScale, useYAxisInverseScale, useYAxisScale } from "recharts"
+import {
+  ZIndexLayer,
+  useXAxisScale,
+  useYAxisInverseScale,
+  useYAxisScale,
+} from "recharts"
 
-import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/http/types.gen"
 import {
   assistanceBoundsAt,
   assistancePerMilleToPercent,

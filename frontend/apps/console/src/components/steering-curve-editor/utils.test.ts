@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { test } from "vitest"
 
-import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/http/types.gen"
 import {
   assistanceBoundsAt,
   assistancePercentToPerMille,

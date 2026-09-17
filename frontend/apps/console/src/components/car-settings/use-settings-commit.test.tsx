@@ -37,19 +37,19 @@ test("does not defer a disconnected settings edit until synchronization returns"
   const wrapper = ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
-  useLiveStore.getState().applySnapshot(snapshot("boot", 1))
+  useLiveStore.getState().applyEvent(snapshot(1))
   const { result } = renderHook(
     () => useSettingsCommit(DEFAULT_APPLICATION_SETTINGS),
     { wrapper }
   )
 
-  act(() => useLiveStore.getState().transportDisconnected())
+  act(() => useLiveStore.getState().connectionFailed("connection lost"))
   await act(() => result.current.commit({ speedUnit: "kmh" }))
   expect(mocks.update).not.toHaveBeenCalled()
 
   act(() => {
-    useLiveStore.getState().transportConnected(true)
-    useLiveStore.getState().applySnapshot(snapshot("boot", 2))
+    useLiveStore.getState().connectionPending()
+    useLiveStore.getState().applyEvent(snapshot(2))
   })
   expect(result.current.canCommit).toBe(true)
   expect(mocks.update).not.toHaveBeenCalled()
@@ -69,7 +69,7 @@ test("admits only one revisioned settings write at a time", async () => {
         resolve({ ...DEFAULT_APPLICATION_SETTINGS, revision: 2 })
     })
   )
-  useLiveStore.getState().applySnapshot(snapshot("boot", 1))
+  useLiveStore.getState().applyEvent(snapshot(1))
   const { result } = renderHook(
     () => useSettingsCommit(DEFAULT_APPLICATION_SETTINGS),
     { wrapper }

@@ -1,6 +1,6 @@
 # Workstream 3: coordinator browser cutover
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -120,29 +120,72 @@ claude -p "Perform the focused closure review for Workstream 3 of the browser SS
 ## Implementation handoff
 
 - Base commit: `176802cca0576a633aa7cd49538917d5c4f26e20`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: Both applications now consume the generated coordinator SSE operation into one compact
+  Zustand projection store. Clean EOF and idle connections reconnect, every new snapshot
+  reconciles durable query roots, and the coordinator no longer serves Socket.IO or carries its
+  bespoke live contract.
+- Files changed: Replaced the coordinator-client live store, transport, fixtures and focused tests;
+  moved frontend consumers to generated OpenAPI types; removed the console dev proxy for
+  coordinator Socket.IO; removed coordinator Socket.IO composition, publication, authorization,
+  schema, generators, generated mappings and their tests; simplified shared live projection models
+  and resource publication; updated package scripts, manifests, lockfile and affected tests.
+- Decisions: The generated Hey API operation continues to own HTTP, network and read retry plus Zod
+  validation. The wrapper adds a 25-second receive watchdog and clean-EOF reconnect loop, counts SSE
+  comments as receive activity, and rejects the generated runtime's malformed-JSON string edge
+  without changing retained projections. Each generated snapshot replaces all projections and
+  reconciles durable roots. Projection events replace one field only. The console host's local
+  `/console/socket.io` client, server, contract and dependencies remain unchanged.
+- Verification: Every packet command passed. `api:check` passed; coordinator-client passed 7 files
+  and 17 tests plus typecheck; coordinator passed 11 files and 38 tests plus typecheck and build;
+  console passed 23 files and 100 tests plus typecheck. The selected backend suite passed 73 tests;
+  mypy, Ruff and `git diff --check` passed. An additional 72 settings, button-profile, lifecycle and
+  console-host tests passed, including all 9 local console Socket.IO tests.
+- Known limitations or external checks: No manual browser session was run. The workflow's final
+  local browser validation gate remains pending. The coordinator build retains its existing
+  oversized-chunk warning.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: The reviewer reported Approve after contract, lifecycle, backend and generated-client
+  checks. The orchestrator promoted one duplicate-connection defect to Required.
+- Required findings: The module-local startup flag prevents duplicate calls only for one module
+  instance. Vite hot replacement can dispose that instance without stopping its transport, then
+  start a second coordinator stream from the replacement module. Add explicit hot-dispose cleanup
+  and a focused lifecycle test.
+- Optional observations: Remove the obsolete fixture boot-id argument and the unreachable profile
+  id null check. Replace the computed Zustand projection assignment with an exhaustive typed update.
+  Internal generated retries currently leave the badge disconnected rather than reconnecting. The
+  generated runtime releases but does not cancel a reader after some mid-stream errors.
+- Questions for orchestrator: The final browser gate already requires a long-running console SSE
+  request through the configured origin, so it covers the proxy concern. Keep console contract
+  script aliases and the stale SPA `socket.io` prefix for Workstream 6. Current documentation
+  cleanup also remains with Workstream 6 as assigned.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Promoted hot-reload duplication because acceptance forbids repeated startup
+  from creating another connection. Accepted the fixture, resource-id and exhaustive store updates
+  as direct simplifications. Deferred reconnecting badge wording and generated runtime reader
+  behavior because they do not break convergence or retained state and the latter is generated
+  dependency code.
+- Simplification/deletion pass: The module singleton now owns one disposer used by both HMR and the
+  focused lifecycle test; no second registry or environment branch was added. Removed the dead
+  snapshot boot-id parameter and every call argument, removed the impossible profile-id null branch,
+  and replaced the computed projection write with an exhaustive typed switch so generated event
+  renames fail typecheck. Reconnect badge behavior, generated runtime code, documentation aliases
+  and the SPA prefix remain unchanged as directed.
+- Final verification: Every packet command passed after remediation. `api:check` passed;
+  coordinator-client passed 8 files and 18 tests plus typecheck; coordinator passed 11 files and 38
+  tests plus typecheck and build; console passed 23 files and 100 tests plus typecheck. The selected
+  backend suite passed 73 tests; mypy, Ruff and `git diff --check` passed. The coordinator build
+  retains its existing oversized-chunk warning.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. The focused reviewer confirmed hot disposal aborts the old stream, prevents
+  stale post-abort writes and permits a single replacement connection. The accepted type and
+  fixture simplifications also passed focused tests and typecheck.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

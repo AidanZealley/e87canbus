@@ -1,7 +1,7 @@
 import type {
   SteeringCurveDefinition,
   SteeringCurvePoint,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 
 export const ASSISTANCE_INCREMENT_PER_MILLE = 10
 export const ASSISTANCE_PAGE_INCREMENT_PER_MILLE = 100

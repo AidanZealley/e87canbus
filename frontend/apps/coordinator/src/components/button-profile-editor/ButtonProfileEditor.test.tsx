@@ -106,7 +106,7 @@ afterEach(() => {
 
 it("marks Servotronic bindings unavailable without a live Servotronic projection", () => {
   mocks.profile = profile(1, 2)
-  useLiveStore.getState().applySnapshot(snapshot("boot", 1))
+  useLiveStore.getState().applyEvent(snapshot(1))
   render(
     <QueryClientProvider client={new QueryClient()}>
       <ButtonProfileEditor profile={mocks.profile} />
@@ -156,7 +156,7 @@ it("commits a binding as soon as it is applied", async () => {
   })
   mocks.profile = profile(1, 2)
   mocks.update.mockResolvedValue(profile(2, 5))
-  useLiveStore.setState({ steering: snapshot("boot", 1).data.steering })
+  useLiveStore.setState({ steering: snapshot(1).data.steering })
   render(
     <QueryClientProvider client={queryClient}>
       <ButtonProfileEditor profile={mocks.profile!} />

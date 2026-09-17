@@ -6,7 +6,7 @@
  * `button-led-presentation.test.ts` pins the RGB constants so a backend colour
  * change fails here loudly.
  */
-import type { SteeringState } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringState } from "@e87canbus/coordinator-client/api/http/types.gen"
 import type { ButtonCommand, ButtonCommandSlot } from "./types"
 
 export type ButtonLedRgb = readonly [number, number, number]

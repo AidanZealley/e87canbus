@@ -13,8 +13,6 @@ const stateStyles: Record<LiveConnectionStatus, string> = {
   connecting: "bg-foreground text-background",
   disconnected: "bg-red-600 text-red-50",
   reconnecting: "bg-amber-600 text-amber-50",
-  synchronizing: "bg-amber-600 text-amber-50",
-  incompatible: "bg-red-600 text-red-50",
 }
 
 export const ConnectionBadge = ({ connectionState }: ConnectionBadgeProps) => {
@@ -23,20 +21,15 @@ export const ConnectionBadge = ({ connectionState }: ConnectionBadgeProps) => {
       ? "Connected"
       : connectionState === "connecting"
         ? "Connecting"
-        : connectionState === "synchronizing"
-          ? "Synchronizing"
-          : connectionState === "reconnecting"
-            ? "Reconnecting"
-            : connectionState === "incompatible"
-              ? "Incompatible"
-              : "Disconnected"
+        : connectionState === "reconnecting"
+          ? "Reconnecting"
+          : "Disconnected"
 
   return (
     <Badge className={stateStyles[connectionState]}>
       {connectionState === "connected" ? (
         <CableIcon data-icon="inline-start" />
-      ) : connectionState === "disconnected" ||
-        connectionState === "incompatible" ? (
+      ) : connectionState === "disconnected" ? (
         <CircleXIcon data-icon="inline-start" />
       ) : (
         <Spinner data-icon="inline-start" />
