@@ -1,6 +1,6 @@
 # Workstream 4: console SSE server and contract
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -98,7 +98,7 @@ claude -p "Perform the focused closure review for Workstream 4 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `f5fcfe357e26eb178c9db8fc903db955f2167b75`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
