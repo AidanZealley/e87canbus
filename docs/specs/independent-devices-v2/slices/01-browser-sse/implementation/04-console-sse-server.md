@@ -1,6 +1,6 @@
 # Workstream 4: console SSE server and contract
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -99,29 +99,70 @@ claude -p "Perform the focused closure review for Workstream 4 of the browser SS
 ## Implementation handoff
 
 - Base commit: `f5fcfe357e26eb178c9db8fc903db955f2167b75`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: Added the console host's separate same-origin `GET /api/live` stream beside the
+  unchanged local Socket.IO path. It sends complete `console.snapshot` replacements through
+  bounded subscriber output and has its own generated OpenAPI contract, Hey API operation, types
+  and Zod validator.
+- Files changed: Added the console SSE event model, publisher and focused tests under
+  `hosts/src/e87canbus/console/` and `hosts/tests/console/`; integrated the route and lifecycle in
+  `console/app.py`; added `scripts/generate_console_openapi.py`, `protocol/console-openapi.json`,
+  the console app's Hey API config and generated `src/api/console-host/` client; added generated
+  contract drift checking and streamed-record validation; updated frontend scripts, the console
+  package's Zod dependency and the lockfile.
+- Decisions: The console contract reuses only its local CAN projection model and imports no
+  coordinator live type. The SSE publisher is console-specific: offers replace one complete pending
+  snapshot, activity publishes at the existing one-second cadence, faults publish promptly, and
+  each subscriber holds at most eight pending records. Per-subscriber revisions prevent a
+  registration that captured newer service state from later receiving an older pending snapshot.
+  Keepalives are sent after 15 idle seconds, so Workstream 5's local receive watchdog must exceed 15
+  seconds. Publisher shutdown is bounded to one second and cancels stream requests, including ones
+  blocked in ASGI send.
+- Verification: Every packet command passed. The console backend suite passed 16 tests; mypy, Ruff,
+  `git diff --check`, OpenAPI and generated-client drift checks, and console typecheck passed. The
+  full console frontend suite passed 24 files and 101 tests, including generated streamed JSON Zod
+  validation and the unchanged Socket.IO transport tests.
+- Known limitations or external checks: No manual browser session was run. The browser remains on
+  `/console/socket.io` until Workstream 5, and the workflow's final local browser validation gate
+  remains pending.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: Changes requested. Publisher ordering, bounds, lifecycle and contract independence passed,
+  but the generated event discriminator is weaker than the wire contract.
+- Required findings: `ConsoleSnapshotEvent.type` has a model default, so OpenAPI omits it from the
+  required fields and the generated TypeScript/Zod contract accepts records without a discriminator.
+  Make `type` required at input, pass it explicitly when serializing, regenerate artifacts and add
+  a negative validation assertion.
+- Optional observations: Avoid redundant wakeups for already-pending non-urgent snapshots; leave
+  the pre-existing optional CAN interface literal for later cleanup; keep the two small response
+  classes independent; restore dependency ordering; avoid constructing an unused module-level app
+  during contract generation; route-level first-record coverage could supplement publisher tests.
+- Questions for orchestrator: Workstream 5 should use the proven 25-second watchdog, above the
+  15-second keepalive. Its Vite routing tests and final browser gate must confirm the local SSE
+  response streams without buffering.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted the Required discriminator fix because generated validation must
+  match the actual event union. Accepted dependency ordering as mechanical cleanup. Deferred wakeup
+  optimization, pre-existing CAN schema cleanup and extra route coverage because the current
+  behavior is bounded and tested. Kept host-specific response classes as required by the approved
+  direct-implementation boundary.
+- Simplification/deletion pass: Removed the discriminator default instead of adding a validator or
+  generated-client workaround. Serialization now supplies the one required literal explicitly.
+  Restored alphabetical dependency ordering and left the deferred wakeup, CAN schema, response
+  class and route-test observations unchanged.
+- Final verification: Every packet command passed after regeneration. The console backend suite
+  passed 16 tests; mypy, Ruff, `git diff --check`, OpenAPI and generated-client drift checks, and
+  console typecheck passed. The full console frontend suite passed 24 files and 101 tests, including
+  rejection of a streamed record without `type`.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. The generated Python, OpenAPI, TypeScript, Zod and SDK contracts all require
+  the `console.snapshot` discriminator, and the focused negative validation test rejects its
+  omission.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

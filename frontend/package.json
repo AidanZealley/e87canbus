@@ -18,8 +18,10 @@
     "live:check": "pnpm --filter @e87canbus/console live:check",
     "http:generate": "openapi-ts && node scripts/generate-button-command-catalogue.mjs",
     "http:check": "node scripts/check-http-contract.mjs && node scripts/generate-button-command-catalogue.mjs --check",
-    "api:generate": "uv run --project .. python ../scripts/generate_openapi.py && pnpm http:generate && pnpm live:generate",
-    "api:check": "uv run --project .. python ../scripts/generate_openapi.py --check && pnpm http:check && pnpm live:check",
+    "console-api:generate": "uv run --project .. python ../scripts/generate_console_openapi.py && openapi-ts -f apps/console/openapi-ts.config.ts",
+    "console-api:check": "uv run --project .. python ../scripts/generate_console_openapi.py --check && node scripts/check-console-http-contract.mjs",
+    "api:generate": "uv run --project .. python ../scripts/generate_openapi.py && pnpm http:generate && pnpm console-api:generate && pnpm live:generate",
+    "api:check": "uv run --project .. python ../scripts/generate_openapi.py --check && pnpm http:check && pnpm console-api:check && pnpm live:check",
     "api:watch": "uv run --project .. python ../scripts/watch_frontend_contracts.py"
   },
   "devDependencies": {

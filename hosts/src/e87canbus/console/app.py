@@ -8,16 +8,29 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import socketio  # type: ignore[import-untyped]
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.responses import StreamingResponse
 
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.adapters.socketio_server import BoundedSocketIoServer
 from e87canbus.adapters.web import SpaStaticFiles
 from e87canbus.console.live import ConsoleLivePublisher, install_socket_handlers
-from e87canbus.console.service import ConsoleCanService, ManagedCanReceiver
+from e87canbus.console.models import ConsoleSnapshotEvent
+from e87canbus.console.service import (
+    ConsoleCanService,
+    ConsoleServiceSnapshot,
+    ManagedCanReceiver,
+)
+from e87canbus.console.sse import ConsoleSsePublisher
 
 CONSOLE_SOCKET_PATH = "/console/socket.io"
+
+
+class EventStreamResponse(StreamingResponse, JSONResponse):
+    """Stream bytes while letting FastAPI document the JSON record model."""
+
+    media_type = "text/event-stream"
 
 
 def create_app(
@@ -30,25 +43,35 @@ def create_app(
         async_mode="asgi",
         outbound_queue_capacity=8,
     )
-    publisher = ConsoleLivePublisher(sio, service)
-    install_socket_handlers(sio, publisher)
+    socket_publisher = ConsoleLivePublisher(sio, service)
+    sse_publisher = ConsoleSsePublisher(service)
+    install_socket_handlers(sio, socket_publisher)
+
+    def publish(snapshot: ConsoleServiceSnapshot) -> None:
+        socket_publisher.offer(snapshot)
+        sse_publisher.offer(snapshot)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        await publisher.start()
-        service.start(publisher.offer)
+        await socket_publisher.start()
+        await sse_publisher.start()
+        service.start(publish)
         try:
             yield
         finally:
             try:
                 await asyncio.to_thread(service.stop)
             finally:
-                await publisher.stop()
+                try:
+                    await sse_publisher.stop()
+                finally:
+                    await socket_publisher.stop()
 
     app = FastAPI(title="E87 Console", lifespan=lifespan)
     app.state.console_service = service
     app.state.socketio = sio
-    app.state.live_publisher = publisher
+    app.state.live_publisher = socket_publisher
+    app.state.sse_publisher = sse_publisher
 
     @app.get("/health/live")
     async def liveness() -> dict[str, str]:
@@ -64,6 +87,22 @@ def create_app(
                 "status": "ready" if ready else "not_ready",
                 "boot_id": snapshot.boot_id,
             },
+        )
+
+    @app.get(
+        "/api/live",
+        response_model=ConsoleSnapshotEvent,
+        response_class=EventStreamResponse,
+    )
+    async def stream_console_live(request: Request) -> EventStreamResponse:
+        # Starlette may drive the body in a child task for ASGI versions before 2.4.
+        # Cancel the outer request to release both tasks when a subscriber is too slow.
+        request_task = asyncio.current_task()
+        if request_task is None:
+            raise RuntimeError("console SSE route requires an asyncio task")
+        return EventStreamResponse(
+            request.app.state.sse_publisher.events(request_task),
+            headers={"Cache-Control": "no-store"},
         )
 
     static_app = (

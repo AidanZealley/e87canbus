@@ -26,6 +26,13 @@ class ConsoleSnapshotData(ConsoleLiveModel):
     can: ConsoleCanState
 
 
+class ConsoleSnapshotEvent(ConsoleLiveModel):
+    """Complete local state sent by the console host's SSE endpoint."""
+
+    type: Literal["console.snapshot"]
+    data: ConsoleSnapshotData
+
+
 class ConsoleSnapshot(ConsoleLiveModel):
     protocol_version: Literal[1] = CONSOLE_PROTOCOL_VERSION
     boot_id: str = Field(min_length=1)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from queue import Empty, Queue
@@ -7,6 +8,7 @@ from queue import Empty, Queue
 from e87canbus.console.app import CONSOLE_SOCKET_PATH, create_app
 from e87canbus.protocol.can import CanFrame
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 
 class FakeReceiver:
@@ -76,3 +78,16 @@ def test_open_failure_keeps_liveness_available_and_readiness_false() -> None:
 
     assert response.status_code == 503
     assert response.json()["status"] == "not_ready"
+
+
+def test_live_route_is_a_same_origin_uncached_event_stream() -> None:
+    app = create_app(receiver_factory=FakeReceiver)
+    route = next(route for route in app.routes if getattr(route, "path", None) == "/api/live")
+
+    async def response_metadata() -> tuple[str | None, str | None]:
+        response = await route.endpoint(  # type: ignore[union-attr]
+            Request({"type": "http", "app": app})
+        )
+        return response.media_type, response.headers.get("cache-control")
+
+    assert asyncio.run(response_metadata()) == ("text/event-stream", "no-store")
