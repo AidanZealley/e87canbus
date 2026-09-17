@@ -1,6 +1,6 @@
 # Workstream 6: final transport cleanup
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -183,4 +183,4 @@ claude -p "Perform the focused closure review for Workstream 6 of the browser SS
   are absent, the SSE location retains its required streaming settings, current source/docs no
   longer cite the retired contract, and the documented Ruff command matches CI.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `5badf6da8df06a61b9f69dd38a48aee5ca2c8e70`
