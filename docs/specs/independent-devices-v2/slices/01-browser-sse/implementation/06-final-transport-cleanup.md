@@ -1,6 +1,6 @@
 # Workstream 6: final transport cleanup
 
-Status: not started.
+Status: implementing.
 
 ## Task packet
 
@@ -110,7 +110,7 @@ claude -p "Perform the focused closure review for Workstream 6 of the browser SS
 
 ## Implementation handoff
 
-- Base commit: `TBD`
+- Base commit: `75e715a8678f9af619e268a7ecf64df47d77434c`
 - Outcome: `TBD`
 - Files changed: `TBD`
 - Decisions: `TBD`
