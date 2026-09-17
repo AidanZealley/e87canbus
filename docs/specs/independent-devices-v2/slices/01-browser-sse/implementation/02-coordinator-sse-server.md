@@ -1,6 +1,6 @@
 # Workstream 2: coordinator SSE server and contract
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -182,4 +182,4 @@ claude -p "Perform the focused closure review for Workstream 2 of the browser SS
   inspection, repeated concurrency tests, generated-client validation and a real authenticated ASGI
   probe through the authorization middleware.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `53d5950795dba6c3e439bd37be64e7c0dcee3779`
