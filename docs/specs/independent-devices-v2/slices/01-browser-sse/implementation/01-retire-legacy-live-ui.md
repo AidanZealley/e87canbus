@@ -1,6 +1,6 @@
 # Workstream 1: retire legacy live UI
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -166,4 +166,4 @@ claude -p "Perform the focused closure review for Workstream 1 of the browser SS
   Required findings and the promoted documentation fix. The orchestrator accepted the explicit
   retained-topic mapping after lint and focused client checks passed.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `77e97e7645dcfdf2a283e18ab26958d9c7e4d337`
