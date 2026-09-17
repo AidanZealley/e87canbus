@@ -1,8 +1,8 @@
 import type {
   ButtonsState,
-  ServerEventPayload,
+  SnapshotEvent,
   SteeringCurveDefinition,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 
 export const staticButtonPadProgram = (
   rgb: readonly (readonly [number, number, number])[],
@@ -10,25 +10,27 @@ export const staticButtonPadProgram = (
 ): ButtonsState["program"] => ({
   encoding: "e87-button-pad-v2",
   generation,
-  commands: ([
-    [2, 1, 1, 0, 1, ...rgb[0], 0, 0, 0, 0, 0, ...rgb[0]],
-    ...rgb
-      .slice(1)
-      .map((colour, offset) => [
-        2,
-        2,
-        (1 << (offset + 1)) & 0xff,
-        (1 << (offset + 1)) >> 8,
-        1,
-        ...colour,
-        0,
-        0,
-        0,
-        0,
-        0,
-        ...colour,
-      ]),
-  ] as number[][]).map((command, index, commands) =>
+  commands: (
+    [
+      [2, 1, 1, 0, 1, ...rgb[0], 0, 0, 0, 0, 0, ...rgb[0]],
+      ...rgb
+        .slice(1)
+        .map((colour, offset) => [
+          2,
+          2,
+          (1 << (offset + 1)) & 0xff,
+          (1 << (offset + 1)) >> 8,
+          1,
+          ...colour,
+          0,
+          0,
+          0,
+          0,
+          0,
+          ...colour,
+        ]),
+    ] as number[][]
+  ).map((command, index, commands) =>
     index === commands.length - 1
       ? [command[0], command[1] | 0x80, ...command.slice(2)]
       : command
@@ -60,25 +62,9 @@ const steering = {
   curve_activation_available: true,
 }
 
-export const snapshot = (
-  bootId: string,
-  revision: number
-): ServerEventPayload<"controller.snapshot"> => ({
-  protocol_version: 1,
-  boot_id: bootId,
-  revision,
-  emitted_at: "2026-07-15T00:00:00Z",
+export const snapshot = (revision: number): SnapshotEvent => ({
+  type: "snapshot",
   data: {
-    topic_revisions: {
-      vehicle: revision,
-      engine: revision,
-      steering: revision,
-      buttons: revision,
-      lighting: revision,
-      devices: revision,
-      health: revision,
-    },
-    simulation_session_id: revision,
     vehicle: { speed_kph: revision, speed_valid: true },
     engine: {
       rpm: { value: 1000, status: "valid" },
@@ -103,33 +89,6 @@ export const snapshot = (
       high_beam_strobe_cycles_remaining: 0,
       observed_high_beam_enabled: false,
     },
-    devices: {
-      registry: {
-        button_pad: {
-          role: "button_pad",
-          label: "Button pad",
-          device_id: 1,
-          source_mode: "emulated",
-          status: "not_found",
-          protocol_version: null,
-          device_session_id: null,
-          last_status_code: null,
-          last_transition_monotonic_s: null,
-        },
-        servotronic_controller: {
-          role: "servotronic_controller",
-          label: "Servotronic controller",
-          device_id: 1,
-          source_mode: "emulated",
-          status: "not_found",
-          protocol_version: null,
-          device_session_id: null,
-          last_status_code: null,
-          last_transition_monotonic_s: null,
-        },
-      },
-      networks: [],
-    },
     health: {
       ready: true,
       fatal: false,
@@ -145,18 +104,8 @@ export const snapshot = (
         { role: "button_pad", fault: null },
         { role: "servotronic_controller", fault: null },
       ],
-      steering: {
-        fault: null,
-      },
+      steering: { fault: null },
       persistence: { available: true, fault: null },
-      publisher: {
-        running: true,
-        failures: 0,
-        trace_rows_dropped: 0,
-        resource_changes_dropped: 0,
-        transport_queue_saturations: 0,
-        fault: null,
-      },
     },
   },
 })

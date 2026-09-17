@@ -99,7 +99,7 @@ const profile = (revision: number, level: number): ButtonProfileResponse =>
   }) as ButtonProfileResponse
 
 const synchronize = (revision = 1) => {
-  useLiveStore.getState().applySnapshot(snapshot("boot", revision))
+  useLiveStore.getState().applyEvent(snapshot(revision))
 }
 
 afterEach(() => {
@@ -265,7 +265,7 @@ it("does not defer a disconnected edit until coordinator synchronization returns
     </QueryClientProvider>
   )
 
-  act(() => useLiveStore.getState().transportDisconnected())
+  act(() => useLiveStore.getState().connectionFailed("connection lost"))
   const clearButton = await screen.findByRole("button", {
     name: "Clear button 0",
   })
@@ -274,8 +274,8 @@ it("does not defer a disconnected edit until coordinator synchronization returns
   expect(mocks.update).not.toHaveBeenCalled()
 
   act(() => {
-    useLiveStore.getState().transportConnected(true)
-    useLiveStore.getState().applySnapshot(snapshot("boot", 2))
+    useLiveStore.getState().connectionPending()
+    useLiveStore.getState().applyEvent(snapshot(2))
   })
   await waitFor(() =>
     expect(

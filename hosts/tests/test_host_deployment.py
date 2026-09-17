@@ -75,9 +75,7 @@ def test_coordinator_sse_disables_proxy_buffering_with_a_bounded_idle_timeout() 
 
 
 @pytest.mark.parametrize("origin", controller_origins())
-def test_deployed_controller_origins_are_allowed_by_http_and_socketio(
-    origin: str, tmp_path: Path
-) -> None:
+def test_deployed_controller_origins_are_allowed_by_http(origin: str, tmp_path: Path) -> None:
     origins = controller_origins()
     app = create_app(
         profile=DeploymentProfile.SIMULATOR,
@@ -89,14 +87,9 @@ def test_deployed_controller_origins_are_allowed_by_http_and_socketio(
             "/api/settings",
             headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
         )
-        socket_response = client.get(
-            "/socket.io/?EIO=4&transport=polling",
-            headers={"Origin": origin},
-        )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
-    assert socket_response.status_code == 200
 
 
 def test_deployed_controller_rejects_an_unrelated_origin(tmp_path: Path) -> None:
@@ -114,14 +107,9 @@ def test_deployed_controller_rejects_an_unrelated_origin(tmp_path: Path) -> None
                 "Access-Control-Request-Method": "GET",
             },
         )
-        socket_response = client.get(
-            "/socket.io/?EIO=4&transport=polling",
-            headers={"Origin": "http://untrusted.invalid"},
-        )
 
     assert response.status_code == 400
     assert "access-control-allow-origin" not in response.headers
-    assert socket_response.status_code == 400
 
 
 def test_console_can_is_one_profile_controlled_hat_controller() -> None:

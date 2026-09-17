@@ -12,13 +12,18 @@ import {
   updateSteeringProfileMutation,
 } from "@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen"
 import { isApiProblemResponse } from "@e87canbus/coordinator-client/api/is-api-problem"
-import type { ActiveSteeringCurveState, Mode } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type {
+  ActiveSteeringCurveState,
+  SteeringState,
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 import { cn } from "@/lib/utils"
 import { CurveActionError } from "./components/curve-action-error"
 import { CurveActions } from "./components/curve-actions"
 import { EditorCurveChart } from "./components/editor-curve-chart"
 import type { PendingCurveAction } from "./types"
 import { definitionsEqual } from "./utils"
+
+type Mode = SteeringState["mode"]
 
 type SteeringCurveEditorProps = {
   activeCurve: ActiveSteeringCurveState
@@ -149,9 +154,7 @@ export const SteeringCurveEditor = ({
         className={chartClassName}
         disabled={!activationAvailable}
         onPointCommit={(definition) =>
-          void runAction("apply", () =>
-            activateCurve({ body: { definition } })
-          )
+          void runAction("apply", () => activateCurve({ body: { definition } }))
         }
       />
       <CurveActions

@@ -9,7 +9,7 @@ import {
   listButtonProfilesQueryKey,
   listSteeringProfilesQueryKey,
 } from "./http/@tanstack/react-query.gen"
-import type { ResourceChangedEvent } from "./live-contract.gen"
+import type { ResourceChangedSseEvent } from "./http/types.gen"
 
 const steeringQueryIds = new Set([
   getSavedSteeringProfileQueryKey()[0]._id,
@@ -24,7 +24,7 @@ const buttonQueryIds = new Set([
 
 export const invalidateChangedResource = (
   queryClient: QueryClient,
-  event: ResourceChangedEvent
+  event: ResourceChangedSseEvent["data"]
 ) => {
   if (event.resource === "settings") {
     return queryClient.invalidateQueries({
@@ -47,16 +47,14 @@ export const invalidateChangedResource = (
       exact: true,
     }),
   ]
-  if (event.id !== null) {
-    invalidations.push(
-      queryClient.invalidateQueries({
-        queryKey: buttonProfile
-          ? getButtonProfileQueryKey({ path: { profile_id: event.id } })
-          : getSteeringProfileQueryKey({ path: { profile_id: event.id } }),
-        exact: true,
-      })
-    )
-  }
+  invalidations.push(
+    queryClient.invalidateQueries({
+      queryKey: buttonProfile
+        ? getButtonProfileQueryKey({ path: { profile_id: event.id } })
+        : getSteeringProfileQueryKey({ path: { profile_id: event.id } }),
+      exact: true,
+    })
+  )
   return Promise.all(invalidations)
 }
 

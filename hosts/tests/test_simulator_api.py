@@ -1,4 +1,3 @@
-import json
 import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -8,8 +7,8 @@ from tempfile import TemporaryDirectory
 from threading import Event
 
 import pytest
-from e87canbus.api.main import create_app, socket_origin_policy
-from e87canbus.api.models.live import health_state
+from e87canbus.api.main import create_app
+from e87canbus.api.models.coordinator_live import coordinator_health_state
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
@@ -133,35 +132,8 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
-def test_socketio_and_fastapi_share_one_asgi_composition(client: TestClient) -> None:
-    handshake = client.get("/socket.io/?EIO=4&transport=polling")
-
-    assert handshake.status_code == 200
-    assert handshake.text.startswith('0{"sid":')
-    sid = json.loads(handshake.text[1:])["sid"]
-    session_path = f"/socket.io/?EIO=4&transport=polling&sid={sid}"
-    connected = client.post(
-        session_path,
-        content="40",
-        headers={"content-type": "text/plain;charset=UTF-8"},
-    )
-    packets = client.get(session_path).text.split("\x1e")
-    snapshot_packet = next(packet for packet in packets if packet.startswith("42"))
-    event, payload = json.loads(snapshot_packet[2:])
-
-    assert connected.status_code == 200
-    assert event == "controller.snapshot"
-    assert payload["protocol_version"] == 1
-    topic_revisions = payload["data"]["topic_revisions"]
-    assert topic_revisions["health"] == payload["revision"]
-    assert all(revision >= 1 for revision in topic_revisions.values())
-    health = payload["data"]["health"]
-    assert health["ready"] is True
-    assert health["inbox"]["capacity"] == 64
-    assert health["persistence"] == {"available": True, "fault": None}
-    assert health["publisher"]["running"] is True
-    assert health["publisher"]["failures"] == 0
-    assert client.get("/health/ready").status_code == 200
+def test_coordinator_does_not_serve_socketio(client: TestClient) -> None:
+    assert client.get("/socket.io/?EIO=4&transport=polling").status_code == 404
 
 
 def test_browser_cors_accepts_an_explicit_development_origin() -> None:
@@ -181,16 +153,6 @@ def test_browser_cors_accepts_an_explicit_development_origin() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:15173"
-
-
-def test_socketio_origin_policy_allows_same_origin_and_exact_development_origins() -> None:
-    policy = socket_origin_policy(("http://127.0.0.1:15173",))
-    environ = {"wsgi.url_scheme": "http", "HTTP_HOST": "controller.local"}
-
-    assert policy("http://controller.local", environ) is True
-    assert policy("http://127.0.0.1:15173", environ) is True
-    assert policy(None, environ) is True
-    assert policy("http://untrusted.invalid", environ) is False
 
 
 def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason() -> None:
@@ -613,7 +575,7 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             service = app.state.controller_loop
             assert service.stopped_event.wait(timeout=1.0)
             snapshot = service.snapshot()
-            projected_health = health_state(snapshot)
+            projected_health = coordinator_health_state(snapshot)
             assert service.ready is False
             assert snapshot.service.inbox.overflow_latched is True
             assert snapshot.diagnostics.health.fatal is True

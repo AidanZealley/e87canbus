@@ -8,11 +8,9 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-import socketio  # type: ignore[import-untyped]
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from e87canbus.adapters.socketio_server import BoundedSocketIoServer
 from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
@@ -22,7 +20,6 @@ from e87canbus.api.auth import ApplicationAuthenticator, AuthorizationMiddleware
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
 from e87canbus.api.internal.lifecycle import create_lifespan
-from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
 from e87canbus.api.routes import button_profiles, health, live, settings, steering, system
 from e87canbus.api.routes.system import PROVISIONING_STATUS_PATH
 from e87canbus.config import AppConfig
@@ -44,24 +41,6 @@ DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 )
-
-
-def socket_origin_policy(
-    development_origins: Sequence[str],
-) -> Callable[[str | None, dict[str, str]], bool]:
-    allowed_development = frozenset(development_origins)
-
-    def is_allowed(origin: str | None, environ: dict[str, str]) -> bool:
-        if origin is None:
-            return True
-        scheme = environ.get("HTTP_X_FORWARDED_PROTO", environ.get("wsgi.url_scheme", "http"))
-        host = environ.get("HTTP_X_FORWARDED_HOST", environ.get("HTTP_HOST", ""))
-        forwarded_scheme = scheme.split(",", maxsplit=1)[0].strip()
-        forwarded_host = host.split(",", maxsplit=1)[0].strip()
-        same_origin = f"{forwarded_scheme}://{forwarded_host}"
-        return origin == same_origin or origin in allowed_development
-
-    return is_allowed
 
 
 def create_app(
@@ -115,14 +94,7 @@ def create_app(
         assert database is not None
         settings_repository = SqliteApplicationSettingsRepository(database)
 
-    sio = BoundedSocketIoServer(
-        async_mode="asgi",
-        cors_allowed_origins=socket_origin_policy(selected_cors_origins),
-        outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
-    )
-    publisher = LiveStatePublisher(sio, service, service.config)
-    sse_publisher = CoordinatorSsePublisher(service, service.config)
-    install_socket_handlers(sio, publisher, authenticator)
+    publisher = CoordinatorSsePublisher(service, service.config)
     coordinator_panel = (
         None
         if service.deployment.profile is DeploymentProfile.SIMULATOR
@@ -137,7 +109,6 @@ def create_app(
             profile_repository,
             button_profile_repository,
             publisher,
-            sse_publisher,
             coordinator_panel,
         ),
     )
@@ -154,9 +125,7 @@ def create_app(
     app.state.controller_loop = service
     app.state.deployment_profile = service.deployment.profile
     app.state.deployment = service.deployment
-    app.state.socketio = sio
     app.state.live_publisher = publisher
-    app.state.coordinator_sse_publisher = sse_publisher
     app.state.coordinator_panel = coordinator_panel
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository
@@ -181,7 +150,8 @@ def create_app(
         if frontend_directory is not None
         else None
     )
-    app.mount("/", socketio.ASGIApp(sio, other_asgi_app=static_app), name="socket.io")
+    if static_app is not None:
+        app.mount("/", static_app, name="frontend")
     return app
 
 

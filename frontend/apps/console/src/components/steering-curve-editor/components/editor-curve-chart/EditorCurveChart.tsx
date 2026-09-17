@@ -1,4 +1,4 @@
-import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { cn } from "@/lib/utils"
 import { CurveChart } from "../curve-chart"
 

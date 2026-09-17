@@ -14,7 +14,7 @@ import type { SteeringProfileResponse } from "@e87canbus/coordinator-client/api/
 import type {
   ActiveSteeringCurveState,
   SteeringCurveDefinition,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 import { SteeringCurveEditor } from "./SteeringCurveEditor"
 
 vi.mock("./components/curve-chart", () => ({
@@ -171,7 +171,9 @@ describe("SteeringCurveEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Increase assistance" }))
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(
+        /api\/steering\/manual-assistance-adjustment$/
+      ),
       body: { delta: 1 },
     })
 
@@ -208,7 +210,9 @@ describe("SteeringCurveEditor", () => {
 
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]).toMatchObject({
-      url: expect.stringMatching(/api\/steering\/manual-assistance-adjustment$/),
+      url: expect.stringMatching(
+        /api\/steering\/manual-assistance-adjustment$/
+      ),
       body: { delta: -1 },
     })
   })
@@ -355,9 +359,9 @@ describe("SteeringCurveEditor", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Reset" }))
     await waitFor(() =>
-      expect(
-        requests.some((r) => r.url.includes("activate-profile"))
-      ).toBe(true)
+      expect(requests.some((r) => r.url.includes("activate-profile"))).toBe(
+        true
+      )
     )
   })
 

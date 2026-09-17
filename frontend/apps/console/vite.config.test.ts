@@ -24,17 +24,12 @@ describe("console coordinator development proxy", () => {
     )
   })
 
-  it("keeps coordinator and local console Socket.IO on distinct backends", () => {
+  it("keeps coordinator HTTP and local console Socket.IO on distinct backends", () => {
     expect(Object.keys(consoleDevServer.proxy).sort()).toEqual([
       "/api",
       CONSOLE_SOCKET_PATH,
       "/health",
-      "/socket.io",
     ])
-    expect(consoleDevServer.proxy["/socket.io"].ws).toBe(true)
-    expect(consoleDevServer.proxy["/socket.io"].target).toBe(
-      "http://127.0.0.1:8000"
-    )
     expect(consoleDevServer.proxy[CONSOLE_SOCKET_PATH]).toMatchObject({
       target: CONSOLE_DEV_BACKEND,
       ws: true,

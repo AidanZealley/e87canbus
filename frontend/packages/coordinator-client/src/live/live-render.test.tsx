@@ -16,7 +16,7 @@ afterEach(cleanup)
 
 it("rerenders a vehicle subscriber without rerendering settings or button panels", () => {
   useLiveStore.getState().reset()
-  useLiveStore.getState().applySnapshot(snapshot("render-boot", 1))
+  useLiveStore.getState().applyEvent(snapshot(1))
   const renders = { vehicle: 0, buttons: 0, settings: 0 }
   const VehicleInstrument = () => {
     renders.vehicle += 1
@@ -47,8 +47,8 @@ it("rerenders a vehicle subscriber without rerendering settings or button panels
   )
   expect(renders).toEqual({ vehicle: 1, buttons: 1, settings: 1 })
   act(() => {
-    useLiveStore.getState().applyVehicle({
-      ...snapshot("render-boot", 2),
+    useLiveStore.getState().applyEvent({
+      type: "vehicle",
       data: { speed_kph: 88, speed_valid: true },
     })
   })

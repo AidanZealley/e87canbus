@@ -26,7 +26,6 @@ it("invalidates only the exact resource keys named by a resource event", async (
     queryClient.setQueryData(key, {})
   }
   await invalidateChangedResource(queryClient, {
-    type: "resources.changed",
     resource: "steering_profile",
     id: "target",
     revision: 2,
@@ -50,7 +49,6 @@ it("routes button profile changes only to button profile queries", async () => {
     queryClient.setQueryData(key, {})
   }
   await invalidateChangedResource(queryClient, {
-    type: "resources.changed",
     resource: "button_profile",
     id: "target",
     revision: 2,

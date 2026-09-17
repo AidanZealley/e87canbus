@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
-import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { CurveChart } from "./CurveChart"
 
 afterEach(cleanup)

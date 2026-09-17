@@ -29,6 +29,6 @@ async def stream_coordinator_live(request: Request) -> EventStreamResponse:
     if request_task is None:
         raise RuntimeError("coordinator SSE route requires an asyncio task")
     return EventStreamResponse(
-        request.app.state.coordinator_sse_publisher.events(request_task),
+        request.app.state.live_publisher.events(request_task),
         headers={"Cache-Control": "no-store"},
     )

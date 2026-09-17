@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class ResourceChangedEvent(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
-    type: Literal["resources.changed"] = "resources.changed"
     resource: Literal["settings", "steering_profile", "button_profile"]
     id: str | None
     revision: int = Field(ge=1)

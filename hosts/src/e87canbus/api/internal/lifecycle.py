@@ -11,14 +11,13 @@ from fastapi import FastAPI
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
-from e87canbus.api.internal.live import LiveStatePublisher
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.steering.curves import (
     initial_active_steering_curve,
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
-from e87canbus.service import ControllerLoop, RuntimeExecution
+from e87canbus.service import ControllerLoop
 
 
 def create_lifespan(
@@ -26,8 +25,7 @@ def create_lifespan(
     database: SqliteApplicationDatabase | None,
     profiles: SteeringProfileRepository,
     button_profiles: ButtonProfileRepository,
-    publisher: LiveStatePublisher,
-    sse_publisher: CoordinatorSsePublisher,
+    publisher: CoordinatorSsePublisher,
     coordinator_panel: PhysicalCoordinatorPanel | None,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
@@ -70,16 +68,11 @@ def create_lifespan(
             service.mark_persistence_fault(str(exc))
             raise
 
-        def publish(execution: RuntimeExecution) -> None:
-            publisher.offer(execution)
-            sse_publisher.offer(execution)
-
         if coordinator_panel is not None:
             coordinator_panel.start()
         try:
-            await asyncio.to_thread(service.start, publish)
+            await asyncio.to_thread(service.start, publisher.offer)
             await publisher.start()
-            await sse_publisher.start()
             service.mark_ready()
         except BaseException:
             service.mark_not_ready()
@@ -87,13 +80,8 @@ def create_lifespan(
                 await asyncio.to_thread(service.stop, False)
             finally:
                 try:
-                    await asyncio.gather(
-                        *(
-                            candidate.stop()
-                            for candidate in (publisher, sse_publisher)
-                            if candidate.running
-                        )
-                    )
+                    if publisher.running:
+                        await publisher.stop()
                 finally:
                     try:
                         if coordinator_panel is not None:
@@ -113,7 +101,7 @@ def create_lifespan(
                     await asyncio.to_thread(service.stop, False)
                 finally:
                     try:
-                        await asyncio.gather(publisher.stop(), sse_publisher.stop())
+                        await publisher.stop()
                     finally:
                         await asyncio.to_thread(service.close_adapter)
 

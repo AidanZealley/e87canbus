@@ -1,7 +1,7 @@
 import { TriangleAlertIcon, type LucideIcon } from "lucide-react"
 
 import type { TemperatureSeverity } from "@/components/car-layout/car-ui"
-import type { EngineTelemetryValue } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { EngineTelemetryValue } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"

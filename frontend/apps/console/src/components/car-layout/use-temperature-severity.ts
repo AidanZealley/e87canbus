@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import type { EngineTelemetryValue } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { EngineTelemetryValue } from "@e87canbus/coordinator-client/api/http/types.gen"
 import {
   transitionTemperatureSeverity,
   type TemperatureSeverity,

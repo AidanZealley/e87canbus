@@ -7,7 +7,6 @@ import base64
 import binascii
 import re
 import uuid
-from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -79,29 +78,6 @@ HTTP_PERMISSIONS: dict[tuple[str, str], frozenset[PrincipalKind]] = {
     ("GET", "/api/system/provisioning"): OPERATOR_ONLY,
 }
 
-SOCKET_SEND_PERMISSIONS = {
-    "controller.resync": CONSOLE_AND_OPERATOR,
-    "trace.subscribe": CONSOLE_AND_OPERATOR,
-    "trace.unsubscribe": CONSOLE_AND_OPERATOR,
-}
-# Publishers emit these events only to authenticated connections. Keep the receive
-# allowlist explicit so a new live-contract event fails the authorization-table test.
-SOCKET_RECEIVE_PERMISSIONS = {
-    event: CONSOLE_AND_OPERATOR
-    for event in (
-        "controller.snapshot",
-        "vehicle.state",
-        "engine.state",
-        "steering.state",
-        "buttons.state",
-        "lighting.state",
-        "devices.state",
-        "controller.health",
-        "resources.changed",
-        "trace.batch",
-    )
-}
-
 
 class ApplicationAuthenticator:
     """Classify trusted proxy identities and operator Basic credentials."""
@@ -142,17 +118,6 @@ class ApplicationAuthenticator:
         return await self._authenticate(
             client_address=request.client.host if request.client is not None else None,
             headers={key.lower(): value for key, value in request.headers.items()},
-        )
-
-    async def authenticate_environ(self, environ: dict[str, Any]) -> Principal:
-        headers = {
-            key.removeprefix("HTTP_").replace("_", "-").lower(): str(value)
-            for key, value in environ.items()
-            if key.startswith("HTTP_")
-        }
-        return await self._authenticate(
-            client_address=_asgi_peer_address(environ),
-            headers=headers,
         )
 
     async def _authenticate(
@@ -230,22 +195,10 @@ def http_permissions(method: str, path: str) -> frozenset[PrincipalKind]:
         return HTTP_PERMISSIONS.get((method, template), frozenset())
     if path.startswith("/api/dev/simulation/"):
         return OPERATOR_ONLY
-    if path == "/socket.io" or path.startswith("/socket.io/"):
-        return CONSOLE_AND_OPERATOR
     # The coordinator SPA is for the operator. Unknown API paths remain closed.
     if not path.startswith(("/api/", "/health/")):
         return OPERATOR_ONLY
     return frozenset()
-
-
-def _asgi_peer_address(environ: dict[str, Any]) -> str | None:
-    scope = environ.get("asgi.scope")
-    if not isinstance(scope, Mapping):
-        return None
-    client = scope.get("client")
-    if not isinstance(client, (tuple, list)) or len(client) != 2 or not isinstance(client[0], str):
-        return None
-    return client[0]
 
 
 def _basic_credentials(header: str | None) -> tuple[str, str] | None:

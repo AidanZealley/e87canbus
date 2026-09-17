@@ -18,13 +18,11 @@ export const rewriteCoordinatorDevOrigin = (
   request.setHeader("origin", COORDINATOR_ALLOWED_DEV_ORIGIN)
 }
 
-const coordinatorProxy = (websocket = false): ProxyOptions => ({
+const coordinatorProxy = (): ProxyOptions => ({
   target: COORDINATOR_BACKEND,
   changeOrigin: true,
-  ws: websocket,
   configure(proxy) {
     proxy.on("proxyReq", rewriteCoordinatorDevOrigin)
-    proxy.on("proxyReqWs", rewriteCoordinatorDevOrigin)
   },
 })
 
@@ -50,7 +48,6 @@ export const consoleDevServer = {
   proxy: {
     "/api": coordinatorProxy(),
     "/health": coordinatorProxy(),
-    "/socket.io": coordinatorProxy(true),
     [CONSOLE_SOCKET_PATH]: consoleSocketProxy,
   },
 } as const

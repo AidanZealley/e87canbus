@@ -103,7 +103,6 @@ def test_get_and_put_serialize_complete_authoritative_document() -> None:
     assert updated.json()["revision"] == 2
     assert [event.model_dump() for event in events] == [
         {
-            "type": "resources.changed",
             "resource": "settings",
             "id": None,
             "revision": 2,

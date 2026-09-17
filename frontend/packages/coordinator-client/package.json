@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
-    "socket.io-client": "^4.8.3",
     "zustand": "^5.0.14",
     "zod": "4.4.3"
   },

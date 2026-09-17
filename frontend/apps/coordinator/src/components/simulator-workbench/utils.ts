@@ -1,4 +1,4 @@
-import type { SteeringState } from "@e87canbus/coordinator-client/api/live-contract.gen"
+import type { SteeringState } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { isApiProblemResponse } from "@e87canbus/coordinator-client/api/is-api-problem"
 import { toast } from "sonner"
 

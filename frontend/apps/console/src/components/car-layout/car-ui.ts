@@ -3,7 +3,7 @@ import type {
   EngineTelemetryValue,
   RuntimeFaultState,
   SteeringState,
-} from "@e87canbus/coordinator-client/api/live-contract.gen"
+} from "@e87canbus/coordinator-client/api/http/types.gen"
 
 export type ServotronicAvailability = {
   telemetry: boolean

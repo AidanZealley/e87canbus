@@ -1,122 +1,180 @@
 import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 
-import { createLiveTransport } from "./transport"
-import { useLiveStore } from "./live-store"
+import { streamCoordinatorLiveApiLiveGet } from "@e87canbus/coordinator-client/api/http/sdk.gen"
+import type { StreamCoordinatorLiveApiLiveGetResponse } from "@e87canbus/coordinator-client/api/http/types.gen"
 import { snapshot } from "./test-fixtures"
+import { useLiveStore } from "./live-store"
+import { createLiveTransport } from "./transport"
 
-class FakeSocket {
-  handlers = new Map<string, Set<(...args: never[]) => void>>()
-  emitted: string[] = []
-  connects = 0
-  connected = false
-  on(event: string, listener: (...args: never[]) => void) {
-    const handlers = this.handlers.get(event) ?? new Set()
-    handlers.add(listener)
-    this.handlers.set(event, handlers)
-    return this
-  }
-  emit(event: string) {
-    this.emitted.push(event)
-    return this
-  }
-  connect() {
-    this.connects += 1
-    return this
-  }
-  fire(event: string, payload?: unknown) {
-    if (event === "connect") this.connected = true
-    if (event === "disconnect") this.connected = false
-    for (const handler of this.handlers.get(event) ?? [])
-      handler(payload as never)
-  }
+type StreamOptions = NonNullable<
+  Parameters<typeof streamCoordinatorLiveApiLiveGet>[0]
+>
+
+const blockUntilAborted = async function* (signal?: AbortSignal) {
+  await new Promise<void>((resolve) => {
+    if (signal?.aborted) resolve()
+    else signal?.addEventListener("abort", () => resolve(), { once: true })
+  })
 }
 
-describe("Socket.IO transport owner", () => {
-  it("owns one connection/listener set and synchronizes on snapshot", async () => {
+const stream = async function* (
+  values: readonly StreamCoordinatorLiveApiLiveGetResponse[]
+) {
+  yield* values
+}
+
+const snapshotThenBlock = async function* (
+  value: StreamCoordinatorLiveApiLiveGetResponse,
+  signal?: AbortSignal
+) {
+  yield value
+  yield* blockUntilAborted(signal)
+}
+
+const eventsThenBlock = async function* (
+  values: readonly StreamCoordinatorLiveApiLiveGetResponse[],
+  signal?: AbortSignal
+) {
+  yield* values
+  yield* blockUntilAborted(signal)
+}
+
+describe("coordinator SSE transport", () => {
+  it("applies generated events and reconciles durable roots after every snapshot", async () => {
     useLiveStore.getState().reset()
-    const socket = new FakeSocket()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    createLiveTransport({
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      options?.onSseError?.(new Error("read failed"))
+      return {
+        stream: eventsThenBlock(
+          [
+            snapshot(1),
+            { type: "vehicle", data: { speed_kph: 42, speed_valid: true } },
+            {
+              type: "resource.changed",
+              data: { resource: "settings", id: null, revision: 2 },
+            },
+          ],
+          options?.signal ?? undefined
+        ),
+      }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+
+    const stop = createLiveTransport({
       queryClient,
-      createSocket: () => socket as never,
+      streamOperation: operation,
+      sleep: () => new Promise(() => undefined),
     })
-    expect(socket.connects).toBe(1)
-    for (const event of [
-      "controller.snapshot",
-      "vehicle.state",
-      "engine.state",
-      "steering.state",
-      "buttons.state",
-      "controller.health",
-      "resources.changed",
-    ]) {
-      expect(socket.handlers.get(event)?.size).toBe(1)
-    }
-    socket.fire("connect")
-    expect(useLiveStore.getState().connection.status).toBe("synchronizing")
-    socket.fire("controller.snapshot", snapshot("transport-boot", 1))
-    expect(useLiveStore.getState().connection.status).toBe("connected")
-    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(2))
-    socket.fire("controller.snapshot", snapshot("transport-boot", 1))
-    await Promise.resolve()
-    expect(invalidate).toHaveBeenCalledTimes(2)
-    socket.fire("disconnect")
-    expect(useLiveStore.getState().connection.synchronized).toBe(false)
-    socket.fire("connect")
-    expect(socket.emitted).toEqual([])
-    socket.fire("controller.snapshot", snapshot("transport-boot", 1))
-    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4))
-    socket.fire("resources.changed", {
-      type: "resources.changed",
-      resource: "settings",
-      id: null,
-      revision: 2,
-    })
-    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(5))
+
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().vehicle.speed_kph).toBe(42)
+    )
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(useLiveStore.getState().connection.error).toBeNull()
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(3))
+    stop()
   })
 
-  it("requests resync instead of accepting a topic from another boot", () => {
-    const socket = new FakeSocket()
-    createLiveTransport({
+  it("reconnects after clean EOF and starts again from a snapshot", async () => {
+    useLiveStore.getState().reset()
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? stream([snapshot(1)])
+            : snapshotThenBlock(snapshot(2), options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+
+    const stop = createLiveTransport({
       queryClient: new QueryClient(),
-      createSocket: () => socket as never,
+      streamOperation: operation,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
     })
-    socket.fire("controller.snapshot", snapshot("boot-a", 1))
-    socket.fire("vehicle.state", {
-      ...snapshot("boot-a", 1),
-      data: { speed_kph: 10, speed_valid: true },
-    })
-    expect(socket.emitted).not.toContain("controller.resync")
-    socket.fire("vehicle.state", {
-      ...snapshot("boot-b", 2),
-      data: { speed_kph: 99, speed_valid: true },
-    })
-    expect(socket.emitted).toContain("controller.resync")
-    expect(useLiveStore.getState().bootId).toBe("boot-a")
+
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().vehicle.speed_kph).toBe(2)
+    )
+    stop()
   })
 
-  it("stays synchronized when the server snapshot arrives before the local connect event", async () => {
+  it("aborts an idle connection and reconnects", async () => {
     useLiveStore.getState().reset()
-    const socket = new FakeSocket()
-    const queryClient = new QueryClient()
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    createLiveTransport({
-      queryClient,
-      createSocket: () => socket as never,
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? blockUntilAborted(options?.signal ?? undefined)
+            : snapshotThenBlock(snapshot(2), options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+
+    const stop = createLiveTransport({
+      queryClient: new QueryClient(),
+      streamOperation: operation,
+      idleTimeoutMs: 100,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
     })
-    socket.fire("controller.snapshot", snapshot("early-snapshot", 1))
-    expect(useLiveStore.getState().connection.status).toBe("connected")
-    expect(invalidate).not.toHaveBeenCalled()
-    socket.fire("connect")
-    expect(useLiveStore.getState().connection).toMatchObject({
-      status: "connected",
-      synchronized: true,
+
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().connection.synchronized).toBe(true)
+    )
+    expect(operation).toHaveBeenCalledTimes(2)
+    stop()
+  })
+
+  it("counts keepalive comments as receive activity", async () => {
+    useLiveStore.getState().reset()
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      setTimeout(() => options?.onSseEvent?.({ data: undefined } as never), 60)
+      return { stream: blockUntilAborted(options?.signal ?? undefined) }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+
+    const stop = createLiveTransport({
+      queryClient: new QueryClient(),
+      streamOperation: operation,
+      idleTimeoutMs: 100,
+      reconnectDelayMs: 0,
+      sleep: async () => undefined,
     })
-    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(2))
-    socket.fire("controller.snapshot", snapshot("early-snapshot", 1))
-    await Promise.resolve()
-    expect(invalidate).toHaveBeenCalledTimes(2)
+
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    expect(operation).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  it("surfaces malformed data without replacing the last valid projections", async () => {
+    useLiveStore.getState().reset()
+    useLiveStore.getState().applyEvent(snapshot(7))
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      options?.onSseEvent?.({ data: "not-json" } as never)
+      return {
+        stream: stream([
+          "not-json" as unknown as StreamCoordinatorLiveApiLiveGetResponse,
+        ]),
+      }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+
+    const stop = createLiveTransport({
+      queryClient: new QueryClient(),
+      reconnectDelayMs: 0,
+      streamOperation: operation,
+      sleep: () => new Promise(() => undefined),
+    })
+
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().connection.error).toMatch(/malformed/)
+    )
+    expect(useLiveStore.getState().vehicle.speed_kph).toBe(7)
+    stop()
   })
 })

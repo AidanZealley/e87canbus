@@ -1,34 +1,21 @@
-"""Shared live projections and the temporary version 1 Socket.IO envelopes."""
+"""Shared coordinator live projections."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated, Generic, Literal, TypeVar
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from e87canbus.domain.buttons.pad import BUTTON_PAD_PROGRAM_ENCODING
-from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import STEERING_CURVE_V1_SPEEDS_DECI_KPH
 from e87canbus.kernel import StateTopic
 from e87canbus.service import ControllerLoopSnapshot
 
-PROTOCOL_VERSION: Literal[1] = 1
 STEERING_CURVE_POINT_COUNT = len(STEERING_CURVE_V1_SPEEDS_DECI_KPH)
 
 
 class LiveModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class TopicRevisions(LiveModel):
-    vehicle: int = Field(ge=0)
-    engine: int = Field(ge=0)
-    steering: int = Field(ge=0)
-    buttons: int = Field(ge=0)
-    lighting: int = Field(ge=0)
-    devices: int = Field(ge=0)
-    health: int = Field(ge=0)
 
 
 class VehicleState(LiveModel):
@@ -127,45 +114,6 @@ class LightingState(LiveModel):
     observed_high_beam_enabled: bool | None
 
 
-class DeviceRegistryEntryState(LiveModel):
-    role: Literal["button_pad", "servotronic_controller"]
-    label: str
-    device_id: int = Field(ge=0, le=0xFFFF)
-    source_mode: Literal["physical", "emulated", "disabled"]
-    status: Literal[
-        "disabled",
-        "not_found",
-        "pending",
-        "active",
-        "stale",
-        "incompatible",
-        "fault",
-    ]
-    protocol_version: int | None
-    device_session_id: int | None
-    last_status_code: int | None
-    last_transition_monotonic_s: float | None
-
-
-class DeviceRegistryState(LiveModel):
-    button_pad: DeviceRegistryEntryState
-    servotronic_controller: DeviceRegistryEntryState
-
-
-class NetworkState(LiveModel):
-    id: Literal["kcan", "ptcan", "fcan"]
-    label: str
-    interface: str
-    bitrate: int = Field(gt=0)
-    connected: bool
-    nodes: tuple[str, ...]
-
-
-class DevicesState(LiveModel):
-    registry: DeviceRegistryState
-    networks: tuple[NetworkState, ...]
-
-
 class RuntimeFaultState(LiveModel):
     kind: Literal[
         "can_reader",
@@ -203,93 +151,6 @@ class SteeringCapabilityHealthState(LiveModel):
 class PersistenceHealthState(LiveModel):
     available: bool
     fault: str | None
-
-
-class PublisherHealthState(LiveModel):
-    running: bool
-    failures: int = Field(ge=0)
-    trace_rows_dropped: int = Field(ge=0)
-    resource_changes_dropped: int = Field(ge=0)
-    transport_queue_saturations: int = Field(ge=0)
-    fault: str | None
-
-
-class ControllerHealthState(LiveModel):
-    ready: bool
-    fatal: bool
-    networks: tuple[NetworkHealthState, ...]
-    inbox: InboxHealthState
-    devices: tuple[DeviceHealthState, ...]
-    steering: SteeringCapabilityHealthState
-    persistence: PersistenceHealthState
-    publisher: PublisherHealthState
-
-
-class ControllerSnapshotData(LiveModel):
-    topic_revisions: TopicRevisions
-    simulation_session_id: int | None
-    vehicle: VehicleState
-    engine: EngineState
-    steering: SteeringState
-    buttons: ButtonsState
-    lighting: LightingState
-    devices: DevicesState
-    health: ControllerHealthState
-
-
-class TraceRow(LiveModel):
-    type: Literal["frame"] = "frame"
-    session_id: int
-    sequence: int = Field(ge=1)
-    network: Literal["kcan", "ptcan", "fcan"]
-    source: str
-    arbitration_id: int = Field(ge=0)
-    arbitration_id_hex: str
-    data_hex: str
-    is_extended_id: bool
-    monotonic_s: float
-
-
-class TraceBatchData(LiveModel):
-    rows: tuple[TraceRow, ...]
-
-
-LiveData = (
-    ControllerSnapshotData
-    | VehicleState
-    | EngineState
-    | SteeringState
-    | ButtonsState
-    | LightingState
-    | DevicesState
-    | ControllerHealthState
-    | TraceBatchData
-)
-
-
-LivePayload = TypeVar("LivePayload", bound=LiveModel)
-
-
-class LiveEnvelope(LiveModel, Generic[LivePayload]):
-    protocol_version: Literal[1] = PROTOCOL_VERSION
-    boot_id: str = Field(min_length=1)
-    revision: int = Field(ge=0)
-    emitted_at: datetime
-    data: LivePayload
-
-
-def snapshot_data(snapshot: ControllerLoopSnapshot) -> ControllerSnapshotData:
-    return ControllerSnapshotData(
-        topic_revisions=TopicRevisions(**dict(snapshot.topic_revisions)),
-        simulation_session_id=snapshot.adapter.simulation_session_id,
-        vehicle=vehicle_state(snapshot),
-        engine=engine_state(snapshot),
-        steering=steering_state(snapshot),
-        buttons=buttons_state(snapshot),
-        lighting=lighting_state(snapshot),
-        devices=devices_state(snapshot),
-        health=health_state(snapshot),
-    )
 
 
 def vehicle_state(snapshot: ControllerLoopSnapshot) -> VehicleState:
@@ -358,73 +219,7 @@ def lighting_state(snapshot: ControllerLoopSnapshot) -> LightingState:
     )
 
 
-def devices_state(snapshot: ControllerLoopSnapshot) -> DevicesState:
-    registry = {
-        entry.role.value: DeviceRegistryEntryState.model_validate(
-            entry,
-            from_attributes=True,
-        )
-        for entry in snapshot.adapter.registry
-    }
-    return DevicesState(
-        registry=DeviceRegistryState(
-            button_pad=registry[DeviceRole.BUTTON_PAD.value],
-            servotronic_controller=registry[DeviceRole.SERVOTRONIC_CONTROLLER.value],
-        ),
-        networks=tuple(
-            NetworkState(
-                id=network.network.value,
-                label=network.label,
-                interface=network.interface,
-                bitrate=network.bitrate,
-                connected=network.connected,
-                nodes=network.nodes,
-            )
-            for network in snapshot.adapter.networks
-        ),
-    )
-
-
-def health_state(snapshot: ControllerLoopSnapshot) -> ControllerHealthState:
-    health = snapshot.diagnostics.health
-    device_faults = {item.role: item.fault for item in health.devices}
-    return ControllerHealthState(
-        ready=snapshot.service.ready,
-        fatal=health.fatal,
-        networks=tuple(
-            NetworkHealthState(
-                network=network.network.value,
-                fault=_fault_state(network.fault),
-            )
-            for network in health.networks
-        ),
-        inbox=InboxHealthState.model_validate(snapshot.service.inbox, from_attributes=True),
-        devices=tuple(
-            DeviceHealthState(
-                role=device.role.value,
-                fault=_fault_state(device_faults.get(device.role)),
-            )
-            for device in health.devices
-        ),
-        steering=SteeringCapabilityHealthState(
-            fault=_fault_state(health.steering_actuator_fault),
-        ),
-        persistence=PersistenceHealthState.model_validate(
-            snapshot.service.persistence,
-            from_attributes=True,
-        ),
-        publisher=PublisherHealthState(
-            running=snapshot.service.publisher.running,
-            failures=snapshot.service.publisher.failures,
-            trace_rows_dropped=snapshot.service.publisher.trace_rows_dropped,
-            resource_changes_dropped=(snapshot.service.publisher.resource_changes_dropped),
-            transport_queue_saturations=(snapshot.service.publisher.transport_queue_saturations),
-            fault=snapshot.service.publisher.fault,
-        ),
-    )
-
-
-def _fault_state(fault: object) -> RuntimeFaultState | None:
+def fault_state(fault: object) -> RuntimeFaultState | None:
     from e87canbus.kernel import RuntimeFault
 
     if fault is None:
