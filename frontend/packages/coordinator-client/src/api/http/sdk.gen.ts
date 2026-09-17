@@ -5,6 +5,7 @@ import type {
   ClientMeta,
   Options as Options2,
   RequestResult,
+  ServerSentEventsResult,
   TDataShape,
 } from "./client"
 import { client } from "./client.gen"
@@ -120,6 +121,9 @@ import type {
   SilenceVehicleSpeedData,
   SilenceVehicleSpeedErrors,
   SilenceVehicleSpeedResponses,
+  StreamCoordinatorLiveApiLiveGetData,
+  StreamCoordinatorLiveApiLiveGetResponse,
+  StreamCoordinatorLiveApiLiveGetResponses,
   TapSimulationButtonData,
   TapSimulationButtonErrors,
   TapSimulationButtonResponses,
@@ -172,6 +176,7 @@ import {
   zSilenceEngineRpmResponse,
   zSilenceOilTemperatureResponse,
   zSilenceVehicleSpeedResponse,
+  zStreamCoordinatorLiveApiLiveGetResponse,
   zTapSimulationButtonResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
@@ -818,6 +823,31 @@ export const setVehicleSweep = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Stream Coordinator Live
+ */
+export const streamCoordinatorLiveApiLiveGet = <
+  ThrowOnError extends boolean = true,
+>(
+  options?: Options<
+    StreamCoordinatorLiveApiLiveGetData,
+    ThrowOnError,
+    StreamCoordinatorLiveApiLiveGetResponse
+  >
+): Promise<ServerSentEventsResult<StreamCoordinatorLiveApiLiveGetResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamCoordinatorLiveApiLiveGetResponses,
+    unknown,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zStreamCoordinatorLiveApiLiveGetResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/live",
+    ...options,
   })
 
 /**

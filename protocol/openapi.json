@@ -35,6 +35,63 @@
         "title": "ActivateSteeringProfileRequest",
         "type": "object"
       },
+      "ActiveSteeringCurveState": {
+        "additionalProperties": false,
+        "properties": {
+          "activation_revision": {
+            "title": "Activation Revision",
+            "type": "integer"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SteeringCurveDefinition"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "saved_profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Profile Id"
+          },
+          "saved_profile_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Profile Revision"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "activating",
+              "activation_failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "fingerprint",
+          "activation_revision",
+          "status",
+          "saved_profile_id",
+          "saved_profile_revision"
+        ],
+        "title": "ActiveSteeringCurveState",
+        "type": "object"
+      },
       "AdjustManualAssistanceCommand": {
         "additionalProperties": false,
         "properties": {
@@ -296,6 +353,44 @@
           "maximum"
         ],
         "title": "BreatheAnimationRequest",
+        "type": "object"
+      },
+      "ButtonPadProgramState": {
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "items": {
+              "items": {
+                "maximum": 255.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "maxItems": 16,
+              "minItems": 16,
+              "type": "array"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Commands",
+            "type": "array"
+          },
+          "encoding": {
+            "const": "e87-button-pad-v2",
+            "default": "e87-button-pad-v2",
+            "title": "Encoding",
+            "type": "string"
+          },
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generation",
+          "commands"
+        ],
+        "title": "ButtonPadProgramState",
         "type": "object"
       },
       "ButtonProfileDefinitionRequest": {
@@ -585,6 +680,56 @@
         "title": "ButtonProfileSlotResponse",
         "type": "object"
       },
+      "ButtonsEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ButtonsState"
+          },
+          "type": {
+            "const": "buttons",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "ButtonsEvent",
+        "type": "object"
+      },
+      "ButtonsState": {
+        "additionalProperties": false,
+        "properties": {
+          "active_profile_id": {
+            "minLength": 1,
+            "title": "Active Profile Id",
+            "type": "string"
+          },
+          "active_profile_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Profile Revision"
+          },
+          "program": {
+            "$ref": "#/components/schemas/ButtonPadProgramState"
+          }
+        },
+        "required": [
+          "program",
+          "active_profile_id"
+        ],
+        "title": "ButtonsState",
+        "type": "object"
+      },
       "CommandAcknowledgement": {
         "additionalProperties": false,
         "properties": {
@@ -609,6 +754,86 @@
           "revision"
         ],
         "title": "CommandAcknowledgement",
+        "type": "object"
+      },
+      "CoordinatorHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceHealthState"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "fatal": {
+            "title": "Fatal",
+            "type": "boolean"
+          },
+          "inbox": {
+            "$ref": "#/components/schemas/InboxHealthState"
+          },
+          "networks": {
+            "items": {
+              "$ref": "#/components/schemas/NetworkHealthState"
+            },
+            "title": "Networks",
+            "type": "array"
+          },
+          "persistence": {
+            "$ref": "#/components/schemas/PersistenceHealthState"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "steering": {
+            "$ref": "#/components/schemas/SteeringCapabilityHealthState"
+          }
+        },
+        "required": [
+          "ready",
+          "fatal",
+          "networks",
+          "inbox",
+          "devices",
+          "steering",
+          "persistence"
+        ],
+        "title": "CoordinatorHealthState",
+        "type": "object"
+      },
+      "CoordinatorSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "buttons": {
+            "$ref": "#/components/schemas/ButtonsState"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineState"
+          },
+          "health": {
+            "$ref": "#/components/schemas/CoordinatorHealthState"
+          },
+          "lighting": {
+            "$ref": "#/components/schemas/LightingState"
+          },
+          "steering": {
+            "$ref": "#/components/schemas/SteeringState"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleState"
+          }
+        },
+        "required": [
+          "vehicle",
+          "engine",
+          "steering",
+          "buttons",
+          "lighting",
+          "health"
+        ],
+        "title": "CoordinatorSnapshot",
         "type": "object"
       },
       "CoordinatorStatus": {
@@ -676,6 +901,35 @@
         "title": "DeploymentProfile",
         "type": "string"
       },
+      "DeviceHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "fault": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeFaultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "button_pad",
+              "servotronic_controller"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "fault"
+        ],
+        "title": "DeviceHealthState",
+        "type": "object"
+      },
       "DeviceRole": {
         "enum": [
           "button_pad",
@@ -683,6 +937,25 @@
         ],
         "title": "DeviceRole",
         "type": "string"
+      },
+      "EngineEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EngineState"
+          },
+          "type": {
+            "const": "engine",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "EngineEvent",
+        "type": "object"
       },
       "EngineRpmRequest": {
         "additionalProperties": false,
@@ -700,6 +973,61 @@
         "title": "EngineRpmRequest",
         "type": "object"
       },
+      "EngineState": {
+        "additionalProperties": false,
+        "properties": {
+          "coolant_temperature_c": {
+            "$ref": "#/components/schemas/EngineTelemetryValue"
+          },
+          "oil_temperature_c": {
+            "$ref": "#/components/schemas/EngineTelemetryValue"
+          },
+          "rpm": {
+            "$ref": "#/components/schemas/EngineTelemetryValue"
+          }
+        },
+        "required": [
+          "rpm",
+          "oil_temperature_c",
+          "coolant_temperature_c"
+        ],
+        "title": "EngineState",
+        "type": "object"
+      },
+      "EngineTelemetryValue": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "valid",
+              "never_observed",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "status"
+        ],
+        "title": "EngineTelemetryValue",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -713,6 +1041,118 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CoordinatorHealthState"
+          },
+          "type": {
+            "const": "health",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "HealthEvent",
+        "type": "object"
+      },
+      "InboxHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "current_latency_s": {
+            "minimum": 0.0,
+            "title": "Current Latency S",
+            "type": "number"
+          },
+          "depth": {
+            "minimum": 0.0,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "latency_warning": {
+            "title": "Latency Warning",
+            "type": "boolean"
+          },
+          "overflow_latched": {
+            "title": "Overflow Latched",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "depth",
+          "capacity",
+          "current_latency_s",
+          "latency_warning",
+          "overflow_latched"
+        ],
+        "title": "InboxHealthState",
+        "type": "object"
+      },
+      "LightingEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LightingState"
+          },
+          "type": {
+            "const": "lighting",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "LightingEvent",
+        "type": "object"
+      },
+      "LightingState": {
+        "additionalProperties": false,
+        "properties": {
+          "high_beam_enabled": {
+            "title": "High Beam Enabled",
+            "type": "boolean"
+          },
+          "high_beam_strobe_active": {
+            "title": "High Beam Strobe Active",
+            "type": "boolean"
+          },
+          "high_beam_strobe_cycles_remaining": {
+            "minimum": 0.0,
+            "title": "High Beam Strobe Cycles Remaining",
+            "type": "integer"
+          },
+          "observed_high_beam_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed High Beam Enabled"
+          }
+        },
+        "required": [
+          "high_beam_enabled",
+          "high_beam_strobe_active",
+          "high_beam_strobe_cycles_remaining",
+          "observed_high_beam_enabled"
+        ],
+        "title": "LightingState",
+        "type": "object"
+      },
       "LivenessResponse": {
         "additionalProperties": false,
         "properties": {
@@ -724,6 +1164,92 @@
           }
         },
         "title": "LivenessResponse",
+        "type": "object"
+      },
+      "NetworkHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "fault": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeFaultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "network": {
+            "enum": [
+              "kcan",
+              "ptcan",
+              "fcan"
+            ],
+            "title": "Network",
+            "type": "string"
+          }
+        },
+        "required": [
+          "network",
+          "fault"
+        ],
+        "title": "NetworkHealthState",
+        "type": "object"
+      },
+      "PersistenceHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "fault": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault"
+          }
+        },
+        "required": [
+          "available",
+          "fault"
+        ],
+        "title": "PersistenceHealthState",
+        "type": "object"
+      },
+      "ProfileResourceChangedData": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "resource": {
+            "enum": [
+              "steering_profile",
+              "button_profile"
+            ],
+            "title": "Resource",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "resource",
+          "id",
+          "revision"
+        ],
+        "title": "ProfileResourceChangedData",
         "type": "object"
       },
       "ProvisioningStatusResponse": {
@@ -837,6 +1363,41 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "ResourceChangedSseEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "discriminator": {
+              "mapping": {
+                "button_profile": "#/components/schemas/ProfileResourceChangedData",
+                "settings": "#/components/schemas/SettingsResourceChangedData",
+                "steering_profile": "#/components/schemas/ProfileResourceChangedData"
+              },
+              "propertyName": "resource"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingsResourceChangedData"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileResourceChangedData"
+              }
+            ],
+            "title": "Data"
+          },
+          "type": {
+            "const": "resource.changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "ResourceChangedSseEvent",
+        "type": "object"
+      },
       "RuntimeCapabilities": {
         "additionalProperties": false,
         "properties": {
@@ -873,6 +1434,37 @@
         "title": "RuntimeConfigurationResponse",
         "type": "object"
       },
+      "RuntimeFaultState": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "can_reader",
+              "can_effect_execution",
+              "steering_actuator",
+              "inbox_overflow",
+              "device_adapter"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "monotonic_s": {
+            "title": "Monotonic S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "monotonic_s",
+          "message"
+        ],
+        "title": "RuntimeFaultState",
+        "type": "object"
+      },
       "SelectSteeringModeCommand": {
         "additionalProperties": false,
         "properties": {
@@ -895,6 +1487,128 @@
           "mode"
         ],
         "title": "SelectSteeringModeCommand",
+        "type": "object"
+      },
+      "ServotronicState": {
+        "additionalProperties": false,
+        "properties": {
+          "active_curve_crc32": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Curve Crc32"
+          },
+          "active_curve_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Curve Revision"
+          },
+          "active_curve_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "builtin_fallback",
+                  "coordinator_ram"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Curve Source"
+          },
+          "effective_assistance": {
+            "title": "Effective Assistance",
+            "type": "number"
+          },
+          "inhibit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inhibit Reason"
+          },
+          "last_command_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "manual",
+                  "maximum",
+                  "speed_never_observed",
+                  "speed_stale",
+                  "can_reader_failure",
+                  "inbox_overflow",
+                  "shutdown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Command Reason"
+          },
+          "observed_speed_kph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Speed Kph"
+          },
+          "pwm_duty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pwm Duty"
+          },
+          "speed_fresh": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Fresh"
+          },
+          "watchdog_timed_out": {
+            "title": "Watchdog Timed Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "effective_assistance",
+          "last_command_reason",
+          "watchdog_timed_out"
+        ],
+        "title": "ServotronicState",
         "type": "object"
       },
       "SetManualAssistanceLevelCommand": {
@@ -983,6 +1697,32 @@
           "mode"
         ],
         "title": "SetSteeringModeRequest",
+        "type": "object"
+      },
+      "SettingsResourceChangedData": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "null"
+          },
+          "resource": {
+            "const": "settings",
+            "title": "Resource",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "resource",
+          "id",
+          "revision"
+        ],
+        "title": "SettingsResourceChangedData",
         "type": "object"
       },
       "SimulationCommandAcknowledgement": {
@@ -1088,6 +1828,25 @@
         "title": "SimulationDeviceStatusCodeRequest",
         "type": "object"
       },
+      "SnapshotEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CoordinatorSnapshot"
+          },
+          "type": {
+            "const": "snapshot",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "SnapshotEvent",
+        "type": "object"
+      },
       "SpeedRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1125,6 +1884,51 @@
           "type"
         ],
         "title": "StartHighBeamStrobeCommand",
+        "type": "object"
+      },
+      "SteeringCapabilityHealthState": {
+        "additionalProperties": false,
+        "properties": {
+          "fault": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeFaultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fault"
+        ],
+        "title": "SteeringCapabilityHealthState",
+        "type": "object"
+      },
+      "SteeringCurveDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SteeringCurvePoint"
+            },
+            "maxItems": 8,
+            "minItems": 8,
+            "title": "Points",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "points"
+        ],
+        "title": "SteeringCurveDefinition",
         "type": "object"
       },
       "SteeringCurveDefinitionRequest": {
@@ -1177,6 +1981,25 @@
         "title": "SteeringCurveDefinitionResponse",
         "type": "object"
       },
+      "SteeringCurvePoint": {
+        "additionalProperties": false,
+        "properties": {
+          "assistance_per_mille": {
+            "title": "Assistance Per Mille",
+            "type": "integer"
+          },
+          "speed_deci_kph": {
+            "title": "Speed Deci Kph",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "speed_deci_kph",
+          "assistance_per_mille"
+        ],
+        "title": "SteeringCurvePoint",
+        "type": "object"
+      },
       "SteeringCurvePointRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1221,6 +2044,25 @@
         "title": "SteeringCurvePointResponse",
         "type": "object"
       },
+      "SteeringEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SteeringState"
+          },
+          "type": {
+            "const": "steering",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "SteeringEvent",
+        "type": "object"
+      },
       "SteeringProfileResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1261,6 +2103,61 @@
           "updated_at"
         ],
         "title": "SteeringProfileResponse",
+        "type": "object"
+      },
+      "SteeringState": {
+        "additionalProperties": false,
+        "properties": {
+          "active_curve": {
+            "$ref": "#/components/schemas/ActiveSteeringCurveState"
+          },
+          "curve_activation_available": {
+            "title": "Curve Activation Available",
+            "type": "boolean"
+          },
+          "manual_assistance_level": {
+            "minimum": 0.0,
+            "title": "Manual Assistance Level",
+            "type": "integer"
+          },
+          "manual_assistance_level_count": {
+            "exclusiveMinimum": 0.0,
+            "title": "Manual Assistance Level Count",
+            "type": "integer"
+          },
+          "maximum_assistance_active": {
+            "title": "Maximum Assistance Active",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "servotronic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServotronicState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "manual_assistance_level",
+          "manual_assistance_level_count",
+          "maximum_assistance_active",
+          "active_curve",
+          "servotronic",
+          "curve_activation_available"
+        ],
+        "title": "SteeringState",
         "type": "object"
       },
       "TemperatureRequest": {
@@ -1545,6 +2442,44 @@
           "type"
         ],
         "title": "ValidationIssue",
+        "type": "object"
+      },
+      "VehicleEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VehicleState"
+          },
+          "type": {
+            "const": "vehicle",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "VehicleEvent",
+        "type": "object"
+      },
+      "VehicleState": {
+        "additionalProperties": false,
+        "properties": {
+          "speed_kph": {
+            "title": "Speed Kph",
+            "type": "number"
+          },
+          "speed_valid": {
+            "title": "Speed Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "speed_kph",
+          "speed_valid"
+        ],
+        "title": "VehicleState",
         "type": "object"
       },
       "VehicleSweepRequest": {
@@ -2950,6 +3885,66 @@
         "summary": "Set Vehicle Sweep",
         "tags": [
           "development simulation: vehicle"
+        ]
+      }
+    },
+    "/api/live": {
+      "get": {
+        "operationId": "stream_coordinator_live_api_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "buttons": "#/components/schemas/ButtonsEvent",
+                      "engine": "#/components/schemas/EngineEvent",
+                      "health": "#/components/schemas/HealthEvent",
+                      "lighting": "#/components/schemas/LightingEvent",
+                      "resource.changed": "#/components/schemas/ResourceChangedSseEvent",
+                      "snapshot": "#/components/schemas/SnapshotEvent",
+                      "steering": "#/components/schemas/SteeringEvent",
+                      "vehicle": "#/components/schemas/VehicleEvent"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SnapshotEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VehicleEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EngineEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SteeringEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ButtonsEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LightingEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HealthEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResourceChangedSseEvent"
+                    }
+                  ],
+                  "title": "Response Stream Coordinator Live Api Live Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stream Coordinator Live",
+        "tags": [
+          "live"
         ]
       }
     },

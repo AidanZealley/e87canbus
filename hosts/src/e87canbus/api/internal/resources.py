@@ -20,3 +20,4 @@ async def publish_resource_change(
         revision=revision,
     )
     app.state.live_publisher.offer_resource(event)
+    app.state.coordinator_sse_publisher.offer_resource(event)

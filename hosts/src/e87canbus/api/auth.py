@@ -55,6 +55,7 @@ HTTP_PERMISSIONS: dict[tuple[str, str], frozenset[PrincipalKind]] = {
     ("GET", "/health/live"): PUBLIC,
     ("GET", "/health/ready"): CONSOLE_AND_OPERATOR,
     ("GET", "/api/runtime"): CONSOLE_AND_OPERATOR,
+    ("GET", "/api/live"): CONSOLE_AND_OPERATOR,
     ("GET", "/api/settings"): CONSOLE_AND_OPERATOR,
     ("PUT", "/api/settings"): CONSOLE_AND_OPERATOR,
     ("PUT", "/api/steering/maximum-assistance"): CONSOLE_AND_OPERATOR,

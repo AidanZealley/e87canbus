@@ -49,6 +49,57 @@ export const zBreatheAnimationRequest = z.object({
 })
 
 /**
+ * ButtonPadProgramState
+ */
+export const zButtonPadProgramState = z.object({
+  commands: z
+    .array(
+      z.tuple([
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+        z.int().gte(0).lte(255),
+      ])
+    )
+    .min(1)
+    .max(16),
+  encoding: z
+    .literal("e87-button-pad-v2")
+    .optional()
+    .default("e87-button-pad-v2"),
+  generation: z.int().gte(0),
+})
+
+/**
+ * ButtonsState
+ */
+export const zButtonsState = z.object({
+  active_profile_id: z.string().min(1),
+  active_profile_revision: z.int().gte(1).nullish(),
+  program: zButtonPadProgramState,
+})
+
+/**
+ * ButtonsEvent
+ */
+export const zButtonsEvent = z.object({
+  data: zButtonsState,
+  type: z.literal("buttons"),
+})
+
+/**
  * CommandAcknowledgement
  */
 export const zCommandAcknowledgement = z.object({
@@ -80,10 +131,81 @@ export const zEngineRpmRequest = z.object({
 })
 
 /**
+ * EngineTelemetryValue
+ */
+export const zEngineTelemetryValue = z.object({
+  status: z.enum(["valid", "never_observed", "stale"]),
+  value: z.union([z.int(), z.number()]).nullable(),
+})
+
+/**
+ * EngineState
+ */
+export const zEngineState = z.object({
+  coolant_temperature_c: zEngineTelemetryValue,
+  oil_temperature_c: zEngineTelemetryValue,
+  rpm: zEngineTelemetryValue,
+})
+
+/**
+ * EngineEvent
+ */
+export const zEngineEvent = z.object({
+  data: zEngineState,
+  type: z.literal("engine"),
+})
+
+/**
+ * InboxHealthState
+ */
+export const zInboxHealthState = z.object({
+  capacity: z.int().gt(0),
+  current_latency_s: z.number().gte(0),
+  depth: z.int().gte(0),
+  latency_warning: z.boolean(),
+  overflow_latched: z.boolean(),
+})
+
+/**
+ * LightingState
+ */
+export const zLightingState = z.object({
+  high_beam_enabled: z.boolean(),
+  high_beam_strobe_active: z.boolean(),
+  high_beam_strobe_cycles_remaining: z.int().gte(0),
+  observed_high_beam_enabled: z.boolean().nullable(),
+})
+
+/**
+ * LightingEvent
+ */
+export const zLightingEvent = z.object({
+  data: zLightingState,
+  type: z.literal("lighting"),
+})
+
+/**
  * LivenessResponse
  */
 export const zLivenessResponse = z.object({
   status: z.literal("live").optional().default("live"),
+})
+
+/**
+ * PersistenceHealthState
+ */
+export const zPersistenceHealthState = z.object({
+  available: z.boolean(),
+  fault: z.string().nullable(),
+})
+
+/**
+ * ProfileResourceChangedData
+ */
+export const zProfileResourceChangedData = z.object({
+  id: z.string().min(1),
+  resource: z.enum(["steering_profile", "button_profile"]),
+  revision: z.int().gte(1),
 })
 
 /**
@@ -134,11 +256,71 @@ export const zRuntimeConfigurationResponse = z.object({
 })
 
 /**
+ * RuntimeFaultState
+ */
+export const zRuntimeFaultState = z.object({
+  kind: z.enum([
+    "can_reader",
+    "can_effect_execution",
+    "steering_actuator",
+    "inbox_overflow",
+    "device_adapter",
+  ]),
+  message: z.string(),
+  monotonic_s: z.number(),
+})
+
+/**
+ * DeviceHealthState
+ */
+export const zDeviceHealthState = z.object({
+  fault: zRuntimeFaultState.nullable(),
+  role: z.enum(["button_pad", "servotronic_controller"]),
+})
+
+/**
+ * NetworkHealthState
+ */
+export const zNetworkHealthState = z.object({
+  fault: zRuntimeFaultState.nullable(),
+  network: z.enum(["kcan", "ptcan", "fcan"]),
+})
+
+/**
  * SelectSteeringModeCommand
  */
 export const zSelectSteeringModeCommand = z.object({
   mode: z.enum(["auto", "manual"]),
   type: z.literal("select_steering_mode"),
+})
+
+/**
+ * ServotronicState
+ */
+export const zServotronicState = z.object({
+  active_curve_crc32: z.int().nullish(),
+  active_curve_revision: z.int().nullish(),
+  active_curve_source: z
+    .enum(["builtin_fallback", "coordinator_ram"])
+    .nullish(),
+  effective_assistance: z.number(),
+  inhibit_reason: z.string().nullish(),
+  last_command_reason: z
+    .enum([
+      "auto",
+      "manual",
+      "maximum",
+      "speed_never_observed",
+      "speed_stale",
+      "can_reader_failure",
+      "inbox_overflow",
+      "shutdown",
+    ])
+    .nullable(),
+  observed_speed_kph: z.number().nullish(),
+  pwm_duty: z.int().nullish(),
+  speed_fresh: z.boolean().nullish(),
+  watchdog_timed_out: z.boolean(),
 })
 
 /**
@@ -176,6 +358,31 @@ export const zSetMaximumAssistanceRequest = z.object({
  */
 export const zSetSteeringModeRequest = z.object({
   mode: z.enum(["auto", "manual"]),
+})
+
+/**
+ * SettingsResourceChangedData
+ */
+export const zSettingsResourceChangedData = z.object({
+  id: z.null(),
+  resource: z.literal("settings"),
+  revision: z.int().gte(1),
+})
+
+/**
+ * ResourceChangedSseEvent
+ */
+export const zResourceChangedSseEvent = z.object({
+  data: z.discriminatedUnion("resource", [
+    zSettingsResourceChangedData,
+    zProfileResourceChangedData.extend({
+      resource: z.literal("button_profile"),
+    }),
+    zProfileResourceChangedData.extend({
+      resource: z.literal("steering_profile"),
+    }),
+  ]),
+  type: z.literal("resource.changed"),
 })
 
 /**
@@ -232,6 +439,71 @@ export const zSpeedUnit = z.enum(["mph", "kmh"])
  */
 export const zStartHighBeamStrobeCommand = z.object({
   type: z.literal("start_high_beam_strobe"),
+})
+
+/**
+ * SteeringCapabilityHealthState
+ */
+export const zSteeringCapabilityHealthState = z.object({
+  fault: zRuntimeFaultState.nullable(),
+})
+
+/**
+ * CoordinatorHealthState
+ */
+export const zCoordinatorHealthState = z.object({
+  devices: z.array(zDeviceHealthState),
+  fatal: z.boolean(),
+  inbox: zInboxHealthState,
+  networks: z.array(zNetworkHealthState),
+  persistence: zPersistenceHealthState,
+  ready: z.boolean(),
+  steering: zSteeringCapabilityHealthState,
+})
+
+/**
+ * HealthEvent
+ */
+export const zHealthEvent = z.object({
+  data: zCoordinatorHealthState,
+  type: z.literal("health"),
+})
+
+/**
+ * SteeringCurvePoint
+ */
+export const zSteeringCurvePoint = z.object({
+  assistance_per_mille: z.int(),
+  speed_deci_kph: z.int(),
+})
+
+/**
+ * SteeringCurveDefinition
+ */
+export const zSteeringCurveDefinition = z.object({
+  points: z.tuple([
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+    zSteeringCurvePoint,
+  ]),
+  schema_version: z.literal(1),
+})
+
+/**
+ * ActiveSteeringCurveState
+ */
+export const zActiveSteeringCurveState = z.object({
+  activation_revision: z.int(),
+  definition: zSteeringCurveDefinition,
+  fingerprint: z.string(),
+  saved_profile_id: z.string().nullable(),
+  saved_profile_revision: z.int().nullable(),
+  status: z.enum(["active", "activating", "activation_failed"]),
 })
 
 /**
@@ -311,6 +583,27 @@ export const zSteeringProfileResponse = z.object({
     .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
   revision: z.int().gte(1),
   updated_at: z.string(),
+})
+
+/**
+ * SteeringState
+ */
+export const zSteeringState = z.object({
+  active_curve: zActiveSteeringCurveState,
+  curve_activation_available: z.boolean(),
+  manual_assistance_level: z.int().gte(0),
+  manual_assistance_level_count: z.int().gt(0),
+  maximum_assistance_active: z.boolean(),
+  mode: z.enum(["auto", "manual"]),
+  servotronic: zServotronicState.nullable(),
+})
+
+/**
+ * SteeringEvent
+ */
+export const zSteeringEvent = z.object({
+  data: zSteeringState,
+  type: z.literal("steering"),
 })
 
 /**
@@ -596,6 +889,42 @@ export const zApiProblemResponse = z.object({
 })
 
 /**
+ * VehicleState
+ */
+export const zVehicleState = z.object({
+  speed_kph: z.number(),
+  speed_valid: z.boolean(),
+})
+
+/**
+ * CoordinatorSnapshot
+ */
+export const zCoordinatorSnapshot = z.object({
+  buttons: zButtonsState,
+  engine: zEngineState,
+  health: zCoordinatorHealthState,
+  lighting: zLightingState,
+  steering: zSteeringState,
+  vehicle: zVehicleState,
+})
+
+/**
+ * SnapshotEvent
+ */
+export const zSnapshotEvent = z.object({
+  data: zCoordinatorSnapshot,
+  type: z.literal("snapshot"),
+})
+
+/**
+ * VehicleEvent
+ */
+export const zVehicleEvent = z.object({
+  data: zVehicleState,
+  type: z.literal("vehicle"),
+})
+
+/**
  * VehicleSweepRequest
  */
 export const zVehicleSweepRequest = z.object({
@@ -799,6 +1128,25 @@ export const zSetVehicleSweepBody = zVehicleSweepRequest
  * Successful Response
  */
 export const zSetVehicleSweepResponse = zSimulationCommandAcknowledgement
+
+/**
+ * Response Stream Coordinator Live Api Live Get
+ *
+ * Successful Response
+ */
+export const zStreamCoordinatorLiveApiLiveGetResponse = z.discriminatedUnion(
+  "type",
+  [
+    zSnapshotEvent,
+    zVehicleEvent,
+    zEngineEvent,
+    zSteeringEvent,
+    zButtonsEvent,
+    zLightingEvent,
+    zHealthEvent,
+    zResourceChangedSseEvent,
+  ]
+)
 
 /**
  * Successful Response

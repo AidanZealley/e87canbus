@@ -1,6 +1,6 @@
 # Workstream 2: coordinator SSE server and contract
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -111,29 +111,75 @@ claude -p "Perform the focused closure review for Workstream 2 of the browser SS
 ## Implementation handoff
 
 - Base commit: `88b85e91a32952e18912e72b2aba561967c02d65`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: Added the authorized coordinator `GET /api/live` stream beside Socket.IO. It sends a
+  complete snapshot first, complete projection replacements, singular resource invalidations and
+  idle comments through bounded independent subscriber output.
+- Files changed: Added coordinator SSE models, publisher, route and focused tests; integrated its
+  lifecycle and durable-resource publication; updated HTTP authorization and nginx; regenerated
+  `protocol/openapi.json` and the coordinator Hey API types, operation and Zod schemas; added a
+  generated-operation validation test.
+- Decisions: Registration captures the snapshot while holding the same lock used to attach the
+  subscriber. Controller offers retain one latest value per projection and never await a browser.
+  Each subscriber uses the existing configured client capacity and disconnects on saturation. The
+  keepalive interval is 15 seconds, with a 30-second nginx read timeout; Workstream 3's client idle
+  timeout must remain above 15 seconds. SSE health omits Socket.IO and trace publisher diagnostics.
+- Verification: All packet commands passed. The selected backend suite passed 95 tests. OpenAPI
+  drift, mypy, Ruff, import contracts, `git diff --check`, HTTP contract drift and coordinator-client
+  typecheck passed. The coordinator-client suite passed 7 files and 17 tests, including generated
+  streamed-record Zod validation.
+- Known limitations or external checks: No manual browser session was run. The existing browser
+  remains on the unchanged Socket.IO path until Workstream 3, and the workflow's final local browser
+  validation gate remains pending.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: The reviewer reported Approve after packet checks and live socket probes. The
+  orchestrator promoted four findings that contradict acceptance criteria.
+- Required findings: A subscriber can receive an older drained projection after its newer initial
+  snapshot. Saturation removes a subscriber from accounting but does not close a request blocked in
+  ASGI send. The served OpenAPI document retains an impossible `type: string` beside the event
+  union even though the exported document patches it out. The generated `resource.changed` schema
+  does not enforce settings-without-id and profiles-with-id.
+- Optional observations: Simplify the unreachable deque `maxlen` and duplicate signal branches;
+  avoid duplicated resource validation; consider exposing slow disconnects operationally. A
+  stream opened during startup or shutdown may receive 200 before registration fails.
+- Questions for orchestrator: Add a positive authenticated stream test. Keep the shared projection
+  models in `api/models/live.py` through the migration, but update their Socket.IO-only description.
+  The pre-existing models are projection definitions, not obsolete envelopes.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Remediation ownership: The original implementation owner completed the promoted fixes and its
+  verification before reaching its usage limit. A fresh replacement owner audited the complete
+  cumulative diff, found that the slow-client test covered `stream_response` rather than Starlette's
+  ASGI 2.3 task group, and finished the remediation by making the route register the outer request
+  task for cancellation.
+- Finding dispositions: Promoted stale-after-snapshot ordering and actual slow-request closure to
+  Required because the approved contract promises atomic initial state and disconnection of slow
+  clients. Promoted served/exported OpenAPI agreement because FastAPI models are the contract
+  source. Promoted resource identity narrowing because generated validation must enforce the
+  precise resource identities. Accepted the local simplifications and positive authorization test.
+  Deferred new diagnostics fields and startup-window status behavior because neither blocks this
+  migration seam.
+- Simplification/deletion pass: Projection draining now enqueues under the registration lock, and
+  one enqueue helper owns saturation. Removed the redundant deque `maxlen`, merged duplicate signal
+  paths, replaced duplicated resource identity validation with a discriminated data union, removed
+  the generated-document schema patch, and corrected the shared live-model description. The route
+  now records the outer request task because Starlette drives ASGI 2.3 response bodies in a child
+  task. No new diagnostics or startup compatibility behavior was added.
+- Final verification: The replacement owner ran every packet command after its correction. The
+  selected backend suite passed 98 tests. OpenAPI drift, mypy, Ruff, import contracts,
+  `git diff --check`, HTTP contract drift and coordinator-client typecheck passed. The
+  coordinator-client suite passed 7 files and 17 tests, including valid and invalid generated
+  streamed-record validation. The three concurrency and cancellation tests also passed in 20
+  consecutive runs.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. The focused reviewer confirmed all four promoted findings through code
+  inspection, repeated concurrency tests, generated-client validation and a real authenticated ASGI
+  probe through the authorization middleware.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

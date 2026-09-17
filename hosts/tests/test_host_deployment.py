@@ -64,6 +64,16 @@ def test_both_applications_are_loopback_only_with_their_final_artifacts() -> Non
     assert "10.43.0.1" not in kiosk
 
 
+def test_coordinator_sse_disables_proxy_buffering_with_a_bounded_idle_timeout() -> None:
+    nginx = read(ROOT / "deploy/nginx/e87canbus.conf")
+    live_location = nginx.split("location = /api/live {", maxsplit=1)[1].split("}", maxsplit=1)[0]
+
+    assert "proxy_buffering off;" in live_location
+    assert "proxy_read_timeout 30s;" in live_location
+    assert "X-E87-Client-Verify $ssl_client_verify" in live_location
+    assert "X-E87-Client-Certificate $ssl_client_escaped_cert" in live_location
+
+
 @pytest.mark.parametrize("origin", controller_origins())
 def test_deployed_controller_origins_are_allowed_by_http_and_socketio(
     origin: str, tmp_path: Path
