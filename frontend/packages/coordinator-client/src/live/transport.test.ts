@@ -38,7 +38,7 @@ describe("Socket.IO transport owner", () => {
     const socket = new FakeSocket()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    const transport = createLiveTransport({
+    createLiveTransport({
       queryClient,
       createSocket: () => socket as never,
     })
@@ -49,10 +49,8 @@ describe("Socket.IO transport owner", () => {
       "engine.state",
       "steering.state",
       "buttons.state",
-      "devices.state",
       "controller.health",
       "resources.changed",
-      "trace.batch",
     ]) {
       expect(socket.handlers.get(event)?.size).toBe(1)
     }
@@ -64,12 +62,10 @@ describe("Socket.IO transport owner", () => {
     socket.fire("controller.snapshot", snapshot("transport-boot", 1))
     await Promise.resolve()
     expect(invalidate).toHaveBeenCalledTimes(2)
-    const releaseTrace = transport.subscribeTrace()
-    expect(socket.emitted).toEqual(["trace.subscribe"])
     socket.fire("disconnect")
     expect(useLiveStore.getState().connection.synchronized).toBe(false)
     socket.fire("connect")
-    expect(socket.emitted).toEqual(["trace.subscribe", "trace.subscribe"])
+    expect(socket.emitted).toEqual([])
     socket.fire("controller.snapshot", snapshot("transport-boot", 1))
     await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4))
     socket.fire("resources.changed", {
@@ -79,12 +75,6 @@ describe("Socket.IO transport owner", () => {
       revision: 2,
     })
     await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(5))
-    releaseTrace()
-    expect(socket.emitted).toEqual([
-      "trace.subscribe",
-      "trace.subscribe",
-      "trace.unsubscribe",
-    ])
   })
 
   it("requests resync instead of accepting a topic from another boot", () => {

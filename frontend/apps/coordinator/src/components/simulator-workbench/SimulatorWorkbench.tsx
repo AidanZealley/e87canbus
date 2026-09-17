@@ -1,20 +1,13 @@
 import { useMutation } from "@tanstack/react-query"
-import { useState } from "react"
 
 import { resetSimulationMutation } from "@e87canbus/coordinator-client/api/http/@tanstack/react-query.gen"
 import { ButtonProfileEditor } from "@/components/button-profile-editor"
-import { Button } from "@/components/ui/button"
-import { NetworkTopology } from "./components/network-topology/NetworkTopology"
 import { SimulatorToolbar } from "./components/simulator-toolbar"
 import { useLiveStore } from "@e87canbus/coordinator-client/live/live-store"
 import { SimulatorCoordinatorPanel } from "./SimulatorCoordinatorPanel"
-import { SimulatorNeoTrellis } from "./SimulatorNeoTrellis"
-import { SimulatorServotronic } from "./SimulatorServotronic"
-import { SimulatorTrace } from "./SimulatorTrace"
 import { notifySimulatorError } from "./utils"
 
 export const SimulatorWorkbench = () => {
-  const [editingButtons, setEditingButtons] = useState(false)
   const connection = useLiveStore((state) => state.connection)
   const reset = useMutation({
     ...resetSimulationMutation(),
@@ -34,27 +27,15 @@ export const SimulatorWorkbench = () => {
       <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
         <SimulatorCoordinatorPanel />
 
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <section className="grid min-w-0 content-start gap-2">
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant={editingButtons ? "default" : "outline"}
-                aria-pressed={editingButtons}
-                onClick={() => setEditingButtons((editing) => !editing)}
-              >
-                {editingButtons ? "Use button pad" : "Edit button profile"}
-              </Button>
-            </div>
-            {editingButtons ? <ButtonProfileEditor /> : <SimulatorNeoTrellis />}
-          </section>
-
-          <SimulatorServotronic />
-        </div>
-
-        <NetworkTopology />
-
-        <SimulatorTrace />
+        <section className="grid min-w-0 gap-3 rounded-xl border bg-card p-3 text-card-foreground shadow-sm">
+          <div>
+            <h2 className="text-sm font-semibold">Button profile</h2>
+            <p className="text-xs text-muted-foreground">
+              Configure the coordinator's button actions and indicators.
+            </p>
+          </div>
+          <ButtonProfileEditor />
+        </section>
       </main>
     </div>
   )

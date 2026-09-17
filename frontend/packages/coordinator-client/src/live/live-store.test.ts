@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { TraceRow } from "@e87canbus/coordinator-client/api/live-contract.gen"
 import { snapshot } from "./test-fixtures"
-import { TRACE_CAPACITY, useTraceStore } from "./trace-store"
 import { useLiveStore } from "./live-store"
 
 describe("live ownership", () => {
@@ -68,38 +66,6 @@ describe("live ownership", () => {
     expect(useLiveStore.getState().applyHealth(health)).toBe("ignored")
   })
 
-  it("preserves unchanged registry role references across device updates", () => {
-    useLiveStore.getState().reset()
-    const initial = snapshot("boot", 3)
-    expect(useLiveStore.getState().applySnapshot(initial)).toBe(true)
-    const initialButtonPad = useLiveStore.getState().devices.registry.button_pad
-    const initialServotronic =
-      useLiveStore.getState().devices.registry.servotronic_controller
-
-    const devices = {
-      ...initial.data.devices,
-      registry: {
-        ...initial.data.devices.registry,
-        button_pad: {
-          ...initial.data.devices.registry.button_pad,
-          status: "stale" as const,
-        },
-      },
-    }
-    expect(
-      useLiveStore.getState().applyDevices({
-        ...initial,
-        revision: 4,
-        data: devices,
-      })
-    ).toBe("applied")
-
-    const current = useLiveStore.getState().devices.registry
-    expect(current.button_pad).not.toBe(initialButtonPad)
-    expect(current.button_pad.status).toBe("stale")
-    expect(current.servotronic_controller).toBe(initialServotronic)
-  })
-
   it("applies lighting separately from the button and steering state", () => {
     useLiveStore.getState().reset()
     const initial = snapshot("boot", 3)
@@ -123,48 +89,5 @@ describe("live ownership", () => {
       high_beam_strobe_cycles_remaining: 2,
       observed_high_beam_enabled: true,
     })
-  })
-
-  it("bounds and clears diagnostic trace across sessions", () => {
-    useTraceStore.getState().clear()
-    const rows: TraceRow[] = Array.from(
-      { length: TRACE_CAPACITY + 25 },
-      (_, sequence) => ({
-        type: "frame",
-        session_id: 2,
-        sequence,
-        network: "kcan",
-        source: "test",
-        arbitration_id: 1,
-        arbitration_id_hex: "001",
-        data_hex: "00",
-        is_extended_id: false,
-        monotonic_s: sequence,
-      })
-    )
-    useTraceStore.getState().applyBatch(
-      {
-        protocol_version: 1,
-        boot_id: "boot",
-        revision: 10,
-        emitted_at: "2026-07-15T00:00:00Z",
-        data: { rows },
-      },
-      "boot"
-    )
-    expect(useTraceStore.getState().rows).toHaveLength(TRACE_CAPACITY)
-    expect(useTraceStore.getState().rows[0]?.sequence).toBe(25)
-    useTraceStore.getState().applyBatch(
-      {
-        protocol_version: 1,
-        boot_id: "boot",
-        revision: 11,
-        emitted_at: "2026-07-15T00:00:00Z",
-        data: { rows: [{ ...rows[0]!, session_id: 3 }] },
-      },
-      "boot"
-    )
-    expect(useTraceStore.getState().rows).toHaveLength(1)
-    expect(useTraceStore.getState().sessionId).toBe(3)
   })
 })

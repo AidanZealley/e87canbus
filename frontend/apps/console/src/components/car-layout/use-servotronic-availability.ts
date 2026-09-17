@@ -7,9 +7,6 @@ import {
 export const useServotronicAvailability = (): ServotronicAvailability => {
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const steering = useLiveStore((state) => state.steering)
-  const status = useLiveStore(
-    (state) => state.devices.registry.servotronic_controller.status
-  )
   const steeringFault = useLiveStore((state) => state.health.steering.fault)
   const adapterFault = useLiveStore(
     (state) =>
@@ -19,7 +16,6 @@ export const useServotronicAvailability = (): ServotronicAvailability => {
   )
   return deriveServotronicAvailability({
     synchronized,
-    status,
     steering,
     steeringFault,
     adapterFault,

@@ -1,6 +1,6 @@
 # Workstream 1: retire legacy live UI
 
-Status: implementing.
+Status: accepted; implementation commit pending.
 
 ## Task packet
 
@@ -107,29 +107,63 @@ claude -p "Perform the focused closure review for Workstream 1 of the browser SS
 ## Implementation handoff
 
 - Base commit: `ee27897ebb6e9f17fba97ce232edbc68b51d3aaa`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Outcome: Removed browser trace and device-registry consumption, the console device settings tab,
+  and the workbench's custom-CAN device, topology and trace UI. Retained coordinator-panel,
+  simulated-vehicle and button-profile controls.
+- Files changed: Deleted the trace store and legacy coordinator/console UI trees; reduced the live
+  store, transport listeners and affected tests; updated steering and button-profile consumers,
+  frontend dependencies, lockfile, and simulator documentation.
+- Decisions: Steering controls and button presentation now use synchronization, steering state,
+  curve capability and health faults. Missing Servotronic telemetry affects telemetry presentation
+  without using registry presence as a capability gate. The generated contract and backend events
+  remain unchanged for later workstreams.
+- Verification: All packet commands passed. Coordinator-client: 6 files/16 tests; coordinator: 16
+  files/62 tests; console: 23 files/98 tests; backend selection: 50 tests. All three typechecks and
+  both application builds passed. `git diff --check` passed. One concurrent console-suite attempt
+  timed out under competing Vitest runs; its isolated rerun passed.
+- Known limitations or external checks: No manual browser session was run; the workflow's final
+  local browser validation gate remains pending.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (Claude command used, or the recorded fresh-session fallback)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Reviewer: Claude Code, Opus, medium effort, read-only plan mode.
+- Verdict: Changes requested. All packet checks passed and the removals were complete, but two
+  product-facing issues block acceptance.
+- Required findings: The console enabled Servotronic mode controls and previews whenever live state
+  was synchronized even though the backend still rejects those commands without a usable
+  controller. Derive the conservative gate from the approved steering projection and health state.
+  The coordinator steering-curve editor became orphaned when its last workbench host was deleted;
+  remove the dead component tree.
+- Optional observations: Run the formatter on changed files; retain exhaustive listener typing;
+  remove the unused transport return value and handle; derive topic names from the generated event
+  map; avoid low-value mocked negative assertions; clean-checkout removes empty directories.
+- Questions for orchestrator: The legacy coordinator-panel HTTP poll is pre-existing and belongs to
+  later transport cleanup if it remains after cutover. The coordinator workbench need not retain a
+  steering display because the approved scope explicitly removes its legacy Servotronic card; the
+  driving-console steering display remains.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted both Required findings. Use `steering.servotronic !== null` as the
+  conservative projection-owned availability signal, alongside existing health gates; do not add a
+  contract field in this workstream. Promoted the stale root README simulator claim to required
+  documentation cleanup. Accepted the formatter and small transport/type simplifications where
+  they reduce code without changing behavior. Deferred the mocked-test observation unless the
+  affected test can be made meaningful without rebuilding deleted coverage.
+- Simplification/deletion pass: Deleted the orphaned coordinator steering editor, chart wrapper,
+  trace-only UI wrappers and coordinator `recharts` dependency. The live store now derives retained
+  topics from generated types, the transport listener map is exhaustive for retained events, and
+  startup keeps only a boolean guard. Prettier formatted every changed TypeScript file.
+- Final verification: Coordinator-client 6 files/16 tests, coordinator 11 files/38 tests, console 23
+  files/100 tests, and the 50 selected backend tests passed. All three typechecks, both application
+  builds, stale-reference searches and `git diff --check` passed. After the closure correction,
+  full frontend lint, coordinator-client tests/typecheck and `git diff --check` passed.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted after one narrow closure correction. The reviewer confirmed both original
+  Required findings and the promoted documentation fix. The orchestrator accepted the explicit
+  retained-topic mapping after lint and focused client checks passed.
+- Remaining required findings: None.
 - Accepted commit: `TBD`

@@ -3,10 +3,10 @@
 Hardware-aware, locally testable software for a track-only BMW E87 CAN bus project.
 
 Current milestone: the hardware-independent coordinator kernel owns application state and is
-exercised through the visual simulator's bounded, single-owner command path. NeoTrellis button `0`
-toggles steering mode between Auto and Manual, buttons `1` and `2` select and adjust the remembered
-manual level, and button `3` toggles a reversible maximum-assistance override. Button `4` starts a
-simulator-only, bounded high-beam flash-to-pass strobe. BMW CAN IDs, DSC replay, live high-beam
+exercised through the simulator's bounded, single-owner command path. Backend simulation tests cover
+button-pad commands that toggle steering mode, adjust manual assistance, select maximum assistance,
+and start a bounded high-beam flash-to-pass strobe. These custom-CAN controls are not part of the
+visual workbench. BMW CAN IDs, DSC replay, live high-beam
 actuation, Servotronic output, physical Trellis integration, and decoded in-car telemetry remain
 out of scope.
 
@@ -49,8 +49,8 @@ frame on `0x701` carrying its own colour and pulse count; the device composites 
 base scene.
 
 Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
-`disabled` source. The workbench's emulator controls emit the generated `0x700` wire message and
-are unavailable outside the emulated role. Dashboard operational controls use semantic HTTP
+`disabled` source. Backend tests exercise the emulator's generated `0x700` wire message, but the
+browser does not expose custom-CAN device controls. Dashboard operational controls use semantic HTTP
 commands instead. `buttons.program` contains the canonical bounded program requested from the button
 pad, using the same versioned bytes sent to the device; physical application observation is not
 implied by local send success.
@@ -99,19 +99,10 @@ Process liveness is exposed at `/health/live`; `/health/ready` becomes successfu
 database, controller and publisher have started and returns `503` on persistence or fatal controller
 failure. The old placeholder `/api/health` route no longer exists.
 
-In the workbench, the topology panel shows all three networks and the chronological trace can be
-filtered by network without another API request. Press NeoTrellis button `0` to toggle the
-authoritative steering mode. Buttons `1` and `2` enter Manual at the last runtime manual level,
-then decrement or increment within the configured bounds. Button `3` enters Manual at maximum
-assistance and pressing it again restores the prior mode and manual level. Pressing `0` during the
-maximum override disables it and selects Auto. Pressing `1` or `2` during the maximum override
-instead returns to Manual at the saved level; the next press adjusts
-it normally. The mode LED is blue for Auto or amber for Manual, while button `3` is white when its
-override is active. Manual level memory is currently process-local and is reset on coordinator or
-Pi restart. Button `4` starts exactly five high/on then low/off phases, each 80 ms, through a
-private synthetic extended K-CAN frame. The virtual vehicle observes that state and the workbench
-trace records the Pi-to-vehicle frames; repeated presses while it is active do not extend the
-sequence.
+The workbench contains the coordinator-panel simulator and button-profile editor. Simulated vehicle
+telemetry controls remain in the toolbar. CAN topology, live trace and custom-CAN device controls
+are intentionally absent from the browser. Their internal simulation behavior remains covered by
+backend tests.
 
 Upload button-pad firmware from the host:
 
@@ -192,8 +183,9 @@ for a standard-ID DLC-8 Classic CAN frame bounds that allocation at 2,700 bit/s:
 K-CAN or 0.54% of a 500 kbit/s network before errors and retransmissions. It is a safety ceiling,
 not an operating cadence or authority to transmit; it is independent of LED count and button timing.
 
-In the workbench, setting speed stores the selection on the external simulated vehicle. It emits a
-fresh synthetic F-CAN frame before each control timer until explicitly silenced. The steering panel
+Setting speed through the toolbar's simulated-vehicle controls stores the selection on the external
+simulated vehicle. It emits a fresh synthetic F-CAN frame before each control timer until explicitly
+silenced. The driving console's steering screen
 shows effective dimensionless simulated assistance, the last accepted command reason (or “No
 command accepted”), and watchdog state; these are an ideal simulation projection, not measured
 physical feedback. Socket.IO publication is bounded and latest-state coalesced; the frontend uses
@@ -202,8 +194,9 @@ never duplicated in HTTP response snapshots.
 
 Operational diagnostics expose current bounded inbox depth, capacity, latency, warning and overflow
 truth; explicit network, device and steering faults; persistence availability; and decision-useful
-publisher failure, trace/resource-drop and slow-client-isolation counters. Network availability and
-selected device state remain in `devices.state`, while trace retention stays fixed at 2,000 rows.
+publisher failure, trace/resource-drop and slow-client-isolation counters. The backend retains its
+CAN registry and bounded trace for simulation and protocol tests; browser applications do not
+subscribe to or display either one.
 Publisher or client failure cannot block the controller owner. See the
 [failure policy and soak evidence](docs/reliability.md) and
 [Pi deployment and operation](deploy/README.md) for the loopback same-origin service, restart policy

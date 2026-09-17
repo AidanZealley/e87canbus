@@ -66,13 +66,12 @@ It models three independent CAN broadcast domains:
 | F-CAN | `fcan` | 500,000 | Pi, simulated vehicle |
 
 There is no automatic gateway behavior. Every emitted frame is retained in one chronological
-2,000-entry trace, including unknown and peer-to-peer traffic. The network filters are frontend-only,
-and reset's changed session identity clears the frontend trace while retaining topology configuration
-and filter choices.
+2,000-entry trace, including unknown and peer-to-peer traffic. The browser does not subscribe to or
+display this internal trace.
 
-The default simulated composition selects the button pad's `emulated` role. The workbench labels
-wire-level emulator exercise separately from semantic controller commands. Button `0` starts blue
-because the authoritative steering mode starts in Auto. Press it to send
+The default simulated composition selects the button pad's `emulated` role. Backend tests exercise
+wire-level emulator behavior separately from semantic controller commands. Button `0` starts blue
+because the authoritative steering mode starts in Auto. Sending its press emits
 `0x700 0001`; the application changes to Manual, replies with
 an ISO-TP RGB snapshot on `0x708`/`0x709`; after complete reassembly the simulated pad privately
 applies button 0 amber and all other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
@@ -80,7 +79,7 @@ application remains in Manual. Pressing button `0` again changes the mode and LE
 blue.
 
 `buttons.program` is controller-requested state and contains the same bounded, versioned bytes sent
-to the device. The browser decodes and renders that program through an injectable renderer. The simulated pad
+to the device. The simulated pad
 independently receives and atomically reassembles the complete 48-byte RGB payload; this private
 device state is exercised by tests but is not published as an observed-output API. A rate-limited
 or malformed payload therefore never partially changes the device state.
@@ -106,8 +105,8 @@ they never derive a new level from the maximum-assistance projection.
 Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
 for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
 turns each phase into a private extended K-CAN command from the Pi to the virtual vehicle, so the
-chronological trace shows the transmission and the lighting panel distinguishes requested from
-observed virtual-car state. This is deliberately a virtual-car protocol only: it is neither a BMW
+internal trace records the transmission and tests distinguish requested from observed virtual-car
+state. This is deliberately a virtual-car protocol only: it is neither a BMW
 frame/ID nor a live vehicle command.
 
 Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
@@ -141,9 +140,9 @@ speed is absent. Fresh speed recovers Auto on the next control timer. CAN reader
 overflow, and shutdown also select zero assistance with distinct reasons before the live loop exits.
 
 The simulated steering controller is an executor capability rather than a K-CAN node because no
-actuator wire protocol is known. The workbench displays its effective dimensionless simulation
+actuator wire protocol is known. The driving console displays its effective dimensionless simulation
 projection, last accepted command reason, and watchdog state. Before any command is accepted, the
-reason is explicitly absent and the workbench displays “No command accepted.” Its 250 ms watchdog
+reason is explicitly absent and the console displays “No command accepted.” Its 250 ms watchdog
 derives zero effective assistance when command refreshes stop while retaining the last accepted
 command reason for diagnosis. These values are not measured feedback. Zero is only the simulator's
 fallback; it is not a verified physical command or electrical safe state. Physical command
