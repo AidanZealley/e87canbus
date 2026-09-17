@@ -1,6 +1,6 @@
 # Workstream 5: console browser cutover
 
-Status: accepted; implementation commit pending.
+Status: accepted.
 
 ## Task packet
 
@@ -170,4 +170,4 @@ claude -p "Perform the focused closure review for Workstream 5 of the browser SS
   operation seams, reconnect behavior, distinct origins, lifecycle guards, contract independence
   and scoped Socket.IO removal.
 - Remaining required findings: None.
-- Accepted commit: `TBD`
+- Accepted commit: `82954b6d959a75402a67e38f37068b9f3c524a64`
