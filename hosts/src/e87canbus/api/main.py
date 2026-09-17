@@ -20,9 +20,10 @@ from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsReposito
 from e87canbus.adapters.web import SpaStaticFiles
 from e87canbus.api.auth import ApplicationAuthenticator, AuthorizationMiddleware
 from e87canbus.api.errors import install_exception_handlers
+from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.internal.live import LiveStatePublisher, install_socket_handlers
-from e87canbus.api.routes import button_profiles, health, settings, steering, system
+from e87canbus.api.routes import button_profiles, health, live, settings, steering, system
 from e87canbus.api.routes.system import PROVISIONING_STATUS_PATH
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
@@ -120,6 +121,7 @@ def create_app(
         outbound_queue_capacity=service.config.live_publication.client_queue_capacity,
     )
     publisher = LiveStatePublisher(sio, service, service.config)
+    sse_publisher = CoordinatorSsePublisher(service, service.config)
     install_socket_handlers(sio, publisher, authenticator)
     coordinator_panel = (
         None
@@ -135,6 +137,7 @@ def create_app(
             profile_repository,
             button_profile_repository,
             publisher,
+            sse_publisher,
             coordinator_panel,
         ),
     )
@@ -153,6 +156,7 @@ def create_app(
     app.state.deployment = service.deployment
     app.state.socketio = sio
     app.state.live_publisher = publisher
+    app.state.coordinator_sse_publisher = sse_publisher
     app.state.coordinator_panel = coordinator_panel
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository
@@ -166,6 +170,7 @@ def create_app(
     app.state.steering_profile_mutation_lock = asyncio.Lock()
 
     app.include_router(health.router)
+    app.include_router(live.router)
     app.include_router(settings.router)
     app.include_router(steering.router)
     app.include_router(button_profiles.router)

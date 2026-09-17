@@ -26,6 +26,33 @@ export type ActivateSteeringProfileRequest = {
 }
 
 /**
+ * ActiveSteeringCurveState
+ */
+export type ActiveSteeringCurveState = {
+  /**
+   * Activation Revision
+   */
+  activation_revision: number
+  definition: SteeringCurveDefinition
+  /**
+   * Fingerprint
+   */
+  fingerprint: string
+  /**
+   * Saved Profile Id
+   */
+  saved_profile_id: string | null
+  /**
+   * Saved Profile Revision
+   */
+  saved_profile_revision: number | null
+  /**
+   * Status
+   */
+  status: "active" | "activating" | "activation_failed"
+}
+
+/**
  * AdjustManualAssistanceCommand
  */
 export type AdjustManualAssistanceCommand = {
@@ -189,6 +216,43 @@ export type BreatheAnimationRequest = {
    * Period Ms
    */
   period_ms: number
+}
+
+/**
+ * ButtonPadProgramState
+ */
+export type ButtonPadProgramState = {
+  /**
+   * Commands
+   */
+  commands: Array<
+    [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ]
+  >
+  /**
+   * Encoding
+   */
+  encoding?: "e87-button-pad-v2"
+  /**
+   * Generation
+   */
+  generation: number
 }
 
 /**
@@ -380,6 +444,32 @@ export type ButtonProfileSlotResponse = {
 }
 
 /**
+ * ButtonsEvent
+ */
+export type ButtonsEvent = {
+  data: ButtonsState
+  /**
+   * Type
+   */
+  type: "buttons"
+}
+
+/**
+ * ButtonsState
+ */
+export type ButtonsState = {
+  /**
+   * Active Profile Id
+   */
+  active_profile_id: string
+  /**
+   * Active Profile Revision
+   */
+  active_profile_revision?: number | null
+  program: ButtonPadProgramState
+}
+
+/**
  * CommandAcknowledgement
  */
 export type CommandAcknowledgement = {
@@ -395,6 +485,43 @@ export type CommandAcknowledgement = {
    * Revision
    */
   revision: number
+}
+
+/**
+ * CoordinatorHealthState
+ */
+export type CoordinatorHealthState = {
+  /**
+   * Devices
+   */
+  devices: Array<DeviceHealthState>
+  /**
+   * Fatal
+   */
+  fatal: boolean
+  inbox: InboxHealthState
+  /**
+   * Networks
+   */
+  networks: Array<NetworkHealthState>
+  persistence: PersistenceHealthState
+  /**
+   * Ready
+   */
+  ready: boolean
+  steering: SteeringCapabilityHealthState
+}
+
+/**
+ * CoordinatorSnapshot
+ */
+export type CoordinatorSnapshot = {
+  buttons: ButtonsState
+  engine: EngineState
+  health: CoordinatorHealthState
+  lighting: LightingState
+  steering: SteeringState
+  vehicle: VehicleState
 }
 
 /**
@@ -430,9 +557,31 @@ export type CreateProfileRequest = {
 export type DeploymentProfile = "car" | "bench" | "simulator"
 
 /**
+ * DeviceHealthState
+ */
+export type DeviceHealthState = {
+  fault: RuntimeFaultState | null
+  /**
+   * Role
+   */
+  role: "button_pad" | "servotronic_controller"
+}
+
+/**
  * DeviceRole
  */
 export type DeviceRole = "button_pad" | "servotronic_controller"
+
+/**
+ * EngineEvent
+ */
+export type EngineEvent = {
+  data: EngineState
+  /**
+   * Type
+   */
+  type: "engine"
+}
 
 /**
  * EngineRpmRequest
@@ -442,6 +591,29 @@ export type EngineRpmRequest = {
    * Rpm
    */
   rpm: number
+}
+
+/**
+ * EngineState
+ */
+export type EngineState = {
+  coolant_temperature_c: EngineTelemetryValue
+  oil_temperature_c: EngineTelemetryValue
+  rpm: EngineTelemetryValue
+}
+
+/**
+ * EngineTelemetryValue
+ */
+export type EngineTelemetryValue = {
+  /**
+   * Status
+   */
+  status: "valid" | "never_observed" | "stale"
+  /**
+   * Value
+   */
+  value: number | number | null
 }
 
 /**
@@ -455,6 +627,76 @@ export type HttpValidationError = {
 }
 
 /**
+ * HealthEvent
+ */
+export type HealthEvent = {
+  data: CoordinatorHealthState
+  /**
+   * Type
+   */
+  type: "health"
+}
+
+/**
+ * InboxHealthState
+ */
+export type InboxHealthState = {
+  /**
+   * Capacity
+   */
+  capacity: number
+  /**
+   * Current Latency S
+   */
+  current_latency_s: number
+  /**
+   * Depth
+   */
+  depth: number
+  /**
+   * Latency Warning
+   */
+  latency_warning: boolean
+  /**
+   * Overflow Latched
+   */
+  overflow_latched: boolean
+}
+
+/**
+ * LightingEvent
+ */
+export type LightingEvent = {
+  data: LightingState
+  /**
+   * Type
+   */
+  type: "lighting"
+}
+
+/**
+ * LightingState
+ */
+export type LightingState = {
+  /**
+   * High Beam Enabled
+   */
+  high_beam_enabled: boolean
+  /**
+   * High Beam Strobe Active
+   */
+  high_beam_strobe_active: boolean
+  /**
+   * High Beam Strobe Cycles Remaining
+   */
+  high_beam_strobe_cycles_remaining: number
+  /**
+   * Observed High Beam Enabled
+   */
+  observed_high_beam_enabled: boolean | null
+}
+
+/**
  * LivenessResponse
  */
 export type LivenessResponse = {
@@ -462,6 +704,49 @@ export type LivenessResponse = {
    * Status
    */
   status?: "live"
+}
+
+/**
+ * NetworkHealthState
+ */
+export type NetworkHealthState = {
+  fault: RuntimeFaultState | null
+  /**
+   * Network
+   */
+  network: "kcan" | "ptcan" | "fcan"
+}
+
+/**
+ * PersistenceHealthState
+ */
+export type PersistenceHealthState = {
+  /**
+   * Available
+   */
+  available: boolean
+  /**
+   * Fault
+   */
+  fault: string | null
+}
+
+/**
+ * ProfileResourceChangedData
+ */
+export type ProfileResourceChangedData = {
+  /**
+   * Id
+   */
+  id: string
+  /**
+   * Resource
+   */
+  resource: "steering_profile" | "button_profile"
+  /**
+   * Revision
+   */
+  revision: number
 }
 
 /**
@@ -523,6 +808,26 @@ export type ReadinessResponse = {
 }
 
 /**
+ * ResourceChangedSseEvent
+ */
+export type ResourceChangedSseEvent = {
+  /**
+   * Data
+   */
+  data:
+    | ({
+        resource: "settings"
+      } & SettingsResourceChangedData)
+    | ({
+        resource: "button_profile" | "steering_profile"
+      } & ProfileResourceChangedData)
+  /**
+   * Type
+   */
+  type: "resource.changed"
+}
+
+/**
  * RuntimeCapabilities
  */
 export type RuntimeCapabilities = {
@@ -545,6 +850,29 @@ export type RuntimeConfigurationResponse = {
 }
 
 /**
+ * RuntimeFaultState
+ */
+export type RuntimeFaultState = {
+  /**
+   * Kind
+   */
+  kind:
+    | "can_reader"
+    | "can_effect_execution"
+    | "steering_actuator"
+    | "inbox_overflow"
+    | "device_adapter"
+  /**
+   * Message
+   */
+  message: string
+  /**
+   * Monotonic S
+   */
+  monotonic_s: number
+}
+
+/**
  * SelectSteeringModeCommand
  */
 export type SelectSteeringModeCommand = {
@@ -556,6 +884,61 @@ export type SelectSteeringModeCommand = {
    * Type
    */
   type: "select_steering_mode"
+}
+
+/**
+ * ServotronicState
+ */
+export type ServotronicState = {
+  /**
+   * Active Curve Crc32
+   */
+  active_curve_crc32?: number | null
+  /**
+   * Active Curve Revision
+   */
+  active_curve_revision?: number | null
+  /**
+   * Active Curve Source
+   */
+  active_curve_source?: "builtin_fallback" | "coordinator_ram" | null
+  /**
+   * Effective Assistance
+   */
+  effective_assistance: number
+  /**
+   * Inhibit Reason
+   */
+  inhibit_reason?: string | null
+  /**
+   * Last Command Reason
+   */
+  last_command_reason:
+    | "auto"
+    | "manual"
+    | "maximum"
+    | "speed_never_observed"
+    | "speed_stale"
+    | "can_reader_failure"
+    | "inbox_overflow"
+    | "shutdown"
+    | null
+  /**
+   * Observed Speed Kph
+   */
+  observed_speed_kph?: number | null
+  /**
+   * Pwm Duty
+   */
+  pwm_duty?: number | null
+  /**
+   * Speed Fresh
+   */
+  speed_fresh?: boolean | null
+  /**
+   * Watchdog Timed Out
+   */
+  watchdog_timed_out: boolean
 }
 
 /**
@@ -617,6 +1000,24 @@ export type SetSteeringModeRequest = {
 }
 
 /**
+ * SettingsResourceChangedData
+ */
+export type SettingsResourceChangedData = {
+  /**
+   * Id
+   */
+  id: null
+  /**
+   * Resource
+   */
+  resource: "settings"
+  /**
+   * Revision
+   */
+  revision: number
+}
+
+/**
  * SimulationCommandAcknowledgement
  */
 export type SimulationCommandAcknowledgement = {
@@ -669,6 +1070,17 @@ export type SimulationDeviceStatusCodeRequest = {
 }
 
 /**
+ * SnapshotEvent
+ */
+export type SnapshotEvent = {
+  data: CoordinatorSnapshot
+  /**
+   * Type
+   */
+  type: "snapshot"
+}
+
+/**
  * SpeedRequest
  */
 export type SpeedRequest = {
@@ -691,6 +1103,36 @@ export type StartHighBeamStrobeCommand = {
    * Type
    */
   type: "start_high_beam_strobe"
+}
+
+/**
+ * SteeringCapabilityHealthState
+ */
+export type SteeringCapabilityHealthState = {
+  fault: RuntimeFaultState | null
+}
+
+/**
+ * SteeringCurveDefinition
+ */
+export type SteeringCurveDefinition = {
+  /**
+   * Points
+   */
+  points: [
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+    SteeringCurvePoint,
+  ]
+  /**
+   * Schema Version
+   */
+  schema_version: 1
 }
 
 /**
@@ -740,6 +1182,20 @@ export type SteeringCurveDefinitionResponse = {
 }
 
 /**
+ * SteeringCurvePoint
+ */
+export type SteeringCurvePoint = {
+  /**
+   * Assistance Per Mille
+   */
+  assistance_per_mille: number
+  /**
+   * Speed Deci Kph
+   */
+  speed_deci_kph: number
+}
+
+/**
  * SteeringCurvePointRequest
  */
 export type SteeringCurvePointRequest = {
@@ -768,6 +1224,17 @@ export type SteeringCurvePointResponse = {
 }
 
 /**
+ * SteeringEvent
+ */
+export type SteeringEvent = {
+  data: SteeringState
+  /**
+   * Type
+   */
+  type: "steering"
+}
+
+/**
  * SteeringProfileResponse
  */
 export type SteeringProfileResponse = {
@@ -792,6 +1259,34 @@ export type SteeringProfileResponse = {
    * Updated At
    */
   updated_at: string
+}
+
+/**
+ * SteeringState
+ */
+export type SteeringState = {
+  active_curve: ActiveSteeringCurveState
+  /**
+   * Curve Activation Available
+   */
+  curve_activation_available: boolean
+  /**
+   * Manual Assistance Level
+   */
+  manual_assistance_level: number
+  /**
+   * Manual Assistance Level Count
+   */
+  manual_assistance_level_count: number
+  /**
+   * Maximum Assistance Active
+   */
+  maximum_assistance_active: boolean
+  /**
+   * Mode
+   */
+  mode: "auto" | "manual"
+  servotronic: ServotronicState | null
 }
 
 /**
@@ -961,6 +1456,31 @@ export type ValidationIssue = {
    * Type
    */
   type: string
+}
+
+/**
+ * VehicleEvent
+ */
+export type VehicleEvent = {
+  data: VehicleState
+  /**
+   * Type
+   */
+  type: "vehicle"
+}
+
+/**
+ * VehicleState
+ */
+export type VehicleState = {
+  /**
+   * Speed Kph
+   */
+  speed_kph: number
+  /**
+   * Speed Valid
+   */
+  speed_valid: boolean
 }
 
 /**
@@ -1826,6 +2346,49 @@ export type SetVehicleSweepResponses = {
 
 export type SetVehicleSweepResponse =
   SetVehicleSweepResponses[keyof SetVehicleSweepResponses]
+
+export type StreamCoordinatorLiveApiLiveGetData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/live"
+}
+
+export type StreamCoordinatorLiveApiLiveGetResponses = {
+  /**
+   * Response Stream Coordinator Live Api Live Get
+   *
+   * Successful Response
+   */
+  200:
+    | ({
+        type: "snapshot"
+      } & SnapshotEvent)
+    | ({
+        type: "vehicle"
+      } & VehicleEvent)
+    | ({
+        type: "engine"
+      } & EngineEvent)
+    | ({
+        type: "steering"
+      } & SteeringEvent)
+    | ({
+        type: "buttons"
+      } & ButtonsEvent)
+    | ({
+        type: "lighting"
+      } & LightingEvent)
+    | ({
+        type: "health"
+      } & HealthEvent)
+    | ({
+        type: "resource.changed"
+      } & ResourceChangedSseEvent)
+}
+
+export type StreamCoordinatorLiveApiLiveGetResponse =
+  StreamCoordinatorLiveApiLiveGetResponses[keyof StreamCoordinatorLiveApiLiveGetResponses]
 
 export type GetRuntimeConfigurationData = {
   body?: never

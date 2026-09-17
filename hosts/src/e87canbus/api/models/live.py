@@ -1,4 +1,4 @@
-"""Version 1 Socket.IO live-state payloads sourced from service snapshots."""
+"""Shared live projections and the temporary version 1 Socket.IO envelopes."""
 
 from __future__ import annotations
 

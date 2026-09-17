@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 from urllib.parse import quote
 
@@ -35,6 +37,7 @@ INSTALLATION_ID = "a" * 52
 OTHER_INSTALLATION_ID = "b" * 52
 DEVICE_ID = "12345678-1234-4234-9234-123456789abc"
 PASSWORD = "test-only-operator-password"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def authenticator(*, trust_test_client: bool = False) -> ApplicationAuthenticator:
@@ -106,6 +109,7 @@ def test_http_table_is_the_exact_console_allowlist() -> None:
     assert console_routes == {
         ("GET", "/health/live"),
         ("GET", "/health/ready"),
+        ("GET", "/api/live"),
         ("GET", "/api/runtime"),
         ("GET", "/api/settings"),
         ("PUT", "/api/settings"),
@@ -145,6 +149,23 @@ def test_http_table_accounts_for_every_production_operation(tmp_path: Path) -> N
     assert operations == set(HTTP_PERMISSIONS)
 
 
+def test_served_sse_schema_matches_the_exported_event_union(tmp_path: Path) -> None:
+    served = create_app(
+        profile=DeploymentProfile.SIMULATOR,
+        profile_database_path=tmp_path / "profiles.sqlite3",
+    ).openapi()
+    exported = json.loads((ROOT / "protocol/openapi.json").read_text())
+
+    def live_schema(document: dict[str, Any]) -> dict[str, Any]:
+        return document["paths"]["/api/live"]["get"]["responses"]["200"]["content"][
+            "text/event-stream"
+        ]["schema"]
+
+    schema = live_schema(served)
+    assert schema == live_schema(exported)
+    assert "type" not in schema
+
+
 def test_socket_table_matches_the_closed_live_contract() -> None:
     assert set(SOCKET_SEND_PERMISSIONS) == set(ClientEvent)
     assert set(ServerEvent) == set(SOCKET_RECEIVE_PERMISSIONS)
@@ -166,9 +187,10 @@ def test_unauthenticated_client_gets_only_liveness(tmp_path: Path) -> None:
     client = TestClient(app)
 
     assert client.get("/health/live").json() == {"status": "live"}
-    response = client.get("/api/runtime")
-    assert response.status_code == 401
-    assert response.headers["www-authenticate"] == 'Basic realm="e87canbus"'
+    for path in ("/api/runtime", "/api/live"):
+        response = client.get(path)
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"] == 'Basic realm="e87canbus"'
 
 
 def test_cors_handles_preflight_before_authorization(tmp_path: Path) -> None:
@@ -234,6 +256,64 @@ def test_console_and_operator_http_permissions(tmp_path: Path) -> None:
     provisioning = client.get("/api/system/provisioning", headers=basic_headers())
     assert provisioning.json() == status_document()
     assert client.get("/api/runtime", headers=basic_headers(password="wrong")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_console_and_operator_can_open_the_live_stream(tmp_path: Path) -> None:
+    app = create_app(
+        profile=DeploymentProfile.SIMULATOR,
+        profile_database_path=tmp_path / "profiles.sqlite3",
+        authenticator=authenticator(trust_test_client=True),
+    )
+
+    async def open_stream(headers: dict[str, str]) -> None:
+        response_started = asyncio.Event()
+        first_body = asyncio.Event()
+        block_body = asyncio.Event()
+        messages: list[dict[str, object]] = []
+
+        async def receive() -> dict[str, object]:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message: dict[str, object]) -> None:
+            messages.append(message)
+            if message["type"] == "http.response.start":
+                response_started.set()
+            elif message["type"] == "http.response.body":
+                first_body.set()
+                await block_body.wait()
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.4"},
+            "http_version": "1.1",
+            "scheme": "http",
+            "method": "GET",
+            "server": ("testserver", 80),
+            "client": ("testclient", 12345),
+            "root_path": "",
+            "path": "/api/live",
+            "raw_path": b"/api/live",
+            "query_string": b"",
+            "headers": [
+                (key.lower().encode(), value.encode()) for key, value in headers.items()
+            ],
+        }
+        request_task = asyncio.create_task(app(scope, receive, send))  # type: ignore[arg-type]
+        try:
+            await asyncio.wait_for(response_started.wait(), timeout=1.0)
+            await asyncio.wait_for(first_body.wait(), timeout=1.0)
+            start = next(item for item in messages if item["type"] == "http.response.start")
+            body = next(item for item in messages if item["type"] == "http.response.body")
+            assert start["status"] == 200
+            assert b'data: {"type":"snapshot"' in body["body"]
+        finally:
+            request_task.cancel()
+            await asyncio.gather(request_task, return_exceptions=True)
+
+    async with app.router.lifespan_context(app):
+        await open_stream(console_headers())
+        await open_stream(basic_headers())
 
 
 @pytest.mark.asyncio
