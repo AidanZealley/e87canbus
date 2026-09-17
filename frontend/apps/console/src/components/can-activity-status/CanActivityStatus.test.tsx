@@ -16,9 +16,7 @@ it("renders a received-frame update from the complete local snapshot", () => {
   )
 
   act(() => {
-    useConsoleLiveStore
-      .getState()
-      .applySnapshot(consoleSnapshot("console-boot", 2, 37))
+    useConsoleLiveStore.getState().applySnapshot(consoleSnapshot(37))
   })
 
   expect(screen.getByRole("status").textContent).toContain(
@@ -29,16 +27,14 @@ it("renders a received-frame update from the complete local snapshot", () => {
 it("presents silence without claiming a CAN fault and exposes reader faults", () => {
   render(<CanActivityStatus />)
   act(() => {
-    useConsoleLiveStore
-      .getState()
-      .applySnapshot(consoleSnapshot("console-boot", 1))
+    useConsoleLiveStore.getState().applySnapshot(consoleSnapshot())
   })
   expect(screen.getByRole("status").textContent).toContain("no frames observed")
   expect(screen.getByRole("status").textContent).not.toContain("fault")
 
   act(() => {
     useConsoleLiveStore.getState().applySnapshot(
-      consoleSnapshot("console-boot", 2, 0, {
+      consoleSnapshot(0, {
         connected: false,
         fault: "reader stopped",
       })
@@ -48,7 +44,9 @@ it("presents silence without claiming a CAN fault and exposes reader faults", ()
     "K-CAN fault: reader stopped"
   )
 
-  act(() => useConsoleLiveStore.getState().transportDisconnected())
+  act(() =>
+    useConsoleLiveStore.getState().connectionFailed("network read failed")
+  )
   expect(screen.getByRole("status").textContent).toContain(
     "K-CAN status unavailable"
   )

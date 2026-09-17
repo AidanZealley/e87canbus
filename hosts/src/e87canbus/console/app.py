@@ -7,24 +7,18 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import socketio  # type: ignore[import-untyped]
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 
 from e87canbus.adapters.socketcan import SocketCanBus
-from e87canbus.adapters.socketio_server import BoundedSocketIoServer
 from e87canbus.adapters.web import SpaStaticFiles
-from e87canbus.console.live import ConsoleLivePublisher, install_socket_handlers
 from e87canbus.console.models import ConsoleSnapshotEvent
 from e87canbus.console.service import (
     ConsoleCanService,
-    ConsoleServiceSnapshot,
     ManagedCanReceiver,
 )
 from e87canbus.console.sse import ConsoleSsePublisher
-
-CONSOLE_SOCKET_PATH = "/console/socket.io"
 
 
 class EventStreamResponse(StreamingResponse, JSONResponse):
@@ -39,38 +33,22 @@ def create_app(
     frontend_directory: str | Path | None = None,
 ) -> FastAPI:
     service = ConsoleCanService(receiver_factory or (lambda: SocketCanBus("kcan")))
-    sio = BoundedSocketIoServer(
-        async_mode="asgi",
-        outbound_queue_capacity=8,
-    )
-    socket_publisher = ConsoleLivePublisher(sio, service)
     sse_publisher = ConsoleSsePublisher(service)
-    install_socket_handlers(sio, socket_publisher)
-
-    def publish(snapshot: ConsoleServiceSnapshot) -> None:
-        socket_publisher.offer(snapshot)
-        sse_publisher.offer(snapshot)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        await socket_publisher.start()
         await sse_publisher.start()
-        service.start(publish)
+        service.start(sse_publisher.offer)
         try:
             yield
         finally:
             try:
                 await asyncio.to_thread(service.stop)
             finally:
-                try:
-                    await sse_publisher.stop()
-                finally:
-                    await socket_publisher.stop()
+                await sse_publisher.stop()
 
     app = FastAPI(title="E87 Console", lifespan=lifespan)
     app.state.console_service = service
-    app.state.socketio = sio
-    app.state.live_publisher = socket_publisher
     app.state.sse_publisher = sse_publisher
 
     @app.get("/health/live")
@@ -105,20 +83,12 @@ def create_app(
             headers={"Cache-Control": "no-store"},
         )
 
-    static_app = (
-        SpaStaticFiles(directory=frontend_directory, html=True)
-        if frontend_directory is not None
-        else None
-    )
-    app.mount(
-        "/",
-        socketio.ASGIApp(
-            sio,
-            other_asgi_app=static_app,
-            socketio_path=CONSOLE_SOCKET_PATH.lstrip("/"),
-        ),
-        name="socket.io",
-    )
+    if frontend_directory is not None:
+        app.mount(
+            "/",
+            SpaStaticFiles(directory=frontend_directory, html=True),
+            name="frontend",
+        )
     return app
 
 

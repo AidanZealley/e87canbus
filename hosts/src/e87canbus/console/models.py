@@ -1,14 +1,10 @@
-"""Version 1 console live-state contract."""
+"""Console-host SSE event models."""
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-CONSOLE_PROTOCOL_VERSION: Literal[1] = 1
-CONSOLE_SNAPSHOT_EVENT: Literal["console.snapshot"] = "console.snapshot"
 
 
 class ConsoleLiveModel(BaseModel):
@@ -30,12 +26,4 @@ class ConsoleSnapshotEvent(ConsoleLiveModel):
     """Complete local state sent by the console host's SSE endpoint."""
 
     type: Literal["console.snapshot"]
-    data: ConsoleSnapshotData
-
-
-class ConsoleSnapshot(ConsoleLiveModel):
-    protocol_version: Literal[1] = CONSOLE_PROTOCOL_VERSION
-    boot_id: str = Field(min_length=1)
-    revision: int = Field(ge=0)
-    emitted_at: datetime
     data: ConsoleSnapshotData
