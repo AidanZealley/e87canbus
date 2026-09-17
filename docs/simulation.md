@@ -40,21 +40,20 @@ The service projection carries boot-scoped revisions, fatal health and simulatio
 starts a new session because trace sequence numbers restart at one; frame identity is therefore the
 pair of session ID and sequence. Development controls return only `accepted` and the stable process
 `boot_id`, never potentially stale revision/session metadata or a second live-state snapshot. The
-repository frontend uses one Socket.IO connection owned outside the React tree. Socket sends have a
-one-second default timeout and Engine.IO client queues are finite. A stalled or failed peer can
-delay only publication; it cannot block the controller owner, CAN input processing, or effect
-execution. Socket.IO owns reconnect and Engine.IO heartbeat behavior. The first full
-snapshot on every connection is authoritative, so a restarted backend can safely reset its session
-and revision counters without stale browser state winning the merge. Until that snapshot arrives,
-the frontend masks current live observations as unavailable. The workbench badge distinguishes
-initial connection, synchronization, disconnection, and reconnection.
+repository frontend opens the generated coordinator `GET /api/live` SSE operation outside the
+React tree. Each subscriber has bounded pending output, so a stalled peer cannot block the
+controller owner, CAN input processing or effect execution. The first complete snapshot on every
+connection is authoritative. Until it arrives, the frontend masks current live observations as
+unavailable. HTTP failure, read failure, idle timeout and clean EOF reconnect to another snapshot.
+The workbench badge distinguishes initial connection, synchronization, disconnection and
+reconnection.
 
 A CAN or simulated-actuator output failure is fed back through the kernel after its originating
 commit. The simulated runtime then commits and attempts shutdown once, publishes fatal health, and rejects
 normal commands until reset. A failure during that final attempt is logged and discarded rather
 than fed back or retried. If the ordinary shutdown effect initiated by reset fails, the stopped
-session records and logs that fault; reset still replaces it, and the canonical service/Socket.IO
-projection reports the new healthy session at revision one. The replaced session's fault remains
+session records and logs that fault; reset still replaces it, and the canonical SSE projection
+reports the new healthy session. The replaced session's fault remains
 in logs rather than being copied into the new session or a second diagnostic store.
 
 It models three independent CAN broadcast domains:

@@ -33,7 +33,7 @@ The first implementation must:
 - create unique device and Linux host identity;
 - install the application and secrets through a one-time first-boot consumer;
 - configure the isolated coordinator Wi-Fi network;
-- authenticate console HTTP and Socket.IO traffic with mutual TLS; and
+- authenticate console HTTP and SSE traffic with mutual TLS; and
 - report card preparation without claiming first-boot success.
 
 Routine deployment and microcontroller support are later milestones. They must not add unused

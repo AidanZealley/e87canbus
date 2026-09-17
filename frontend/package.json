@@ -14,12 +14,8 @@
     "test": "pnpm --recursive --workspace-concurrency=1 test",
     "typecheck": "pnpm --recursive typecheck",
     "format": "prettier --write \"{apps,packages}/**/*.{ts,tsx}\"",
-    "http:generate": "openapi-ts && node scripts/generate-button-command-catalogue.mjs",
-    "http:check": "node scripts/check-http-contract.mjs && node scripts/generate-button-command-catalogue.mjs --check",
-    "console-api:generate": "uv run --project .. python ../scripts/generate_console_openapi.py && openapi-ts -f apps/console/openapi-ts.config.ts",
-    "console-api:check": "uv run --project .. python ../scripts/generate_console_openapi.py --check && node scripts/check-console-http-contract.mjs",
-    "api:generate": "uv run --project .. python ../scripts/generate_openapi.py && pnpm http:generate && pnpm console-api:generate",
-    "api:check": "uv run --project .. python ../scripts/generate_openapi.py --check && pnpm http:check && pnpm console-api:check",
+    "api:generate": "uv run --project .. python ../scripts/generate_openapi.py && openapi-ts && node scripts/generate-button-command-catalogue.mjs && uv run --project .. python ../scripts/generate_console_openapi.py && openapi-ts -f apps/console/openapi-ts.config.ts",
+    "api:check": "uv run --project .. python ../scripts/generate_openapi.py --check && node scripts/check-http-contract.mjs && node scripts/generate-button-command-catalogue.mjs --check && uv run --project .. python ../scripts/generate_console_openapi.py --check && node scripts/check-console-http-contract.mjs",
     "api:watch": "uv run --project .. python ../scripts/watch_frontend_contracts.py"
   },
   "devDependencies": {
@@ -30,7 +26,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17",
-    "json-schema-to-typescript": "15.0.4",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "typescript": "~6",

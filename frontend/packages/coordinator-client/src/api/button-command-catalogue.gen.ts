@@ -1,5 +1,5 @@
 // This file is auto-generated from protocol/openapi.json.
-// Run `pnpm http:generate` after changing the backend button catalogue.
+// Run `pnpm api:generate` after changing the backend button catalogue.
 
 export type ButtonCommandFieldSpec =
   | {

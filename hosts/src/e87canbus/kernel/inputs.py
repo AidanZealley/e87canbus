@@ -1,7 +1,7 @@
 """The closed set of timed inputs accepted by the coordinator kernel.
 
-These are transport-independent: an input carries no FastAPI request, Socket.IO
-session or simulator UI value. Adapters translate their own concerns into one of
+These are transport-independent: an input carries no FastAPI request, SSE
+connection or simulator UI value. Adapters translate their own concerns into one of
 these before submitting it through the single ``CoordinatorKernel.dispatch`` path.
 """
 

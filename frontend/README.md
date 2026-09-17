@@ -10,7 +10,7 @@ Two independently built React applications: the coordinator workbench and the in
 - shadcn/ui with Base UI and the project Mira/Mist preset
 - TanStack Router with generated file-based routes and automatic code splitting
 - TypeScript 6
-- Socket.IO client with one application-scoped transport owner
+- generated Hey API SSE clients with one application-scoped owner per host
 - Zustand for current live state
 - TanStack Query for durable HTTP resources and mutations
 
@@ -36,18 +36,16 @@ pnpm dev
 complete generation on startup, then regenerates after backend contract changes.
 
 The coordinator app defaults to `http://localhost:5173`; the console app defaults to
-`http://localhost:5174`. The console dev server keeps its coordinator HTTP and Socket.IO traffic
-same-origin and proxies it to `http://127.0.0.1:8000`, rewriting only that local proxy hop to the
-backend's existing allowed coordinator development origin. Override the console's independent
-coordinator origin with `VITE_COORDINATOR_ORIGIN`; production builds otherwise retain their
-serving origin. Its distinct `/console/socket.io` path proxies only to the local console service at
-`http://127.0.0.1:8001`; production uses that same path on the loopback console host. Without a
-local `kcan` interface, the development service remains live and reports the expected CAN fault.
-Socket.IO owns reconnection and the UI remains unsynchronized until the backend's complete
-protocol-v1 snapshot arrives. Unknown protocol versions fail visibly. Strict Mode and route changes
-reuse the same client and listener set.
+`http://localhost:5174`. The console reads coordinator HTTP and SSE directly from
+`http://127.0.0.1:8000` by default. Override that origin with `VITE_COORDINATOR_ORIGIN`. Its
+same-origin `/api` and `/health` requests proxy to the local console service at
+`http://127.0.0.1:8001`. Production sets the coordinator origin to `https://10.42.0.1` and serves
+the local stream from the loopback console host. Without a local `kcan` interface, the development
+service remains live and reports the expected CAN fault. Each stream starts with a generated and
+validated complete snapshot. Clean EOF, read failure, HTTP failure and idle timeout reconnect to a
+fresh snapshot. Strict Mode and route changes reuse the same application-scoped transports.
 HTTP commands and development controls return acknowledgements only. Components never merge an
-HTTP response into live state; Socket.IO remains the sole path into Zustand.
+HTTP response into live state; generated SSE records are the sole path into Zustand.
 
 The workbench exposes the coordinator-panel simulator and button-profile editor. The toolbar's
 simulated-vehicle popover controls speed and independently sets or silences RPM, oil temperature
@@ -72,8 +70,8 @@ directly.
 ## Car data and instrument foundation
 
 One Zustand store owns complete current vehicle, engine, steering, button, lighting and health
-projections with independent topic revisions. Components subscribe to the smallest stable value
-they need; no car-layout context copies or rebroadcasts live state. When Socket.IO is connecting or
+projections. Components subscribe to the smallest stable value they need; no car-layout context
+copies or rebroadcasts live state. When coordinator SSE is connecting or
 reconnecting, retained live values are presented as unavailable while navigation and cached durable
 settings remain usable.
 A separate compact configuration warning identifies
@@ -93,8 +91,8 @@ exposes an
 effective value that distinguishes authoritative data from defaults and reports a separate
 persistence-fault flag. Saving is unavailable until an authoritative revision exists; a successful
 full-document update replaces the cache with the committed response, while a failed update leaves
-the previous authoritative value intact. Socket.IO invalidates this exact query on the precise
-`resources.changed` settings event; a complete reconnect snapshot reconciles the small known
+the previous authoritative value intact. SSE invalidates this exact query on the precise
+`resource.changed` settings event; a complete reconnect snapshot reconciles the small known
 durable roots once. Unsaved form
 drafts and theme choice are not stored in the settings query cache.
 
@@ -136,7 +134,7 @@ The checked-in language-neutral vectors also drive the Python coordinator tests.
 
 Saving a draft creates an explicit profile revision or new profile, and Apply remains a separate
 conscious activation. A
-dirty draft is retained across Socket.IO reconnects and external active changes; profile revision
+dirty draft is retained across SSE reconnects and external active changes; profile revision
 conflicts retain it until the operator explicitly loads refreshed saved values. These profile
 operations remain simulation-only and grant no physical output authority.
 
@@ -144,10 +142,10 @@ operations remain simulation-only and grant no physical output authority.
 
 - `apps/coordinator/` — coordinator workbench Vite app and its app-owned UI.
 - `apps/console/` — driver console Vite app and its app-owned UI.
-- `packages/coordinator-client/src/api/http/` — generated coordinator HTTP client; never edit.
-- `packages/coordinator-client/src/api/live-contract.gen.ts` — generated coordinator Socket.IO
-  types; never edit.
-- `packages/coordinator-client/src/live/` — shared coordinator transport and Zustand authority.
+- `packages/coordinator-client/src/api/http/` - generated coordinator HTTP and SSE client; never edit.
+- `packages/coordinator-client/src/live/` - coordinator SSE lifecycle and Zustand authority.
+- `apps/console/src/api/console-host/` - generated console-host HTTP and SSE client; never edit.
+- `apps/console/src/local-live/` - console-host SSE lifecycle and local Zustand authority.
 
 UI primitives, themes, routes and components remain inside the app that owns them. There is no
 shared design-system package.
@@ -166,7 +164,7 @@ The backend contract sources and generated-artifact policy are documented in
 [`protocol/README.md`](../protocol/README.md#frontend-contracts). Common commands are:
 
 ```bash
-pnpm api:generate  # regenerate OpenAPI, HTTP TypeScript, Socket.IO schema and Socket.IO TypeScript
+pnpm api:generate  # regenerate both OpenAPI documents and generated Hey API clients
 pnpm api:check     # non-mutating drift check used by CI
 pnpm api:watch     # initial generation followed by debounced backend-source watching
 ```
@@ -180,7 +178,6 @@ package's independently reviewed version and run, from `frontend/`:
 
 ```bash
 pnpm add --save-exact --save-dev @hey-api/openapi-ts@<hey-api-version>
-pnpm add --save-exact --save-dev json-schema-to-typescript@<json-schema-to-typescript-version>
 pnpm add --save-exact zod@<zod-version>
 uv add --project .. --dev watchfiles==<watchfiles-version>
 pnpm add --save-exact --save-dev concurrently@<concurrently-version>

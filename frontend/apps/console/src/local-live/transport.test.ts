@@ -17,6 +17,7 @@ const blockUntilAborted = async function* (signal?: AbortSignal) {
     if (signal?.aborted) resolve()
     else signal?.addEventListener("abort", () => resolve(), { once: true })
   })
+  yield* []
 }
 
 const stream = async function* (

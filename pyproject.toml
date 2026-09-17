@@ -12,7 +12,6 @@ dependencies = [
     "fastapi>=0.115",
     "python-can>=4.4",
     "pyserial>=3.5",
-    "python-socketio>=5.13",
     "uvicorn[standard]>=0.30",
 ]
 

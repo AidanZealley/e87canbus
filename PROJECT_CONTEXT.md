@@ -196,7 +196,7 @@ The coordinator's three CAN connections are independent physical networks. It do
 automatically forward frames between them. The vehicle's JBBF already gateways selected vehicle
 information between PT-CAN and K-CAN; any additional coordinator-owned domain projection must be
 explicit application behavior. The console receives K-CAN without transmission authority and
-talks to the coordinator through narrowly exposed HTTP and Socket.IO, not a raw-CAN network API.
+talks to the coordinator through narrowly exposed HTTP and SSE, not a raw-CAN network API.
 The physical steering actuation topology is deliberately omitted because it has not been selected
 or verified.
 
@@ -217,7 +217,7 @@ e87canbus/
 │   │   ├── protocol/              # Generated wire values and CAN codecs
 │   │   ├── adapters/              # Real hardware and OS integrations
 │   │   ├── runners/                # Live and simulated compositions
-│   │   ├── api/                   # FastAPI and Socket.IO interface
+│   │   ├── api/                   # FastAPI HTTP and SSE interface
 │   │   └── cli/                   # Executable entry points
 │   └── tests/
 ├── devices/

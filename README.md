@@ -120,7 +120,7 @@ uv sync --locked
 uv run python scripts/generate_custom_protocol.py --check
 uv run pytest -q
 uv run mypy
-uv run ruff check hosts scripts/watch_frontend_contracts.py
+uv run ruff check e87ctl hosts scripts/watch_frontend_contracts.py
 bash -n scripts/*.sh deploy/bin/* deploy/kiosk/*.sh
 uv run lint-imports
 ```
@@ -188,16 +188,17 @@ simulated vehicle. It emits a fresh synthetic F-CAN frame before each control ti
 silenced. The driving console's steering screen
 shows effective dimensionless simulated assistance, the last accepted command reason (or “No
 command accepted”), and watchdog state; these are an ideal simulation projection, not measured
-physical feedback. Socket.IO publication is bounded and latest-state coalesced; the frontend uses
-one Socket.IO-to-Zustand path. Development HTTP controls return acknowledgements; live state is
-never duplicated in HTTP response snapshots.
+physical feedback. The coordinator and console host each publish a bounded SSE stream generated
+from their own OpenAPI document. The console browser consumes both origins, while the coordinator
+browser consumes only the coordinator stream. Complete snapshots replace retained Zustand state
+after every connection. Development HTTP controls return acknowledgements and never duplicate
+live state in response snapshots.
 
 Operational diagnostics expose current bounded inbox depth, capacity, latency, warning and overflow
-truth; explicit network, device and steering faults; persistence availability; and decision-useful
-publisher failure, trace/resource-drop and slow-client-isolation counters. The backend retains its
-CAN registry and bounded trace for simulation and protocol tests; browser applications do not
-subscribe to or display either one.
-Publisher or client failure cannot block the controller owner. See the
+truth, explicit network, device and steering faults, and persistence availability. Each SSE
+subscriber has bounded pending output and a slow subscriber is disconnected without blocking the
+controller owner. The backend retains its CAN registry and bounded trace for simulation and
+protocol tests; browser applications do not subscribe to or display either one. See the
 [failure policy and soak evidence](docs/reliability.md) and
 [Pi deployment and operation](deploy/README.md) for the loopback same-origin service, restart policy
 and journal commands.

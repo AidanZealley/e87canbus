@@ -71,7 +71,7 @@ def pack_button_pad_transfers(program: ButtonPadProgram) -> tuple[bytes, ...]:
     """Concatenate the resolved command records into 64-byte ISO-TP transfers.
 
     Packing is a transport concern only: ``program.payloads`` stays one record per
-    entry for the live-events contract, while the device receives up to four records
+    command in the coordinator projection, while the device receives up to four records
     per transfer so the common case is a single transfer with no inter-command pacing.
     """
 

@@ -59,9 +59,12 @@ connection accepts the Pi's host key on trust and records it in `known_hosts`, a
 host on this isolated, physically controlled network.
 
 Confirm that the console dashboard displays current coordinator-backed state without a prompt or
-login. Disconnect the console Wi-Fi and confirm that it reports the coordinator state as
-disconnected and rejects an attempted command. Reconnect Wi-Fi and confirm that the dashboard
-receives fresh current state without replaying the rejected command. This console check and the
+login. In browser diagnostics, confirm the coordinator stream uses
+`https://10.42.0.1/api/live`, the local console-host stream uses its serving origin at `/api/live`,
+and both responses remain open as `text/event-stream`. Disconnect the console Wi-Fi and confirm
+that it reports the coordinator state as disconnected and rejects an attempted command. Reconnect
+Wi-Fi and confirm that the dashboard receives fresh current state without replaying the rejected
+command. This console check and the
 authenticated maintenance session at `https://e87.local` provide the image runbook's end-to-end
 TLS evidence.
 

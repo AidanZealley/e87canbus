@@ -59,11 +59,7 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
     [
         {"telemetry_hz": 0.0},
         {"health_hz": 0.0},
-        {"trace_hz": float("inf")},
-        {"trace_batch_size": 0},
-        {"resource_capacity": 0},
         {"client_queue_capacity": 0},
-        {"send_timeout_s": 0.0},
         {"shutdown_timeout_s": float("nan")},
     ],
 )
@@ -152,7 +148,6 @@ def test_runtime_inbox_limits_reject_unsafe_values(
         (SteeringConfig, "speed_timeout_s"),
         (EngineTelemetryConfig, "timeout_s"),
         (SimulationConfig, "steering_watchdog_timeout_s"),
-        (LivePublicationConfig, "send_timeout_s"),
         (TxPolicyConfig, "network_window_s"),
     ],
 )
@@ -161,7 +156,6 @@ def test_duration_configuration_rejects_non_finite_values(
         type[SteeringConfig]
         | type[EngineTelemetryConfig]
         | type[SimulationConfig]
-        | type[LivePublicationConfig]
         | type[TxPolicyConfig]
     ),
     field: str,
