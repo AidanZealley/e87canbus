@@ -93,7 +93,7 @@ silently during cleanup.
 
 | Gate | Owner | Placement | Status | Candidate | Resume condition |
 |---|---|---|---|---|---|
-| Local browser SSE validation | Orchestrator and Aidan | After whole-feature closure, before completion | Testing | `49cddd79920c7f68cdc8e4d165696c437a00e7fd` | Aidan reports every required browser check passed, or explicitly waives the gate |
+| Local browser SSE validation | Orchestrator and Aidan | After whole-feature closure, before completion | Testing | `531c90f3d7ca9bc46d49330cbab6f15c20b56f9f` | Aidan reports every required browser check passed, or explicitly waives the gate |
 
 ## Decision and drift log
 
