@@ -43,6 +43,7 @@ export const createLiveTransport = ({
       let idleTimer: ReturnType<typeof setTimeout> | undefined
       let idleTimedOut = false
       let malformedRecord = false
+      let streamFailed = false
 
       const resetIdleTimer = () => {
         clearTimeout(idleTimer)
@@ -59,6 +60,7 @@ export const createLiveTransport = ({
         resetIdleTimer()
         const { stream } = await streamOperation({
           signal: connectionAbort.signal,
+          sseMaxRetryAttempts: 1,
           onSseEvent: (event) => {
             resetIdleTimer()
             if (event.data === undefined) return
@@ -76,6 +78,7 @@ export const createLiveTransport = ({
               transportAbort.signal.aborted
             )
               return
+            streamFailed = true
             useLiveStore.getState().connectionFailed(errorMessage(error))
           },
         })
@@ -91,7 +94,12 @@ export const createLiveTransport = ({
             void reconcileDurableResources(queryClient)
         }
 
-        if (!transportAbort.signal.aborted && !idleTimedOut && !malformedRecord)
+        if (
+          !transportAbort.signal.aborted &&
+          !idleTimedOut &&
+          !malformedRecord &&
+          !streamFailed
+        )
           useLiveStore
             .getState()
             .connectionFailed("Coordinator live stream ended")

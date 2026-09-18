@@ -1,6 +1,6 @@
 # Browser SSE whole-feature review
 
-Status: whole-feature corrections in progress.
+Status: local browser validation pending.
 
 ## Reviewer task packet
 
@@ -154,17 +154,40 @@ accepted workstream returns to the orchestrator for a focused review before rete
   generated simulator operations and idle publisher wakeups do not block acceptance.
 - Drift requiring user decision: None.
 
+## Correction evidence
+
+- Workstream 3: The coordinator wrapper passes `sseMaxRetryAttempts: 1` and treats the generated
+  error as the terminal result of that attempt without replacing it with a clean-EOF error. Focused
+  request- and mid-stream read-failure tests hold the wrapper at its 3-second delay, confirm visible
+  failure and retained valid state, then confirm reconnection starts from a fresh snapshot.
+- Workstream 3 verification: coordinator-client passed 8 files and 20 tests plus typecheck;
+  coordinator passed 11 files and 38 tests; console passed 25 files and 102 tests;
+  `git diff --check` passed.
+- Workstream 5: The local console wrapper passes `sseMaxRetryAttempts: 1` and retains the generated
+  terminal error through its wrapper-owned delay. Focused request- and mid-stream read-failure tests
+  confirm visible failure, retained valid CAN state, and reconnection from a fresh complete snapshot.
+- Workstream 5 verification: console passed 25 files and 104 tests plus typecheck and build;
+  coordinator-client passed 8 files and 20 tests plus typecheck; `git diff --check` passed.
+
 ## Focused closure
 
-- Reviewed head: `TBD`
-- Finding outcomes: `TBD`
-- Final simplification assessment: `TBD`
-- Remaining blockers: `TBD`
-- Verdict: `TBD`
+- Reviewed head: `1f7c2df78354a39bdc413b37885f916509643e31` plus the uncommitted Workstream
+  3 and 5 correction diff.
+- Finding outcomes: Both wrappers set `sseMaxRetryAttempts: 1`, preserve generated HTTP/read errors
+  through the wrapper delay and reconnect from a fresh complete snapshot. Focused request and
+  mid-stream failure tests passed for both hosts.
+- Final simplification assessment: Each direct host wrapper gained one local failure flag and one
+  fixed generated-attempt bound. No shared framework, generated-runtime fork, compatibility path or
+  configuration point was added.
+- Remaining blockers: None before final verification and the documented local browser gate.
+- Verdict: Approved. No remaining Required findings.
 
 ## Orchestrator completion record
 
-- Final head and verification: `TBD`
-- External validation pending: `TBD`
-- Specification drift: `TBD`
+- Final head and verification: Pending correction commit hash. Final commands passed: custom
+  protocol drift, 960 backend tests, mypy, Ruff, two import contracts, diff check, both API drift
+  paths, frontend typecheck/lint, 162 frontend tests and both production builds. The coordinator
+  build retains its known chunk-size warning.
+- External validation pending: The documented seven-check local browser gate.
+- Specification drift: None.
 - Completion report delivered: `TBD`

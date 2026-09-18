@@ -181,6 +181,12 @@ claude -p "Perform the focused closure review for Workstream 3 of the browser SS
   tests plus typecheck and build; console passed 23 files and 100 tests plus typecheck. The selected
   backend suite passed 73 tests; mypy, Ruff and `git diff --check` passed. The coordinator build
   retains its existing oversized-chunk warning.
+- Whole-feature correction: Limited the generated coordinator operation to one request/read attempt
+  with `sseMaxRetryAttempts: 1`, after which the wrapper exposes the generated error, waits its
+  bounded reconnect delay and starts a fresh generated stream. Focused request- and read-failure
+  tests verify the visible error, retained projection state and authoritative replacement snapshot.
+  Coordinator-client passed 8 files and 20 tests plus typecheck; coordinator passed 11 files and 38
+  tests; console passed 25 files and 102 tests; `git diff --check` passed.
 
 ## Closure review
 

@@ -41,6 +41,23 @@ const eventsThenBlock = async function* (
   yield* blockUntilAborted(signal)
 }
 
+const generatedFailure = async function* (
+  options: StreamOptions | undefined,
+  error: Error,
+  values: readonly StreamCoordinatorLiveApiLiveGetResponse[] = []
+) {
+  yield* values
+  options?.onSseError?.(error)
+}
+
+const deferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
+
 describe("coordinator SSE transport", () => {
   it("applies generated events and reconciles durable roots after every snapshot", async () => {
     useLiveStore.getState().reset()
@@ -102,6 +119,89 @@ describe("coordinator SSE transport", () => {
     await vi.waitFor(() =>
       expect(useLiveStore.getState().vehicle.speed_kph).toBe(2)
     )
+    stop()
+  })
+
+  it("owns reconnection after a generated request failure", async () => {
+    useLiveStore.getState().reset()
+    const reconnect = deferred()
+    let calls = 0
+    const operationMock = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? generatedFailure(options, new Error("fetch failed"))
+            : snapshotThenBlock(snapshot(2), options?.signal ?? undefined),
+      }
+    })
+    const operation =
+      operationMock as unknown as typeof streamCoordinatorLiveApiLiveGet
+    const sleep = vi.fn(() => reconnect.promise)
+
+    const stop = createLiveTransport({
+      queryClient: new QueryClient(),
+      streamOperation: operation,
+      sleep,
+    })
+
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().connection.error).toBe("fetch failed")
+    )
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(operationMock.mock.calls[0]?.[0]).toMatchObject({
+      sseMaxRetryAttempts: 1,
+    })
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(3_000)
+
+    reconnect.resolve()
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().vehicle.speed_kph).toBe(2)
+    )
+    expect(useLiveStore.getState().connection.error).toBeNull()
+    expect(operationMock.mock.calls[1]?.[0]).toMatchObject({
+      sseMaxRetryAttempts: 1,
+    })
+    stop()
+  })
+
+  it("retains valid state and reconnects after a generated read failure", async () => {
+    useLiveStore.getState().reset()
+    const reconnect = deferred()
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? generatedFailure(options, new Error("read failed"), [snapshot(7)])
+            : snapshotThenBlock(snapshot(8), options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamCoordinatorLiveApiLiveGet
+    const sleep = vi.fn(() => reconnect.promise)
+
+    const stop = createLiveTransport({
+      queryClient: new QueryClient(),
+      streamOperation: operation,
+      sleep,
+    })
+
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().connection.error).toBe("read failed")
+    )
+    expect(useLiveStore.getState().vehicle.speed_kph).toBe(7)
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(3_000)
+
+    reconnect.resolve()
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useLiveStore.getState().vehicle.speed_kph).toBe(8)
+    )
+    expect(useLiveStore.getState().connection.error).toBeNull()
     stop()
   })
 
