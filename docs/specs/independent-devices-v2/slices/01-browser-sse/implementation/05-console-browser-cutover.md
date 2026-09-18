@@ -163,6 +163,12 @@ claude -p "Perform the focused closure review for Workstream 5 of the browser SS
 - Final verification: Independent review reran both frontend suites, API drift checks, build,
   typechecks, 62 backend tests, mypy, Ruff, import contracts, Prettier and `git diff --check`; all
   passed.
+- Whole-feature correction: The local wrapper now limits each generated operation to one attempt and
+  preserves its terminal HTTP or read error while the wrapper waits three seconds before opening a
+  fresh stream. Focused tests cover initial fetch rejection and failure after a valid snapshot,
+  including retained CAN state and recovery from the next complete snapshot. Console passed 25
+  files and 104 tests plus typecheck and build; coordinator-client passed 8 files and 20 tests plus
+  typecheck; `git diff --check` passed.
 
 ## Closure review
 

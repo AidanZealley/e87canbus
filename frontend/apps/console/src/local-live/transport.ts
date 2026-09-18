@@ -35,6 +35,7 @@ export const createConsoleLiveTransport = ({
       let idleTimer: ReturnType<typeof setTimeout> | undefined
       let idleTimedOut = false
       let malformedRecord = false
+      let streamFailed = false
 
       const resetIdleTimer = () => {
         clearTimeout(idleTimer)
@@ -51,6 +52,7 @@ export const createConsoleLiveTransport = ({
         resetIdleTimer()
         const { stream } = await streamOperation({
           signal: connectionAbort.signal,
+          sseMaxRetryAttempts: 1,
           onSseEvent: (event) => {
             resetIdleTimer()
             if (event.data === undefined) return
@@ -68,6 +70,7 @@ export const createConsoleLiveTransport = ({
               transportAbort.signal.aborted
             )
               return
+            streamFailed = true
             useConsoleLiveStore.getState().connectionFailed(errorMessage(error))
           },
         })
@@ -77,7 +80,12 @@ export const createConsoleLiveTransport = ({
             useConsoleLiveStore.getState().applySnapshot(event.data)
         }
 
-        if (!transportAbort.signal.aborted && !idleTimedOut && !malformedRecord)
+        if (
+          !transportAbort.signal.aborted &&
+          !idleTimedOut &&
+          !malformedRecord &&
+          !streamFailed
+        )
           useConsoleLiveStore
             .getState()
             .connectionFailed("Console live stream ended")

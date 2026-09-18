@@ -37,6 +37,23 @@ const snapshotThenBlock = async function* (
   yield* blockUntilAborted(signal)
 }
 
+const generatedFailure = async function* (
+  options: StreamOptions | undefined,
+  error: Error,
+  values: readonly StreamConsoleLiveApiLiveGetResponse[] = []
+) {
+  yield* values
+  options?.onSseError?.(error)
+}
+
+const deferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
+
 describe("console SSE transport", () => {
   it("applies complete generated snapshots", async () => {
     useConsoleLiveStore.getState().reset()
@@ -87,6 +104,93 @@ describe("console SSE transport", () => {
     await vi.waitFor(() =>
       expect(useConsoleLiveStore.getState().can.frames_received).toBe(2)
     )
+    stop()
+  })
+
+  it("owns reconnection after a generated request failure", async () => {
+    useConsoleLiveStore.getState().reset()
+    const reconnect = deferred()
+    let calls = 0
+    const operationMock = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? generatedFailure(options, new Error("fetch failed"))
+            : snapshotThenBlock(2, options?.signal ?? undefined),
+      }
+    })
+    const operation =
+      operationMock as unknown as typeof streamConsoleLiveApiLiveGet
+    const sleep = vi.fn(() => reconnect.promise)
+
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      sleep,
+    })
+
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().connection.error).toBe(
+        "fetch failed"
+      )
+    )
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(operationMock.mock.calls[0]?.[0]).toMatchObject({
+      sseMaxRetryAttempts: 1,
+    })
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(3_000)
+
+    reconnect.resolve()
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().can.frames_received).toBe(2)
+    )
+    expect(useConsoleLiveStore.getState().connection.error).toBeNull()
+    expect(operationMock.mock.calls[1]?.[0]).toMatchObject({
+      sseMaxRetryAttempts: 1,
+    })
+    stop()
+  })
+
+  it("retains valid state and reconnects after a generated read failure", async () => {
+    useConsoleLiveStore.getState().reset()
+    const reconnect = deferred()
+    let calls = 0
+    const operation = vi.fn(async (options?: StreamOptions) => {
+      calls += 1
+      return {
+        stream:
+          calls === 1
+            ? generatedFailure(options, new Error("read failed"), [
+                { type: "console.snapshot", data: consoleSnapshot(7) },
+              ])
+            : snapshotThenBlock(8, options?.signal ?? undefined),
+      }
+    }) as unknown as typeof streamConsoleLiveApiLiveGet
+    const sleep = vi.fn(() => reconnect.promise)
+
+    const stop = createConsoleLiveTransport({
+      streamOperation: operation,
+      sleep,
+    })
+
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().connection.error).toBe(
+        "read failed"
+      )
+    )
+    expect(useConsoleLiveStore.getState().can.frames_received).toBe(7)
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(3_000)
+
+    reconnect.resolve()
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(useConsoleLiveStore.getState().can.frames_received).toBe(8)
+    )
+    expect(useConsoleLiveStore.getState().connection.error).toBeNull()
     stop()
   })
 
