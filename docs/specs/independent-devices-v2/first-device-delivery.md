@@ -236,6 +236,6 @@ The first delivery is complete when:
 - the simulated pad exercises the same coordinator API behavior; and
 - the old button-pad CAN path and every consumer made dead by the cutover are removed.
 
-Servotronic migration, browser Socket.IO removal and final deletion of the shared custom CAN
-protocol may be separate vertical slices. They are not required to claim that the first independent
-device works.
+Servotronic migration and final deletion of the shared custom CAN protocol may be separate vertical
+slices. They are not required to claim that the first independent device works. Browser Socket.IO
+was removed by [ADR 0017](../../decisions/0017-browser-live-state-over-sse.md).

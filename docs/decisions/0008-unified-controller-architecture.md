@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-15
+- **Partially superseded by:** [ADR 0017](0017-browser-live-state-over-sse.md), which replaces
+  Socket.IO and its browser live contract with generated SSE operations. The controller ownership,
+  bounded publication and frontend state ownership in this record remain in force.
 
 ## Context
 
