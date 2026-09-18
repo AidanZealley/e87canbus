@@ -1,7 +1,7 @@
 # Slice 02: simulated independent button pad
 
 - **Status:** Draft for approval
-- **Depends on:** [Slice 01](01-browser-sse.md),
+- **Depends on:** [ADR 0017](../../../decisions/0017-browser-live-state-over-sse.md),
   [Live and device API](../live-and-device-api.md) and
   [First device delivery](../first-device-delivery.md)
 
