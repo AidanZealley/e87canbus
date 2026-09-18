@@ -113,8 +113,8 @@ accepted workstream returns to the orchestrator for a focused review before rete
 
 ## External validation record
 
-- Status: `Pending`
-- Candidate commit: `TBD`
+- Status: `Testing`
+- Candidate commit: `9b5ba56f48c3ca431154c751014aa2f0ec6573d3`
 - Aidan's result and evidence: `TBD`
 - Troubleshooting and lasting decisions: `TBD`
 - Resume condition met: `TBD`
@@ -184,7 +184,8 @@ accepted workstream returns to the orchestrator for a focused review before rete
 
 ## Orchestrator completion record
 
-- Final head and verification: Pending correction commit hash. Final commands passed: custom
+- Final head and verification: Candidate `9b5ba56f48c3ca431154c751014aa2f0ec6573d3`.
+  Final commands passed: custom
   protocol drift, 960 backend tests, mypy, Ruff, two import contracts, diff check, both API drift
   paths, frontend typecheck/lint, 162 frontend tests and both production builds. The coordinator
   build retains its known chunk-size warning.
