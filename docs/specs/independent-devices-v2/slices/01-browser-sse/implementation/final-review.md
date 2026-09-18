@@ -127,8 +127,8 @@ accepted workstream returns to the orchestrator for a focused review before rete
   DevTools correctly attributes the eventual request to `serverSentEvents.gen.ts`; the checklist no
   longer requires an impossible SDK stack frame. Vehicle-control sliders intentionally retain
   editable drafts while open, and the 500 ms coordinator-panel query belongs only to its retained
-  development control. Both app documents now declare an empty favicon data URL so browsers do not
-  make the failing implicit request.
+  development control. Both apps now provide a car-emoji SVG favicon so browsers do not make the
+  failing implicit request.
 - Resume condition met: `TBD`
 
 ## Initial whole-feature review
