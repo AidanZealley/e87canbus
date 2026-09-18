@@ -94,11 +94,15 @@ Open `http://localhost:5173` and `http://localhost:5174`, then verify:
 3. The console Network panel shows two long-running `GET /api/live` requests at distinct origins:
    one to the coordinator backend and one through the local console origin. It shows no
    `/socket.io` or `/console/socket.io` request.
-4. In development source maps, each stream's Network initiator reaches its generated Hey API SDK
-   and `serverSentEvents.gen.ts`. The handwritten wrappers contain no raw `fetch`, `EventSource` or
-   SSE parser.
+4. In development source maps, each stream's Network initiator reaches its generated
+   `serverSentEvents.gen.ts`. Source inspection confirms the handwritten wrapper calls the generated
+   Hey API SDK operation and contains no raw `fetch`, `EventSource` or SSE parser. The SDK may not
+   appear in the asynchronous initiator stack because it returns a lazy stream.
 5. Changing a remaining simulated vehicle control updates the coordinator projection immediately
-   and the console's coordinator-backed display without a page reload or polling request.
+   and the console's coordinator-backed display without a page reload or vehicle-state polling
+   request. The open vehicle-control sliders are drafts and do not follow external changes until
+   remounted or Sweep takes ownership. The retained coordinator-panel simulator polls only its own
+   finite development resource.
 6. The console's local CAN status reaches its expected connected or fault state from the local
    stream. A missing local `kcan` interface may report a fault; it must not remain unsynchronized.
 7. The removed trace, connected-device, custom-CAN device and network-topology UI is absent.
@@ -113,10 +117,18 @@ accepted workstream returns to the orchestrator for a focused review before rete
 
 ## External validation record
 
-- Status: `Testing`
+- Status: `Troubleshooting`
 - Candidate commit: `9b5ba56f48c3ca431154c751014aa2f0ec6573d3`
-- Aidan's result and evidence: `TBD`
-- Troubleshooting and lasting decisions: `TBD`
+- Aidan's result and evidence: Checks 2-7 passed in headless Chrome and the in-app preview. Both
+  streams stayed open at distinct origins, updated projections without vehicle polling, reported the
+  expected local CAN fault and exposed no removed UI. Check 1 found only an implicit `favicon.ico`
+  404 on first load; no application exception or synchronization warning occurred.
+- Troubleshooting and lasting decisions: The SDK operation returns a lazy generated stream, so
+  DevTools correctly attributes the eventual request to `serverSentEvents.gen.ts`; the checklist no
+  longer requires an impossible SDK stack frame. Vehicle-control sliders intentionally retain
+  editable drafts while open, and the 500 ms coordinator-panel query belongs only to its retained
+  development control. Both app documents now declare an empty favicon data URL so browsers do not
+  make the failing implicit request.
 - Resume condition met: `TBD`
 
 ## Initial whole-feature review
