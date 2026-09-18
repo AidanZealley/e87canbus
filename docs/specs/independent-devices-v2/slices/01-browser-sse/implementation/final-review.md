@@ -118,7 +118,7 @@ accepted workstream returns to the orchestrator for a focused review before rete
 ## External validation record
 
 - Status: `Testing`
-- Candidate commit: `49cddd79920c7f68cdc8e4d165696c437a00e7fd`
+- Candidate commit: `531c90f3d7ca9bc46d49330cbab6f15c20b56f9f`
 - Aidan's result and evidence: Checks 2-7 passed in headless Chrome and the in-app preview. Both
   streams stayed open at distinct origins, updated projections without vehicle polling, reported the
   expected local CAN fault and exposed no removed UI. Check 1 found only an implicit `favicon.ico`
@@ -196,7 +196,7 @@ accepted workstream returns to the orchestrator for a focused review before rete
 
 ## Orchestrator completion record
 
-- Final head and verification: Candidate `49cddd79920c7f68cdc8e4d165696c437a00e7fd`.
+- Final head and verification: Candidate `531c90f3d7ca9bc46d49330cbab6f15c20b56f9f`.
   Final commands passed: custom
   protocol drift, 960 backend tests, mypy, Ruff, two import contracts, diff check, both API drift
   paths, frontend typecheck/lint, 162 frontend tests and both production builds. The coordinator
