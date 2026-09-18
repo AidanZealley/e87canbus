@@ -11,7 +11,8 @@ simulated controller receives configuration over the device SSE endpoint, calcul
 assistance from locally received vehicle speed and reports its effective output through the device
 status endpoint.
 
-The old physical Servotronic CAN protocol remains until Slice 07.
+Slice 1.5 already removed the old physical and simulated Servotronic CAN protocol. Until this slice,
+the coordinator retains desired steering state but has no Servotronic output transport.
 
 ## Configuration document
 
@@ -48,8 +49,8 @@ output changes. The simulated device treats it as persistent desired state, incl
 ## Simulated local control
 
 The simulated device receives synthetic vehicle speed from simulated vehicle CAN, not from the
-coordinator. In automatic mode it evaluates the configured curve using the existing monotone cubic
-algorithm. Missing, invalid or stale speed inhibits automatic output.
+coordinator. In automatic mode it evaluates the configured curve using the approved monotone cubic
+semantics and conformance cases. Missing, invalid or stale speed inhibits automatic output.
 
 Fixed mode applies its configured output without requiring speed. Local device or actuator faults
 may still inhibit all output. This preserves the approved rule that stored fixed configuration has
@@ -84,13 +85,12 @@ The UI may choose its manual step count independently of the device. Existing bu
 HTTP controls continue to manipulate coordinator steering state. The coordinator converts that
 state into the complete Servotronic document rather than emitting repeated actuator commands.
 
-The simulator selects either the independent device or the old custom-CAN peer. It never drives
-both from one steering change.
+The simulator runs only the independent device. Coordinator steering changes update its complete
+desired document rather than emitting actuator commands.
 
 ## Outside this slice
 
-This slice does not choose a real BMW speed signal, drive physical output, change vehicle wiring or
-delete the old Servotronic transport.
+This slice does not choose a real BMW speed signal, drive physical output or change vehicle wiring.
 
 ## Acceptance
 
@@ -105,4 +105,4 @@ The slice is complete when:
 - maximum assistance publishes fixed output `1.0`;
 - power-cycle simulation restores the last valid document semantics;
 - role-specific status passes through the production status handler; and
-- the old physical Servotronic path remains usable until Slice 07.
+- no coordinator-facing CAN transport is reintroduced.

@@ -1,6 +1,6 @@
 # ADR 0005: Represent button-pad LEDs as atomic snapshots
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0018](0018-simplify-coordinator-before-independent-devices.md)
 - **Date:** 2026-07-14
 
 ## Context

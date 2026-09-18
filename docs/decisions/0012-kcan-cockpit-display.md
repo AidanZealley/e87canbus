@@ -5,6 +5,9 @@
 - **Partially superseded by:** [ADR 0013](0013-provisioned-wifi-device-network.md), which removes
   the proposed K-CAN configuration transport. The cockpit architecture and its requirement for a
   coordinator-owned configuration contract remain proposed.
+- **Further superseded by:** [ADR 0018](0018-simplify-coordinator-before-independent-devices.md),
+  which removes the shared CAN registry and ISO-TP platform. Any later cockpit follows the
+  independent HTTPS device rules.
 
 ## Context
 

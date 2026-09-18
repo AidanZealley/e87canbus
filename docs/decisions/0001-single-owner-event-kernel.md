@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-13
+- **Partially superseded by:** [ADR 0018](0018-simplify-coordinator-before-independent-devices.md),
+  which retains single ownership and ordered inputs but removes the effect execution model.
 
 ## Context
 

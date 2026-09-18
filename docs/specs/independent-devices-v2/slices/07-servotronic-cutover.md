@@ -7,8 +7,8 @@
 ## Outcome
 
 The physical ESP32 Servotronic controller owns speed observation, assistance calculation, output
-control and failsafe behavior. It uses Wi-Fi only for configuration and status. Cutting it over
-removes the final consumer of the repository-owned CAN device protocol.
+control and failsafe behavior. It uses Wi-Fi only for configuration and status. Slice 1.5 already
+removed the repository-owned CAN device protocol.
 
 This slice must not become an implementation workflow until its hardware evidence is recorded.
 
@@ -48,20 +48,6 @@ through coordinator or Wi-Fi loss.
 `e87ctl provision servotronic-controller` issues the role certificate and flashes the common
 partition layout. Role selection changes firmware and certificate role, not the board definition.
 
-## Cutover and final deletion
-
-After bench and installed-hardware verification, remove the remaining:
-
-- CAN registry handshake and device catalogue;
-- Servotronic ISO-TP curve and control transport;
-- generated custom protocol source, outputs and checks;
-- custom project arbitration-ID configuration;
-- registry and transport state from diagnostics and simulation;
-- shared ISO-TP library if no unrelated consumer remains; and
-- tests, dependencies and documentation that describe those retired paths.
-
-The vehicle CAN decoders and simulation CAN bus remain. CAN is still the vehicle transport.
-
 ## Outside this slice
 
 This slice does not add network firmware update, configuration expiry, device-to-device control or
@@ -81,4 +67,3 @@ The slice is complete when:
 - power cycling offline restores the last accepted configuration;
 - provisioning and reflashing preserve the identity and configuration rules; and
 - no repository-owned CAN device protocol or consumer remains.
-

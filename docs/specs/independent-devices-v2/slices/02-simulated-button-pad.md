@@ -1,7 +1,8 @@
 # Slice 02: simulated independent button pad
 
-- **Status:** Draft for approval
-- **Depends on:** [ADR 0017](../../../decisions/0017-browser-live-state-over-sse.md),
+- **Status:** Approved
+- **Depends on:** [Slice 1.5](01.5-simplified-coordinator.md),
+  [ADR 0017](../../../decisions/0017-browser-live-state-over-sse.md),
   [Live and device API](../live-and-device-api.md) and
   [First device delivery](../first-device-delivery.md)
 
@@ -9,7 +10,7 @@
 
 A simulated button pad uses the production device API as an authenticated HTTPS client would. It
 receives complete LED scenes, reports the generation it applied and sends button presses through the
-real kernel input path. No project-device traffic is required on simulated CAN.
+real kernel input path. Slice 1.5 has already removed every coordinator-device CAN path.
 
 This slice introduces only the shared behavior demanded by the button pad. It does not build a
 generic plugin system for hypothetical roles.
@@ -54,12 +55,6 @@ once. It does not inject kernel events directly.
 
 The simulator does not pretend to exercise nginx, TLS, flash persistence or physical CAN.
 
-## Temporary boundary
-
-The old simulated and physical custom-CAN button-pad paths may remain while this new client is
-introduced. A composition selects one path; it never delivers the same press or scene through both.
-The shared CAN registry and Servotronic transport remain untouched.
-
 ## Outside this slice
 
 This slice does not build ESP32 firmware, add `e87ctl` firmware commands, expose admin diagnostics
@@ -79,4 +74,4 @@ The slice is complete when:
 - one simulated press reaches the production kernel input once;
 - an ambiguous button request is not retried;
 - configuration generation survives coordinator restart and never advances for a reconnect; and
-- the old CAN device paths still work in compositions that have not migrated.
+- no coordinator or project-device CAN path is reintroduced.

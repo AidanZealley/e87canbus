@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-13
+- **Partially superseded by:** [ADR 0018](0018-simplify-coordinator-before-independent-devices.md),
+  which removes the unused executor while retaining default-deny and bounded CAN transmission as
+  requirements for a future named vehicle action.
 
 ## Context
 

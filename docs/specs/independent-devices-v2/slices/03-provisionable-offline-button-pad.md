@@ -16,12 +16,13 @@ behavior is added.
 
 ## Firmware project
 
-The ESP32 project replaces the AVR source under `devices/button-pad/`. The coordinator's old CAN
-button-pad support remains temporarily for already-flashed hardware.
+The slice creates the ESP32 project under `devices/button-pad/`. Slice 1.5 already removed the old AVR
+source and coordinator-facing CAN protocol, so this project starts from the independent JSON scene
+and local hardware behavior.
 
 The project uses the selected board's explicit 8 MB configuration and checked-in partition table.
-It may reuse `embedded-libs/button_pad_effects` if that remains the smallest renderer. Any AVR-only
-wrapper or transport dependency made dead by replacing the firmware is removed.
+Implement the small ESP32-side renderer directly from the approved scene schema. Slice 1.5 removes
+the old AVR renderer; do not restore or wrap it as shared compatibility code.
 
 Firmware starts button scanning and rendering before touching network identity. It restores one
 strictly validated configuration envelope from `e87cfg`, falling back to a compiled safe scene. An

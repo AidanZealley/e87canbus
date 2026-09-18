@@ -1,6 +1,6 @@
 # ADR 0004: Generate repository-owned protocol artifacts from one source
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0018](0018-simplify-coordinator-before-independent-devices.md)
 - **Date:** 2026-07-13
 
 ## Context

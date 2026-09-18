@@ -26,9 +26,28 @@ application state until the coordinator returns.
 CAN carries vehicle observations and vehicle actuation. It does not carry device discovery,
 configuration, status, or coordinator commands.
 
-The generated custom protocol, CAN device registry and ISO-TP configuration transport are removed
-after their final device consumer has migrated. Device roles may migrate one at a time. An unmigrated
-role may keep its old CAN path temporarily, but no new feature extends that path.
+Slice 1.5 removes the generated custom protocol, CAN device registry, ISO-TP configuration
+transport and both old device implementations before new device work continues. No compatibility
+path remains for either role. Until a role gains its HTTPS implementation, the coordinator retains
+its desired application state but has no transport to that device.
+
+A future device may transmit directly to the car over CAN for a separately specified vehicle action.
+That would be vehicle actuation, not coordinator or inter-device communication. This plan adds no
+protocol, configuration field or extension point for it.
+
+### 2.1 The coordinator keeps four responsibilities
+
+The single-owner kernel:
+
+1. decodes and retains vehicle observations;
+2. applies operator and button intents to desired coordinator state;
+3. manages active profiles and curves; and
+4. publishes complete projections for browser SSE and device configuration.
+
+Device identity, durable envelopes, last-reported status and stream subscribers remain outside the
+kernel. The coordinator has no current vehicle actuator. Slice 1.5 therefore removes its generic
+effect executor and high-beam flash simulation. A later capture-backed vehicle action may add one
+direct typed encoder and a bounded transmit capability without restoring that framework.
 
 ### 3. The coordinator owns device configuration
 

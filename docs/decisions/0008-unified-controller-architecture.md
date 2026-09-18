@@ -5,6 +5,9 @@
 - **Partially superseded by:** [ADR 0017](0017-browser-live-state-over-sse.md), which replaces
   Socket.IO and its browser live contract with generated SSE operations. The controller ownership,
   bounded publication and frontend state ownership in this record remain in force.
+- **Further partially superseded by:** [ADR 0018](0018-simplify-coordinator-before-independent-devices.md),
+  which removes project-device adapters, effect execution and applied-device state while retaining
+  the controller owner and ordered input boundary.
 
 ## Context
 

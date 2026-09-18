@@ -59,7 +59,6 @@ The first record has type `snapshot` and contains every live projection the brow
     "engine": {},
     "steering": {},
     "buttons": {},
-    "lighting": {},
     "health": {}
   }
 }

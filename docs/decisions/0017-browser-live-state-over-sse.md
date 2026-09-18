@@ -5,6 +5,8 @@
 - **Partially supersedes:** [ADR 0008](0008-unified-controller-architecture.md), which selected
   Socket.IO for browser live-state replication. Its controller ownership, bounded publication and
   frontend state ownership remain in force.
+- **Partially superseded by:** [ADR 0018](0018-simplify-coordinator-before-independent-devices.md),
+  which removes the registry and applied-device projections that this record left in the backend.
 
 ## Context
 

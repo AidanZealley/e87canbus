@@ -204,18 +204,14 @@ ID.
 
 ## Migration and removal
 
-The new firmware and HTTPS path are proven before the button pad's custom CAN path is removed. The
-repository may temporarily contain the new button-pad path beside the old Servotronic protocol.
+Slice 1.5 removes both roles' old coordinator-facing CAN paths before independent device work
+starts. This includes the generated protocol, registry, ISO-TP, simulated peers, old firmware
+projects and every host or frontend consumer. It also removes coordinator-owned button feedback,
+Servotronic execution and the simulator-only high-beam flash feature. Git retains their history. No
+compatibility path or fallback remains in the live tree.
 
-After button-pad cutover, remove button-pad-specific registry messages, routing, effects, codecs,
-generated constants, simulator controls, frontend fields and tests that no longer have a consumer.
-Keep shared registry or ISO-TP machinery only while Servotronic still uses it. Do not retain a
-button-pad compatibility path or fallback.
-
-The AVR project is replaced by the ESP32 project in `devices/button-pad/`. Git retains the old
-implementation; the live tree does not need a second compilable reference copy. The independently
-tested button-pad effect renderer may be reused if it fits the new firmware cleanly, otherwise the
-replacement owns an equivalent small renderer and the unused library is deleted.
+Slice 03 creates the ESP32 project in the now-empty `devices/button-pad/` location. Its renderer is
+implemented against the independent JSON scene. It does not preserve the old CAN program encoding.
 
 The coordinator-panel firmware and upload script are unrelated and remain unchanged.
 
@@ -234,8 +230,7 @@ The first delivery is complete when:
 - power cycling without the coordinator restores the last accepted scene;
 - invalid configuration leaves the last good scene active and appears in last reported status;
 - the simulated pad exercises the same coordinator API behavior; and
-- the old button-pad CAN path and every consumer made dead by the cutover are removed.
+- no repository-owned coordinator-device CAN path remains.
 
-Servotronic migration and final deletion of the shared custom CAN protocol may be separate vertical
-slices. They are not required to claim that the first independent device works. Browser Socket.IO
-was removed by [ADR 0017](../../decisions/0017-browser-live-state-over-sse.md).
+Browser Socket.IO was removed by
+[ADR 0017](../../decisions/0017-browser-live-state-over-sse.md).
