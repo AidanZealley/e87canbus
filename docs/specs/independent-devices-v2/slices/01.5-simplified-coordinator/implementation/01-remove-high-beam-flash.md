@@ -6,22 +6,24 @@ Status: not started.
 
 ### Outcome
 
-The simulator-only high-beam flash command, state and UI are gone. Stored button profiles preserve
-their other bindings and turn every retired high-beam slot into an unassigned slot.
+The simulator-only high-beam flash command, state and UI are gone. A fresh database contains one
+selected empty `Default` button profile with no product-specific assignments.
 
 ### Scope
 
-- Remove `start_high_beam_strobe` from domain intents, the button command catalogue, built-in
+- Remove `start_high_beam_strobe` from domain intents, the button command catalogue,
   profiles, request/response models, generated catalogue and both profile editors.
-- Add the ordered SQLite migration that rewrites only affected stored slots to unassigned and
-  advances profile revision according to the repository's existing rules.
+- Do not migrate existing application databases. Record that prototype databases must be replaced.
+- Seed one protected, selected profile named `Default` with exactly sixteen unassigned slots.
+- Remove command-specific built-in assignments, reserved button indexes and configurable high-beam
+  placement. Keep the non-empty catalogue and selected-profile invariants.
 - Remove high-beam timing configuration, application state, transition logic, deadlines, effects,
   simulated actuator and private simulation frame.
 - Remove the lighting state topic, live projection, dashboard display and simulator control that
   exist only for this feature.
 - Regenerate OpenAPI, Hey API and button-command catalogue artifacts from their sources.
-- Delete tests and fixtures that only prove the retired behavior. Retain tests that protect profile
-  migration and unrelated commands.
+- Delete tests and fixtures that only prove the retired behavior. Retain tests that protect the
+  empty seed, selection invariant and unrelated profile operations.
 
 ### Non-goals
 
@@ -32,34 +34,36 @@ their other bindings and turn every retired high-beam slot into an unassigned sl
 ### Initial ownership
 
 - high-beam portions of `hosts/src/e87canbus/config.py`, domain state, intents, reducer and snapshots
-- button profile catalogue, persistence migration and API models
+- button profile catalogue, fresh-database seed and API models
 - simulation high-beam protocol, actuator and vehicle state
 - coordinator and console frontend lighting/profile consumers
 - generated OpenAPI, coordinator client and button-command catalogue artifacts
 - focused backend and frontend tests and current documentation
 
 Integration exception: update the controller deadline calculation and live model only as required to
-remove this feature. Workstream 5 owns broader contract simplification.
+remove this feature. Workstream 4 owns broader contract simplification.
 
 ### Required seams
 
-- Migration rewrites the command structurally. It does not use a permanent deprecated parser at the
-  current API boundary.
-- A profile with several bindings loses only high-beam slots. Its remaining slot order, authored
-  colour, animation and identity survive.
-- The built-in profile leaves the old high-beam slot unassigned rather than replacing it with a new
-  command.
+- A fresh database has one selected `Default` profile containing sixteen unassigned slots.
+- The seed does not name or instantiate any button command.
+- Existing prototype databases have no compatibility parser or migration path.
 - No generated file is hand-edited.
 
 ### Acceptance criteria
 
 - No API or editor can create or return `start_high_beam_strobe`.
-- A database containing that command upgrades with only those slots cleared and remains readable.
+- A fresh database contains the selected empty `Default` profile and supports profile CRUD and
+  selection without nullable-profile machinery.
 - High-beam state, effects, deadlines, simulation frames, live fields and UI are absent.
 - Other button commands and profile CRUD still work.
 - Repository searches find no retained high-beam flash implementation or compatibility spelling.
 
 ### Targeted verification
+
+Run these once on the starting commit before any implementation diff exists and record the
+baseline in the plan's orchestration record, so pre-existing failures are not attributed to this
+workstream.
 
 Run from the repository root:
 
@@ -86,13 +90,13 @@ pnpm --filter @e87canbus/console test
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 1 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/01-remove-high-beam-flash.md, Slice 1.5, ADR 0018 and linked product documents. Inspect the uncommitted diff and surrounding profile migration, command catalogue, domain state, timers, simulation, live models, generated contracts and frontend consumers. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that the feature is completely removed, stored profiles lose only retired slots, no compatibility parser or future action hook remains, and unrelated profile behavior survives." --model opus --effort medium --permission-mode plan
+claude -p "Act as the independent reviewer for Workstream 1 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/01-remove-high-beam-flash.md, Slice 1.5, ADR 0018 and linked product documents. Inspect the uncommitted diff and surrounding fresh-database seed, profile catalogue, domain state, timers, simulation, live models, generated contracts and frontend consumers. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that the feature and its command-specific defaults are completely removed, a fresh database has one selected empty Default profile, no migration, compatibility parser or future action hook remains, and unrelated profile behavior survives." --model opus --effort medium --permission-mode plan
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 1 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking migration, contract or incomplete-deletion defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+claude -p "Perform the focused closure review for Workstream 1 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking seed, contract or incomplete-deletion defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
 ```
 
 ## Implementation handoff
@@ -107,11 +111,11 @@ claude -p "Perform the focused closure review for Workstream 1 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -123,4 +127,3 @@ claude -p "Perform the focused closure review for Workstream 1 of the simplified
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

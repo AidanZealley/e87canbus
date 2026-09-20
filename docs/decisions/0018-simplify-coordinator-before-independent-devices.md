@@ -63,7 +63,8 @@ handlers rather than virtual project-device CAN peers.
   independent clients.
 - The driving UI loses device availability, applied Servotronic and high-beam flash state that no
   longer describes a live capability.
-- Stored button profiles that contain the retired high-beam command migrate that slot to unassigned.
+- Existing prototype databases are replaced. A fresh database seeds one selected empty `Default`
+  button profile with no product-specific assignments.
 - The single-owner queue, typed inputs, immutable state, vehicle decoding and changed projections
   remain.
 - Future CAN transmission starts from a specific vehicle feature instead of a dormant framework.

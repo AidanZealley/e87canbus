@@ -31,6 +31,9 @@ transport and both old device implementations before new device work continues. 
 path remains for either role. Until a role gains its HTTPS implementation, the coordinator retains
 its desired application state but has no transport to that device.
 
+Slice 1.5 also removes the old device role and deployment types. Slice 02 introduces role identity
+at the certificate and HTTP authorization boundary where the new system first uses it.
+
 A future device may transmit directly to the car over CAN for a separately specified vehicle action.
 That would be vehicle actuation, not coordinator or inter-device communication. This plan adds no
 protocol, configuration field or extension point for it.

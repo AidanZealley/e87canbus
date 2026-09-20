@@ -2,19 +2,23 @@
 
 Status: not started. Begin only after every workstream is accepted.
 
+The final-review lead owns the Final row in [plan.md](plan.md), triages the findings,
+sends each accepted correction to a fresh implementation agent, runs focused closure, writes this
+record and makes one commit.
+
 ## Reviewer task packet
 
 Review the complete branch against the starting commit in [plan.md](plan.md), Slice 1.5, ADR 0018
 and the linked product documents. Read accepted handoffs, then independently inspect the cumulative
 diff and surrounding code.
 
-Audit complete removal, stored-profile migration, retained desired state, vehicle decoding,
+Audit complete removal, the fresh-database empty profile seed, retained desired state, vehicle decoding,
 single-owner ordering, runtime lifecycle, browser contracts, generated artifacts, dependency
 direction, stale mocks and unjustified machinery.
 
 Trace these cases end to end:
 
-- a stored profile containing high-beam flash upgrades with only that slot cleared;
+- a fresh database contains one selected `Default` profile with sixteen unassigned slots;
 - vehicle frames retain network and ingress time, decode once and update the browser projection;
 - desired steering, curve and profile changes work without a device registry or actuator;
 - browser SSE publishes complete current projections with its one boot-scoped revision source;
@@ -22,8 +26,8 @@ Trace these cases end to end:
 - simulation supplies vehicle input without project-device peers or a second state owner.
 
 Search the full repository for the removed command, custom protocol, registry, ISO-TP, old firmware,
-device source/lifecycle, effect execution, applied Servotronic, lighting topic and project-device
-simulation controls.
+`DeviceRole`, `DeviceSource`, device lifecycle and catalogue types, effect execution, applied
+Servotronic, lighting topic and project-device simulation controls.
 
 Confirm every retained kernel concern supports vehicle observations, desired intents, profiles and
 curves, or complete publication projections. Reject compatibility facades, no-op shells, empty
@@ -34,13 +38,13 @@ unions, generic output hooks and configuration retained only for a hypothetical 
 Initial whole-feature review:
 
 ```text
-claude -p "Act as the whole-feature reviewer for the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/README.md, plan.md, all five accepted workstream records, Slice 1.5, ADR 0018 and every source linked by the README. Review the complete branch diff against the starting commit and inspect surrounding code. Run proportionate read-only checks. Do not edit files. Audit high-beam profile migration; complete removal of button-pad and Servotronic transport and execution; deletion of custom protocol, registry, ISO-TP, old firmware, project-device simulation and effect machinery; preservation of desired steering, profiles, curves and vehicle observations; single-owner ordering; runtime lifecycle; browser SSE revisions; generated contracts; dependencies; stale mocks; and unjustified abstractions. Trace the specified end-to-end cases and classify evidence-backed findings as Required, Optional or Question, grouped by original workstream owner." --model opus --effort medium --permission-mode plan
+claude -p "Act as the whole-feature reviewer for the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/README.md, plan.md, all four accepted workstream records, Slice 1.5, ADR 0018 and every source linked by the README. Review the complete branch diff against the starting commit and inspect surrounding code. Run proportionate read-only checks. Do not edit files. Audit removal of high-beam and command-specific defaults; the fresh-database selected empty Default profile; complete removal of button-pad and Servotronic transport and execution; deletion of DeviceRole, DeviceSource, custom protocol, registry, ISO-TP, old firmware, project-device simulation and effect machinery; preservation of desired steering, profiles, curves and vehicle observations; single-owner ordering; runtime lifecycle; browser SSE revisions; generated contracts; dependencies; stale mocks; and unjustified abstractions. Trace the specified end-to-end cases and classify evidence-backed findings as Required, Optional or Question, grouped by original workstream owner." --model opus --effort medium --permission-mode plan
 ```
 
 Focused closure review:
 
 ```text
-claude -p "Perform the focused whole-feature closure review for the simplified coordinator workflow. Read final-review.md including the Initial whole-feature review and Orchestrator triage, plus affected workstream Resolution records. Inspect the cumulative branch diff against the recorded starting commit. Verify every accepted Required finding and check its correction for release-blocking migration, ownership, vehicle-decoding, publication, lifecycle or incomplete-deletion defects. Do not reopen optional suggestions or perform another open-ended review. Do not edit files. Return a final verdict and any remaining blockers with evidence." --model opus --effort medium --permission-mode plan
+claude -p "Perform the focused whole-feature closure review for the simplified coordinator workflow. Read final-review.md including the Initial whole-feature review and Lead triage, plus affected workstream Resolution records. Inspect the cumulative branch diff against the recorded starting commit. Verify every accepted Required finding and check its correction for release-blocking database seed, ownership, vehicle-decoding, publication, lifecycle or incomplete-deletion defects. Do not reopen optional suggestions or perform another open-ended review. Do not edit files. Return a final verdict and any remaining blockers with evidence." --model opus --effort medium --permission-mode plan
 ```
 
 ## Final verification
@@ -79,7 +83,7 @@ not claim a physical actuation result.
 - Questions: `TBD`
 - Verdict: `TBD`
 
-## Orchestrator triage
+## Lead triage
 
 - Accepted findings and owners: `TBD`
 - Rejected findings and reasons: `TBD`
@@ -98,9 +102,8 @@ not claim a physical actuation result.
 - Remaining blockers: `TBD`
 - Verdict: `TBD`
 
-## Orchestrator completion record
+## Completion record
 
-- Final head and verification: `TBD`
+- Final verification: `TBD`
 - External validation pending: None for Slice 1.5.
 - Specification drift: `TBD`
-- Completion report delivered: `TBD`

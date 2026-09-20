@@ -17,6 +17,10 @@ rendered byte program, press ingress or coordinator-owned acknowledgement feedba
   acknowledgement blinks, and effect-origin button correlation where button output was its consumer.
 - Preserve profile assignment, authored colours and animations, command active-state evaluation and
   active profile identity. Do not create the Slice 02 JSON scene yet.
+- Retain `ButtonPressed` and the kernel's press-to-intent dispatch, deleting only its CAN producer
+  and the registry eligibility gate in front of it. Applying button intents to desired state is
+  retained responsibility 2, so the input type keeps an approved consumer. It deliberately has no
+  producer until Slice 02 adds the HTTP route; do not delete it as an orphan.
 - Remove raw button programs and feedback from browser live models and consumers.
 - Delete the old AVR firmware, its protocol headers, the NeoTrellis CAN peer and button-specific
   simulator controls.
@@ -39,7 +43,7 @@ rendered byte program, press ingress or coordinator-owned acknowledgement feedba
 - affected backend and frontend tests and documentation
 
 Integration exception: keep the shared generated protocol, registry and ISO-TP files compiling for
-Servotronic until Workstream 4. Do not preserve any button-pad definition within them.
+Servotronic until Workstream 3. Do not preserve any button-pad definition within them.
 
 ### Required seams
 
@@ -72,7 +76,9 @@ uv run lint-imports
 git diff --check
 ```
 
-Run affected frontend live and profile tests plus application type checks.
+Run affected frontend live and profile tests plus application type checks. A deleted test file is
+not a failed check when it covered only removed behavior. Record that deletion and run the surviving
+tests for profile authoring, desired command behavior, Servotronic and vehicle CAN.
 
 ## Review commands
 
@@ -100,11 +106,11 @@ claude -p "Perform the focused closure review for Workstream 2 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -116,4 +122,3 @@ claude -p "Perform the focused closure review for Workstream 2 of the simplified
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

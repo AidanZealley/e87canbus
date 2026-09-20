@@ -210,6 +210,10 @@ projects and every host or frontend consumer. It also removes coordinator-owned 
 Servotronic execution and the simulator-only high-beam flash feature. Git retains their history. No
 compatibility path or fallback remains in the live tree.
 
+Because the project is still a prototype, Slice 1.5 replaces existing application databases instead
+of migrating retired commands. A fresh database starts with one selected empty `Default` button
+profile.
+
 Slice 03 creates the ESP32 project in the now-empty `devices/button-pad/` location. Its renderer is
 implemented against the independent JSON scene. It does not preserve the old CAN program encoding.
 

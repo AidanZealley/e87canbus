@@ -1,4 +1,4 @@
-# Workstream 5: Reduce the coordinator to its retained responsibilities
+# Workstream 4: Reduce the coordinator to its retained responsibilities
 
 Status: not started.
 
@@ -73,7 +73,7 @@ their only consumer. Preserve API behavior that Slice 1.5 explicitly retains.
 Run from the repository root:
 
 ```text
-uv run pytest -q hosts/tests/test_architecture.py hosts/tests/test_controller_loop.py hosts/tests/test_runtime.py hosts/tests/test_runtime_activation.py hosts/tests/test_simulation_runtime.py hosts/tests/test_simulator_api.py hosts/tests/test_live.py hosts/tests/test_live_publication.py hosts/tests/test_application_controller.py
+uv run pytest -q hosts/tests/test_architecture.py hosts/tests/test_controller_loop.py hosts/tests/test_runtime.py hosts/tests/test_simulation_runtime.py hosts/tests/test_simulator_api.py hosts/tests/test_live.py hosts/tests/test_live_publication.py hosts/tests/test_application_controller.py
 uv run python scripts/generate_openapi.py --check
 uv run mypy
 uv run ruff check hosts scripts/generate_openapi.py
@@ -89,18 +89,21 @@ pnpm typecheck
 pnpm test
 ```
 
+A deleted test file is not a failed check when it covered only removed behavior. Record that deletion
+and run the surviving tests for each retained behavior named in the acceptance criteria.
+
 ## Review commands
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 5 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/05-simplify-coordinator-core.md, all accepted handoffs, Slice 1.5, ADRs 0001, 0003, 0008, 0017 and 0018. Inspect the cumulative code around the kernel, commit contract, controller loop, runtimes, diagnostics, simulation and browser publication. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Trace each retained concern to the four approved responsibilities. Check ordered ownership, timestamps, bounded inbox, desired state, profiles and curves, vehicle decoding, changed topics and SSE revisions. Reject dead abstractions, duplicate authority, unnecessary deadlines, merged runtimes without benefit and speculative output machinery." --model opus --effort medium --permission-mode plan
+claude -p "Act as the independent reviewer for Workstream 4 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/04-simplify-coordinator-core.md, all accepted handoffs, Slice 1.5, ADRs 0001, 0003, 0008, 0017 and 0018. Inspect the cumulative code around the kernel, commit contract, controller loop, runtimes, diagnostics, simulation and browser publication. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Trace each retained concern to the four approved responsibilities. Check ordered ownership, timestamps, bounded inbox, desired state, profiles and curves, vehicle decoding, changed topics and SSE revisions. Confirm no old device role, transport, output or simulation type survived Workstream 3. Reject dead abstractions, duplicate authority, unnecessary deadlines, merged runtimes without benefit and speculative output machinery." --model opus --effort medium --permission-mode plan
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 5 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking ownership, ordering, publication, lifecycle or simplification defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+claude -p "Perform the focused closure review for Workstream 4 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking ownership, ordering, publication, lifecycle or simplification defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
 ```
 
 ## Implementation handoff
@@ -115,11 +118,11 @@ claude -p "Perform the focused closure review for Workstream 5 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -131,4 +134,3 @@ claude -p "Perform the focused closure review for Workstream 5 of the simplified
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`
