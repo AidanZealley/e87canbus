@@ -16,8 +16,9 @@ route remains closed because this workstream opens none.
   existing console and operator cases.
 - Replace the console-only SAN classifier with one closed parser for `console`, `button-pad` and
   `servotronic-controller`.
-- Parse the canonical hyphenated certificate role directly into the lean `DeviceRole` left by
-  Slice 1.5. There is no legacy transport vocabulary to map or preserve.
+- Introduce a lean closed `DeviceRole` at this certificate identity boundary. Parse the canonical
+  hyphenated certificate role directly into it. There is no legacy transport vocabulary to map or
+  preserve.
 - Put the authenticated principal on request state after authentication so later route handlers can
   use the identity established by middleware.
 - Preserve loopback-only trust for verification and certificate headers, exactly one URI SAN,
@@ -96,11 +97,11 @@ claude -p "Perform the focused closure review for Workstream 2 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -112,4 +113,3 @@ claude -p "Perform the focused closure review for Workstream 2 of the simulated 
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

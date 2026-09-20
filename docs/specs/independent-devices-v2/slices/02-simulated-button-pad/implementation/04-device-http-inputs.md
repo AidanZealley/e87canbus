@@ -49,8 +49,10 @@ Do not add the simulated client or alter configuration publisher lifecycle.
 
 ### Required seams
 
-- Status parsing selects the role schema after authentication. A body cannot name or spoof role or
-  device ID, and a Servotronic principal cannot post a button-pad-shaped status.
+- Status parsing validates the button-pad status model after the role check. With one supported
+  role and an empty status object there is nothing to select between, so do not build role-schema
+  dispatch; Slice 06 adds it when a second schema exists. A body cannot name or spoof role or
+  device ID, and a Servotronic principal is rejected by the role check before any status parsing.
 - `button_index` is a non-boolean integer from 0 through 15. The route constructs one
   `ButtonPressed(index, observed_at=monotonic_clock())` and submits it once.
 - The controller remains the only kernel owner. The HTTP handler never calls the kernel directly.
@@ -118,11 +120,11 @@ claude -p "Perform the focused closure review for Workstream 4 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -134,4 +136,3 @@ claude -p "Perform the focused closure review for Workstream 4 of the simulated 
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

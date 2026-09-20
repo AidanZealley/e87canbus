@@ -14,6 +14,7 @@ transient press-feedback state.
 
 - Define the button-pad configuration models used by persistence, HTTP and simulation later in this
   workflow.
+- Port the colour and animation resolution named below rather than reinventing it.
 - Project the active button profile and coordinator state into exactly 16 resolved button entries.
 - Include global brightness `255` in this first delivery.
 - Resolve each button's current colour from its configured inactive and active colours.
@@ -38,6 +39,36 @@ transient press-feedback state.
 Integration exception: make the smallest direct adjustment to the coordinator snapshot assembly if
 that is the natural home for the projection. Do not open routes or introduce storage.
 
+### Source to port
+
+Slice 1.5 deletes `hosts/src/e87canbus/domain/controller/button_leds.py`, because its output type
+`SetButtonPadProgram` and its browser `button_pad_program` consumer both go with the old device
+platform. Its colour resolution is the most mature behavior in this area and is what this
+workstream needs. Read it at the Slice 1.5 starting commit recorded in that workflow's plan and port
+the state derivation and track rendering.
+
+Preserve these decisions exactly:
+
+- Three report states derive from the profile, never from the button index: an empty slot is
+  unassigned, an assigned slot whose command condition holds is active, and any other assigned slot
+  is inactive. Slice 1.5 removes the fourth `UNAVAILABLE` state with Servotronic availability
+  gating; do not port it.
+- An unassigned button renders solid off.
+- An inactive button renders its authored colour scaled to a resting brightness of 8/255, rounded
+  to the nearest byte rather than truncated. Truncation moves amber a step darker than the pad has
+  ever shown, because 191 green scales to 5.99.
+- An inactive button is static even when its slot authors an animation.
+- An active button renders at full authored brightness. `active_colour` is reserved and always
+  `None`, meaning the slot's `colour` at full brightness.
+- A blink animation resolves back to the resting colour; a breathe animation resolves back to its
+  own colour.
+
+Do not port the `ButtonLedPresenter` protocol or the `ButtonLedProjection` dataclass. Both are
+seams for a replaceable presenter that has one implementation. Port the functions directly.
+
+Do not port the press-feedback blink overlay. It is coordinator-owned feedback that Slice 1.5
+removes and this slice excludes.
+
 ### Required seams
 
 - One validated scene model is shared by the later repository and API boundary; do not duplicate a
@@ -52,7 +83,8 @@ that is the natural home for the projection. Do not open routes or introduce sto
 ### Acceptance criteria
 
 - A valid profile projects to exactly 16 ordered button entries and global brightness `255`.
-- Active and inactive colours resolve correctly from current coordinator state.
+- Active and inactive colours resolve correctly from current coordinator state, including the
+  ported resting brightness and its nearest-byte rounding.
 - A configured animation appears only while its action is active.
 - The model contains no press-feedback, CAN, registry, connection or applied-generation field.
 - Invalid incomplete or oversized scenes fail validation at the model boundary.
@@ -98,11 +130,11 @@ claude -p "Perform the focused closure review for Workstream 1 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -114,4 +146,3 @@ claude -p "Perform the focused closure review for Workstream 1 of the simulated 
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

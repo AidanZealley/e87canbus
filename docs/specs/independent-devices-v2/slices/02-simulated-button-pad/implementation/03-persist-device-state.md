@@ -19,8 +19,9 @@ directly.
   status receipt time. Reject a stored identity/role mismatch rather than silently reassigning it.
 - Use transactions so document comparison, generation increment and replacement are atomic across
   concurrent first contact and publication.
-- Enforce non-negative JSON-safe generations with maximum `9007199254740991`; reject a real change
-  at the maximum instead of wrapping.
+- Store generations as non-negative JSON-safe integers. Do not add a ceiling check: a generation
+  advances only when a person edits a button profile, so exhausting the JSON-safe range is not a
+  reachable condition and guarding it is untestable ceremony.
 - Store receipt time from an injectable coordinator UTC clock. Do not use it as presence, expiry or
   heartbeat state.
 - Wire the repository through `create_app` using the existing shared `SqliteApplicationDatabase`
@@ -61,7 +62,6 @@ add routes or publisher lifecycle.
 - First get-or-create, identical replacement, changed replacement and process restart exhibit the
   approved generation behavior.
 - Concurrent first contacts cannot create duplicate rows or skip/manufacture a generation.
-- A change at the JSON-safe maximum fails without modifying the stored envelope.
 - A valid status replaces the prior last-reported value and receipt time; no background update or
   expiry occurs.
 - Database errors cross the existing persistence error boundary rather than leaking raw SQLite
@@ -86,7 +86,7 @@ The implementation agent creates `hosts/tests/test_device_state_repository.py`.
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding SQLite migration, connection policy, repositories and app composition. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check upgrade safety, transaction boundaries under concurrent first contact and replacement, exact compare-before-increment behavior, JSON-safe overflow rejection, restart durability, identity-role mismatch handling, UTC status receipt time and absence of an event log, cache or generic payload abstraction." --model opus --effort medium --permission-mode plan
+claude -p "Act as the independent reviewer for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding SQLite migration, connection policy, repositories and app composition. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check upgrade safety, transaction boundaries under concurrent first contact and replacement, exact compare-before-increment behavior, restart durability, identity-role mismatch handling, UTC status receipt time and absence of an event log, cache or generic payload abstraction." --model opus --effort medium --permission-mode plan
 ```
 
 Closure review:
@@ -107,11 +107,11 @@ claude -p "Perform the focused closure review for Workstream 3 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -123,4 +123,3 @@ claude -p "Perform the focused closure review for Workstream 3 of the simulated 
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`

@@ -1,4 +1,4 @@
-# Workstream 7: Run the simulated pad through the production API
+# Workstream 6: Run the simulated pad through the production API
 
 Status: not started.
 
@@ -55,6 +55,9 @@ declared contract changes. Do not add frontend UI or alter the production device
 - The route-specific ASGI loop verifies the response status and headers, frames arbitrary body
   chunks correctly, supplies disconnect on shutdown and keeps a bounded handoff to the client. It is
   not exported as infrastructure for other streams.
+- This workstream proves the production path, not the transport. Workstream 5's route tests remain
+  the authority on cancellation and slow-consumer disconnect; do not restate them through the
+  hand-written loop, which could hide the defect they exist to catch.
 - Its requests traverse the production certificate parser, route authorization, request models and
   handlers. The private wrapper exists solely because the local simulator intentionally serves its
   browser API without production authentication.
@@ -110,13 +113,13 @@ yet exist.
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 7 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/07-simulated-button-pad-client.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding FastAPI lifespan, private ASGI transport, authentication middleware, simulation client, deployment composition and development tap route. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that every simulated config, status and press crosses production parsing and handlers; the private auth wrapper does not weaken the served app; status follows apply; presses are never retried; startup and shutdown are bounded; and no deleted CAN device peer, protocol or double-delivery path returns. Reject a generic simulated-device framework or restored device UI." --model opus --effort medium --permission-mode plan
+claude -p "Act as the independent reviewer for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding FastAPI lifespan, private ASGI transport, authentication middleware, simulation client, deployment composition and development tap route. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that every simulated config, status and press crosses production parsing and handlers; the private auth wrapper does not weaken the served app; status follows apply; presses are never retried; startup and shutdown are bounded; and no deleted CAN device peer, protocol or double-delivery path returns. Reject a generic simulated-device framework or restored device UI." --model opus --effort medium --permission-mode plan
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 7 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/07-simulated-button-pad-client.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking production-path, lifecycle, authentication or double-delivery defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+claude -p "Perform the focused closure review for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking production-path, lifecycle, authentication or double-delivery defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
 ```
 
 ## Implementation handoff
@@ -131,11 +134,11 @@ claude -p "Perform the focused closure review for Workstream 7 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD`
+- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
-- Questions for orchestrator: `TBD`
+- Questions: `TBD`
 
 ## Resolution
 
@@ -147,4 +150,3 @@ claude -p "Perform the focused closure review for Workstream 7 of the simulated 
 
 - Verdict: `TBD`
 - Remaining required findings: `TBD`
-- Accepted commit: `TBD`
