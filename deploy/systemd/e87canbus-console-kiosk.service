@@ -7,6 +7,9 @@ Conflicts=getty@tty7.service
 [Service]
 Type=simple
 User=e87-kiosk
+# Chromium's profile and cache live here so the SD card sees no browser writes.
+RuntimeDirectory=e87canbus-kiosk
+RuntimeDirectoryMode=0700
 PAMName=login
 Environment=XDG_SEAT=seat0
 Environment=XDG_VTNR=7

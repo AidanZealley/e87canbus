@@ -513,6 +513,7 @@ def test_hardware_checkpoint_script_covers_both_roles_and_parses() -> None:
         'pmf connection show e87canbus-console-wifi)" = 3',
         "/var/lib/e87-kiosk/.pki/nssdb/cert9.db",
         "command -v cage >/dev/null && command -v chromium >/dev/null",
+        "Chromium browser state is volatile",
         'find /dev/dri -maxdepth 1 -name "card*"',
         "ID_INPUT_TOUCHSCREEN=1",
         "e87canbus-console-kiosk.service",
@@ -861,6 +862,20 @@ def test_console_layer_installs_lite_kiosk_packages_and_canonical_assets() -> No
         "e87canbus-hotspot",
     ):
         assert coordinator_asset not in customize
+
+
+def test_kiosk_browser_state_stays_off_the_card() -> None:
+    """The unit's tmpfs directory and the script's Chromium paths must agree."""
+    unit = read(ROOT / "deploy/systemd/e87canbus-console-kiosk.service")
+    script = read(ROOT / "deploy/kiosk/start-console-kiosk.sh")
+
+    assert "RuntimeDirectory=e87canbus-kiosk" in unit
+    for flag in (
+        "--user-data-dir=/run/e87canbus-kiosk/profile",
+        "--disk-cache-dir=/run/e87canbus-kiosk/cache",
+        "--disk-cache-size=",
+    ):
+        assert flag in script
 
 
 def test_console_network_prerequisite_is_fixed_and_non_routing() -> None:

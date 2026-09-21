@@ -116,6 +116,9 @@ else
     check "Chromium client certificate database" test -s /var/lib/e87-kiosk/.pki/nssdb/cert9.db
     check "Chromium certificate-selection policy" test -s /etc/chromium/policies/managed/e87canbus.json
     check_shell "Cage and Chromium installed" 'command -v cage >/dev/null && command -v chromium >/dev/null'
+    check_shell "Chromium browser state is volatile" '
+        [ "$(findmnt -no FSTYPE --target /run/e87canbus-kiosk)" = tmpfs ] &&
+        ! test -e /var/lib/e87-kiosk/.config/chromium'
     check_shell "DRM card present" 'test -n "$(find /dev/dri -maxdepth 1 -name "card*" -print -quit)"'
     check_shell "touchscreen present" '
         for device in /dev/input/event*; do
