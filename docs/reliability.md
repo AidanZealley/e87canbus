@@ -60,5 +60,17 @@ failure, or failure to complete Uvicorn startup, allowing the bounded `systemd` 
 act. Each role's same-origin frontend boundary falls back to its `index.html` only for client
 routes. Missing assets and unknown `/api` or `/health` paths remain real 404 responses.
 
+## Abrupt power loss
+
+Both Pis can lose power without warning, so SD card writes during normal operation are kept to a
+minimum. The kiosk's Chromium profile and disk cache live on the unit's tmpfs `RuntimeDirectory`,
+which leaves the installation CA in the kiosk user's `~/.pki/nssdb` as the only browser state on
+the card. Deliberate writes to `application.sqlite3` remain the controller's own exposure.
+
+The systemd journal keeps its distribution default so that hardware bring-up retains post-drive
+logs. Moving it to `Storage=volatile` would remove the remaining routine write traffic and is worth
+revisiting once the vehicle installation is settled. Card replacement is provisioned from the
+recovery package, so a corrupt card costs a reprovision rather than a rebuild.
+
 For the canonical provisioned hosts, authenticated network and operator access, see the
 [coordinator and console provisioning runbook](../deploy/README.md).

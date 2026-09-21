@@ -17,8 +17,13 @@ until curl -sf http://127.0.0.1:8000/health/live >/dev/null 2>&1; do
     sleep 1
 done
 
+# The unit's RuntimeDirectory provides this tmpfs path. The installation CA stays in the
+# kiosk user's ~/.pki/nssdb, which Chromium reads regardless of --user-data-dir.
 exec "${CHROMIUM}" \
     --kiosk \
+    --user-data-dir=/run/e87canbus-kiosk/profile \
+    --disk-cache-dir=/run/e87canbus-kiosk/cache \
+    --disk-cache-size=33554432 \
     --noerrdialogs \
     --disable-infobars \
     --no-first-run \
