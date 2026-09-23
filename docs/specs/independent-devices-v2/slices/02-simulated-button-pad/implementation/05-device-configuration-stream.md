@@ -139,18 +139,18 @@ pnpm --filter @e87canbus/coordinator-client typecheck
 The implementation agent creates `hosts/tests/test_device_configuration_service.py` and
 `hosts/tests/test_device_configuration_route.py` if they do not yet exist.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 5 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/05-device-configuration-stream.md, all accepted dependency handoffs, ADR 0017 and the linked product documents. Inspect the uncommitted diff and surrounding controller notification, kernel snapshot, SQLite repository, configuration service, authorization, SSE route, Starlette response lifecycle, FastAPI lifespan, nginx, OpenAPI and generated client. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check first-contact ordering under concurrent changes, durable compare-and-increment semantics, restart and reconnect behavior, feedback-free scene publication, multiple independent device generations, exact role authorization, first-record ownership, framing and headers, keepalives, no replay identifiers, real request cancellation on slow clients and shutdown, nginx buffering and certificate headers, and served/exported/generated contract agreement. Reject a second generation source, event log, cache, generic event bus, generic SSE framework, route-side persistence or browser-live contract reuse." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 5 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/05-device-configuration-stream.md, all accepted dependency handoffs, ADR 0017 and the linked product documents. Inspect the uncommitted diff and surrounding controller notification, kernel snapshot, SQLite repository, configuration service, authorization, SSE route, Starlette response lifecycle, FastAPI lifespan, nginx, OpenAPI and generated client. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check first-contact ordering under concurrent changes, durable compare-and-increment semantics, restart and reconnect behavior, feedback-free scene publication, multiple independent device generations, exact role authorization, first-record ownership, framing and headers, keepalives, no replay identifiers, real request cancellation on slow clients and shutdown, nginx buffering and certificate headers, and served/exported/generated contract agreement. Reject a second generation source, event log, cache, generic event bus, generic SSE framework, route-side persistence or browser-live contract reuse.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 5 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/05-device-configuration-stream.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking ordering, durability, authorization, framing, cancellation, lifecycle, bounded-subscriber, nginx or generated-contract defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 5 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/05-device-configuration-stream.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking ordering, durability, authorization, framing, cancellation, lifecycle, bounded-subscriber, nginx or generated-contract defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -165,7 +165,7 @@ claude -p "Perform the focused closure review for Workstream 5 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

@@ -92,18 +92,18 @@ pnpm test
 A deleted test file is not a failed check when it covered only removed behavior. Record that deletion
 and run the surviving tests for each retained behavior named in the acceptance criteria.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 4 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/04-simplify-coordinator-core.md, all accepted handoffs, Slice 1.5, ADRs 0001, 0003, 0008, 0017 and 0018. Inspect the cumulative code around the kernel, commit contract, controller loop, runtimes, diagnostics, simulation and browser publication. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Trace each retained concern to the four approved responsibilities. Check ordered ownership, timestamps, bounded inbox, desired state, profiles and curves, vehicle decoding, changed topics and SSE revisions. Confirm no old device role, transport, output or simulation type survived Workstream 3. Reject dead abstractions, duplicate authority, unnecessary deadlines, merged runtimes without benefit and speculative output machinery." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 4 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/04-simplify-coordinator-core.md, all accepted handoffs, Slice 1.5, ADRs 0001, 0003, 0008, 0017 and 0018. Inspect the cumulative code around the kernel, commit contract, controller loop, runtimes, diagnostics, simulation and browser publication. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Trace each retained concern to the four approved responsibilities. Check ordered ownership, timestamps, bounded inbox, desired state, profiles and curves, vehicle decoding, changed topics and SSE revisions. Confirm no old device role, transport, output or simulation type survived Workstream 3. Reject dead abstractions, duplicate authority, unnecessary deadlines, merged runtimes without benefit and speculative output machinery.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 4 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking ownership, ordering, publication, lifecycle or simplification defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 4 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking ownership, ordering, publication, lifecycle or simplification defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -118,7 +118,7 @@ claude -p "Perform the focused closure review for Workstream 4 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

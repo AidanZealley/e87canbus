@@ -18,7 +18,9 @@ tell it to recover the uncommitted work using the README's recovery rules.
 
 After the last workstream is accepted, spawn the final-review lead documented in the README.
 
-The leads run reviews through the review command named in the README.
+Delegate implementation and review to subagents as documented in the README. Reviewers inherit
+the orchestrator's model and effort. On Codex, spawn every agent with `fork_turns: "none"` and no
+`model` or `reasoning_effort` override.
 
 Report to the user at each workstream acceptance, on an escalation, and in the completion report
 covering delivered work, verification, external validation pending, and specification drift. Do not

@@ -80,18 +80,18 @@ Run affected frontend live and profile tests plus application type checks. A del
 not a failed check when it covered only removed behavior. Record that deletion and run the surviving
 tests for profile authoring, desired command behavior, Servotronic and vehicle CAN.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 2 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/02-retire-button-pad-can.md, the accepted Workstream 1 handoff, Slice 1.5, ADR 0018 and linked documents. Inspect the uncommitted diff and surrounding profiles, kernel, output adapter, generated protocol, simulator, firmware and browser live consumers. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check complete removal of button-pad CAN and coordinator feedback while preserving profile authoring, active-state semantics and desired command behavior. Check no fake input, compatibility path or speculative vehicle action was added and Servotronic and vehicle CAN still work." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 2 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/02-retire-button-pad-can.md, the accepted Workstream 1 handoff, Slice 1.5, ADR 0018 and linked documents. Inspect the uncommitted diff and surrounding profiles, kernel, output adapter, generated protocol, simulator, firmware and browser live consumers. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check complete removal of button-pad CAN and coordinator feedback while preserving profile authoring, active-state semantics and desired command behavior. Check no fake input, compatibility path or speculative vehicle action was added and Servotronic and vehicle CAN still work.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 2 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking profile, state, deletion or regression defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 2 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking profile, state, deletion or regression defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -106,7 +106,7 @@ claude -p "Perform the focused closure review for Workstream 2 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
