@@ -85,18 +85,18 @@ pnpm --filter @e87canbus/coordinator test
 pnpm --filter @e87canbus/console test
 ```
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 1 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/01-remove-high-beam-flash.md, Slice 1.5, ADR 0018 and linked product documents. Inspect the uncommitted diff and surrounding fresh-database seed, profile catalogue, domain state, timers, simulation, live models, generated contracts and frontend consumers. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that the feature and its command-specific defaults are completely removed, a fresh database has one selected empty Default profile, no migration, compatibility parser or future action hook remains, and unrelated profile behavior survives." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 1 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/01-remove-high-beam-flash.md, Slice 1.5, ADR 0018 and linked product documents. Inspect the uncommitted diff and surrounding fresh-database seed, profile catalogue, domain state, timers, simulation, live models, generated contracts and frontend consumers. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that the feature and its command-specific defaults are completely removed, a fresh database has one selected empty Default profile, no migration, compatibility parser or future action hook remains, and unrelated profile behavior survives.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 1 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking seed, contract or incomplete-deletion defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 1 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking seed, contract or incomplete-deletion defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff

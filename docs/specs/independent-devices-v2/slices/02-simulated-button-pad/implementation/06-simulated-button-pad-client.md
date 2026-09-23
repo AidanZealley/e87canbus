@@ -108,18 +108,18 @@ pnpm --filter @e87canbus/coordinator-client typecheck
 The implementation agent creates `hosts/tests/test_simulated_button_pad_client.py` if it does not
 yet exist.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding FastAPI lifespan, private ASGI transport, authentication middleware, simulation client, deployment composition and development tap route. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that every simulated config, status and press crosses production parsing and handlers; the private auth wrapper does not weaken the served app; status follows apply; presses are never retried; startup and shutdown are bounded; and no deleted CAN device peer, protocol or double-delivery path returns. Reject a generic simulated-device framework or restored device UI." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding FastAPI lifespan, private ASGI transport, authentication middleware, simulation client, deployment composition and development tap route. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check that every simulated config, status and press crosses production parsing and handlers; the private auth wrapper does not weaken the served app; status follows apply; presses are never retried; startup and shutdown are bounded; and no deleted CAN device peer, protocol or double-delivery path returns. Reject a generic simulated-device framework or restored device UI.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking production-path, lifecycle, authentication or double-delivery defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 6 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/06-simulated-button-pad-client.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking production-path, lifecycle, authentication or double-delivery defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -134,7 +134,7 @@ claude -p "Perform the focused closure review for Workstream 6 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

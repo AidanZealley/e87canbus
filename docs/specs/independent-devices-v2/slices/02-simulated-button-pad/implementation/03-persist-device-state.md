@@ -81,18 +81,18 @@ git diff --check
 
 The implementation agent creates `hosts/tests/test_device_state_repository.py`.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding SQLite migration, connection policy, repositories and app composition. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check upgrade safety, transaction boundaries under concurrent first contact and replacement, exact compare-before-increment behavior, restart durability, identity-role mismatch handling, UTC status receipt time and absence of an event log, cache or generic payload abstraction." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding SQLite migration, connection policy, repositories and app composition. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check upgrade safety, transaction boundaries under concurrent first contact and replacement, exact compare-before-increment behavior, restart durability, identity-role mismatch handling, UTC status receipt time and absence of an event log, cache or generic payload abstraction.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking migration, durability or concurrency defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 3 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/03-persist-device-state.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking migration, durability or concurrency defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -107,7 +107,7 @@ claude -p "Perform the focused closure review for Workstream 3 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

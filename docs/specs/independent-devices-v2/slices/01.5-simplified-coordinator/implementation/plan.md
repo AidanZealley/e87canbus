@@ -6,7 +6,7 @@ Status: in progress.
 
 - Integration branch: `feature/simplified-coordinator`
 - Starting commit: `d2c00ed5313954142ff8205da5adab4da5882f48`
-- Review command: packet-specific Claude Code command using `--model opus --effort medium --permission-mode plan`
+- Reviewers: fresh lead subagents inheriting the orchestrator's model and effort
 - Specification approved at commit: `d2c00ed5313954142ff8205da5adab4da5882f48`
 - Started: `2026-09-23`
 - Baseline verification: all Workstream 1 targeted commands passed at the starting commit on 2026-09-23 (pytest, OpenAPI check, mypy, ruff, lint-imports, diff check, frontend API check, coordinator-client typecheck, coordinator tests and console tests).

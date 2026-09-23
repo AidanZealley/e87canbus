@@ -94,18 +94,18 @@ pnpm --filter @e87canbus/coordinator-client typecheck
 
 The implementation agent creates `hosts/tests/test_device_api.py` if it does not yet exist.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 4 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/04-device-http-inputs.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding authorization middleware, device models, SQLite status repository, controller inbox, kernel input path, OpenAPI and generated client. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check identity cannot come from the body, exact role restrictions and 204 behavior, strict status validation, receipt clocks, one press submission, no retry or deduplication machinery, generated-contract agreement and absence of a CAN compatibility input." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 4 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/04-device-http-inputs.md, all accepted dependency handoffs and linked product documents. Inspect the uncommitted diff and surrounding authorization middleware, device models, SQLite status repository, controller inbox, kernel input path, OpenAPI and generated client. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check identity cannot come from the body, exact role restrictions and 204 behavior, strict status validation, receipt clocks, one press submission, no retry or deduplication machinery, generated-contract agreement and absence of a CAN compatibility input.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 4 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/04-device-http-inputs.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking authorization, persistence or exactly-once input defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 4 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/04-device-http-inputs.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking authorization, persistence or exactly-once input defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -120,7 +120,7 @@ claude -p "Perform the focused closure review for Workstream 4 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

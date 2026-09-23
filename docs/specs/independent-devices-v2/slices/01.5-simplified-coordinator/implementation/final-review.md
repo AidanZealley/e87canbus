@@ -33,18 +33,18 @@ Confirm every retained kernel concern supports vehicle observations, desired int
 curves, or complete publication projections. Reject compatibility facades, no-op shells, empty
 unions, generic output hooks and configuration retained only for a hypothetical vehicle action.
 
-## Review commands
+## Review briefs
 
 Initial whole-feature review:
 
 ```text
-claude -p "Act as the whole-feature reviewer for the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/README.md, plan.md, all four accepted workstream records, Slice 1.5, ADR 0018 and every source linked by the README. Review the complete branch diff against the starting commit and inspect surrounding code. Run proportionate read-only checks. Do not edit files. Audit removal of high-beam and command-specific defaults; the fresh-database selected empty Default profile; complete removal of button-pad and Servotronic transport and execution; deletion of DeviceRole, DeviceSource, custom protocol, registry, ISO-TP, old firmware, project-device simulation and effect machinery; preservation of desired steering, profiles, curves and vehicle observations; single-owner ordering; runtime lifecycle; browser SSE revisions; generated contracts; dependencies; stale mocks; and unjustified abstractions. Trace the specified end-to-end cases and classify evidence-backed findings as Required, Optional or Question, grouped by original workstream owner." --model opus --effort medium --permission-mode plan
+Act as the whole-feature reviewer for the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/README.md, plan.md, all four accepted workstream records, Slice 1.5, ADR 0018 and every source linked by the README. Review the complete branch diff against the starting commit and inspect surrounding code. Run proportionate read-only checks. Write findings only in this file's Initial whole-feature review section. Audit removal of high-beam and command-specific defaults; the fresh-database selected empty Default profile; complete removal of button-pad and Servotronic transport and execution; deletion of DeviceRole, DeviceSource, custom protocol, registry, ISO-TP, old firmware, project-device simulation and effect machinery; preservation of desired steering, profiles, curves and vehicle observations; single-owner ordering; runtime lifecycle; browser SSE revisions; generated contracts; dependencies; stale mocks; and unjustified abstractions. Trace the specified end-to-end cases and classify evidence-backed findings as Required, Optional or Question, grouped by original workstream owner.
 ```
 
 Focused closure review:
 
 ```text
-claude -p "Perform the focused whole-feature closure review for the simplified coordinator workflow. Read final-review.md including the Initial whole-feature review and Lead triage, plus affected workstream Resolution records. Inspect the cumulative branch diff against the recorded starting commit. Verify every accepted Required finding and check its correction for release-blocking database seed, ownership, vehicle-decoding, publication, lifecycle or incomplete-deletion defects. Do not reopen optional suggestions or perform another open-ended review. Do not edit files. Return a final verdict and any remaining blockers with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused whole-feature closure review for the simplified coordinator workflow. Read final-review.md including the Initial whole-feature review and Lead triage, plus affected workstream Resolution records. Inspect the cumulative branch diff against the recorded starting commit. Verify every accepted Required finding and check its correction for release-blocking database seed, ownership, vehicle-decoding, publication, lifecycle or incomplete-deletion defects. Do not reopen optional suggestions or perform another open-ended review. Write the verdict only in this file's Focused closure section. Return a final verdict and any remaining blockers with evidence.
 ```
 
 ## Final verification

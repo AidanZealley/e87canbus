@@ -117,18 +117,18 @@ searches for every deleted filename and symbol, and run the dependency lock chec
 dependencies. A deleted test file is not a failed check when it covered only removed behavior;
 record the deletion and run the surviving tests for each retained behavior named above.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 3 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/03-retire-servotronic-control.md, accepted dependency handoffs, Slice 1.5, ADR 0018 and Slice 06. Inspect the complete repository around steering state, reducer, kernel, output, protocol, registry, transport, simulator, persistence, live contract and frontend. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check the coordinator retains desired steering semantics, curves, vehicle frames and production-path vehicle simulation while removing every Servotronic calculation, command, fallback, acknowledgement, observation and availability rule. Check complete deletion of the custom protocol, registry, ISO-TP, DeviceRole, DeviceSource, old firmware, project-device simulation, effect execution, output failures and live CAN transmit configuration. Reject no-op shells, aliases, compatibility facades and future-action abstractions." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 3 of the simplified coordinator workflow. Read docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementation/03-retire-servotronic-control.md, accepted dependency handoffs, Slice 1.5, ADR 0018 and Slice 06. Inspect the complete repository around steering state, reducer, kernel, output, protocol, registry, transport, simulator, persistence, live contract and frontend. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check the coordinator retains desired steering semantics, curves, vehicle frames and production-path vehicle simulation while removing every Servotronic calculation, command, fallback, acknowledgement, observation and availability rule. Check complete deletion of the custom protocol, registry, ISO-TP, DeviceRole, DeviceSource, old firmware, project-device simulation, effect execution, output failures and live CAN transmit configuration. Reject no-op shells, aliases, compatibility facades and future-action abstractions.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 3 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking desired-state, incomplete-deletion, dependency, commit-contract or vehicle-CAN regressions. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 3 of the simplified coordinator workflow. Read its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify every accepted Required finding and check its fix for release-blocking desired-state, incomplete-deletion, dependency, commit-contract or vehicle-CAN regressions. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -143,7 +143,7 @@ claude -p "Perform the focused closure review for Workstream 3 of the simplified
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

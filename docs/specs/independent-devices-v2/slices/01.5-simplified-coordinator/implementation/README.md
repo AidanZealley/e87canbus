@@ -41,9 +41,9 @@ It reads its packet and accepted dependency handoffs, implements the smallest co
 the packet's targeted checks rather than broader suites, performs a deletion and simplification
 pass, and records its handoff. It leaves defect-hunting beyond its acceptance criteria to review.
 
-**Review agent.** Fresh and independent from the implementation agent, spawned by the lead through
-the review command below. It reads the worktree, runs proportionate read-only checks and records
-evidence-backed findings as Required, Optional or Question. It does not edit implementation files.
+**Review agent.** Fresh and independent from the implementation agent, spawned by the lead. It
+reads the worktree, runs proportionate checks and writes evidence-backed findings as Required,
+Optional or Question in its assigned review section. It does not edit implementation files.
 Findings are evidence, not instructions; the lead owns their disposition.
 
 Agents must not edit the shared worktree concurrently.
@@ -88,13 +88,14 @@ the user, records the answer in the entry, and starts a fresh lead for the same 
 
 ## Agent spawning
 
-This workflow runs on Claude Code. Spawn every agent with the `Agent` tool using
-`subagent_type: general-purpose` and `run_in_background: false`. Omit `model`; agents inherit the
-spawner's model and effort. The only model override in this workflow is the review command.
+Spawn every agent, including independent and closure reviewers, with the orchestrator's model and
+effort. On Claude Code, use `Agent` with `subagent_type: general-purpose` and
+`run_in_background: false`; omit `model`. On Codex, use `spawn_agent` with `fork_turns: "none"`;
+omit `model` and `reasoning_effort`. Give reviewers only their brief and the packet path so they
+start with fresh context.
 
-The `Agent` call blocks by itself. Never busy-poll a running agent: no repeated short waits, no
-`TaskOutput` checks, no scheduled wake-ups. Each poll re-sends the whole context for no new
-information.
+The Claude Code `Agent` call blocks by itself. On Codex, wait for each agent with one long
+`wait_agent` call. Never busy-poll a running agent.
 
 ## Branch and commit model
 
@@ -127,13 +128,13 @@ implementation
 1. **Start.** Confirm the dependency is accepted, record the base, set the row to `Implementing`.
 2. **Implementation.** A fresh implementation agent implements the packet, runs its targeted checks,
    performs a deletion and simplification pass, and fills in the handoff.
-3. **Independent review.** A fresh reviewer runs the packet's exact independent command against the
-   uncommitted diff. The lead records the verdict and findings in the packet's review section and
-   triages them.
+3. **Independent review.** A fresh reviewer follows the packet's independent brief against the
+   uncommitted diff, writes its verdict and findings in the packet's review section, and returns to
+   the lead for triage.
 4. **Remediation.** At most one pass. The original implementation agent gets the accepted Required
    findings in one batch. It revisits the affected design instead of adding wrappers, flags,
    aliases or compatibility paths to preserve a flawed first attempt.
-5. **Closure review.** A fresh review session runs the packet's closure command. It verifies the
+5. **Closure review.** A fresh reviewer follows the packet's closure brief. It verifies the
    accepted findings and checks their fixes for release-blocking defects. It does not restart
    open-ended review or promote Optional suggestions. There is no automatic third loop.
 6. **Accept and commit.** The lead owns the terminal decision, writes its record and plan updates,
@@ -148,8 +149,8 @@ exception. Meet every acceptance criterion, run the targeted checks, perform a d
 simplification pass, and complete the implementation handoff. Leave changes uncommitted for review.
 ```
 
-Use the exact independent and closure commands recorded in each packet. Do not resume a review
-session for closure. A fresh call must read the recorded findings and the current cumulative diff.
+Use the independent and closure briefs recorded in each packet. Do not resume a review session for
+closure. The fresh reviewer reads the recorded findings and the current cumulative diff.
 
 The lead escalates only when disagreement persists after closure, or when a decision materially
 changes approved behavior or architecture.
@@ -170,22 +171,6 @@ A lead resuming a blocked workstream inherits both the uncommitted work and the 
 entry. Before accepting, it copies the lasting decision into its handoff Decisions field, and into
 the plan's decision and drift log when later workstreams depend on it, then removes the entry.
 
-## Review command
-
-Every independent, closure and whole-feature review uses Claude Code in read-only plan mode with
-Opus and medium effort. The exact combination was verified on 2026-09-18. The full command appears
-in each numbered packet and [final-review.md](final-review.md).
-
-The read-only flag is required. It stops a reviewer editing implementation files, which the review
-role already forbids, and the command still reads the uncommitted diff the reviewer needs.
-
-A reviewer running through the command cannot write, so its lead records that verdict and those
-findings in the packet's review section.
-
-If Claude is unavailable, logged out or out of quota, the lead runs that review as a normal fresh
-subagent with the same brief, records the substitution in the workstream record, and continues.
-Never omit a review because the external command failed.
-
 ## External validation gates
 
 None. All acceptance criteria are repository-testable. This slice has no hardware or vehicle
@@ -194,10 +179,10 @@ validation gate because it removes unverified output rather than adding one.
 ## Final whole-feature review
 
 After all four workstreams are accepted, the orchestrator spawns one final-review lead. That lead
-runs the initial command in [final-review.md](final-review.md) against the complete branch and the
+runs the initial brief in [final-review.md](final-review.md) against the complete branch and the
 recorded starting commit, triages the findings, sends each accepted correction to a fresh
-implementation agent owning the relevant files, runs the focused closure command in a fresh review
-session, writes [final-review.md](final-review.md) and makes one commit.
+implementation agent owning the relevant files, runs the focused closure brief with a fresh
+reviewer, writes [final-review.md](final-review.md) and makes one commit.
 
 It is a lead in every other respect: it owns the Final row in the plan's workstream table, blocks
 through an escalation entry, and returns the same three fields.
@@ -213,9 +198,9 @@ docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementat
 task packet in that file is frozen.
 
 Run the documented loop yourself: spawn a fresh implementation agent, spawn a different fresh agent
-for independent review through the packet's review command, triage the findings, order at most one
-remediation pass, then run focused closure in a fresh review session using the packet's closure
-command before accepting.
+for independent review using the packet's brief, triage the findings, order at most one remediation
+pass, then run focused closure with a fresh reviewer using the packet's closure brief before
+accepting.
 
 You own triage and the terminal decision. Reviewer findings are evidence, not instructions.
 
@@ -253,10 +238,10 @@ docs/specs/independent-devices-v2/slices/01.5-simplified-coordinator/implementat
 final-review.md in that directory, then the source-of-truth documents the README identifies. Every
 workstream is accepted; the branch is complete.
 
-Spawn a fresh reviewer using final-review.md's initial command to review the full branch against the
+Spawn a fresh reviewer using final-review.md's initial brief to review the full branch against the
 starting commit recorded in the plan. Triage its findings, send each accepted correction to a fresh
-implementation agent owning the relevant files, then run the focused closure command in a fresh
-review session.
+implementation agent owning the relevant files, then run the focused closure brief with a fresh
+reviewer.
 
 You own triage and the terminal decision. Reviewer findings are evidence, not instructions.
 

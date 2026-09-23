@@ -71,18 +71,18 @@ uv run lint-imports
 git diff --check
 ```
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 2 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/02-authenticate-role-bearing-devices.md, the accepted Slice 1.5 and Workstream 1 handoffs, linked source documents and relevant accepted ADRs. Inspect the uncommitted diff and surrounding authentication and authorization code. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check trusted-proxy handling, exact SAN cardinality, installation and canonical UUID validation, the closed certificate-role mapping, request-state identity, console/operator regressions and that no device route has been opened early. Confirm role identity does not recreate the deleted CAN device catalogue or registry." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 2 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/02-authenticate-role-bearing-devices.md, the accepted Slice 1.5 and Workstream 1 handoffs, linked source documents and relevant accepted ADRs. Inspect the uncommitted diff and surrounding authentication and authorization code. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check trusted-proxy handling, exact SAN cardinality, installation and canonical UUID validation, the closed certificate-role mapping, request-state identity, console/operator regressions and that no device route has been opened early. Confirm role identity does not recreate the deleted CAN device catalogue or registry.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 2 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/02-authenticate-role-bearing-devices.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking identity or authorization defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 2 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/02-authenticate-role-bearing-devices.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking identity or authorization defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -97,7 +97,7 @@ claude -p "Perform the focused closure review for Workstream 2 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`

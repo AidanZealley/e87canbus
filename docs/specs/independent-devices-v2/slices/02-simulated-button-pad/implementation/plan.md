@@ -6,7 +6,7 @@ Status: draft; implementation has not started.
 
 - Integration branch: `TBD` (`feature/simulated-button-pad` when started)
 - Starting commit: `TBD` (must contain the accepted Slice 1.5 implementation)
-- Review command: packet-specific Claude Code command using `--model opus --effort medium --permission-mode plan`
+- Reviewers: fresh lead subagents inheriting the orchestrator's model and effort
 - Specification approved at commit: `TBD` after Slice 1.5 documentation approval
 - Started: `TBD`
 

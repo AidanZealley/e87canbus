@@ -104,18 +104,18 @@ git diff --check
 
 The implementation agent creates `hosts/tests/test_button_pad_scene.py`.
 
-## Review commands
+## Review briefs
 
 Independent review:
 
 ```text
-claude -p "Act as the independent reviewer for Workstream 1 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/01-define-button-pad-scene.md, the accepted Slice 1.5 handoff, linked source documents and relevant accepted ADRs. Inspect the uncommitted diff and surrounding button profile, coordinator snapshot and API model code. Run proportionate read-only checks. Do not edit files. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check the exact 16-button complete scene, brightness 255, resolved active and inactive colours, active-only animation, strict model validation, absence of press feedback and transport fields, dependency direction and removal of obsolete alternatives. Reject a generic scene framework, partial-update protocol or restored device CAN compatibility." --model opus --effort medium --permission-mode plan
+Act as the independent reviewer for Workstream 1 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/01-define-button-pad-scene.md, the accepted Slice 1.5 handoff, linked source documents and relevant accepted ADRs. Inspect the uncommitted diff and surrounding button profile, coordinator snapshot and API model code. Run proportionate read-only checks. Write findings only in this packet's Independent review section. Return a verdict followed by evidence-backed Required, Optional and Question findings. Check the exact 16-button complete scene, brightness 255, resolved active and inactive colours, active-only animation, strict model validation, absence of press feedback and transport fields, dependency direction and removal of obsolete alternatives. Reject a generic scene framework, partial-update protocol or restored device CAN compatibility.
 ```
 
 Closure review:
 
 ```text
-claude -p "Perform the focused closure review for Workstream 1 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/01-define-button-pad-scene.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking scene semantics, validation or dependency defects. Do not reopen optional suggestions or conduct another broad review. Do not edit files. Return a closure verdict and any remaining Required findings with evidence." --model opus --effort medium --permission-mode plan
+Perform the focused closure review for Workstream 1 of the simulated independent button-pad workflow. Read docs/specs/independent-devices-v2/slices/02-simulated-button-pad/implementation/01-define-button-pad-scene.md, including its recorded Independent review and Resolution, then inspect the current uncommitted cumulative diff. Verify each accepted Required finding and check its fix for release-blocking scene semantics, validation or dependency defects. Do not reopen optional suggestions or conduct another broad review. Write the verdict only in this packet's Closure review section. Return a closure verdict and any remaining Required findings with evidence.
 ```
 
 ## Implementation handoff
@@ -130,7 +130,7 @@ claude -p "Perform the focused closure review for Workstream 1 of the simulated 
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
+- Reviewer: `TBD` (fresh lead subagent)
 - Verdict: `TBD`
 - Required findings: `TBD`
 - Optional observations: `TBD`
