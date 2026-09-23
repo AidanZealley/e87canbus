@@ -27,7 +27,6 @@ import {
   OIL_MAXIMUM_TEMPERATURE_C,
 } from "../../engine-temperature-scale"
 import { useEffectiveApplicationSettings } from "@e87canbus/coordinator-client/application-settings-query"
-import { HighBeam } from "@/icons"
 import {
   IDLE_RPM,
   setSimulatedVehicleRunning,
@@ -42,13 +41,11 @@ const MIN_TEMPERATURE_C = -40
 type SimulatedVehicleControlsProps = {
   speedKph: number | null
   engine: EngineState
-  observedHighBeamEnabled: boolean | null
 }
 
 export const SimulatedVehicleControls = ({
   speedKph,
   engine,
-  observedHighBeamEnabled,
 }: SimulatedVehicleControlsProps) => {
   const settings = useEffectiveApplicationSettings().settings
   const [speed, setSpeed] = useState(speedKph ?? 0)
@@ -143,27 +140,6 @@ export const SimulatedVehicleControls = ({
                   )
                 }
               />
-            </div>
-            <div>
-              <span
-                role="img"
-                aria-label={
-                  observedHighBeamEnabled === null
-                    ? "Virtual-car high beam unavailable"
-                    : observedHighBeamEnabled
-                      ? "Virtual-car high beam on"
-                      : "Virtual-car high beam off"
-                }
-              >
-                <HighBeam
-                  aria-hidden="true"
-                  className={
-                    observedHighBeamEnabled
-                      ? "text-blue-500"
-                      : "text-muted-foreground opacity-50"
-                  }
-                />
-              </span>
             </div>
           </div>
         </div>

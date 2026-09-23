@@ -31,7 +31,6 @@ from e87canbus.domain.intents import (
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
@@ -54,7 +53,7 @@ def repository(path: Path) -> SqliteButtonProfileRepository:
     )
 
 
-def test_initialization_seeds_editable_current_mapping_and_is_idempotent(tmp_path: Path) -> None:
+def test_initialization_seeds_selected_empty_default_and_is_idempotent(tmp_path: Path) -> None:
     repo = repository(tmp_path / "app.sqlite")
     repo.initialize()
     repo.initialize()
@@ -62,7 +61,9 @@ def test_initialization_seeds_editable_current_mapping_and_is_idempotent(tmp_pat
     assert seed is not None
     assert seed.name == BUILT_IN_BUTTON_PROFILE_NAME
     assert seed.definition == BUILT_IN_BUTTON_PROFILE
-    assert seed.definition.slots[15] is None  # development breathe action is deliberately omitted
+    assert seed.name == "Default"
+    assert seed.definition.slots == (None,) * 16
+    assert repo.get_selected_profile() == seed
     renamed = repo.update_profile(seed.profile_id, 1, "My buttons", seed.definition)
     repo.initialize()
     assert repo.get_profile(seed.profile_id) == renamed
@@ -199,9 +200,8 @@ def test_codec_round_trips_every_user_command_and_rejects_foreign_command() -> N
         ButtonSlot(SetManualAssistanceLevel(3), (1, 2, 3)),
         ButtonSlot(SetMaximumAssistance(True), RGB_WHITE, animation=BreatheAnimation(2000, 8, 255)),
         ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
-        ButtonSlot(StartHighBeamStrobe(), RGB_WHITE),
     )
-    definition = ButtonProfileDefinition(slots + (None,) * 9)
+    definition = ButtonProfileDefinition(slots + (None,) * 10)
     assert (
         decode_button_profile(json.loads(canonical_button_profile_bytes(definition))) == definition
     )
@@ -264,8 +264,6 @@ def test_a_slot_rejects_values_the_pad_could_not_render() -> None:
         ButtonSlot(ToggleMaximumAssistance(), (0, 0, 256))
     with pytest.raises(ValueError, match="reserved"):
         ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE, active_colour=RGB_BLUE)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="no active state"):
-        ButtonSlot(StartHighBeamStrobe(), RGB_WHITE, animation=BlinkAnimation(400, 400))
     with pytest.raises(ValueError, match="no active state"):
         ButtonSlot(AdjustManualAssistance(1), RGB_WHITE, animation=BreatheAnimation(2000, 0, 255))
     with pytest.raises(ValueError, match="breathe period"):

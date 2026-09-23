@@ -3,12 +3,11 @@
 Hardware-aware, locally testable software for a track-only BMW E87 CAN bus project.
 
 Current milestone: the hardware-independent coordinator kernel owns application state and is
-exercised through the simulator's bounded, single-owner command path. Backend simulation tests cover
-button-pad commands that toggle steering mode, adjust manual assistance, select maximum assistance,
-and start a bounded high-beam flash-to-pass strobe. These custom-CAN controls are not part of the
-visual workbench. BMW CAN IDs, DSC replay, live high-beam
-actuation, Servotronic output, physical Trellis integration, and decoded in-car telemetry remain
-out of scope.
+exercised through the simulator's bounded, single-owner command path. A fresh database selects an
+empty `Default` button profile. Backend simulation tests inject profiles to exercise button commands
+that toggle steering mode, adjust manual assistance, and select maximum assistance. BMW CAN IDs, DSC
+replay, Servotronic output, physical Trellis integration, and decoded in-car telemetry remain out of
+scope.
 
 The headless coordinator is configured for three isolated physical networks: K-CAN (`kcan`, 100 kbit/s),
 PT-CAN (`ptcan`, 500 kbit/s), and F-CAN (`fcan`, 500 kbit/s). The Pi and simulated vehicle have an
@@ -149,14 +148,12 @@ pio run
 The default live composition disables application transmission on every CAN network. K-CAN transmission
 is granted only by the isolated simulator and bench compositions, where coordinator output remains
 rate-limited. This application-level RX-only default is separate from configuring SocketCAN or CAN
-hardware in listen-only mode, which remains a recommended deployment defense. The high-beam strobe
-has a separate simulator-only actuator capability: a live K-CAN TX grant alone cannot create or
-enable it. Its extended synthetic frame is not a BMW ID, has no live router/actuator mapping, and
-cannot be sent to a real car by this application. DSC replay and capture-backed BMW high-beam
-commands are intentionally not implemented yet. A physical fan-bench Servotronic controller now
-implements synthetic-speed reception, a compiled-in assistance curve, bounded PWM, registration,
-and local failsafes. Closed-loop current regulation, rack-solenoid output hardware, a real BMW
-speed decoder, and vehicle-safe Servotronic output remain intentionally unimplemented.
+hardware in listen-only mode, which remains a recommended deployment defense. The coordinator has
+no high-beam command or actuator, and its simulator has no high-beam frame. DSC replay and
+capture-backed BMW high-beam commands are not implemented. A physical fan-bench Servotronic
+controller now implements synthetic-speed reception, a compiled-in assistance curve, bounded PWM,
+registration, and local failsafes. Closed-loop current regulation, rack-solenoid output hardware,
+a real BMW speed decoder, and vehicle-safe Servotronic output remain intentionally unimplemented.
 Vehicle-specific IDs and payloads must be captured and verified with `candump` before being treated
 as confirmed. In particular, a future high-beam implementation needs named captures of stalk
 pull and release, counter/checksum behavior and normal cadence, followed by controlled validation

@@ -23,10 +23,15 @@ const api = vi.hoisted(() => ({
   setVehicleSweep: vi.fn(),
 }))
 
-vi.mock("@e87canbus/coordinator-client/api/http/sdk.gen", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@e87canbus/coordinator-client/api/http/sdk.gen")>()),
-  ...api,
-}))
+vi.mock(
+  "@e87canbus/coordinator-client/api/http/sdk.gen",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@e87canbus/coordinator-client/api/http/sdk.gen")
+    >()),
+    ...api,
+  })
+)
 
 vi.mock("@/components/ui/slider", () => ({
   Slider: ({
@@ -57,10 +62,7 @@ const engine = {
   coolant_temperature_c: { value: null, status: "never_observed" as const },
 }
 
-const renderControls = (
-  speedKph: number | null = null,
-  observedHighBeamEnabled: boolean | null = false
-) =>
+const renderControls = (speedKph: number | null = null) =>
   render(
     <QueryClientProvider
       client={
@@ -69,11 +71,7 @@ const renderControls = (
         })
       }
     >
-      <SimulatedVehicleControls
-        speedKph={speedKph}
-        engine={engine}
-        observedHighBeamEnabled={observedHighBeamEnabled}
-      />
+      <SimulatedVehicleControls speedKph={speedKph} engine={engine} />
     </QueryClientProvider>
   )
 
@@ -137,30 +135,4 @@ it("delegates sweeping to the virtual car", async () => {
   expect(api.setEngineRpm).not.toHaveBeenCalled()
   expect(api.setOilTemperature).not.toHaveBeenCalled()
   expect(api.setCoolantTemperature).not.toHaveBeenCalled()
-})
-
-it("shows the observed virtual-car high-beam indicator", () => {
-  const { rerender } = renderControls(0, false)
-
-  expect(
-    screen.getByRole("img", { name: "Virtual-car high beam off" })
-  ).toBeTruthy()
-  expect(
-    document.querySelector("svg.text-muted-foreground.opacity-50")
-  ).toBeTruthy()
-
-  rerender(
-    <QueryClientProvider client={new QueryClient()}>
-      <SimulatedVehicleControls
-        speedKph={0}
-        engine={engine}
-        observedHighBeamEnabled={true}
-      />
-    </QueryClientProvider>
-  )
-
-  expect(
-    screen.getByRole("img", { name: "Virtual-car high beam on" })
-  ).toBeTruthy()
-  expect(document.querySelector("svg.text-blue-500")).toBeTruthy()
 })

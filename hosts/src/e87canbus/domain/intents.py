@@ -2,30 +2,10 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import TypeGuard, assert_never
 
 from e87canbus.domain.state import SteeringMode
-
-
-@dataclass(frozen=True)
-class OperatorIntentContext:
-    """Server execution context shared by all operator-intent input adapters."""
-
-    observed_at: float | None = None
-
-    def __post_init__(self) -> None:
-        if self.observed_at is not None and (
-            isinstance(self.observed_at, bool)
-            or not isinstance(self.observed_at, (int, float))
-            or not math.isfinite(self.observed_at)
-            or self.observed_at < 0
-        ):
-            raise ValueError("observed_at must be a finite non-negative number or None")
-
-
-DEFAULT_OPERATOR_INTENT_CONTEXT = OperatorIntentContext()
 
 
 @dataclass(frozen=True)
@@ -80,11 +60,6 @@ class ToggleMaximumAssistance:
     """Toggle the temporary maximum-assistance override."""
 
 
-@dataclass(frozen=True)
-class StartHighBeamStrobe:
-    """Start the configured bounded high-beam strobe action."""
-
-
 OperatorIntent = (
     SelectSteeringMode
     | ToggleAutomaticAssistance
@@ -92,7 +67,6 @@ OperatorIntent = (
     | SetManualAssistanceLevel
     | SetMaximumAssistance
     | ToggleMaximumAssistance
-    | StartHighBeamStrobe
 )
 
 _OPERATOR_INTENT_TYPES = (
@@ -102,7 +76,6 @@ _OPERATOR_INTENT_TYPES = (
     SetManualAssistanceLevel,
     SetMaximumAssistance,
     ToggleMaximumAssistance,
-    StartHighBeamStrobe,
 )
 
 
@@ -129,7 +102,5 @@ def intent_requires_servotronic(intent: OperatorIntent) -> bool:
             | ToggleMaximumAssistance()
         ):
             return True
-        case StartHighBeamStrobe():
-            return False
         case _:
             assert_never(intent)

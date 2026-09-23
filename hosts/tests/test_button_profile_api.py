@@ -47,7 +47,7 @@ def definition_json() -> dict[str, Any]:
                 {"kind": "blink", "on_ms": 400, "off_ms": 400},
             ),
             slot_json({"type": "toggle_maximum_assistance"}),
-            slot_json({"type": "start_high_beam_strobe"}),
+            None,
             None,
             None,
             None,
@@ -277,9 +277,6 @@ def test_selected_and_built_in_profiles_cannot_be_deleted(client: TestClient) ->
         lambda value: value["slots"][4]["animation"].__setitem__("off_ms", 10_001),
         lambda value: value["slots"][1]["animation"].__setitem__("kind", "sparkle"),
         # Animation on a command that has no active state to animate.
-        lambda value: value["slots"][6].__setitem__(
-            "animation", {"kind": "blink", "on_ms": 400, "off_ms": 400}
-        ),
         lambda value: value["slots"][2].__setitem__(
             "animation", {"kind": "breathe", "period_ms": 2000, "minimum": 8, "maximum": 255}
         ),

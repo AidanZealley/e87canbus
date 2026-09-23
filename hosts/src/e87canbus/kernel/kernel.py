@@ -10,7 +10,6 @@ from typing import assert_never
 from e87canbus.adapters.output import EffectRequest, OutputEffect, SendRegistryFrame
 from e87canbus.config import (
     EngineTelemetryConfig,
-    HighBeamStrobeConfig,
     SteeringConfig,
 )
 from e87canbus.domain.buttons.commands import button_command_configuration_error
@@ -56,7 +55,6 @@ from e87canbus.domain.events import (
     ButtonPressed,
     ConfigureServotronicCurve,
     ControlTimerElapsed,
-    HighBeamStrobeDeadlineReached,
     SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringFallbackReason,
@@ -64,9 +62,7 @@ from e87canbus.domain.events import (
     TriggerButtonPadBlink,
 )
 from e87canbus.domain.intents import (
-    DEFAULT_OPERATOR_INTENT_CONTEXT,
     OperatorIntent,
-    OperatorIntentContext,
     intent_requires_servotronic,
 )
 from e87canbus.domain.state import (
@@ -137,7 +133,6 @@ class CoordinatorKernel:
         state: ApplicationState | None = None,
         steering_config: SteeringConfig | None = None,
         engine_telemetry_config: EngineTelemetryConfig | None = None,
-        high_beam_strobe_config: HighBeamStrobeConfig | None = None,
         router: ProtocolRouter | None = None,
         active_steering_curve: ActiveSteeringCurve | None = None,
         device_sources: dict[DeviceRole, DeviceSource] | None = None,
@@ -148,10 +143,7 @@ class CoordinatorKernel:
     ) -> None:
         self._steering_config = steering_config or SteeringConfig()
         self._engine_telemetry_config = engine_telemetry_config or EngineTelemetryConfig()
-        self._high_beam_strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
-        self._button_profile = button_profile or built_in_active_button_profile(
-            self._high_beam_strobe_config
-        )
+        self._button_profile = button_profile or built_in_active_button_profile()
         self._button_led_presenter = button_led_presenter
         self._button_profile_saved_revision: int | None = None
         self._state = normalize_state(
@@ -216,8 +208,6 @@ class CoordinatorKernel:
         deadlines.extend(
             deadline for deadline in self._state.button_feedback_deadlines if deadline is not None
         )
-        if self._state.high_beam_next_transition_at is not None:
-            deadlines.append(self._state.high_beam_next_transition_at)
         return min(deadlines) if deadlines else None
 
     def snapshot(self) -> ApplicationSnapshot:
@@ -390,10 +380,6 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
                 return self._transition(kernel_input)
-            case HighBeamStrobeDeadlineReached():
-                if self._lifecycle is not KernelLifecycle.RUNNING:
-                    return None
-                return self._transition(kernel_input)
             case ActivateSteeringCurve():
                 if self._lifecycle is not KernelLifecycle.RUNNING:
                     return None
@@ -412,7 +398,7 @@ class CoordinatorKernel:
                     return None
                 if intent_requires_servotronic(kernel_input.intent):
                     self._require_servotronic()
-                return self._dispatch_operator_intent(kernel_input.intent, kernel_input.context)
+                return self._dispatch_operator_intent(kernel_input.intent)
             case _:
                 assert_never(kernel_input)
 
@@ -488,16 +474,13 @@ class CoordinatorKernel:
     def _execute_operator_intent(
         self,
         intent: OperatorIntent,
-        context: OperatorIntentContext,
     ) -> Transition:
         return execute_operator_intent(
             self._state,
             intent,
             self._steering_config,
             self._button_leds(),
-            context,
             active_definition=self._active_steering_curve.definition,
-            high_beam_strobe_config=self._high_beam_strobe_config,
         )
 
     def _dispatch_button_intent(
@@ -507,10 +490,7 @@ class CoordinatorKernel:
     ) -> Commit:
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
-        result = self._execute_operator_intent(
-            intent,
-            OperatorIntentContext(observed_at=event.observed_at),
-        )
+        result = self._execute_operator_intent(intent)
         result = finish_button_intent(
             self._state,
             result,
@@ -518,7 +498,6 @@ class CoordinatorKernel:
             event.observed_at,
             self._steering_config,
             self._active_steering_curve.definition,
-            self._high_beam_strobe_config,
             self._button_leds(),
         )
         return self._commit_application_result(
@@ -531,13 +510,12 @@ class CoordinatorKernel:
     def _dispatch_operator_intent(
         self,
         intent: OperatorIntent,
-        context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
     ) -> Commit:
         """Execute a non-button adapter request through the canonical intent path."""
 
         previous_snapshot = self.snapshot()
         previous_button_leds = self._button_led_effect()
-        result = self._execute_operator_intent(intent, context)
+        result = self._execute_operator_intent(intent)
         return self._commit_application_result(
             result,
             previous_snapshot,
@@ -564,7 +542,6 @@ class CoordinatorKernel:
             event,
             self._steering_config,
             self._active_steering_curve.definition,
-            self._high_beam_strobe_config,
         )
         return self._commit_application_result(
             result,

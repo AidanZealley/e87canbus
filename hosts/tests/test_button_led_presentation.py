@@ -7,7 +7,7 @@ state, and which pixels that appearance uses is decided by whoever authored the 
 
 from collections.abc import Mapping
 
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.buttons.pad import resolve_button_pad_tracks, solid_track
 from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
@@ -28,7 +28,6 @@ from e87canbus.domain.intents import (
     AdjustManualAssistance,
     SelectSteeringMode,
     SetManualAssistanceLevel,
-    StartHighBeamStrobe,
     ToggleMaximumAssistance,
 )
 from e87canbus.domain.state import (
@@ -52,7 +51,6 @@ from e87canbus.protocol.can import (
 
 CONFIG = SteeringConfig()
 CURVE = default_steering_curve_definition()
-STROBE = HighBeamStrobeConfig()
 # An arbitrary authored colour that is none of the system values, so a test that sees
 # it knows the pixels came from the slot rather than from a table.
 AUTHORED = (10, 20, 30)
@@ -109,18 +107,6 @@ def test_maximum_assistance_reports_as_manual_to_a_mode_question() -> None:
     assert visuals[1] is ButtonVisual.ACTIVE
 
 
-def test_unavailable_overrides_active_only_where_the_command_needs_servotronic() -> None:
-    selected = profile(
-        {
-            0: ButtonSlot(SelectSteeringMode(SteeringMode.AUTO), RGB_BLUE),
-            1: ButtonSlot(StartHighBeamStrobe(), RGB_WHITE),
-        }
-    )
-
-    visuals = derived_button_led_state(ApplicationState(), selected, False).visuals
-
-    assert visuals[0] is ButtonVisual.UNAVAILABLE
-    assert visuals[1] is ButtonVisual.INACTIVE
 
 
 def test_every_visual_state_renders_from_the_authored_colour_or_a_system_value() -> None:
@@ -197,7 +183,7 @@ def press(
     command = selected.intent_for_press(button_index)
     assert command is not None
     result = execute_operator_intent(state, command, CONFIG, leds)
-    return finish_button_intent(state, result, button_index, 1.0, CONFIG, CURVE, STROBE, leds).state
+    return finish_button_intent(state, result, button_index, 1.0, CONFIG, CURVE, leds).state
 
 
 def test_a_press_that_moves_nothing_flashes_the_pressed_slot_authored_colour() -> None:

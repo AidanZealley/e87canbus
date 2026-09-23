@@ -107,13 +107,6 @@ class ButtonsState(LiveModel):
     active_profile_revision: int | None = Field(default=None, ge=1)
 
 
-class LightingState(LiveModel):
-    high_beam_enabled: bool
-    high_beam_strobe_active: bool
-    high_beam_strobe_cycles_remaining: int = Field(ge=0)
-    observed_high_beam_enabled: bool | None
-
-
 class RuntimeFaultState(LiveModel):
     kind: Literal[
         "can_reader",
@@ -205,17 +198,6 @@ def buttons_state(snapshot: ControllerLoopSnapshot) -> ButtonsState:
         ),
         active_profile_id=snapshot.application.active_button_profile_id,
         active_profile_revision=snapshot.application.active_button_profile_revision,
-    )
-
-
-def lighting_state(snapshot: ControllerLoopSnapshot) -> LightingState:
-    application = snapshot.application
-    lighting = snapshot.adapter.lighting
-    return LightingState(
-        high_beam_enabled=application.high_beam_enabled,
-        high_beam_strobe_active=application.high_beam_strobe_active,
-        high_beam_strobe_cycles_remaining=application.high_beam_strobe_cycles_remaining,
-        observed_high_beam_enabled=(None if lighting is None else lighting.high_beam_enabled),
     )
 
 

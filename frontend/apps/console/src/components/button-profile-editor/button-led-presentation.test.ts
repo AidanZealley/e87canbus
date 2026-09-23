@@ -48,7 +48,7 @@ describe("button profile LED presentation", () => {
         [
           null,
           slot({ type: "select_steering_mode", mode: "manual" }),
-          slot({ type: "start_high_beam_strobe" }),
+          slot({ type: "adjust_manual_assistance", delta: 1 }),
         ],
         context
       )
@@ -63,8 +63,8 @@ describe("button profile LED presentation", () => {
     expect(
       deriveButtonProfileLedPreview(
         [
-          slot({ type: "start_high_beam_strobe" }, [255, 255, 255]),
-          slot({ type: "start_high_beam_strobe" }, [255, 191, 0]),
+          slot({ type: "adjust_manual_assistance", delta: 1 }, [255, 255, 255]),
+          slot({ type: "adjust_manual_assistance", delta: 1 }, [255, 191, 0]),
         ],
         context
       )
@@ -84,7 +84,7 @@ describe("button profile LED presentation", () => {
           slot({ type: "set_maximum_assistance", enabled: false }),
           slot({ type: "toggle_maximum_assistance" }),
           slot({ type: "adjust_manual_assistance", delta: 1 }),
-          slot({ type: "start_high_beam_strobe" }),
+          slot({ type: "adjust_manual_assistance", delta: 1 }),
         ],
         context
       )
@@ -160,18 +160,18 @@ describe("button profile LED presentation", () => {
       deriveButtonProfileLedPreview(
         [
           slot({ type: "toggle_automatic_assistance" }),
-          slot({ type: "start_high_beam_strobe" }),
+          slot({ type: "adjust_manual_assistance", delta: 1 }),
         ],
         { ...context, servotronicUsable: false }
       )
     ).toEqual([
       [8, 6, 0],
-      [3, 5, 6],
+      [8, 6, 0],
     ])
 
     expect(
       deriveButtonProfileLedPreview(
-        [slot({ type: "start_high_beam_strobe" }), null],
+        [slot({ type: "adjust_manual_assistance", delta: 1 }), null],
         { synchronized: false, steering: null, servotronicUsable: false }
       )
     ).toEqual([
@@ -183,7 +183,7 @@ describe("button profile LED presentation", () => {
   it("allows the presentation strategy to be replaced", () => {
     expect(
       deriveButtonProfileLedPreview(
-        [slot({ type: "start_high_beam_strobe" })],
+        [slot({ type: "adjust_manual_assistance", delta: 1 })],
         context,
         () => [1, 2, 3]
       )

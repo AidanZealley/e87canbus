@@ -166,7 +166,7 @@ def test_service_dispatches_coincident_deadline_before_periodic_tick() -> None:
     service.start()
     try:
         # The owner is blocked on its normal inbox poll.  Advancing the controllable clock
-        # makes the strobe deadline and periodic tick simultaneously overdue at that wake-up.
+        # makes the runtime deadline and periodic tick simultaneously overdue at that wake-up.
         clock.now = 0.1
         assert runtime.timer_called.wait(timeout=1.0)
         assert runtime.calls == ["deadline", "timer"]

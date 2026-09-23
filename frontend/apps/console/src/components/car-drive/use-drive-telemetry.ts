@@ -23,7 +23,6 @@ export const useDriveTelemetry = () => {
     (state) => state.engine.coolant_temperature_c
   )
   const connected = useLiveStore((state) => state.connection.synchronized)
-  const lighting = useLiveStore((state) => state.lighting)
   const settings = useEffectiveApplicationSettings().settings
   const oilSeverity = useTemperatureSeverity({
     telemetry: oilTelemetry,
@@ -66,7 +65,6 @@ export const useDriveTelemetry = () => {
   return {
     settings,
     connected,
-    lighting,
     speed,
     speedUnit: settings.speed_unit === "mph" ? "mph" : "km/h",
     rpm,

@@ -16,7 +16,6 @@ from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
-    HighBeamStrobeDeadlineReached,
 )
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
@@ -61,7 +60,6 @@ from e87canbus.runners.simulation.session import build_session
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ControllerWorkUnavailable,
-    ObservedLightingSnapshot,
     ObservedNetworkSnapshot,
     ObservedServotronicSnapshot,
     RuntimeExecution,
@@ -247,11 +245,6 @@ class SimulatedControllerRuntime:
             for deadline in self.kernel.state.button_feedback_deadlines
         ):
             self._dispatch(ButtonFeedbackDeadlineReached(now))
-        if (
-            self.kernel.state.high_beam_next_transition_at is not None
-            and self.kernel.state.high_beam_next_transition_at <= now
-        ):
-            self._dispatch(HighBeamStrobeDeadlineReached(now))
         if any(
             entry.next_deadline is not None and entry.next_deadline <= now
             for entry in self.kernel.registry
@@ -506,9 +499,6 @@ class SimulatedControllerRuntime:
                     else self.servotronic.last_command_reason.value
                 ),
                 watchdog_timed_out=self.servotronic.watchdog_timed_out,
-            ),
-            lighting=ObservedLightingSnapshot(
-                high_beam_enabled=self.vehicle.high_beam_enabled,
             ),
         )
 

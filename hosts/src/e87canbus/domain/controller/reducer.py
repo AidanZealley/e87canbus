@@ -1,7 +1,7 @@
 """The event reducer: one observed/timer/failure event to its next state.
 
 ``transition`` is the pure reducer for everything that is not an operator intent
-(speed and engine samples, control ticks, high-beam strobe advances, fallbacks
+(speed and engine samples, control ticks, fallbacks
 and button-feedback deadlines). ``Transition`` is the shared result type used by
 both this reducer and the intent path.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import assert_never
 
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
     ApplicationEffect,
@@ -21,9 +21,7 @@ from e87canbus.domain.events import (
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
-    HighBeamStrobeDeadlineReached,
     OilTemperatureObserved,
-    SetHighBeam,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
@@ -47,17 +45,10 @@ def transition(
     event: ApplicationEvent,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
-    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> Transition:
     """Return the complete next state and ordered effects for one event."""
 
     match event:
-        case HighBeamStrobeDeadlineReached(now):
-            return _advance_high_beam_strobe(
-                state,
-                now,
-                high_beam_strobe_config or HighBeamStrobeConfig(),
-            )
         case SpeedObserved(sample):
             next_state = replace(
                 state,
@@ -160,40 +151,6 @@ def normalize_state(state: ApplicationState, config: SteeringConfig) -> Applicat
             else normal
         ),
     )
-
-
-def _advance_high_beam_strobe(
-    state: ApplicationState,
-    now: float,
-    config: HighBeamStrobeConfig,
-) -> Transition:
-    deadline = state.high_beam_next_transition_at
-    if deadline is None or now < deadline:
-        return Transition(state)
-    if state.high_beam_enabled:
-        next_state = replace(
-            state,
-            high_beam_enabled=False,
-            high_beam_next_transition_at=now + config.deasserted_duration_s,
-        )
-        return Transition(next_state, (SetHighBeam(False),))
-
-    remaining = state.high_beam_strobe_cycles_remaining - 1
-    if remaining == 0:
-        return Transition(
-            replace(
-                state,
-                high_beam_strobe_cycles_remaining=0,
-                high_beam_next_transition_at=None,
-            )
-        )
-    next_state = replace(
-        state,
-        high_beam_enabled=True,
-        high_beam_strobe_cycles_remaining=remaining,
-        high_beam_next_transition_at=now + config.asserted_duration_s,
-    )
-    return Transition(next_state, (SetHighBeam(True),))
 
 
 def _fallback_command_reason(

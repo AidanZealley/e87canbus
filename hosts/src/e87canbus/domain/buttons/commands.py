@@ -22,7 +22,6 @@ from e87canbus.domain.intents import (
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
@@ -115,7 +114,6 @@ def button_command_configuration_error(
             | AdjustManualAssistance()
             | SetMaximumAssistance()
             | ToggleMaximumAssistance()
-            | StartHighBeamStrobe()
         ):
             return None
         case _:

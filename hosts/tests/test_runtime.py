@@ -27,6 +27,7 @@ from e87canbus.domain.intents import (
     SetManualAssistanceLevel,
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
+    ToggleMaximumAssistance,
 )
 from e87canbus.domain.state import (
     BUTTON_FEEDBACK_UNAVAILABLE,
@@ -80,11 +81,21 @@ RESTING_LEDS: tuple[Rgb, ...] = (
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
-    SOFT_WHITE,
-) + (RGB_OFF,) * 11
+    ) + (RGB_OFF,) * 12
 AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
 MANUAL_LEDS = RESTING_LEDS
 MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
+
+
+TEST_BUTTON_PROFILE = ActiveButtonProfile(
+    "test-buttons",
+    button_profile_definition_with({
+        0: ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE),
+        1: ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
+        2: ButtonSlot(AdjustManualAssistance(1), RGB_WHITE),
+        3: ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
+    }),
+)
 
 
 def activate_devices(kernel: CoordinatorKernel) -> None:
@@ -194,8 +205,8 @@ def test_mixed_inputs_produce_deterministic_revisions_snapshots_and_effects() ->
         ),
         TimerElapsed(0.2),
     )
-    first = CoordinatorKernel()
-    second = CoordinatorKernel()
+    first = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
+    second = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
 
     first_commits = tuple(first.dispatch(kernel_input) for kernel_input in inputs)
     second_commits = tuple(second.dispatch(kernel_input) for kernel_input in inputs)
@@ -245,7 +256,7 @@ def test_decoded_physical_button_press_uses_the_injected_profile() -> None:
 
 
 def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     assert kernel.dispatch(KernelStarted(0.0)) is not None
     activate_devices(kernel)
 
@@ -306,8 +317,8 @@ def test_semantic_set_inputs_are_repeat_safe_with_exact_topics_and_effects() -> 
 def test_button_and_relative_manual_command_clear_maximum_with_equivalent_outputs(
     button_index: int,
 ) -> None:
-    button_kernel = CoordinatorKernel()
-    command_kernel = CoordinatorKernel()
+    button_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
+    command_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
@@ -332,8 +343,8 @@ def test_button_and_relative_manual_command_clear_maximum_with_equivalent_output
 
 @pytest.mark.parametrize("button_index", [1, 2])
 def test_button_and_relative_command_enter_manual_at_remembered_level(button_index: int) -> None:
-    button_kernel = CoordinatorKernel()
-    command_kernel = CoordinatorKernel()
+    button_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
+    command_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
@@ -357,8 +368,8 @@ def test_button_and_relative_command_enter_manual_at_remembered_level(button_ind
 
 
 def test_maximum_toggle_button_matches_explicit_enable_and_disable_commands() -> None:
-    button_kernel = CoordinatorKernel()
-    command_kernel = CoordinatorKernel()
+    button_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
+    command_kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     for kernel in (button_kernel, command_kernel):
         kernel.dispatch(KernelStarted(0.0))
         activate_devices(kernel)
@@ -378,7 +389,7 @@ def test_maximum_toggle_button_matches_explicit_enable_and_disable_commands() ->
 
 
 def test_maximum_snapshot_preserves_remembered_manual_level_and_effective_override() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
     kernel.dispatch(ExecuteOperatorIntent(SetManualAssistanceLevel(4)))
@@ -392,7 +403,7 @@ def test_maximum_snapshot_preserves_remembered_manual_level_and_effective_overri
 
 
 def test_projected_eleven_levels_and_button_bounds_match_exact_commands() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -406,7 +417,7 @@ def test_projected_eleven_levels_and_button_bounds_match_exact_commands() -> Non
 
 
 def test_unavailable_servotronic_rejects_both_origins_with_button_only_feedback() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     ids = CustomCanIds()
     kernel.dispatch(
@@ -447,7 +458,7 @@ def test_unknown_and_malformed_frames_create_no_commits(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     ids = CustomCanIds()
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
 
     with caplog.at_level(logging.WARNING):
@@ -473,7 +484,7 @@ def test_out_of_range_button_can_payload_is_counted_as_malformed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     ids = CustomCanIds()
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
 
     with caplog.at_level(logging.WARNING):
@@ -494,7 +505,7 @@ def test_out_of_range_button_can_payload_is_counted_as_malformed(
 
 
 def test_button_topic_is_backed_by_one_complete_immutable_led_projection() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -541,7 +552,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
     kind: RuntimeFaultKind,
     fallback_reason: SteeringCommandReason | None,
 ) -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -561,7 +572,7 @@ def test_fault_inputs_are_visible_in_immutable_runtime_health(
 
 
 def test_steering_actuator_failure_is_nonfatal_and_disables_servotronic_output() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(0.0))
     activate_devices(kernel)
 
@@ -626,7 +637,7 @@ def test_old_simulated_speed_frame_cannot_clear_failsafe_when_processed_late() -
 
 
 def test_startup_and_shutdown_are_idempotent() -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
 
     assert kernel.dispatch(KernelStarted(1.0)) is not None
     assert kernel.dispatch(KernelStarted(2.0)) is None
@@ -650,7 +661,7 @@ def test_typed_effect_failure_updates_health_after_stop(
     failure: CanEffectExecutionFailed | SteeringActuatorFailed,
     fatal: bool,
 ) -> None:
-    kernel = CoordinatorKernel()
+    kernel = CoordinatorKernel(button_profile=TEST_BUTTON_PROFILE)
     kernel.dispatch(KernelStarted(1.0))
     kernel.dispatch(ShutdownRequested(2.0))
     revision = kernel.diagnostics().revision

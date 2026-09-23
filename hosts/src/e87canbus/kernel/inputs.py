@@ -14,12 +14,9 @@ from e87canbus.domain.buttons.profiles import ActiveButtonProfile, validate_save
 from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
-    HighBeamStrobeDeadlineReached,
 )
 from e87canbus.domain.intents import (
-    DEFAULT_OPERATOR_INTENT_CONTEXT,
     OperatorIntent,
-    OperatorIntentContext,
     is_operator_intent,
 )
 from e87canbus.domain.steering.curves import SteeringCurveDefinition
@@ -117,13 +114,10 @@ class ExecuteOperatorIntent:
     """A transport-independent operator intent submitted through a non-button adapter."""
 
     intent: OperatorIntent
-    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT
 
     def __post_init__(self) -> None:
         if not is_operator_intent(self.intent):
             raise TypeError(f"unsupported operator intent: {type(self.intent).__name__}")
-        if not isinstance(self.context, OperatorIntentContext):
-            raise TypeError("context must be an OperatorIntentContext")
 
 
 ControllerInput = (
@@ -131,7 +125,6 @@ ControllerInput = (
     | ReceivedCanFrame
     | TimerElapsed
     | ButtonFeedbackDeadlineReached
-    | HighBeamStrobeDeadlineReached
     | CanReaderFailed
     | CanEffectExecutionFailed
     | SteeringActuatorFailed

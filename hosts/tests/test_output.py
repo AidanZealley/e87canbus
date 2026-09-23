@@ -14,7 +14,6 @@ from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.events import (
     ConfigureServotronicCurve,
     SetButtonPadProgram,
-    SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
     TriggerButtonPadBlink,
@@ -88,16 +87,6 @@ def test_default_executor_has_no_transmit_capability(
         EffectExecutor().execute((EffectRequest(led_program(BLUE_LEDS)),))
 
     assert "unavailable TX capability" in caplog.text
-
-
-def test_high_beam_requires_its_own_explicit_actuator_capability() -> None:
-    """Network TX alone must not authorize the simulator-only high-beam command."""
-
-    raw = FakeTransmitter()
-    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
-
-    assert executor.execute((EffectRequest(SetHighBeam(True)),)) == ()
-    assert raw.sent == []
 
 
 def test_explicit_transmit_capability_encodes_led_effect() -> None:
@@ -280,6 +269,11 @@ def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
 def test_executor_rejects_raw_effects_outside_effect_request_boundary() -> None:
     with pytest.raises(TypeError, match="EffectRequest"):
         EffectExecutor().execute((led_program(BLUE_LEDS),))  # type: ignore[arg-type]
+
+
+def test_effect_request_rejects_a_steering_reason_without_a_command() -> None:
+    with pytest.raises(ValueError, match="executable effect"):
+        EffectRequest(SteeringCommandReason.MANUAL)  # type: ignore[arg-type]
 
 
 def test_alternating_payloads_on_one_id_share_network_window(

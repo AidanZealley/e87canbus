@@ -2,12 +2,9 @@ from dataclasses import replace
 
 import pytest
 from e87canbus.config import (
-    BUILT_IN_RESERVED_BUTTON_INDEXES,
-    BUTTON_PAD_BUTTON_COUNT,
     CanNetwork,
     CustomCanIds,
     EngineTelemetryConfig,
-    HighBeamStrobeConfig,
     LivePublicationConfig,
     NetworkConfigError,
     SimulationConfig,
@@ -83,27 +80,10 @@ def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
         SimulationConfig(**{field: value})
 
 
-@pytest.mark.parametrize("button_index", [-1, BUTTON_PAD_BUTTON_COUNT])
-def test_high_beam_button_must_address_the_physical_pad(button_index: int) -> None:
-    with pytest.raises(ValueError, match=f"between 0 and {BUTTON_PAD_BUTTON_COUNT - 1}"):
-        HighBeamStrobeConfig(button_index=button_index)
 
 
-@pytest.mark.parametrize("button_index", sorted(BUILT_IN_RESERVED_BUTTON_INDEXES))
-def test_high_beam_button_cannot_collide_with_built_in_bindings(button_index: int) -> None:
-    with pytest.raises(ValueError, match="reserved by the built-in button profile"):
-        HighBeamStrobeConfig(button_index=button_index)
 
 
-def test_reserved_button_indexes_match_the_built_in_profile() -> None:
-    from e87canbus.domain.buttons.profiles import built_in_active_button_profile
-
-    profile = built_in_active_button_profile()
-    high_beam_index = HighBeamStrobeConfig().button_index
-    non_high_beam_indexes = frozenset(
-        index for index, _ in profile.assigned() if index != high_beam_index
-    )
-    assert non_high_beam_indexes == BUILT_IN_RESERVED_BUTTON_INDEXES
 
 
 @pytest.mark.parametrize(

@@ -86,27 +86,11 @@ Disabled mode has no emulator controls or device-originated traffic and omits th
 Source-mode changes require restart. Reset reconstructs the virtual topology and emulator, clears
 trace identity and restores vehicle signals to never-observed without retaining old endpoints.
 
-Buttons `1` and `2` enter Manual at the remembered runtime assistance level on their first press from Auto. Further presses decrease or increase the level within the configured bounds. There are eleven manual levels, from 0% through 100% in 10% increments. Button `3` temporarily selects Manual at the maximum level and lights white; pressing it again restores the previous mode and manual level. Pressing `0` while maximum assistance is active disables it and selects Auto. Pressing `1` or `2` while maximum assistance is active returns to Manual at the saved level without adjusting it until the following press. The on-screen `−` and `+` controls follow the same maximum-assistance cancellation behavior. This remembered state is not persisted across coordinator restarts.
-
-The emulator still emits the same CAN button frame as the physical pad. After decoding, the server
-resolves the pressed index through its compiled-in button binding profile and dispatches the resulting
-canonical operator intent. HTTP controls translate directly to that same intent vocabulary. Shared
-state, bounds, maximum-assistance cancellation, and actuator commands therefore have one transition
-implementation; only button acknowledgements remain origin-specific. The profile is replaceable in
-composition for tests and future work, but there is currently no profile persistence or configuration
-UI.
-
-The HTTP command surface keeps these meanings distinct: steering-mode selects only Auto or Manual,
-manual-assistance-adjustment applies a relative delta, and manual-assistance-level selects an exact
-stage for future direct selectors. The on-screen `−` and `+` controls use relative adjustment, so
-they never derive a new level from the maximum-assistance projection.
-
-Button `4` starts one bounded synthetic flash-to-pass sequence: five cycles of high beam asserted
-for 80 ms and deasserted for 80 ms. It is ignored while a sequence is already active. The simulator
-turns each phase into a private extended K-CAN command from the Pi to the virtual vehicle, so the
-internal trace records the transmission and tests distinguish requested from observed virtual-car
-state. This is deliberately a virtual-car protocol only: it is neither a BMW
-frame/ID nor a live vehicle command.
+A fresh application database selects one protected `Default` button profile with sixteen
+unassigned slots. The simulator therefore starts with no button action. Tests can inject an authored
+profile to exercise button routing. Profile CRUD and selection use the coordinator HTTP API; changes
+to steering state continue through the HTTP controls. Existing prototype databases must be replaced
+after the simplified-coordinator slice. They are not migrated.
 
 Set a synthetic vehicle speed through `PUT /api/dev/simulation/vehicle/speed` with a body such as
 `{"speed_kph": 42.5}`. The command operates the external simulated vehicle, which emits an extended
@@ -171,11 +155,6 @@ external devices remain unrestricted. Button-pad v2 commands are paced below the
 their final commit atomically replaces all 16 simulated LED tracks. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
 
-The high-beam strobe additionally requires its own simulator-only actuator capability. Live mode
-does not construct that actuator and its router has no high-beam frame mapping; a future live K-CAN
-grant therefore cannot enable this output accidentally. No BMW high-beam frame, live high-beam
-actuator, or real-car TX capability exists in this repository.
-
 The emulator uses the generated provisional project protocol on K-CAN; firmware compiles the same
 transport but physical NeoTrellis RGB consumption remains deferred:
 
@@ -185,12 +164,9 @@ transport but physical NeoTrellis RGB consumption remains deferred:
 The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700`, `0x708`, and `0x709` require collision
 validation against a real K-CAN capture before any in-car transmission.
 
-It does not simulate verified BMW vehicle control traffic. Its synthetic extended speed and
-high-beam-command messages are defined only in `e87canbus.simulation.protocol`, are never installed
-in live composition, and are not BMW candidates. Placeholder BMW IDs remain notes only and must not
-be used as replay commands until real captures, counters/checksums, payload behavior and cadence
-have been verified. Specifically, a real high-beam path needs named stalk-pull and stalk-release
-captures plus controlled validation before a deliberately new live actuator capability could be
-considered. Future simulated inputs must still pass through an external simulated node, encoded CAN
+It does not simulate verified BMW vehicle control traffic. Its synthetic extended vehicle-observation messages are defined only in
+`e87canbus.runners.simulation.protocol`, are never installed in live composition, and are not BMW
+candidates. Placeholder BMW IDs remain notes only and must not be used as replay commands until real
+captures, counters/checksums, payload behavior and cadence have been verified. Future simulated inputs must still pass through an external simulated node, encoded CAN
 frame, ingress timestamp, and central decoder; no simulator API may inject domain events or
 coordinator state.

@@ -22,7 +22,6 @@ class StateTopic(StrEnum):
     ENGINE = "engine"
     STEERING = "steering"
     BUTTONS = "buttons"
-    LIGHTING = "lighting"
     DEVICES = "devices"
     HEALTH = "health"
 
@@ -33,7 +32,6 @@ INITIAL_KERNEL_TOPICS = frozenset(
         StateTopic.ENGINE,
         StateTopic.STEERING,
         StateTopic.BUTTONS,
-        StateTopic.LIGHTING,
         StateTopic.HEALTH,
         StateTopic.DEVICES,
     }
@@ -97,12 +95,6 @@ def changed_controller_topics(
         changed.add(StateTopic.STEERING)
     if buttons_changed:
         changed.add(StateTopic.BUTTONS)
-    if (
-        current.high_beam_enabled != previous.high_beam_enabled
-        or current.high_beam_strobe_active != previous.high_beam_strobe_active
-        or (current.high_beam_strobe_cycles_remaining != previous.high_beam_strobe_cycles_remaining)
-    ):
-        changed.add(StateTopic.LIGHTING)
     if health_changed:
         changed.add(StateTopic.HEALTH)
     return frozenset(changed)

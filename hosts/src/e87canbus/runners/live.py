@@ -13,7 +13,6 @@ from e87canbus.adapters.output import (
     CanEffectFailure,
     EffectExecutor,
     EffectFailure,
-    HighBeamActuatorFailure,
     SafeCanTransmitter,
     SteeringActuatorFailure,
 )
@@ -24,7 +23,6 @@ from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     ButtonFeedbackDeadlineReached,
-    HighBeamStrobeDeadlineReached,
 )
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
@@ -182,15 +180,6 @@ def _effect_failure_input(
             return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
         case SteeringActuatorFailure(message, origin_button_index):
             return SteeringActuatorFailed(failed_at, message, origin_button_index)
-        case HighBeamActuatorFailure(message, origin_button_index):
-            # Live composition never grants this capability.  Retain a conservative
-            # failure mapping should a future adapter violate that boundary.
-            return CanEffectExecutionFailed(
-                CanNetwork.KCAN,
-                failed_at,
-                message,
-                origin_button_index,
-            )
         case _:
             assert_never(failure)
 
@@ -252,7 +241,6 @@ class LiveControllerRuntime:
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
-            high_beam_strobe_config=config.high_beam_strobe,
             router=self._router,
             device_sources={
                 DeviceRole.BUTTON_PAD: button_pad_source,
@@ -378,13 +366,6 @@ class LiveControllerRuntime:
             execution = self._dispatch(ButtonFeedbackDeadlineReached(now))
             if execution is not None:
                 executions.append(execution)
-        if (
-            self._kernel.state.high_beam_next_transition_at is not None
-            and self._kernel.state.high_beam_next_transition_at <= now
-        ):
-            execution = self._dispatch(HighBeamStrobeDeadlineReached(now))
-            if execution is not None:
-                executions.append(execution)
         if any(
             entry.next_deadline is not None and entry.next_deadline <= now
             for entry in self._kernel.registry
@@ -439,7 +420,6 @@ class LiveControllerRuntime:
                     if servotronic_status is None
                     else observed_servotronic_snapshot(servotronic_status)
                 ),
-                lighting=None,
             ),
         )
 

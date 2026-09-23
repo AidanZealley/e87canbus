@@ -11,17 +11,8 @@ import { useDriveTelemetry } from "../../use-drive-telemetry"
 import { IndicatorLights } from "../indicator-lights"
 
 export const ClassicDashboard = () => {
-  const {
-    settings,
-    connected,
-    lighting,
-    speed,
-    speedUnit,
-    rpm,
-    temperatureUnit,
-    oil,
-    coolant,
-  } = useDriveTelemetry()
+  const { settings, speed, speedUnit, rpm, temperatureUnit, oil, coolant } =
+    useDriveTelemetry()
 
   return (
     <section
@@ -32,10 +23,7 @@ export const ClassicDashboard = () => {
         Drive
       </h1>
       <div className="flex flex-col gap-6">
-        <IndicatorLights
-          connected={connected}
-          highBeamEnabled={lighting.high_beam_enabled}
-        />
+        <IndicatorLights />
         <div className="flex flex-col gap-4">
           <RpmBar {...rpm} redlineRpm={settings.redline_rpm} />
           <TelemetryValue

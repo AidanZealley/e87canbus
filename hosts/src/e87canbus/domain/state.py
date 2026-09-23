@@ -119,9 +119,6 @@ class ApplicationState:
     oil_temperature_sample: OilTemperatureSample | None = None
     coolant_temperature_sample: CoolantTemperatureSample | None = None
     engine_telemetry_evaluated_at: float = 0.0
-    high_beam_enabled: bool = False
-    high_beam_strobe_cycles_remaining: int = 0
-    high_beam_next_transition_at: float | None = None
     button_feedback_deadlines: tuple[float | None, ...] = (None,) * 16
     button_feedback: tuple[ButtonFeedback | None, ...] = (None,) * 16
 

@@ -1,21 +1,21 @@
 # Simplified coordinator implementation plan
 
-Status: draft; implementation has not started.
+Status: in progress.
 
 ## Orchestration record
 
-- Integration branch: `TBD` (`feature/simplified-coordinator` when started)
-- Starting commit: `TBD`
+- Integration branch: `feature/simplified-coordinator`
+- Starting commit: `d2c00ed5313954142ff8205da5adab4da5882f48`
 - Review command: packet-specific Claude Code command using `--model opus --effort medium --permission-mode plan`
-- Specification approved at commit: `TBD`
-- Started: `TBD`
-- Baseline verification: `TBD` (recorded by the Workstream 1 lead before its implementation diff exists)
+- Specification approved at commit: `d2c00ed5313954142ff8205da5adab4da5882f48`
+- Started: `2026-09-23`
+- Baseline verification: all Workstream 1 targeted commands passed at the starting commit on 2026-09-23 (pytest, OpenAPI check, mypy, ruff, lint-imports, diff check, frontend API check, coordinator-client typecheck, coordinator tests and console tests).
 
 ## Workstream order
 
 | # | Workstream | Depends on | Status |
 |---:|---|---|---|
-| 1 | [Remove the high-beam flash feature](01-remove-high-beam-flash.md) | Approved Slice 1.5 | Not started |
+| 1 | [Remove the high-beam flash feature](01-remove-high-beam-flash.md) | Approved Slice 1.5 | Accepted |
 | 2 | [Retire button-pad CAN and coordinator feedback](02-retire-button-pad-can.md) | Workstream 1 | Not started |
 | 3 | [Retire Servotronic and delete the device-CAN platform](03-retire-servotronic-control.md) | Workstream 2 | Not started |
 | 4 | [Reduce the coordinator to its retained responsibilities](04-simplify-coordinator-core.md) | Workstream 3 | Not started |

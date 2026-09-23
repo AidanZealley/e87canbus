@@ -20,7 +20,6 @@ from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.runners.simulation.devices import (
-    SimulatedHighBeamActuator,
     SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
     SimulatedVehicleNode,
@@ -107,7 +106,6 @@ def build_session(
     kernel = CoordinatorKernel(
         steering_config=config.steering,
         engine_telemetry_config=config.engine_telemetry,
-        high_beam_strobe_config=config.high_beam_strobe,
         router=router,
         device_sources={
             DeviceRole.BUTTON_PAD: button_pad_source,
@@ -124,11 +122,6 @@ def build_session(
         transmitters,
         router,
         steering_actuator=servotronic,
-        high_beam_actuator=(
-            None
-            if (transmitter := transmitters.get(CanNetwork.KCAN)) is None
-            else SimulatedHighBeamActuator(transmitter)
-        ),
     )
     return SimulationSession(
         topology=topology,

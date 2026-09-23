@@ -101,29 +101,29 @@ claude -p "Perform the focused closure review for Workstream 1 of the simplified
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `d2c00ed5313954142ff8205da5adab4da5882f48`
+- Outcome: Removed the high-beam command, timing, state, effects, simulation frame, live lighting contract and UI. A fresh database seeds and selects one protected `Default` profile with sixteen unassigned slots.
+- Files changed: Domain intents, button catalogue and profiles, SQLite seed, kernel and runtime paths, output adapter, simulation protocol and vehicle, live models and SSE, both frontend profile editors and driving views, generated OpenAPI and Hey API artifacts, focused tests, and `docs/simulation.md`.
+- Decisions: Removed `OperatorIntentContext` because its timestamp existed only for the retired command. Kept the protected profile identity and selection model. The simulated vehicle still drains unrelated CAN frames so its inbox cannot grow without bound. Existing prototype databases must be replaced; no migration or retired-command parser was added.
+- Verification: Targeted backend suite 178 passed; nine additional changed backend test files 157 passed. OpenAPI check, mypy, ruff, lint-imports, `git diff --check`, frontend `api:check`, coordinator-client and both app typechecks, coordinator tests 37 passed, and console tests 104 passed with one Vitest worker.
+- Known limitations or external checks: The console suite's default parallel worker setting timed out in route tests; the route file passed alone and the complete suite passed with `--maxWorkers=1`. No external check is required.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (review command used, or the subagent fallback that replaced it)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh GPT-6 Sol agent, replacing the unstarted Claude command at the user's request.
+- Verdict: Changes requested.
+- Required findings: `README.md` still claims simulated high-beam flash behavior and a simulator-only actuator/frame. `EffectRequest.__post_init__` in `hosts/src/e87canbus/adapters/output.py` accidentally includes the unrelated `SteeringCommandReason` enum and misindents `SendRegistryFrame`.
+- Optional observations: None.
+- Questions: None.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Both Required findings accepted for one remediation pass.
+- Simplification/deletion pass: The implementation removed the command, seed assignments, high-beam domain state, effects, simulator frame and actuator, live lighting projection, frontend consumers, unused icons and feature-only tests. Remediation fixed the validator directly and updated the root README; it added no compatibility path.
+- Final verification: After remediation, `hosts/tests/test_output.py` passed (12 tests), as did mypy, ruff and `git diff --check`. Fresh closure checks passed 35 output, SQLite profile and OpenAPI tests, OpenAPI generation `--check`, and `git diff --check`. The implementation handoff records the full targeted checks.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved by a fresh GPT-6 Sol agent, replacing the unstarted Claude closure command at the user's request.
+- Remaining required findings: None. Both accepted findings were fixed; the closure review found no release-blocking seed, contract or incomplete-deletion defect.
