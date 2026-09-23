@@ -114,50 +114,6 @@ class EngineTelemetryConfig:
             raise ValueError("engine telemetry timeout must be finite and positive")
 
 
-# Canonical physical button-pad size, owned here because config sits below the
-# application layer in the import graph (application.events mirrors this as
-# BUTTON_LED_COUNT but transitively imports config, so it cannot be imported here
-# without a cycle).
-BUTTON_PAD_BUTTON_COUNT = 16
-
-# The fixed button indexes filled by the built-in profile's non-high-beam commands.
-# This is the single source of truth for "which pad buttons are already reserved":
-# domain.button_profiles imports this constant and builds those fixed slots
-# from it, so the profile and this reservation set cannot silently drift apart.
-BUILT_IN_RESERVED_BUTTON_INDEXES = frozenset({0, 1, 2, 3})
-
-
-@dataclass(frozen=True)
-class HighBeamStrobeConfig:
-    """Bounded flash-to-pass plan, expressed independently of any CAN protocol."""
-
-    button_index: int = 4
-    cycle_count: int = 5
-    asserted_duration_s: float = 0.08
-    deasserted_duration_s: float = 0.08
-
-    def __post_init__(self) -> None:
-        if (
-            type(self.button_index) is not int
-            or not 0 <= self.button_index < BUTTON_PAD_BUTTON_COUNT
-        ):
-            raise ValueError(
-                f"high-beam strobe button_index must be between 0 and {BUTTON_PAD_BUTTON_COUNT - 1}"
-            )
-        if self.button_index in BUILT_IN_RESERVED_BUTTON_INDEXES:
-            raise ValueError(
-                "high-beam strobe button_index is reserved by the built-in button profile"
-            )
-        if type(self.cycle_count) is not int or self.cycle_count < 1:
-            raise ValueError("high-beam strobe cycle_count must be a positive integer")
-        for name, value in (
-            ("asserted_duration_s", self.asserted_duration_s),
-            ("deasserted_duration_s", self.deasserted_duration_s),
-        ):
-            if not math.isfinite(value) or value <= 0:
-                raise ValueError(f"high-beam strobe {name} must be finite and positive")
-
-
 @dataclass(frozen=True)
 class PlaceholderBmwIds:
     """Unverified candidate IDs from project context, not replay constants."""
@@ -222,7 +178,6 @@ class AppConfig:
     custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)
-    high_beam_strobe: HighBeamStrobeConfig = field(default_factory=HighBeamStrobeConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
     tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1

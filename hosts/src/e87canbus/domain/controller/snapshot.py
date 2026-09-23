@@ -55,10 +55,6 @@ class ApplicationSnapshot:
     steering_curve_activation_status: SteeringCurveActivationStatus
     curve_activation_available: bool
     button_pad_program: ButtonPadProgram
-    high_beam_enabled: bool
-    high_beam_strobe_active: bool
-    high_beam_strobe_cycles_remaining: int
-    high_beam_next_transition_at: float | None
     active_button_profile_id: str
     active_button_profile_revision: int | None
 
@@ -118,10 +114,6 @@ def snapshot(
         button_pad_program=leds.effect(state).program,
         active_button_profile_id=leds.profile.profile_id,
         active_button_profile_revision=saved_button_profile_revision,
-        high_beam_enabled=state.high_beam_enabled,
-        high_beam_strobe_active=state.high_beam_strobe_cycles_remaining > 0,
-        high_beam_strobe_cycles_remaining=state.high_beam_strobe_cycles_remaining,
-        high_beam_next_transition_at=state.high_beam_next_transition_at,
     )
 
 

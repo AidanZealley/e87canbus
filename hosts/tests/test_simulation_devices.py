@@ -1,4 +1,3 @@
-import logging
 
 import pytest
 from e87canbus.config import CanNetwork, CustomCanIds
@@ -32,10 +31,8 @@ from e87canbus.runners.simulation.devices import (
     SimulatedVehicleNode,
 )
 from e87canbus.runners.simulation.protocol import (
-    SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     encode_simulated_coolant_temperature,
     encode_simulated_engine_rpm,
-    encode_simulated_high_beam_command,
     encode_simulated_oil_temperature,
     encode_simulated_speed,
 )
@@ -370,42 +367,8 @@ def test_simulated_vehicle_sweep_is_generated_from_continuous_virtual_car_time()
     assert fcan.receive(timeout_s=0) == encode_simulated_speed(150.0)
 
 
-def test_simulated_vehicle_consumes_private_pi_high_beam_command_on_kcan() -> None:
-    topology = InMemoryCanTopology()
-    pi_bus = topology.create_bus(CanNetwork.KCAN, "pi")
-    vehicle = SimulatedVehicleNode(
-        {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork}
-    )
-
-    frame = encode_simulated_high_beam_command(True)
-    pi_bus.send(frame)
-
-    assert vehicle.drain_pending() == 1
-    assert vehicle.high_beam_enabled is True
-    assert topology.trace()[-1].source == "pi"
-    assert topology.trace()[-1].network is CanNetwork.KCAN
-    assert topology.trace()[-1].frame == frame
 
 
-@pytest.mark.parametrize("data", [b"", b"\x02", b"\x01\x00"])
-def test_simulated_vehicle_ignores_malformed_private_high_beam_command(
-    data: bytes,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    topology = InMemoryCanTopology()
-    pi_bus = topology.create_bus(CanNetwork.KCAN, "pi")
-    vehicle = SimulatedVehicleNode(
-        {network: topology.create_bus(network, "simulated-vehicle") for network in CanNetwork},
-        high_beam_enabled=True,
-    )
-
-    pi_bus.send(CanFrame(SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID, data, is_extended_id=True))
-
-    with caplog.at_level(logging.WARNING):
-        assert vehicle.drain_pending() == 1
-
-    assert vehicle.high_beam_enabled is True
-    assert "simulated vehicle ignored malformed high-beam command" in caplog.text
 
 
 def test_simulated_steering_watchdog_removes_assistance_after_silence() -> None:

@@ -28,7 +28,6 @@ from e87canbus.domain.intents import (
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
@@ -224,13 +223,6 @@ BUTTON_COMMAND_CATALOGUE: tuple[ButtonCommandSpec, ...] = (
             ToggleMaximumAssistance,
             lambda state, _command: _maximum_assistance_active(state),
         ),
-    ),
-    ButtonCommandSpec(
-        "start_high_beam_strobe",
-        StartHighBeamStrobe,
-        # Lighting while the strobe runs needs a running flag the derivation can read,
-        # which does not exist yet; until it does the strobe has no observable condition.
-        active=None,
     ),
 )
 

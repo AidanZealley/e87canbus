@@ -16,17 +16,8 @@ import { ClusterTachometer } from "./components/cluster-tachometer"
  * take the foreground, and anything shared drops in without adjustment.
  */
 export const ClusterDashboard = () => {
-  const {
-    settings,
-    connected,
-    lighting,
-    speed,
-    speedUnit,
-    rpm,
-    temperatureUnit,
-    oil,
-    coolant,
-  } = useDriveTelemetry()
+  const { settings, speed, speedUnit, rpm, temperatureUnit, oil, coolant } =
+    useDriveTelemetry()
 
   return (
     <section
@@ -40,10 +31,7 @@ export const ClusterDashboard = () => {
       {/* One banked instrument panel rather than widgets pushed to the edges:
           the tell-tales, the strip and the readouts stay together. */}
       <div className="mx-auto flex w-full max-w-360 flex-col gap-6">
-        <IndicatorLights
-          connected={connected}
-          highBeamEnabled={lighting.high_beam_enabled}
-        />
+        <IndicatorLights />
 
         <ClusterTachometer
           {...rpm}

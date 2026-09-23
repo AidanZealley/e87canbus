@@ -3,7 +3,6 @@ import batteryRaw from "./raw/ISO_7000_-_Ref-No_0247.svg?raw"
 import checkEngineRaw from "./raw/ISO_7000_-_Ref-No_0640.svg?raw"
 import coolantTemperatureRaw from "./raw/ISO_7000_-_Ref-No_0246.svg?raw"
 import fuelRaw from "./raw/ISO_7000_-_Ref-No_0245.svg?raw"
-import highBeamRaw from "./raw/ISO_7000_-_Ref-No_0082.svg?raw"
 import lowBeamRaw from "./raw/ISO_7000_-_Ref-No_0083.svg?raw"
 import oilPressureRaw from "./raw/ISO_7000_-_Ref-No_0248.svg?raw"
 import tirePressureRaw from "./raw/ISO_7000_-_Ref-No_1434A.svg?raw"
@@ -15,7 +14,6 @@ import { createDashboardIcon } from "./dashboard-icon-utils"
 
 export type { DashboardIconProps } from "./dashboard-icon-utils"
 
-export const HighBeam = createDashboardIcon("HighBeam", highBeamRaw)
 export const LowBeam = createDashboardIcon("LowBeam", lowBeamRaw)
 export const TurnSignalLeft = createDashboardIcon(
   "TurnSignalLeft",

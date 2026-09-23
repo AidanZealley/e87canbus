@@ -538,7 +538,6 @@
                 "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
                 "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
                 "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
-                "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
                 "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
                 "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
               },
@@ -562,9 +561,6 @@
               },
               {
                 "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
-              },
-              {
-                "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
               }
             ],
             "title": "Command"
@@ -639,7 +635,6 @@
                 "select_steering_mode": "#/components/schemas/SelectSteeringModeCommand",
                 "set_manual_assistance_level": "#/components/schemas/SetManualAssistanceLevelCommand",
                 "set_maximum_assistance": "#/components/schemas/SetMaximumAssistanceCommand",
-                "start_high_beam_strobe": "#/components/schemas/StartHighBeamStrobeCommand",
                 "toggle_automatic_assistance": "#/components/schemas/ToggleAutomaticAssistanceCommand",
                 "toggle_maximum_assistance": "#/components/schemas/ToggleMaximumAssistanceCommand"
               },
@@ -663,9 +658,6 @@
               },
               {
                 "$ref": "#/components/schemas/ToggleMaximumAssistanceCommand"
-              },
-              {
-                "$ref": "#/components/schemas/StartHighBeamStrobeCommand"
               }
             ],
             "title": "Command"
@@ -815,9 +807,6 @@
           "health": {
             "$ref": "#/components/schemas/CoordinatorHealthState"
           },
-          "lighting": {
-            "$ref": "#/components/schemas/LightingState"
-          },
           "steering": {
             "$ref": "#/components/schemas/SteeringState"
           },
@@ -830,7 +819,6 @@
           "engine",
           "steering",
           "buttons",
-          "lighting",
           "health"
         ],
         "title": "CoordinatorSnapshot",
@@ -1095,62 +1083,6 @@
           "overflow_latched"
         ],
         "title": "InboxHealthState",
-        "type": "object"
-      },
-      "LightingEvent": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/LightingState"
-          },
-          "type": {
-            "const": "lighting",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "data"
-        ],
-        "title": "LightingEvent",
-        "type": "object"
-      },
-      "LightingState": {
-        "additionalProperties": false,
-        "properties": {
-          "high_beam_enabled": {
-            "title": "High Beam Enabled",
-            "type": "boolean"
-          },
-          "high_beam_strobe_active": {
-            "title": "High Beam Strobe Active",
-            "type": "boolean"
-          },
-          "high_beam_strobe_cycles_remaining": {
-            "minimum": 0.0,
-            "title": "High Beam Strobe Cycles Remaining",
-            "type": "integer"
-          },
-          "observed_high_beam_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Observed High Beam Enabled"
-          }
-        },
-        "required": [
-          "high_beam_enabled",
-          "high_beam_strobe_active",
-          "high_beam_strobe_cycles_remaining",
-          "observed_high_beam_enabled"
-        ],
-        "title": "LightingState",
         "type": "object"
       },
       "LivenessResponse": {
@@ -1870,21 +1802,6 @@
         ],
         "title": "SpeedUnit",
         "type": "string"
-      },
-      "StartHighBeamStrobeCommand": {
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "const": "start_high_beam_strobe",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "title": "StartHighBeamStrobeCommand",
-        "type": "object"
       },
       "SteeringCapabilityHealthState": {
         "additionalProperties": false,
@@ -3901,7 +3818,6 @@
                       "buttons": "#/components/schemas/ButtonsEvent",
                       "engine": "#/components/schemas/EngineEvent",
                       "health": "#/components/schemas/HealthEvent",
-                      "lighting": "#/components/schemas/LightingEvent",
                       "resource.changed": "#/components/schemas/ResourceChangedSseEvent",
                       "snapshot": "#/components/schemas/SnapshotEvent",
                       "steering": "#/components/schemas/SteeringEvent",
@@ -3924,9 +3840,6 @@
                     },
                     {
                       "$ref": "#/components/schemas/ButtonsEvent"
-                    },
-                    {
-                      "$ref": "#/components/schemas/LightingEvent"
                     },
                     {
                       "$ref": "#/components/schemas/HealthEvent"
@@ -4909,10 +4822,6 @@
     {
       "has_active_state": true,
       "type": "toggle_maximum_assistance"
-    },
-    {
-      "has_active_state": false,
-      "type": "start_high_beam_strobe"
     }
   ]
 }

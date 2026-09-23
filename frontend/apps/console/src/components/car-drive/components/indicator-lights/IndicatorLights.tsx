@@ -4,7 +4,6 @@ import {
   CheckEngine,
   CoolantTemperature,
   Fuel,
-  HighBeam,
   LowBeam,
   OilPressure,
   TirePressure,
@@ -12,26 +11,14 @@ import {
   TurnSignalLeft,
   TurnSignalRight,
 } from "@/icons"
-import { cn } from "@/lib/utils"
-
-type IndicatorLightsProps = {
-  connected: boolean
-  highBeamEnabled: boolean
-}
 
 const DORMANT = "size-8 text-muted-foreground/20"
 
 /**
  * The tell-tale strip, shared by every dashboard so the lamps sit in one
- * order wherever they appear. Only high beam has a live channel; the rest are
- * laid out dormant, ready for the signals that will drive them.
+ * order wherever they appear. The lamps remain dormant until vehicle signals drive them.
  */
-export const IndicatorLights = ({
-  connected,
-  highBeamEnabled,
-}: IndicatorLightsProps) => {
-  const highBeamOn = connected && highBeamEnabled
-
+export const IndicatorLights = () => {
   return (
     <div
       className="flex w-full items-center justify-between"
@@ -41,13 +28,6 @@ export const IndicatorLights = ({
       <TurnSignalLeft aria-label="Left indicator" className={DORMANT} />
       <div className="flex items-center gap-4">
         <LowBeam aria-label="Dipped beam" className={DORMANT} />
-        <HighBeam
-          aria-label={highBeamOn ? "High beam on" : "High beam off"}
-          className={cn(
-            "size-8 transition-colors",
-            highBeamOn ? "text-blue-500" : "text-muted-foreground/20"
-          )}
-        />
         <CheckEngine aria-label="Engine warning" className={DORMANT} />
         <Abs aria-label="ABS warning" className={DORMANT} />
         <TirePressure aria-label="Tyre pressure warning" className={DORMANT} />

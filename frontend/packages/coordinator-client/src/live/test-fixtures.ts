@@ -83,12 +83,6 @@ export const snapshot = (revision: number): SnapshotEvent => ({
         revision
       ),
     },
-    lighting: {
-      high_beam_enabled: false,
-      high_beam_strobe_active: false,
-      high_beam_strobe_cycles_remaining: 0,
-      observed_high_beam_enabled: false,
-    },
     health: {
       ready: true,
       fatal: false,

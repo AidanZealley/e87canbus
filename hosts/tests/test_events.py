@@ -1,9 +1,6 @@
 import pytest
-from e87canbus.config import HighBeamStrobeConfig
 from e87canbus.domain.events import (
     ButtonLedState,
-    HighBeamStrobeDeadlineReached,
-    SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
 )
@@ -18,30 +15,3 @@ def test_steering_effect_rejects_out_of_range_assistance() -> None:
 def test_button_led_state_requires_one_visual_state_per_button() -> None:
     with pytest.raises(ValueError, match="exactly 16"):
         ButtonLedState((ButtonVisual.UNASSIGNED,) * 15)
-
-
-def test_high_beam_effect_requires_boolean() -> None:
-    with pytest.raises(ValueError, match="must be a boolean"):
-        SetHighBeam(1)  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize("now", (float("inf"), float("-inf"), float("nan")))
-def test_high_beam_strobe_deadline_requires_finite_timestamp(now: float) -> None:
-    with pytest.raises(ValueError, match="deadline must be finite"):
-        HighBeamStrobeDeadlineReached(now)
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    (
-        {"button_index": -1},
-        {"button_index": True},
-        {"cycle_count": 0},
-        {"cycle_count": False},
-        {"asserted_duration_s": 0.0},
-        {"deasserted_duration_s": float("inf")},
-    ),
-)
-def test_high_beam_strobe_config_rejects_invalid_plans(kwargs: dict[str, object]) -> None:
-    with pytest.raises(ValueError):
-        HighBeamStrobeConfig(**kwargs)  # type: ignore[arg-type]

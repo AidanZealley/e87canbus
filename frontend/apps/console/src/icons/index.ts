@@ -4,7 +4,6 @@ export {
   CheckEngine,
   CoolantTemperature,
   Fuel,
-  HighBeam,
   LowBeam,
   OilPressure,
   TirePressure,

@@ -14,7 +14,6 @@ from e87canbus.api.models.coordinator_live import (
     CoordinatorLiveEvent,
     EngineEvent,
     HealthEvent,
-    LightingEvent,
     SteeringEvent,
     VehicleEvent,
     coordinator_health_state,
@@ -24,7 +23,6 @@ from e87canbus.api.models.coordinator_live import (
 from e87canbus.api.models.live import (
     buttons_state,
     engine_state,
-    lighting_state,
     steering_state,
     vehicle_state,
 )
@@ -41,7 +39,6 @@ SSE_TOPICS = frozenset(
         StateTopic.ENGINE,
         StateTopic.STEERING,
         StateTopic.BUTTONS,
-        StateTopic.LIGHTING,
         StateTopic.HEALTH,
     }
 )
@@ -299,8 +296,6 @@ def _topic_event(topic: StateTopic, snapshot: ControllerLoopSnapshot) -> Coordin
         return SteeringEvent(type="steering", data=steering_state(snapshot))
     if topic is StateTopic.BUTTONS:
         return ButtonsEvent(type="buttons", data=buttons_state(snapshot))
-    if topic is StateTopic.LIGHTING:
-        return LightingEvent(type="lighting", data=lighting_state(snapshot))
     if topic is StateTopic.HEALTH:
         return HealthEvent(type="health", data=coordinator_health_state(snapshot))
     raise AssertionError(f"unhandled coordinator SSE topic: {topic}")

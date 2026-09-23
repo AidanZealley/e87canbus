@@ -114,17 +114,6 @@ class ControlTimerElapsed:
     now: float
 
 
-@dataclass(frozen=True)
-class HighBeamStrobeDeadlineReached:
-    """A separately scheduled high-beam strobe phase deadline."""
-
-    now: float
-
-    def __post_init__(self) -> None:
-        if not math.isfinite(self.now):
-            raise ValueError("high-beam strobe deadline must be finite")
-
-
 class SteeringCommandReason(StrEnum):
     AUTO = "auto"
     MANUAL = "manual"
@@ -155,7 +144,6 @@ ApplicationEvent = (
     | OilTemperatureObserved
     | CoolantTemperatureObserved
     | ControlTimerElapsed
-    | HighBeamStrobeDeadlineReached
     | SteeringFallbackRequested
 )
 
@@ -201,21 +189,9 @@ class ConfigureServotronicCurve:
     activation_revision: int
 
 
-@dataclass(frozen=True)
-class SetHighBeam:
-    """Protocol-independent high-beam capability request."""
-
-    enabled: bool
-
-    def __post_init__(self) -> None:
-        if type(self.enabled) is not bool:
-            raise ValueError("high-beam enabled must be a boolean")
-
-
 ApplicationEffect = (
     SetButtonPadProgram
     | TriggerButtonPadBlink
     | SetSteeringAssistance
     | ConfigureServotronicCurve
-    | SetHighBeam
 )

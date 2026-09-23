@@ -167,24 +167,6 @@ export const zInboxHealthState = z.object({
 })
 
 /**
- * LightingState
- */
-export const zLightingState = z.object({
-  high_beam_enabled: z.boolean(),
-  high_beam_strobe_active: z.boolean(),
-  high_beam_strobe_cycles_remaining: z.int().gte(0),
-  observed_high_beam_enabled: z.boolean().nullable(),
-})
-
-/**
- * LightingEvent
- */
-export const zLightingEvent = z.object({
-  data: zLightingState,
-  type: z.literal("lighting"),
-})
-
-/**
  * LivenessResponse
  */
 export const zLivenessResponse = z.object({
@@ -435,13 +417,6 @@ export const zSpeedRequest = z.object({
 export const zSpeedUnit = z.enum(["mph", "kmh"])
 
 /**
- * StartHighBeamStrobeCommand
- */
-export const zStartHighBeamStrobeCommand = z.object({
-  type: z.literal("start_high_beam_strobe"),
-})
-
-/**
  * SteeringCapabilityHealthState
  */
 export const zSteeringCapabilityHealthState = z.object({
@@ -686,7 +661,6 @@ export const zButtonProfileSlotRequest = z.object({
     zSetManualAssistanceLevelCommand,
     zSetMaximumAssistanceCommand,
     zToggleMaximumAssistanceCommand,
-    zStartHighBeamStrobeCommand,
   ]),
 })
 
@@ -737,7 +711,6 @@ export const zButtonProfileSlotResponse = z.object({
     zSetManualAssistanceLevelCommand,
     zSetMaximumAssistanceCommand,
     zToggleMaximumAssistanceCommand,
-    zStartHighBeamStrobeCommand,
   ]),
 })
 
@@ -903,7 +876,6 @@ export const zCoordinatorSnapshot = z.object({
   buttons: zButtonsState,
   engine: zEngineState,
   health: zCoordinatorHealthState,
-  lighting: zLightingState,
   steering: zSteeringState,
   vehicle: zVehicleState,
 })
@@ -1142,7 +1114,6 @@ export const zStreamCoordinatorLiveApiLiveGetResponse = z.discriminatedUnion(
     zEngineEvent,
     zSteeringEvent,
     zButtonsEvent,
-    zLightingEvent,
     zHealthEvent,
     zResourceChangedSseEvent,
   ]

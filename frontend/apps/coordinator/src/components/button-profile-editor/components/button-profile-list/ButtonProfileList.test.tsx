@@ -181,7 +181,7 @@ it("saves native-picker and preset colour changes", async () => {
 it("uses generated command fields and hides animation for momentary commands", () => {
   const values = slots()
   values[4] = {
-    command: { type: "start_high_beam_strobe" },
+    command: { type: "adjust_manual_assistance", delta: 1 },
     colour: [255, 255, 255],
     active_colour: null,
     animation: null,
@@ -196,14 +196,14 @@ it("uses generated command fields and hides animation for momentary commands", (
 
   fireEvent.click(
     screen.getByRole("button", {
-      name: "Configure button 4: High-beam strobe",
+      name: "Configure button 4: Assist +",
     })
   )
-  const strobeItem = screen.getByRole("region", {
-    name: "Button 4: High-beam strobe",
+  const momentaryItem = screen.getByRole("region", {
+    name: "Button 4: Assist +",
   })
-  expect(within(strobeItem).queryByLabelText("Level")).toBeNull()
-  expect(within(strobeItem).queryByLabelText("Active animation")).toBeNull()
+  expect(within(momentaryItem).queryByLabelText("Level")).toBeNull()
+  expect(within(momentaryItem).queryByLabelText("Active animation")).toBeNull()
 })
 
 it("clears an assigned item without a dialog or simulated button interaction", async () => {

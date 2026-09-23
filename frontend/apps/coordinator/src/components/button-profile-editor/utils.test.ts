@@ -25,8 +25,9 @@ describe("button profile commands", () => {
         false
       )
     ).toEqual({ type: "set_maximum_assistance", enabled: false })
-    expect(defaultCommandForType("start_high_beam_strobe")).toEqual({
-      type: "start_high_beam_strobe",
+    expect(defaultCommandForType("adjust_manual_assistance")).toEqual({
+      type: "adjust_manual_assistance",
+      delta: -1,
     })
   })
 
@@ -34,9 +35,9 @@ describe("button profile commands", () => {
     expect(commandHasActiveState({ type: "toggle_automatic_assistance" })).toBe(
       true
     )
-    expect(commandHasActiveState({ type: "start_high_beam_strobe" })).toBe(
-      false
-    )
+    expect(
+      commandHasActiveState({ type: "adjust_manual_assistance", delta: 1 })
+    ).toBe(false)
   })
 
   it("produces concise item labels", () => {

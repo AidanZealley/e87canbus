@@ -11,7 +11,6 @@ from e87canbus.api.models.live import (
     DeviceHealthState,
     EngineState,
     InboxHealthState,
-    LightingState,
     LiveModel,
     NetworkHealthState,
     PersistenceHealthState,
@@ -21,7 +20,6 @@ from e87canbus.api.models.live import (
     buttons_state,
     engine_state,
     fault_state,
-    lighting_state,
     steering_state,
     vehicle_state,
 )
@@ -44,7 +42,6 @@ class CoordinatorSnapshot(LiveModel):
     engine: EngineState
     steering: SteeringState
     buttons: ButtonsState
-    lighting: LightingState
     health: CoordinatorHealthState
 
 
@@ -71,11 +68,6 @@ class SteeringEvent(LiveModel):
 class ButtonsEvent(LiveModel):
     type: Literal["buttons"]
     data: ButtonsState
-
-
-class LightingEvent(LiveModel):
-    type: Literal["lighting"]
-    data: LightingState
 
 
 class HealthEvent(LiveModel):
@@ -112,7 +104,6 @@ CoordinatorLiveEvent = Annotated[
     | EngineEvent
     | SteeringEvent
     | ButtonsEvent
-    | LightingEvent
     | HealthEvent
     | ResourceChangedSseEvent,
     Field(discriminator="type"),
@@ -127,7 +118,6 @@ def snapshot_event(snapshot: ControllerLoopSnapshot) -> SnapshotEvent:
             engine=engine_state(snapshot),
             steering=steering_state(snapshot),
             buttons=buttons_state(snapshot),
-            lighting=lighting_state(snapshot),
             health=coordinator_health_state(snapshot),
         ),
     )

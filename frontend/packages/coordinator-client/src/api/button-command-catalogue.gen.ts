@@ -85,9 +85,4 @@ export const BUTTON_COMMAND_CATALOGUE = [
     hasActiveState: true,
     fields: [],
   },
-  {
-    type: "start_high_beam_strobe",
-    hasActiveState: false,
-    fields: [],
-  },
 ] as const satisfies readonly ButtonCommandSpec[];

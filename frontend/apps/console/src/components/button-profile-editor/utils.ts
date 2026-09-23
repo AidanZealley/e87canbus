@@ -85,7 +85,5 @@ export const commandLabel = (command: ButtonCommand): string => {
       return command.enabled ? "Maximum on" : "Maximum off"
     case "toggle_maximum_assistance":
       return "Toggle maximum"
-    case "start_high_beam_strobe":
-      return "High-beam strobe"
   }
 }

@@ -18,11 +18,7 @@ from hashlib import sha256
 from typing import Any, assert_never
 from uuid import UUID
 
-from e87canbus.config import (
-    BUILT_IN_RESERVED_BUTTON_INDEXES,
-    HighBeamStrobeConfig,
-    SteeringConfig,
-)
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.buttons.catalogue import ButtonCommand
 from e87canbus.domain.buttons.commands import (
     button_command_configuration_error,
@@ -32,16 +28,10 @@ from e87canbus.domain.buttons.commands import (
     is_button_command,
 )
 from e87canbus.domain.events import BUTTON_LED_COUNT
-from e87canbus.domain.intents import (
-    AdjustManualAssistance,
-    StartHighBeamStrobe,
-    ToggleAutomaticAssistance,
-    ToggleMaximumAssistance,
-)
 from e87canbus.domain.revisioned_profiles import (
     validate_saved_profile_revision as validate_saved_profile_revision,
 )
-from e87canbus.domain.state import RGB_BLUE, RGB_WHITE, Rgb
+from e87canbus.domain.state import Rgb
 from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 
 BUTTON_PROFILE_NAME_MAX_LENGTH = 100
@@ -189,7 +179,7 @@ class ActiveButtonProfile:
     """The profile the pad is running: a stored profile's identity and its slots.
 
     ``profile_id`` is the stored UUID once a saved profile has been activated, and
-    ``BUILT_IN_PROFILE_ID`` while the compiled-in default is in force; live state
+    ``BUILT_IN_PROFILE_ID`` while the empty default is in force; live state
     reports it so a client can tell which saved revision the pad is obeying.
     """
 
@@ -241,49 +231,13 @@ def button_profile_definition_with(
     return ButtonProfileDefinition(tuple(slots))
 
 
-# The compiled-in pad uses the same canonical slot shape as every saved profile. Its
-# colours preserve the original out-of-the-box appearance.
-_BUILT_IN_FIXED_SLOTS: Mapping[int, ButtonSlot] = {
-    0: ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE),
-    1: ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
-    2: ButtonSlot(AdjustManualAssistance(1), RGB_WHITE),
-    3: ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
-}
-
-if set(_BUILT_IN_FIXED_SLOTS) != BUILT_IN_RESERVED_BUTTON_INDEXES:
-    raise RuntimeError(
-        "built-in fixed button slots must match config.BUILT_IN_RESERVED_BUTTON_INDEXES"
-    )
+BUILT_IN_BUTTON_PROFILE = empty_button_profile_definition()
 
 
-def built_in_button_profile_definition(
-    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
-) -> ButtonProfileDefinition:
-    """The default pad, with the strobe wherever its configuration puts it.
+def built_in_active_button_profile() -> ActiveButtonProfile:
+    """The empty profile used before a saved profile is selected."""
 
-    This is the only description of the default pad: it is what a fresh database is
-    seeded with and what the runtime falls back to before a saved profile is loaded,
-    so the two can never disagree about what an out-of-the-box button does. The strobe
-    index is validated by ``HighBeamStrobeConfig`` to fall outside the reserved slots.
-    """
-
-    strobe_index = (high_beam_strobe_config or HighBeamStrobeConfig()).button_index
-    return button_profile_definition_with(
-        {**_BUILT_IN_FIXED_SLOTS, strobe_index: ButtonSlot(StartHighBeamStrobe(), RGB_WHITE)}
-    )
-
-
-def built_in_active_button_profile(
-    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
-) -> ActiveButtonProfile:
-    """The compiled-in pad the kernel runs until a saved profile is activated."""
-
-    return ActiveButtonProfile(
-        BUILT_IN_PROFILE_ID, built_in_button_profile_definition(high_beam_strobe_config)
-    )
-
-
-BUILT_IN_BUTTON_PROFILE = built_in_button_profile_definition()
+    return ActiveButtonProfile(BUILT_IN_PROFILE_ID, BUILT_IN_BUTTON_PROFILE)
 
 
 def validate_button_profile_name(name: str) -> None:

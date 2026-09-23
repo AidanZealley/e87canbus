@@ -388,9 +388,6 @@ export type ButtonProfileSlotRequest = {
     | ({
         type: "toggle_maximum_assistance"
       } & ToggleMaximumAssistanceCommand)
-    | ({
-        type: "start_high_beam_strobe"
-      } & StartHighBeamStrobeCommand)
 }
 
 /**
@@ -438,9 +435,6 @@ export type ButtonProfileSlotResponse = {
     | ({
         type: "toggle_maximum_assistance"
       } & ToggleMaximumAssistanceCommand)
-    | ({
-        type: "start_high_beam_strobe"
-      } & StartHighBeamStrobeCommand)
 }
 
 /**
@@ -519,7 +513,6 @@ export type CoordinatorSnapshot = {
   buttons: ButtonsState
   engine: EngineState
   health: CoordinatorHealthState
-  lighting: LightingState
   steering: SteeringState
   vehicle: VehicleState
 }
@@ -661,39 +654,6 @@ export type InboxHealthState = {
    * Overflow Latched
    */
   overflow_latched: boolean
-}
-
-/**
- * LightingEvent
- */
-export type LightingEvent = {
-  data: LightingState
-  /**
-   * Type
-   */
-  type: "lighting"
-}
-
-/**
- * LightingState
- */
-export type LightingState = {
-  /**
-   * High Beam Enabled
-   */
-  high_beam_enabled: boolean
-  /**
-   * High Beam Strobe Active
-   */
-  high_beam_strobe_active: boolean
-  /**
-   * High Beam Strobe Cycles Remaining
-   */
-  high_beam_strobe_cycles_remaining: number
-  /**
-   * Observed High Beam Enabled
-   */
-  observed_high_beam_enabled: boolean | null
 }
 
 /**
@@ -1094,16 +1054,6 @@ export type SpeedRequest = {
  * SpeedUnit
  */
 export type SpeedUnit = "mph" | "kmh"
-
-/**
- * StartHighBeamStrobeCommand
- */
-export type StartHighBeamStrobeCommand = {
-  /**
-   * Type
-   */
-  type: "start_high_beam_strobe"
-}
 
 /**
  * SteeringCapabilityHealthState
@@ -2376,9 +2326,6 @@ export type StreamCoordinatorLiveApiLiveGetResponses = {
     | ({
         type: "buttons"
       } & ButtonsEvent)
-    | ({
-        type: "lighting"
-      } & LightingEvent)
     | ({
         type: "health"
       } & HealthEvent)

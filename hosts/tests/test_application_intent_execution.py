@@ -1,18 +1,14 @@
 import pytest
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.config import SteeringConfig
 from e87canbus.domain import controller
 from e87canbus.domain.buttons.profiles import built_in_active_button_profile
 from e87canbus.domain.controller import ButtonLedProjection, Transition
-from e87canbus.domain.events import SetHighBeam
 from e87canbus.domain.intents import (
-    DEFAULT_OPERATOR_INTENT_CONTEXT,
     AdjustManualAssistance,
     OperatorIntent,
-    OperatorIntentContext,
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
@@ -27,25 +23,16 @@ CONFIG = SteeringConfig(manual_level_count=11)
 BUILT_IN_LEDS = ButtonLedProjection(built_in_active_button_profile())
 
 
+
+
 def execute_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
-    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
     *,
     leds: ButtonLedProjection = BUILT_IN_LEDS,
-    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> Transition:
-    """Exercise the intent surface against the built-in bindings by default."""
-
-    return controller.execute_operator_intent(
-        state,
-        intent,
-        config,
-        leds,
-        context,
-        high_beam_strobe_config=high_beam_strobe_config,
-    )
+    return controller.execute_operator_intent(state, intent, config, leds)
 
 
 def steering(state: ApplicationState) -> NormalSteering:
@@ -166,29 +153,3 @@ def test_exact_manual_level_is_validated_against_server_configuration() -> None:
             SetManualAssistanceLevel(11),
             CONFIG,
         )
-
-
-def test_start_high_beam_strobe_requires_observation_time() -> None:
-    with pytest.raises(ValueError, match="observed_at is required"):
-        execute_operator_intent(ApplicationState(), StartHighBeamStrobe(), CONFIG)
-
-
-def test_start_high_beam_strobe_starts_plan_and_asserts_output() -> None:
-    strobe_config = HighBeamStrobeConfig(
-        cycle_count=3,
-        asserted_duration_s=0.15,
-        deasserted_duration_s=0.2,
-    )
-
-    result = execute_operator_intent(
-        ApplicationState(),
-        StartHighBeamStrobe(),
-        CONFIG,
-        OperatorIntentContext(observed_at=12.0),
-        high_beam_strobe_config=strobe_config,
-    )
-
-    assert result.state.high_beam_enabled is True
-    assert result.state.high_beam_strobe_cycles_remaining == 3
-    assert result.state.high_beam_next_transition_at == pytest.approx(12.15)
-    assert result.effects == (SetHighBeam(True),)

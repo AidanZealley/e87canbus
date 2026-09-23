@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import assert_never
 
-from e87canbus.config import HighBeamStrobeConfig, SteeringConfig
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.controller.button_leds import ButtonLedProjection
 from e87canbus.domain.controller.reducer import Transition, transition
 from e87canbus.domain.controller.steering import steering_command
@@ -18,17 +18,13 @@ from e87canbus.domain.events import (
     ApplicationEffect,
     ButtonCommandFailed,
     SetButtonPadProgram,
-    SetHighBeam,
     SetSteeringAssistance,
 )
 from e87canbus.domain.intents import (
-    DEFAULT_OPERATOR_INTENT_CONTEXT,
     AdjustManualAssistance,
     OperatorIntent,
-    OperatorIntentContext,
     SelectSteeringMode,
     SetManualAssistanceLevel,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
 )
@@ -57,28 +53,21 @@ def execute_operator_intent(
     intent: OperatorIntent,
     config: SteeringConfig,
     leds: ButtonLedProjection,
-    context: OperatorIntentContext = DEFAULT_OPERATOR_INTENT_CONTEXT,
-    *,
     active_definition: SteeringCurveDefinition = BUILT_IN_STEERING_CURVE,
-    high_beam_strobe_config: HighBeamStrobeConfig | None = None,
 ) -> Transition:
     """Apply one operator request and return its complete origin-neutral effects.
 
     Adapters are responsible for availability checks and origin-specific feedback.
     This function owns the behavior of the request itself (including the steering
     invariants shared by exact API selections and relative button-pad actions) and
-    returns a self-contained result: the LED program plus the ``SetSteeringAssistance``
-    and ``SetHighBeam`` actuator commands implied by the state change. No mandatory
-    post-pass is required for the effect set to be complete.
+    returns the LED program and steering actuator command implied by the state change.
     """
 
     result = _apply_operator_intent(
         state,
         intent,
         config,
-        context,
         leds,
-        high_beam_strobe_config=high_beam_strobe_config,
     )
     return _complete_operator_effects(state, result, config, active_definition)
 
@@ -90,7 +79,6 @@ def finish_button_intent(
     observed_at: float,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
-    high_beam_strobe_config: HighBeamStrobeConfig,
     leds: ButtonLedProjection,
 ) -> Transition:
     """Layer button-origin presentation onto an already-complete intent result.
@@ -126,7 +114,6 @@ def finish_button_intent(
             ),
             config,
             active_definition,
-            high_beam_strobe_config,
         )
         new_state = feedback.state
         effects += feedback.effects
@@ -163,10 +150,7 @@ def _apply_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
-    context: OperatorIntentContext,
     leds: ButtonLedProjection,
-    *,
-    high_beam_strobe_config: HighBeamStrobeConfig | None,
 ) -> Transition:
     """Apply one transport-independent operator request to authoritative state."""
 
@@ -191,15 +175,6 @@ def _apply_operator_intent(
             return _set_maximum_assistance(state, enabled, leds)
         case ToggleMaximumAssistance():
             return _finish_steering_intent(state, _toggled_maximum_assistance(state), leds)
-        case StartHighBeamStrobe():
-            if context.observed_at is None:
-                raise ValueError("observed_at is required to start the high-beam strobe")
-            strobe_config = high_beam_strobe_config or HighBeamStrobeConfig()
-            next_state = _start_high_beam_strobe(state, context.observed_at, strobe_config)
-            effects: tuple[ApplicationEffect, ...] = ()
-            if next_state.high_beam_enabled != state.high_beam_enabled:
-                effects = (SetHighBeam(next_state.high_beam_enabled),)
-            return Transition(next_state, effects)
         case _:
             assert_never(intent)
 
@@ -214,8 +189,7 @@ def _complete_operator_effects(
 
     Called by ``execute_operator_intent`` so its result is complete on its own; the
     LED-program effects are produced inline by each intent, and this adds the
-    ``SetSteeringAssistance``/``SetHighBeam`` commands only when the relevant state
-    changed and the intent did not already emit them.
+    steering command when the state changed and the intent did not emit it.
     """
 
     effects = intent_result.effects
@@ -224,28 +198,7 @@ def _complete_operator_effects(
         isinstance(effect, SetSteeringAssistance) for effect in effects
     ):
         effects += (steering_command(new_state, config, active_definition),)
-    if new_state.high_beam_enabled != state.high_beam_enabled and not any(
-        isinstance(effect, SetHighBeam) for effect in effects
-    ):
-        effects += (SetHighBeam(new_state.high_beam_enabled),)
     return Transition(new_state, effects)
-
-
-def _start_high_beam_strobe(
-    state: ApplicationState,
-    observed_at: float,
-    config: HighBeamStrobeConfig,
-) -> ApplicationState:
-    """Start a plan from the ingress timestamp; active plans are intentionally unchanged."""
-
-    if state.high_beam_strobe_cycles_remaining > 0:
-        return state
-    return replace(
-        state,
-        high_beam_enabled=True,
-        high_beam_strobe_cycles_remaining=config.cycle_count,
-        high_beam_next_transition_at=observed_at + config.asserted_duration_s,
-    )
 
 
 def _toggled_automatic_assistance(state: ApplicationState) -> ApplicationState:

@@ -19,7 +19,6 @@ from e87canbus.domain.events import (
     ApplicationEffect,
     ConfigureServotronicCurve,
     SetButtonPadProgram,
-    SetHighBeam,
     SetSteeringAssistance,
     SteeringCommandReason,
     TriggerButtonPadBlink,
@@ -68,7 +67,6 @@ class EffectRequest:
                 TriggerButtonPadBlink,
                 SetSteeringAssistance,
                 ConfigureServotronicCurve,
-                SetHighBeam,
                 SendRegistryFrame,
             ),
         ):
@@ -97,25 +95,12 @@ class SteeringActuatorFailure:
     origin_button_index: int | None = None
 
 
-@dataclass(frozen=True)
-class HighBeamActuatorFailure:
-    message: str
-    origin_button_index: int | None = None
-
-
-EffectFailure = CanEffectFailure | SteeringActuatorFailure | HighBeamActuatorFailure
+EffectFailure = CanEffectFailure | SteeringActuatorFailure
 
 
 class SteeringActuator(Protocol):
     def set_assistance(self, command: SetSteeringAssistance) -> None:
         """Apply one already-selected, dimensionless assistance command."""
-
-
-class HighBeamActuator(Protocol):
-    """Explicit output capability; live composition intentionally does not provide one."""
-
-    def set_high_beam(self, command: SetHighBeam) -> None:
-        """Apply one protocol-independent high-beam request."""
 
 
 class SafeCanTransmitter:
@@ -160,13 +145,11 @@ class EffectExecutor:
         transmitters: Mapping[CanNetwork, SafeCanTransmitter] | None = None,
         router: ProtocolRouter | None = None,
         steering_actuator: SteeringActuator | None = None,
-        high_beam_actuator: HighBeamActuator | None = None,
         button_pad_payload_interval_s: float = 0.0,
     ) -> None:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
         self._steering_actuator = steering_actuator
-        self._high_beam_actuator = high_beam_actuator
         self._button_pad_effect_sequence = 0
         transmitter = self._transmitters.get(CanNetwork.KCAN)
 
@@ -232,10 +215,6 @@ class EffectExecutor:
                     can_failure = self._execute_button_pad_effect(effect, origin_button_index)
                     if can_failure is not None:
                         failures.append(can_failure)
-                case SetHighBeam():
-                    high_beam_failure = self._execute_high_beam(effect, origin_button_index)
-                    if high_beam_failure is not None:
-                        failures.append(high_beam_failure)
                 case SendRegistryFrame():
                     can_failure = self._execute_routed_can(effect, origin_button_index)
                     if can_failure is not None:
@@ -378,21 +357,6 @@ class EffectExecutor:
             LOGGER.warning("failed to execute steering effect: error=%s", exc)
             return SteeringActuatorFailure(str(exc), origin_button_index)
         return None
-
-    def _execute_high_beam(
-        self,
-        command: SetHighBeam,
-        origin_button_index: int | None,
-    ) -> HighBeamActuatorFailure | None:
-        if self._high_beam_actuator is None:
-            return None
-        try:
-            self._high_beam_actuator.set_high_beam(command)
-        except (OSError, RuntimeError) as exc:
-            LOGGER.warning("failed to execute high-beam effect: error=%s", exc)
-            return HighBeamActuatorFailure(str(exc), origin_button_index)
-        return None
-
 
 def _pack_steering_control(command: SetSteeringAssistance) -> bytes:
     mode = (

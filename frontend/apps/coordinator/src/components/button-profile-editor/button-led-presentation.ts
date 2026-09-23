@@ -31,10 +31,6 @@ export const BUTTON_LED_RGB = {
 const { RGB_OFF: OFF, SOFT_AMBER } = BUTTON_LED_RGB
 const RESTING_BRIGHTNESS = 8
 
-const commandRequiresServotronic = (
-  command: NonNullable<ButtonCommand>
-): boolean => command.type !== "start_high_beam_strobe"
-
 const currentMode = (steering: SteeringState): "auto" | "manual" =>
   steering.maximum_assistance_active ? "manual" : steering.mode
 
@@ -62,7 +58,6 @@ const commandIsActive = (
     case "toggle_maximum_assistance":
       return steering.maximum_assistance_active
     case "adjust_manual_assistance":
-    case "start_high_beam_strobe":
       return false
   }
 }
@@ -78,11 +73,7 @@ export const deriveButtonVisualState = (
   context: ButtonLedPresentationContext
 ): ButtonVisualState => {
   if (slot === null) return "unassigned"
-  if (
-    !context.synchronized ||
-    (commandRequiresServotronic(slot.command) && !context.servotronicUsable)
-  )
-    return "unavailable"
+  if (!context.synchronized || !context.servotronicUsable) return "unavailable"
   return commandIsActive(slot.command, context.steering) ? "active" : "inactive"
 }
 

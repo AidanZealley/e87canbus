@@ -6,7 +6,6 @@ from dataclasses import replace
 import pytest
 from e87canbus.config import (
     CanNetwork,
-    HighBeamStrobeConfig,
     TxPolicyConfig,
     default_config,
     simulator_config,
@@ -31,7 +30,12 @@ from e87canbus.domain.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
 )
-from e87canbus.domain.intents import SetMaximumAssistance, ToggleMaximumAssistance
+from e87canbus.domain.intents import (
+    AdjustManualAssistance,
+    SetMaximumAssistance,
+    ToggleAutomaticAssistance,
+    ToggleMaximumAssistance,
+)
 from e87canbus.domain.state import (
     RGB_BLUE,
     RGB_OFF,
@@ -42,7 +46,6 @@ from e87canbus.domain.state import (
 from e87canbus.domain.steering.curves import ASSISTANCE_QUANTIZATION_TOLERANCE
 from e87canbus.kernel import ExecuteOperatorIntent, ReceivedCanFrame, StateTopic
 from e87canbus.protocol.can import (
-    CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     decode_heartbeat,
@@ -55,7 +58,6 @@ from e87canbus.runners.simulation.devices import SimulatedDeviceState, Simulated
 from e87canbus.runners.simulation.protocol import (
     SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
     SIMULATION_ONLY_ENGINE_RPM_ID,
-    SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID,
     SIMULATION_ONLY_OIL_TEMPERATURE_ID,
 )
 from e87canbus.runners.simulation.runtime import (
@@ -90,15 +92,29 @@ RESTING_LEDS = (
     SOFT_WHITE,
     SOFT_WHITE,
     SOFT_WHITE,
-    SOFT_WHITE,
-) + (RGB_OFF,) * 11
+    ) + (RGB_OFF,) * 12
 AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
 MANUAL_LEDS = RESTING_LEDS
 MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
 
 
+TEST_BUTTON_PROFILE = ActiveButtonProfile(
+    "test-buttons",
+    button_profile_definition_with({
+        0: ButtonSlot(ToggleAutomaticAssistance(), RGB_BLUE),
+        1: ButtonSlot(AdjustManualAssistance(-1), RGB_WHITE),
+        2: ButtonSlot(AdjustManualAssistance(1), RGB_WHITE),
+        3: ButtonSlot(ToggleMaximumAssistance(), RGB_WHITE),
+    }),
+)
+
+
 def build_test_engine(**kwargs: object) -> SimulatedControllerRuntime:
-    runtime = SimulatedControllerRuntime(config=TEST_SIMULATOR_CONFIG, **kwargs)
+    runtime = SimulatedControllerRuntime(
+        config=TEST_SIMULATOR_CONFIG,
+        button_profile=kwargs.pop("button_profile", TEST_BUTTON_PROFILE),
+        **kwargs,
+    )
     runtime.start()
     inject_registry_frames(runtime)
     return runtime
@@ -595,7 +611,7 @@ def test_reset_clears_trace_and_restores_initial_application_state() -> None:
     )
     assert (current_adapter.simulation_session_id, diagnostics(controller).revision) == (2, 1)
     assert button_led_rgb(current_application) == (
-        (SOFT_AMBER,) * 4 + (SOFT_WHITE,) + (RGB_OFF,) * 11
+        (SOFT_AMBER,) * 4 + (RGB_OFF,) * 12
     )
     assert controller.topology.trace() == ()
 
@@ -807,34 +823,6 @@ def test_engine_clock_is_used_for_ingress_and_trace() -> None:
     assert {entry.monotonic_s for entry in controller.topology.trace()} == {8.5}
 
 
-def test_high_beam_strobe_emits_all_pulses_to_virtual_vehicle_without_control_ticks() -> None:
-    clock = MutableClock()
-    config = replace(
-        TEST_SIMULATOR_CONFIG,
-        high_beam_strobe=HighBeamStrobeConfig(cycle_count=5),
-    )
-    controller = SimulatedControllerRuntime(config=config, clock=clock)
-    controller.start()
-    inject_registry_frames(controller)
-
-    controller.execute(TapButton(4))
-    while application(controller).high_beam_strobe_active:
-        assert controller.next_deadline() is not None
-        clock.now = controller.next_deadline()
-        controller.deadline(clock.now)
-
-    high_beam_frames = [
-        entry.frame
-        for entry in controller.topology.trace()
-        if entry.source == "pi"
-        and entry.frame.arbitration_id == SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID
-    ]
-    assert high_beam_frames == [
-        CanFrame(SIMULATION_ONLY_HIGH_BEAM_COMMAND_ID, bytes((value,)), is_extended_id=True)
-        for value in (1, 0) * 5
-    ]
-    assert controller.vehicle.high_beam_enabled is False
-    assert application(controller).high_beam_strobe_active is False
 
 
 def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> None:
@@ -843,7 +831,9 @@ def test_dropped_led_snapshot_is_not_replayed_and_next_snapshot_converges() -> N
         simulator_config(),
         tx_policy=TxPolicyConfig(max_frames_per_network_window=16),
     )
-    controller = SimulatedControllerRuntime(config=config, clock=clock)
+    controller = SimulatedControllerRuntime(
+        config=config, clock=clock, button_profile=TEST_BUTTON_PROFILE
+    )
     controller.start()
     inject_registry_frames(controller)
     clock.now = 1.0

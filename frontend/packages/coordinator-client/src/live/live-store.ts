@@ -4,7 +4,6 @@ import type {
   ButtonsState,
   CoordinatorHealthState,
   EngineState,
-  LightingState,
   SnapshotEvent,
   SteeringState,
   StreamCoordinatorLiveApiLiveGetResponse,
@@ -25,7 +24,6 @@ type LiveProjections = {
   engine: EngineState
   steering: SteeringState | null
   buttons: ButtonsState
-  lighting: LightingState
   health: CoordinatorHealthState
 }
 
@@ -53,12 +51,6 @@ const emptyProjections = (): LiveProjections => ({
       generation: 0,
       commands: [[2, 129, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
     },
-  },
-  lighting: {
-    high_beam_enabled: false,
-    high_beam_strobe_active: false,
-    high_beam_strobe_cycles_remaining: 0,
-    observed_high_beam_enabled: null,
   },
   health: {
     ready: false,
@@ -136,9 +128,6 @@ export const useLiveStore = create<LiveState>((set, get) => {
           return
         case "buttons":
           set({ buttons: event.data })
-          return
-        case "lighting":
-          set({ lighting: event.data })
           return
         case "health":
           set({ health: event.data })

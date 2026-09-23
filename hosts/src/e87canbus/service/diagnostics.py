@@ -76,13 +76,6 @@ def observed_servotronic_snapshot(status: ServotronicStatus) -> ObservedServotro
 
 
 @dataclass(frozen=True)
-class ObservedLightingSnapshot:
-    """Adapter-owned observation of the vehicle high-beam output."""
-
-    high_beam_enabled: bool | None
-
-
-@dataclass(frozen=True)
 class ControllerAdapterSnapshot:
     """Immutable adapter observations alongside the kernel-owned registry."""
 
@@ -90,7 +83,6 @@ class ControllerAdapterSnapshot:
     registry: tuple[DeviceRegistryEntry, ...]
     networks: tuple[ObservedNetworkSnapshot, ...]
     servotronic: ObservedServotronicSnapshot | None
-    lighting: ObservedLightingSnapshot | None = None
 
 
 @dataclass(frozen=True)

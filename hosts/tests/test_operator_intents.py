@@ -1,5 +1,4 @@
 import pytest
-from e87canbus.config import HighBeamStrobeConfig
 from e87canbus.domain.buttons.catalogue import (
     BUTTON_COMMAND_CATALOGUE,
     SPECS_BY_TYPE,
@@ -19,11 +18,9 @@ from e87canbus.domain.buttons.profiles import (
 )
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
-    OperatorIntentContext,
     SelectSteeringMode,
     SetManualAssistanceLevel,
     SetMaximumAssistance,
-    StartHighBeamStrobe,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
     intent_requires_servotronic,
@@ -55,14 +52,6 @@ def test_adjust_manual_assistance_requires_one_stage_delta(delta: object) -> Non
         AdjustManualAssistance(delta)  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("observed_at", [-0.1, float("inf"), float("nan"), True, "now"])
-def test_intent_context_requires_a_finite_non_negative_observation_time(
-    observed_at: object,
-) -> None:
-    with pytest.raises(ValueError, match="finite non-negative"):
-        OperatorIntentContext(observed_at=observed_at)  # type: ignore[arg-type]
-
-
 @pytest.mark.parametrize(
     "intent",
     [
@@ -77,27 +66,13 @@ def test_steering_intents_require_servotronic(intent: object) -> None:
     assert intent_requires_servotronic(intent) is True  # type: ignore[arg-type]
 
 
-def test_non_steering_intents_do_not_require_servotronic() -> None:
-    assert intent_requires_servotronic(StartHighBeamStrobe()) is False
 
 
-def test_built_in_profile_describes_the_existing_fixed_mapping() -> None:
+def test_built_in_profile_has_sixteen_unassigned_slots() -> None:
     profile = built_in_active_button_profile()
 
-    assert profile.intent_for_press(0) == ToggleAutomaticAssistance()
-    assert profile.intent_for_press(1) == AdjustManualAssistance(-1)
-    assert profile.intent_for_press(2) == AdjustManualAssistance(1)
-    assert profile.intent_for_press(3) == ToggleMaximumAssistance()
-    assert profile.intent_for_press(4) == StartHighBeamStrobe()
-    assert profile.intent_for_press(5) is None
-    assert profile.intent_for_press(15) is None
-
-
-def test_built_in_profile_uses_the_configured_high_beam_button() -> None:
-    profile = built_in_active_button_profile(HighBeamStrobeConfig(button_index=7))
-
-    assert profile.intent_for_press(7) == StartHighBeamStrobe()
-    assert profile.intent_for_press(4) is None
+    assert profile.slots == (None,) * 16
+    assert all(profile.intent_for_press(index) is None for index in range(16))
 
 
 def test_profile_rejects_out_of_range_or_unassignable_slots() -> None:
@@ -155,7 +130,6 @@ MAXIMUM = ApplicationState(steering=MaximumAssistance(NormalSteering(SteeringMod
         # Neither of these has an observable condition at all.
         (AdjustManualAssistance(1), ()),
         (AdjustManualAssistance(-1), ()),
-        (StartHighBeamStrobe(), ()),
     ],
 )
 def test_each_command_is_active_in_exactly_the_states_it_describes(
@@ -174,7 +148,6 @@ def test_each_command_is_active_in_exactly_the_states_it_describes(
         (SetMaximumAssistance(False), True),
         (ToggleMaximumAssistance(), True),
         (AdjustManualAssistance(1), False),
-        (StartHighBeamStrobe(), False),
     ],
 )
 def test_only_a_command_with_a_predicate_reports_an_active_state(
@@ -186,8 +159,7 @@ def test_only_a_command_with_a_predicate_reports_an_active_state(
 def test_every_catalogue_entry_states_whether_it_has_an_active_condition() -> None:
     """Adding a command must be a decision about activeness, not a silent default.
 
-    This is not a duplicate of the parametrised test above: that one names the seven
-    commands that exist today, so an eighth passes it silently. This one fails.
+    The parametrised test names current commands, so a new command passes it silently.
 
     The comparison names every tag rather than only the ones with a predicate, so an
     eighth command fails here instead of passing as never-active. ``active`` has no
@@ -201,7 +173,6 @@ def test_every_catalogue_entry_states_whether_it_has_an_active_condition() -> No
         "set_manual_assistance_level": True,
         "set_maximum_assistance": True,
         "toggle_maximum_assistance": True,
-        "start_high_beam_strobe": False,
     }
 
 
