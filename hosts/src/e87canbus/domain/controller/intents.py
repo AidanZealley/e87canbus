@@ -1,8 +1,8 @@
 """Applying operator intents to authoritative state and completing their effects.
 
 ``execute_operator_intent`` owns the behaviour of every operator request and
-returns a self-contained result (LED program plus the implied actuator commands).
-``finish_button_intent`` layers button-origin presentation onto that result.
+returns a self-contained result (the implied actuator commands).
+Button presses use the same intent transition as operator commands.
 """
 
 from __future__ import annotations
@@ -11,13 +11,9 @@ from dataclasses import dataclass, replace
 from typing import assert_never
 
 from e87canbus.config import SteeringConfig
-from e87canbus.domain.controller.button_leds import ButtonLedProjection
-from e87canbus.domain.controller.reducer import Transition, transition
+from e87canbus.domain.controller.reducer import Transition
 from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
-    ApplicationEffect,
-    ButtonCommandFailed,
-    SetButtonPadProgram,
     SetSteeringAssistance,
 )
 from e87canbus.domain.intents import (
@@ -33,7 +29,6 @@ from e87canbus.domain.intents import (
 )
 from e87canbus.domain.state import (
     ApplicationState,
-    ButtonFeedback,
     MaximumAssistance,
     SteeringMode,
     SteeringState,
@@ -44,137 +39,60 @@ from e87canbus.domain.steering.curves import (
     clamp_manual_level,
 )
 
-# One pulse says "accepted"; two is how the pad reports a refusal.
-_ACKNOWLEDGED_PRESS_PULSES = 1
-
 
 def execute_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
-    leds: ButtonLedProjection,
     active_definition: SteeringCurveDefinition = BUILT_IN_STEERING_CURVE,
 ) -> Transition:
     """Apply one operator request and return its complete origin-neutral effects.
 
-    Adapters are responsible for availability checks and origin-specific feedback.
+    Adapters are responsible for availability checks.
     This function owns the behavior of the request itself (including the steering
     invariants shared by exact API selections and relative button-pad actions) and
-    returns the LED program and steering actuator command implied by the state change.
+    returns the steering actuator command implied by the state change.
     """
 
-    result = _apply_operator_intent(
-        state,
-        intent,
-        config,
-        leds,
-    )
+    result = _apply_operator_intent(state, intent, config)
     return _complete_operator_effects(state, result, config, active_definition)
-
-
-def finish_button_intent(
-    state: ApplicationState,
-    intent_result: Transition,
-    button_index: int,
-    observed_at: float,
-    config: SteeringConfig,
-    active_definition: SteeringCurveDefinition,
-    leds: ButtonLedProjection,
-) -> Transition:
-    """Layer button-origin presentation onto an already-complete intent result.
-
-    ``intent_result`` is the self-contained output of ``execute_operator_intent``;
-    this only substitutes the button-LED program for the pressing origin and adds an
-    acknowledgement blink when nothing the operator can see actually changed.
-    Every comparison is made against the active profile, because whether a press is
-    visible at all depends on what that profile binds to every button.
-    """
-    new_state = intent_result.state
-    previous_leds = leds.effect(state)
-    new_leds = leds.effect(new_state)
-    effects = tuple(
-        new_leds if isinstance(effect, SetButtonPadProgram) else effect
-        for effect in intent_result.effects
-    )
-    if new_leds != previous_leds and not any(
-        isinstance(effect, SetButtonPadProgram) for effect in effects
-    ):
-        effects += (new_leds,)
-    # Any button changing is real feedback, so only an entirely unmoved pad earns the
-    # flash: activeness propagates, and a level step that relights a different button
-    # must not also report that nothing happened. Visual states are compared rather
-    # than rendered tracks, so an animation's phase cannot enter the comparison.
-    if leds.led_state(new_state) == leds.led_state(state):
-        feedback = transition(
-            new_state,
-            ButtonCommandFailed(
-                button_index,
-                observed_at,
-                _acknowledged_press_feedback(leds, button_index),
-            ),
-            config,
-            active_definition,
-        )
-        new_state = feedback.state
-        effects += feedback.effects
-    return Transition(new_state, effects)
-
-
-def _acknowledged_press_feedback(leds: ButtonLedProjection, button_index: int) -> ButtonFeedback:
-    """One flash of the pressed button's own colour: the press landed, nothing moved.
-
-    The colour is the slot's, not a system value, so the acknowledgement reads as that
-    button confirming itself. A press with no binding never reaches here - it fails in
-    the kernel with the unbound feedback - so the slot is always occupied.
-    """
-
-    slot = leds.profile.slots[button_index]
-    if slot is None:
-        raise ValueError(f"button {button_index} has no binding to acknowledge")
-    return ButtonFeedback(slot.colour, _ACKNOWLEDGED_PRESS_PULSES)
 
 
 def clear_maximum_assistance(
     state: ApplicationState,
-    leds: ButtonLedProjection,
 ) -> Transition:
     """Remove only the temporary maximum override when its device is lost."""
 
     if not isinstance(state.steering, MaximumAssistance):
         return Transition(state)
     next_state = replace(state, steering=state.steering.previous)
-    return Transition(next_state, _steering_state_effects(state, next_state, leds))
+    return Transition(next_state)
 
 
 def _apply_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
-    leds: ButtonLedProjection,
 ) -> Transition:
     """Apply one transport-independent operator request to authoritative state."""
 
     match intent:
         case SelectSteeringMode(mode):
-            return _select_steering_mode(state, mode, config, leds)
+            return _select_steering_mode(state, mode, config)
         case ToggleAutomaticAssistance():
-            return _finish_steering_intent(state, _toggled_automatic_assistance(state), leds)
+            return _finish_steering_intent(state, _toggled_automatic_assistance(state))
         case AdjustManualAssistance(delta):
             return _finish_steering_intent(
-                state,
-                _establish_manual_assistance(state, _AdjustLevel(delta), config),
-                leds,
+                state, _establish_manual_assistance(state, _AdjustLevel(delta), config)
             )
         case SetManualAssistanceLevel(level):
             return _finish_steering_intent(
-                state,
-                _establish_manual_assistance(state, _SelectLevel(level), config),
-                leds,
+                state, _establish_manual_assistance(state, _SelectLevel(level), config)
             )
         case SetMaximumAssistanceIntent(enabled):
-            return _set_maximum_assistance(state, enabled, leds)
+            return _set_maximum_assistance(state, enabled)
         case ToggleMaximumAssistance():
-            return _finish_steering_intent(state, _toggled_maximum_assistance(state), leds)
+            return _finish_steering_intent(state, _toggled_maximum_assistance(state))
         case _:
             assert_never(intent)
 
@@ -187,9 +105,8 @@ def _complete_operator_effects(
 ) -> Transition:
     """Append the actuator effects implied by a state change, without duplicating.
 
-    Called by ``execute_operator_intent`` so its result is complete on its own; the
-    LED-program effects are produced inline by each intent, and this adds the
-    steering command when the state changed and the intent did not emit it.
+    Called by ``execute_operator_intent`` so its result contains the steering
+    command when state changed and the intent did not emit it.
     """
 
     effects = intent_result.effects
@@ -279,7 +196,6 @@ def _toggled_maximum_assistance(
 def _set_maximum_assistance(
     state: ApplicationState,
     enabled: bool,
-    leds: ButtonLedProjection,
 ) -> Transition:
     steering = state.steering
     next_steering: SteeringState
@@ -292,42 +208,30 @@ def _set_maximum_assistance(
     else:
         next_steering = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_state = replace(state, steering=next_steering)
-    return Transition(next_state, _steering_state_effects(state, next_state, leds))
+    return Transition(next_state)
 
 
 def _select_steering_mode(
     state: ApplicationState,
     mode: SteeringMode,
     config: SteeringConfig,
-    leds: ButtonLedProjection,
 ) -> Transition:
     if not isinstance(mode, SteeringMode):
         raise ValueError("mode must be a supported SteeringMode value")
     if mode is SteeringMode.MANUAL:
         next_state = _establish_manual_assistance(state, _RestoreLevel(), config)
-        return Transition(next_state, _steering_state_effects(state, next_state, leds))
+        return Transition(next_state)
     steering = state.steering
     normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_normal = replace(normal, mode=mode)
     # An explicit mode selection is a normal steering command, so it also
     # cancels the temporary maximum-assistance override.
     next_state = replace(state, steering=next_normal)
-    return Transition(next_state, _steering_state_effects(state, next_state, leds))
+    return Transition(next_state)
 
 
 def _finish_steering_intent(
     previous: ApplicationState,
     current: ApplicationState,
-    leds: ButtonLedProjection,
 ) -> Transition:
-    return Transition(current, _steering_state_effects(previous, current, leds))
-
-
-def _steering_state_effects(
-    previous: ApplicationState,
-    current: ApplicationState,
-    leds: ButtonLedProjection,
-) -> tuple[ApplicationEffect, ...]:
-    previous_effect = leds.effect(previous)
-    current_effect = leds.effect(current)
-    return () if previous_effect == current_effect else (current_effect,)
+    return Transition(current)

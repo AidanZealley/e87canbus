@@ -11,9 +11,7 @@ Run the FastAPI backend:
 uv run e87canbus run --profile simulator --reload
 ```
 
-The simulator profile selects the emulated button pad, vehicle and Servotronic as one closed
-composition. Use the `bench` profile when the Pi must use a physical button pad with only the
-vehicle telemetry emulated.
+The simulator profile includes a simulated vehicle and Servotronic peer. There is no simulated button pad until Slice 02 adds an HTTP client. Use the bench profile for physical CAN with simulated vehicle telemetry.
 
 Run the browser frontend:
 
@@ -29,7 +27,7 @@ Default URLs:
 - Frontend: `http://127.0.0.1:5173`
 
 The workbench selects one in-memory simulated runtime adapter behind the same `ControllerService`
-used by the SocketCAN profiles. A bounded controller inbox serializes button actions, periodic control timers,
+used by the SocketCAN profiles. A bounded controller inbox serializes periodic control timers,
 and resets through one owner thread; an overloaded API request receives HTTP 503. Its
 `CoordinatorKernel` uses the same
 decode, transition, commit, effect-execution, and TX-policy path as the physical Pi profiles. Simulated
@@ -60,7 +58,7 @@ It models three independent CAN broadcast domains:
 
 | Network | Interface | Bitrate | Nodes |
 |---|---|---:|---|
-| K-CAN | `kcan` | 100,000 | Pi, simulated vehicle, button-pad emulator |
+| K-CAN | `kcan` | 100,000 | Pi, simulated vehicle, Servotronic emulator |
 | PT-CAN | `ptcan` | 500,000 | Pi, simulated vehicle |
 | F-CAN | `fcan` | 500,000 | Pi, simulated vehicle |
 
@@ -68,27 +66,8 @@ There is no automatic gateway behavior. Every emitted frame is retained in one c
 2,000-entry trace, including unknown and peer-to-peer traffic. The browser does not subscribe to or
 display this internal trace.
 
-The default simulated composition selects the button pad's `emulated` role. Backend tests exercise
-wire-level emulator behavior separately from semantic controller commands. Button `0` starts blue
-because the authoritative steering mode starts in Auto. Sending its press emits
-`0x700 0001`; the application changes to Manual, replies with
-an ISO-TP RGB snapshot on `0x708`/`0x709`; after complete reassembly the simulated pad privately
-applies button 0 amber and all other positions off. Releasing sends `0x700 0000` but does not emit an LED snapshot because the
-application remains in Manual. Pressing button `0` again changes the mode and LED back to Auto and
-blue.
-
-`buttons.program` is controller-requested state and contains the same bounded, versioned bytes sent
-to the device. The simulated pad
-independently receives and atomically reassembles the complete 48-byte RGB payload; this private
-device state is exercised by tests but is not published as an observed-output API. A rate-limited
-or malformed payload therefore never partially changes the device state.
-Disabled mode has no emulator controls or device-originated traffic and omits the capability.
-Source-mode changes require restart. Reset reconstructs the virtual topology and emulator, clears
-trace identity and restores vehicle signals to never-observed without retaining old endpoints.
-
 A fresh application database selects one protected `Default` button profile with sixteen
-unassigned slots. The simulator therefore starts with no button action. Tests can inject an authored
-profile to exercise button routing. Profile CRUD and selection use the coordinator HTTP API; changes
+unassigned slots. The simulator therefore starts with no button action. Direct kernel tests can inject an authored profile to exercise press-to-intent routing. No physical or simulated pad produces presses during this slice. Profile CRUD and selection use the coordinator HTTP API; changes
 to steering state continue through the HTTP controls. Existing prototype databases must be replaced
 after the simplified-coordinator slice. They are not migrated.
 
@@ -132,8 +111,7 @@ fallback; it is not a verified physical command or electrical safe state. Physic
 transport, range and polarity, valve response, feedback, controller topology, and watchdog behavior
 remain unknown.
 
-The current scheduled vehicle source, direct steering capability, and button-pad emulator
-settle in one visible processing pass. Before the first simulated device is allowed to emit a CAN
+The scheduled vehicle source and Servotronic peer settle in one visible processing pass. Before the first simulated device is allowed to emit a CAN
 response while processing an incoming CAN frame, the simulated runtime adapter must gain a bounded
 run-until-quiescent loop with an explicit livelock cap and deterministic tests. No unused cascade
 loop is installed today.
@@ -146,23 +124,13 @@ Coordinator transmission is denied by default. Each network must opt in with
 `CanNetworkConfig.tx_enabled`; that composition choice creates a safe transmitter capability for the
 effect executor. Every coordinator write is limited by `AppConfig.tx_policy`'s per-network bounded
 window. The default limit is one coordinator-wide budget of 20 frames in any rolling second on each
-enabled network, shared across arbitration IDs and independent of LED count. At a conservative 135
+enabled network, shared across arbitration IDs and independent of effect type. At a conservative 135
 wire bits per standard-ID DLC-8 frame, the ceiling is at most 2.7% of 100 kbit/s K-CAN or 0.54% of a
 500 kbit/s network before errors or retransmissions. It is a flood bound, not a target cadence. The
 simulator explicitly grants K-CAN transmission and uses the same executor and policy path as the
 live runtime: excess coordinator frames are logged and dropped without replay, while simulated
-external devices remain unrestricted. Button-pad v2 commands are paced below the default ceiling;
-their final commit atomically replaces all 16 simulated LED tracks. The default live composition grants no
+external devices remain unrestricted. The default live composition grants no
 application transmission. Kernel or hardware listen-only mode is a separate deployment defense.
-
-The emulator uses the generated provisional project protocol on K-CAN; firmware compiles the same
-transport but physical NeoTrellis RGB consumption remains deferred:
-
-- `0x700`: button-pad event.
-- `0x708`/`0x709`: bounded ISO-TP link carrying complete 16×RGB coordinator snapshots.
-
-The same IDs on PT-CAN or F-CAN are unknown traffic. `0x700`, `0x708`, and `0x709` require collision
-validation against a real K-CAN capture before any in-car transmission.
 
 It does not simulate verified BMW vehicle control traffic. Its synthetic extended vehicle-observation messages are defined only in
 `e87canbus.runners.simulation.protocol`, are never installed in live composition, and are not BMW

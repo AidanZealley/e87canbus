@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, cast
 
 import pytest
@@ -79,10 +80,14 @@ class MemorySettingsRepository:
 
 
 def injected_app(repository: ApplicationSettingsRepository):
-    return create_app(
+    directory = TemporaryDirectory()
+    app = create_app(
         profile_repository=cast(SteeringProfileRepository, object()),
+        profile_database_path=Path(directory.name) / "profiles.sqlite3",
         settings_repository=repository,
     )
+    app.state.test_profile_directory = directory
+    return app
 
 
 def test_get_and_put_serialize_complete_authoritative_document() -> None:

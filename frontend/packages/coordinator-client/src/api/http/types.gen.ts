@@ -197,7 +197,7 @@ export type BlinkAnimationRequest = {
 /**
  * BreatheAnimationRequest
  *
- * Bounds mirror the button-pad track payload, so an accepted animation is runnable.
+ * Keep authored animation bounds valid for the later device scene.
  */
 export type BreatheAnimationRequest = {
   /**
@@ -216,43 +216,6 @@ export type BreatheAnimationRequest = {
    * Period Ms
    */
   period_ms: number
-}
-
-/**
- * ButtonPadProgramState
- */
-export type ButtonPadProgramState = {
-  /**
-   * Commands
-   */
-  commands: Array<
-    [
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-    ]
-  >
-  /**
-   * Encoding
-   */
-  encoding?: "e87-button-pad-v2"
-  /**
-   * Generation
-   */
-  generation: number
 }
 
 /**
@@ -460,7 +423,6 @@ export type ButtonsState = {
    * Active Profile Revision
    */
   active_profile_revision?: number | null
-  program: ButtonPadProgramState
 }
 
 /**
@@ -557,13 +519,13 @@ export type DeviceHealthState = {
   /**
    * Role
    */
-  role: "button_pad" | "servotronic_controller"
+  role: "servotronic_controller"
 }
 
 /**
  * DeviceRole
  */
-export type DeviceRole = "button_pad" | "servotronic_controller"
+export type DeviceRole = "servotronic_controller"
 
 /**
  * EngineEvent
@@ -1722,46 +1684,6 @@ export type PreviewSimulationCoordinatorStatusResponses = {
 
 export type PreviewSimulationCoordinatorStatusResponse =
   PreviewSimulationCoordinatorStatusResponses[keyof PreviewSimulationCoordinatorStatusResponses]
-
-export type TapSimulationButtonData = {
-  body?: never
-  path: {
-    /**
-     * Button Index
-     */
-    button_index: number
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/button-pad/buttons/{button_index}/tap"
-}
-
-export type TapSimulationButtonErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type TapSimulationButtonError =
-  TapSimulationButtonErrors[keyof TapSimulationButtonErrors]
-
-export type TapSimulationButtonResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type TapSimulationButtonResponse =
-  TapSimulationButtonResponses[keyof TapSimulationButtonResponses]
 
 export type ConnectSimulationDeviceData = {
   body?: never

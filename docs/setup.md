@@ -33,15 +33,6 @@ device secrets belong to provisioning, not application CLI flags.
 
 ## Device firmware
 
-Build and upload the button pad:
-
-```bash
-cd devices/button-pad
-pio run
-cd ../..
-./scripts/button_pad_upload.sh
-```
-
 Build and upload the coordinator panel with its complete four-wire Pi harness disconnected:
 
 ```bash

@@ -1,11 +1,4 @@
-/**
- * Mirror of `hosts/src/e87canbus/domain/controller/button_leds.py`
- * (`derived_button_led_state`), duplicated here rather than served because the
- * editor must preview a DRAFT profile that is not active and no endpoint can
- * derive colours for one. The two implementations must be changed together;
- * `button-led-presentation.test.ts` pins the RGB constants so a backend colour
- * change fails here loudly.
- */
+/** Preview a draft profile using its authored colours and current steering state. */
 import type { SteeringState } from "@e87canbus/coordinator-client/api/http/types.gen"
 import type { ButtonCommand, ButtonCommandSlot } from "./types"
 
@@ -22,7 +15,7 @@ export type ButtonLedPresentationAdapter = (
   context: ButtonLedPresentationContext
 ) => ButtonLedRgb
 
-/** Keyed by the backend constant name each colour is copied from. */
+/** Preview colours for an unassigned or unavailable button. */
 export const BUTTON_LED_RGB = {
   RGB_OFF: [0, 0, 0],
   SOFT_AMBER: [8, 6, 0],
@@ -77,12 +70,7 @@ export const deriveButtonVisualState = (
   return commandIsActive(slot.command, context.steering) ? "active" : "inactive"
 }
 
-/**
- * Frontend counterpart of the default domain presenter.
- *
- * Keeping this adapter independent from the grid provides the seam for a
- * future authored LED presentation without changing profile editing.
- */
+/** Resolve a slot's preview colour without sending a device program. */
 export const derivedButtonLedPresentation: ButtonLedPresentationAdapter = (
   slot,
   context

@@ -7,20 +7,16 @@ from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.devices.registry import RegistryHeartbeatObserved, RegistryHelloObserved
 from e87canbus.domain.events import (
     ApplicationEvent,
-    ButtonPressed,
 )
 from e87canbus.protocol.can import (
     DeviceWelcomeAckPayload,
     RoutedCanFrame,
-    decode_button_event,
     decode_heartbeat,
     decode_hello,
     encode_welcome_ack,
 )
 
-DecodedProtocolEvent = (
-    ApplicationEvent | ButtonPressed | RegistryHelloObserved | RegistryHeartbeatObserved
-)
+DecodedProtocolEvent = ApplicationEvent | RegistryHelloObserved | RegistryHeartbeatObserved
 
 
 class ProtocolRouter:
@@ -29,11 +25,8 @@ class ProtocolRouter:
     def __init__(
         self,
         ids: CustomCanIds | None = None,
-        *,
-        button_input_enabled: bool = True,
     ) -> None:
         self.ids = ids or CustomCanIds()
-        self.button_input_enabled = button_input_enabled
 
     def decode(
         self,
@@ -43,16 +36,7 @@ class ProtocolRouter:
         registry_observation = self._decode_registry(routed, observed_at)
         if registry_observation is not None:
             return registry_observation
-        if (
-            not self.button_input_enabled
-            or routed.network is not CanNetwork.KCAN
-            or routed.frame.arbitration_id != self.ids.button_event
-        ):
-            return None
-        payload = decode_button_event(routed.frame, self.ids)
-        if payload is None or not payload.pressed:
-            return None
-        return ButtonPressed(payload.button_index, observed_at)
+        return None
 
     def _decode_registry(
         self,
@@ -63,11 +47,6 @@ class ProtocolRouter:
             return None
         frame_id = routed.frame.arbitration_id
         for role, hello_id, heartbeat_id in (
-            (
-                DeviceRole.BUTTON_PAD,
-                self.ids.button_pad_hello,
-                self.ids.button_pad_heartbeat,
-            ),
             (
                 DeviceRole.SERVOTRONIC_CONTROLLER,
                 self.ids.servotronic_controller_hello,
@@ -89,11 +68,7 @@ class ProtocolRouter:
         role: DeviceRole,
         acknowledgement: DeviceWelcomeAckPayload,
     ) -> RoutedCanFrame:
-        arbitration_id = (
-            self.ids.button_pad_welcome_ack
-            if role is DeviceRole.BUTTON_PAD
-            else self.ids.servotronic_controller_welcome_ack
-        )
+        arbitration_id = self.ids.servotronic_controller_welcome_ack
         return RoutedCanFrame(
             CanNetwork.KCAN,
             encode_welcome_ack(acknowledgement, arbitration_id),

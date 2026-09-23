@@ -7,8 +7,6 @@ from e87canbus.config import (
     SteeringConfig,
 )
 from e87canbus.domain import controller
-from e87canbus.domain.buttons.pad import static_button_pad_program
-from e87canbus.domain.buttons.profiles import built_in_active_button_profile
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
     EngineTelemetryStatus,
@@ -18,32 +16,23 @@ from e87canbus.domain.controller import (
 from e87canbus.domain.events import (
     ApplicationEffect,
     ApplicationEvent,
-    ButtonCommandFailed,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
     OilTemperatureObserved,
-    SetButtonPadProgram,
     SetSteeringAssistance,
     SpeedObserved,
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
-    button_feedback_duration_s,
 )
 from e87canbus.domain.state import (
-    BUTTON_FEEDBACK_REJECTED,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
     ApplicationState,
-    ButtonFeedback,
     CoolantTemperatureSample,
     EngineRpmSample,
     MaximumAssistance,
     NormalSteering,
     OilTemperatureSample,
-    Rgb,
     SpeedSample,
     SteeringMode,
 )
@@ -56,26 +45,8 @@ from e87canbus.domain.steering.curves import (
 
 CONFIG = SteeringConfig()
 ENGINE_CONFIG = EngineTelemetryConfig()
-BUILT_IN_LEDS = controller.ButtonLedProjection(built_in_active_button_profile())
 ACTIVE_CURVE = initial_active_steering_curve()
 CURVE_DEFINITION = default_steering_curve_definition()
-SOFT_WHITE = controller.resting_rgb(RGB_WHITE)
-# The built-in pad with nothing active: every assigned button faint in its own authored
-# colour, including the blue automatic-assistance button.
-RESTING_LEDS: tuple[Rgb, ...] = (
-    controller.resting_rgb(RGB_BLUE),
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-    SOFT_WHITE,
-) + (RGB_OFF,) * 11
-AUTO_LEDS = (RGB_BLUE,) + RESTING_LEDS[1:]
-MANUAL_LEDS = RESTING_LEDS
-MANUAL_MAXIMUM_LEDS = RESTING_LEDS[:3] + (RGB_WHITE,) + RESTING_LEDS[4:]
-
-
-def static_effect(rgb: tuple[Rgb, ...]) -> SetButtonPadProgram:
-    return SetButtonPadProgram(static_button_pad_program(rgb))
 
 
 def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnapshot:
@@ -85,7 +56,7 @@ def snapshot(state: ApplicationState, config: SteeringConfig) -> ApplicationSnap
         ENGINE_CONFIG,
         ACTIVE_CURVE,
         SteeringCurveActivationStatus.ACTIVE,
-        BUILT_IN_LEDS,
+        "built-in",
         None,
     )
 
@@ -102,7 +73,7 @@ def initial_effects(
     state: ApplicationState,
     config: SteeringConfig,
 ) -> tuple[ApplicationEffect, ...]:
-    return controller.initial_effects(state, config, CURVE_DEFINITION, BUILT_IN_LEDS)
+    return controller.initial_effects(state, config, CURVE_DEFINITION)
 
 
 def application_state(
@@ -119,30 +90,6 @@ def projection(state: ApplicationState) -> tuple[SteeringMode, int, bool]:
         value.manual_assistance_level,
         value.maximum_assistance_active,
     )
-
-
-def test_feedback_deadline_is_keyed_on_pulse_count() -> None:
-    """A one-pulse acknowledgement clears in half the time a two-pulse refusal does.
-
-    This replaced a branch keyed on the feedback colour being white, so the shorter
-    deadline is now a property of the blink rather than of one system treatment.
-    """
-
-    state = ApplicationState()
-
-    single = transition(state, ButtonCommandFailed(2, 5.0, ButtonFeedback(RGB_WHITE, 1)), CONFIG)
-    double = transition(state, ButtonCommandFailed(2, 5.0, BUTTON_FEEDBACK_REJECTED), CONFIG)
-
-    assert single.state.button_feedback_deadlines[2] == pytest.approx(5.2)
-    assert double.state.button_feedback_deadlines[2] == pytest.approx(5.4)
-    assert single.state.button_feedback[2] == ButtonFeedback(RGB_WHITE, 1)
-    assert double.state.button_feedback[2] == BUTTON_FEEDBACK_REJECTED
-    assert button_feedback_duration_s(1) == pytest.approx(0.2)
-    assert button_feedback_duration_s(2) == pytest.approx(0.4)
-
-
-
-
 
 
 @pytest.mark.parametrize(

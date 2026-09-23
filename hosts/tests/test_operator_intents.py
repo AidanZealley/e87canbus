@@ -66,8 +66,6 @@ def test_steering_intents_require_servotronic(intent: object) -> None:
     assert intent_requires_servotronic(intent) is True  # type: ignore[arg-type]
 
 
-
-
 def test_built_in_profile_has_sixteen_unassigned_slots() -> None:
     profile = built_in_active_button_profile()
 

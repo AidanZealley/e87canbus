@@ -154,8 +154,7 @@ promoting either value.
 |---|---|---|
 | Coordinator Raspberry Pi 4 | Headless controller, authoritative APIs, settings and diagnostics | K-CAN, PT-CAN, and F-CAN |
 | Console Raspberry Pi 4 | Driver screen, local UI and receive-only activity observation | K-CAN only |
-| Arduino (small CAN board) | Button matrix node | K-CAN |
-| Adafruit NeoTrellis | RGB button matrix input/output | Via Arduino (I2C) |
+| Future independent button pad | RGB button matrix input/output | Vehicle CAN observation and authenticated Wi-Fi to coordinator |
 | Future steering actuation boundary | Unknown pending hardware evidence | Not selected |
 
 ### CAN HAT Notes
@@ -221,8 +220,7 @@ e87canbus/
 │   │   └── cli/                   # Executable entry points
 │   └── tests/
 ├── devices/
-│   ├── button-pad/                # NeoTrellis/CAN PlatformIO project
-│   └── servotronic-controller/    # Future actuator-controller firmware
+│   └── servotronic-controller/    # Current bench controller firmware
 ├── frontend/
 │   ├── apps/coordinator/          # Coordinator workbench
 │   ├── apps/console/              # Driver console
@@ -257,47 +255,14 @@ serves its local frontend. The snapshot exposes connection, frame count and faul
 CAN identifiers and payloads never reach the browser. The console frontend separately consumes the
 coordinator's authoritative APIs over provisioned mutual TLS at `https://10.42.0.1`.
 
-### Arduino — PlatformIO
+### Button pad transition
 
-Use **PlatformIO** (VS Code extension) instead of Arduino IDE. Enables:
-- Version-controlled `platformio.ini` dependency management
-- CLI builds and flashes
-- Proper monorepo integration
-
-```ini
-[env:arduino_uno]
-platform = atmelavr
-board = uno
-framework = arduino
-lib_deps =
-    adafruit/Adafruit NeoTrellis
-    mcp_can
-```
-
-**Current button-pad milestone responsibilities:**
-- Emit bench-only synthetic press/release events on `0x700`.
-- Validate single-frame press-feedback blinks received on `0x701` and composite them over the base
-  scene without replacing it. The steady appearance of every button, animated or not, arrives as a
-  program over the ISO-TP link instead.
-- Report the stored values through one rendering boundary. Physical NeoTrellis scanning and pixel
-  rendering remain unimplemented until the actual hardware topology and electrical limits are
-  verified.
-
-### Provisional K-CAN Message Protocol (Coordinator ↔ Button Pad)
-
-The current bench and simulation use `0x700` and `0x701` on K-CAN. They must not be treated as
-collision-free merely because they are in the high standard-ID range.
-
-| ID | Direction | Description |
-|---|---|---|
-| `0x700` | Button pad → coordinator | Button event (byte 0 = button index, byte 1 = press/release) |
-| `0x701` | Coordinator → button pad | Press-feedback blink (DLC 8; byte 0 = command version, byte 1 = opcode, byte 2 = button index, byte 3 = sequence, byte 4 = pulse count of one or two, bytes 5-7 = RGB) |
-
-`protocol/custom.toml` is the source of truth. Its generator updates the Python constants, firmware
-header, and the marked table section in `protocol/custom_ids.md`; `--check` detects drift.
-
-Validate both IDs against a real K-CAN capture before any in-car transmission. Future simulated
-speed, RPM, lighting, oil-temperature, and coolant-temperature signals must be encoded as real
+The old AVR button-pad firmware, button-event CAN input, ISO-TP LED program and press-feedback
+frames have been removed. Profiles still store button assignments, colours and animations, but no
+physical or simulated pad produces presses in this milestone. The independent ESP32 pad is planned
+for a later slice. The remaining provisional Servotronic protocol is documented in
+`protocol/custom_ids.md` and requires collision validation before in-car transmission. Future
+simulated speed, RPM, lighting, oil-temperature, and coolant-temperature signals must use real
 network-specific CAN frames and pass through the same protocol-routing path as physical traffic.
 No BMW DBC definition is verified or active in the current milestone.
 
@@ -308,7 +273,7 @@ No BMW DBC definition is verified or active in the current milestone.
 - **IDEs:** VS Code, Windsurf
 - **Version control:** Git monorepo, hosted on GitHub
 - **Pi deployment:** Build and provision role images with `e87ctl`; use key-only SSH for maintenance
-- **Arduino development:** PlatformIO extension in VS Code
+- **Device firmware development:** PlatformIO extension in VS Code
 - **AI pairing:** Claude Code pointed at repo root — see repo structure above
 
 ---
@@ -326,14 +291,12 @@ No BMW DBC definition is verified or active in the current milestone.
 7. **Sniff F-CAN session:** drive at various speeds, hold DSC button for full duration, log DSC-off event
 8. **Characterize the steering actuator boundary safely** — document command transport, range,
    polarity, feedback, failure behavior, and electrical safe state before selecting hardware
-9. **Build Arduino + NeoTrellis node on bench** — test custom CAN messages coordinator ↔ Arduino
-10. **Validate the provisioned pair.** Provision both blank cards, boot with Ethernet disconnected,
+9. **Validate the provisioned pair.** Provision both blank cards, boot with Ethernet disconnected,
     and verify authenticated Wi-Fi, console kiosk and Pi-plus-screen peak load before integration.
 
-Before connecting any project hardware to the car, verify custom-ID collisions, K-CAN-compatible
-transceivers, the termination strategy, actual vehicle bitrate, all firmware automatic-transmit
-behavior, electrical isolation, and grounding. The current button-pad test firmware transmits once
-per second and is bench-only.
+Before connecting any project hardware to the car, verify remaining custom-ID collisions,
+K-CAN-compatible transceivers, the termination strategy, actual vehicle bitrate, all firmware
+automatic-transmit behavior, electrical isolation, and grounding.
 
 ---
 

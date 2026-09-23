@@ -13,10 +13,7 @@ from e87canbus.adapters.output import EffectExecutor
 from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
-from e87canbus.domain.events import (
-    ButtonFeedbackDeadlineReached,
-)
+from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
@@ -38,9 +35,7 @@ from e87canbus.runners.simulation.bus import InMemoryCanTopology, SimulatedCanTr
 from e87canbus.runners.simulation.commands import (
     ConnectSimulatedDevice,
     DisconnectSimulatedDevice,
-    PressButton,
     RebootSimulatedDevice,
-    ReleaseButton,
     ResetSimulation,
     RunControlTimer,
     SetSimulatedDeviceProtocolVersion,
@@ -48,10 +43,8 @@ from e87canbus.runners.simulation.commands import (
     SetVehicleSignal,
     SetVehicleSweep,
     SilenceVehicleSignal,
-    TapButton,
 )
 from e87canbus.runners.simulation.devices import (
-    SimulatedNeoTrellisNode,
     SimulatedRegistryPeer,
     SimulatedServotronicPeer,
 )
@@ -97,7 +90,6 @@ class SimulatedControllerRuntime:
         ids: CustomCanIds | None = None,
         *,
         config: AppConfig | None = None,
-        button_pad_source: DeviceSource = DeviceSource.EMULATED,
         clock: Callable[[], float] = time.monotonic,
         servotronic_factory: Callable[
             [float, Callable[[], float]], SimulatedServotronicPeer
@@ -107,9 +99,6 @@ class SimulatedControllerRuntime:
         self.config = config or simulator_config()
         if ids is not None:
             self.config = replace(self.config, custom_can_ids=ids)
-        if button_pad_source is DeviceSource.PHYSICAL:
-            raise ValueError("physical button pad cannot use the in-memory simulation runtime")
-        self.button_pad_source = button_pad_source
         self._clock = clock
         self._servotronic_factory = servotronic_factory
         self._button_profile = button_profile
@@ -123,7 +112,6 @@ class SimulatedControllerRuntime:
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
         self.pi_buses: dict[CanNetwork, CanReceiver]
-        self.neotrellis: SimulatedNeoTrellisNode | None
         self.servotronic: SimulatedServotronicPeer
         self.kernel: CoordinatorKernel
         self.executor: EffectExecutor
@@ -164,13 +152,6 @@ class SimulatedControllerRuntime:
         initial = False
         drain = True
         match command:
-            case PressButton(index):
-                self._send_button(index, pressed=True)
-            case ReleaseButton(index):
-                self._send_button(index, pressed=False)
-            case TapButton(index):
-                self._send_button(index, pressed=True)
-                self._send_button(index, pressed=False)
             case RunControlTimer(now):
                 self.vehicle.emit()
                 self._drain_kernel_inputs()
@@ -241,11 +222,6 @@ class SimulatedControllerRuntime:
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
         if any(
-            deadline is not None and deadline <= now
-            for deadline in self.kernel.state.button_feedback_deadlines
-        ):
-            self._dispatch(ButtonFeedbackDeadlineReached(now))
-        if any(
             entry.next_deadline is not None and entry.next_deadline <= now
             for entry in self.kernel.registry
         ):
@@ -268,7 +244,6 @@ class SimulatedControllerRuntime:
         session = build_session(
             self.config,
             self._clock,
-            button_pad_source=self.button_pad_source,
             servotronic_factory=self._servotronic_factory,
             button_profile=self._button_profile,
             button_profile_saved_revision=self._initial_button_profile_revision,
@@ -277,7 +252,6 @@ class SimulatedControllerRuntime:
         self.topology = session.topology
         self.pi_buses = session.pi_buses
         self.vehicle = session.vehicle
-        self.neotrellis = session.neotrellis
         self.servotronic = session.servotronic
         self.kernel = session.kernel
         self.executor = session.executor
@@ -285,13 +259,8 @@ class SimulatedControllerRuntime:
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
             raise RuntimeError("simulation kernel did not start")
-        self._process_button_output()
         self.vehicle.drain_pending()
         self.topology.clear_trace()
-
-    def _send_button(self, button_index: int, pressed: bool) -> None:
-        neotrellis = self._require_emulated_button_pad()
-        neotrellis.send_button_event(button_index, pressed)
 
     def _process_pending(
         self,
@@ -301,7 +270,6 @@ class SimulatedControllerRuntime:
         now: float | None = None,
     ) -> RuntimeExecution:
         self._drain_virtual_devices(now=now)
-        self._process_button_output()
         self.vehicle.drain_pending()
 
         return self._complete(
@@ -431,16 +399,13 @@ class SimulatedControllerRuntime:
 
     def _virtual_peers(self) -> tuple[SimulatedRegistryPeer, ...]:
         return tuple(
-            peer
-            for peer in (self.neotrellis, self.servotronic)
-            if peer is not None and peer.bus is not None
+            peer for peer in (self.servotronic,) if peer is not None and peer.bus is not None
         )
 
     def _peer_for(self, role: DeviceRole) -> SimulatedRegistryPeer:
         if not isinstance(role, DeviceRole):
             raise ValueError("simulation device role must be a supported DeviceRole")
         peer = {
-            DeviceRole.BUTTON_PAD: self.neotrellis,
             DeviceRole.SERVOTRONIC_CONTROLLER: self.servotronic,
         }[role]
         if peer is None or peer.bus is None:
@@ -501,24 +466,6 @@ class SimulatedControllerRuntime:
                 watchdog_timed_out=self.servotronic.watchdog_timed_out,
             ),
         )
-
-    def _process_button_output(self) -> None:
-        emulator = self.neotrellis
-        if emulator is None:
-            return
-        try:
-            emulator.process_pending_led_programs()
-        except (OSError, RuntimeError, ValueError) as exc:
-            LOGGER.error("button-pad emulator failed: %s", exc)
-            self._dispatch(DeviceAdapterFailed(DeviceRole.BUTTON_PAD, self._clock(), str(exc)))
-            self.neotrellis = None
-
-    def _require_emulated_button_pad(self) -> SimulatedNeoTrellisNode:
-        if self.neotrellis is None:
-            raise ControllerWorkUnavailable(
-                "button-pad emulator controls require the emulated source role"
-            )
-        return self.neotrellis
 
     def _require_started(self) -> None:
         if not self._started:

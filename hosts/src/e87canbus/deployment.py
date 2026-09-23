@@ -79,10 +79,7 @@ def deployment_spec(profile: DeploymentProfile) -> DeploymentSpec:
 _PROFILE_FIELDS = {
     DeploymentProfile.CAR: (
         CanTransport.SOCKETCAN,
-        (
-            (DeviceRole.BUTTON_PAD, DeviceSource.PHYSICAL),
-            (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),
-        ),
+        ((DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),),
         VehicleSource.PHYSICAL,
         frozenset(CanNetwork),
         # Live vehicle transmission remains denied until separately validated.
@@ -91,10 +88,7 @@ _PROFILE_FIELDS = {
     ),
     DeploymentProfile.BENCH: (
         CanTransport.SOCKETCAN,
-        (
-            (DeviceRole.BUTTON_PAD, DeviceSource.PHYSICAL),
-            (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),
-        ),
+        ((DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.PHYSICAL),),
         VehicleSource.EMULATED,
         # Bench and car use the same complete physical Pi topology.  The
         # profiles differ in behavior and transmit authority, not hardware.
@@ -104,10 +98,7 @@ _PROFILE_FIELDS = {
     ),
     DeploymentProfile.SIMULATOR: (
         CanTransport.IN_MEMORY,
-        (
-            (DeviceRole.BUTTON_PAD, DeviceSource.EMULATED),
-            (DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.EMULATED),
-        ),
+        ((DeviceRole.SERVOTRONIC_CONTROLLER, DeviceSource.EMULATED),),
         VehicleSource.EMULATED,
         frozenset(),
         frozenset({CanNetwork.KCAN}),

@@ -1,67 +1,25 @@
 import pytest
-from e87canbus.config import CustomCanIds
 from e87canbus.protocol.can import (
-    BUTTON_PAD_TRACK_BLINK,
-    BUTTON_PAD_TRACK_SOLID,
-    ArduinoButtonEventPayload,
-    ButtonPadTrackCommandPayload,
-    ButtonPadTrackPayload,
     CanFrame,
     DeviceHeartbeatPayload,
     DeviceHelloPayload,
     DeviceWelcomeAckPayload,
-    decode_button_event,
-    decode_button_pad_program,
     decode_heartbeat,
     decode_hello,
     decode_welcome_ack,
-    encode_button_event,
-    encode_button_pad_program,
     encode_heartbeat,
     encode_hello,
     encode_welcome_ack,
 )
 
 
-def test_encode_and_decode_arduino_button_event() -> None:
-    ids = CustomCanIds()
-    frame = encode_button_event(ArduinoButtonEventPayload(button_index=4, pressed=True), ids)
-
-    assert frame.arbitration_id == 0x700
-    assert frame.data == bytes([4, 1])
-    assert decode_button_event(frame, ids) == ArduinoButtonEventPayload(
-        button_index=4,
-        pressed=True,
-    )
-
-
-def test_reject_invalid_payload_lengths() -> None:
-    with pytest.raises(ValueError, match="button event payload"):
-        decode_button_event(CanFrame(CustomCanIds().button_event, b"\x01"), CustomCanIds())
-
-
-def test_button_pad_track_commands_round_trip() -> None:
-    replace = ButtonPadTrackCommandPayload(
-        True, 0xFFFF, ButtonPadTrackPayload(BUTTON_PAD_TRACK_SOLID, (0, 0, 1), final_rgb=(0, 0, 1))
-    )
-    blink = ButtonPadTrackCommandPayload(
-        False, 1 << 15, ButtonPadTrackPayload(BUTTON_PAD_TRACK_BLINK, (255, 0, 0), 100, 100, 2)
-    )
-    for command in (replace, blink):
-        encoded = encode_button_pad_program(command)
-        assert encoded[0] == 2
-        assert len(encoded) == 16
-        assert decode_button_pad_program(encoded) == command
-
-
 @pytest.mark.parametrize(
     ("hello_id", "ack_id", "heartbeat_id"),
     [
-        (0x702, 0x703, 0x704),
         (0x705, 0x706, 0x707),
     ],
 )
-def test_registry_conformance_vectors_for_both_role_id_families(
+def test_registry_conformance_vectors_for_servotronic(
     hello_id: int,
     ack_id: int,
     heartbeat_id: int,
@@ -87,9 +45,9 @@ def test_registry_codecs_round_trip_extreme_unsigned_values() -> None:
     ack = DeviceWelcomeAckPayload(0xF, 1, 0xFFFF, 0xFFFF, 0xFFFF, 0xFF)
     heartbeat = DeviceHeartbeatPayload(0xFFFF, 0xFFFF, 0xFFFF, 0xFF, 0xFF)
 
-    assert decode_hello(encode_hello(hello, 0x702), 0x702) == hello
-    assert decode_welcome_ack(encode_welcome_ack(ack, 0x703), 0x703) == ack
-    assert decode_heartbeat(encode_heartbeat(heartbeat, 0x704), 0x704) == heartbeat
+    assert decode_hello(encode_hello(hello, 0x705), 0x705) == hello
+    assert decode_welcome_ack(encode_welcome_ack(ack, 0x706), 0x706) == ack
+    assert decode_heartbeat(encode_heartbeat(heartbeat, 0x707), 0x707) == heartbeat
 
 
 @pytest.mark.parametrize(
@@ -101,14 +59,14 @@ def test_registry_codecs_round_trip_extreme_unsigned_values() -> None:
 )
 def test_registry_hello_rejects_wrong_dlc_and_reserved_bytes(payload: bytes) -> None:
     with pytest.raises(ValueError, match="reserved|exactly 8"):
-        decode_hello(CanFrame(0x702, payload), 0x702)
+        decode_hello(CanFrame(0x705, payload), 0x705)
 
 
 def test_registry_ack_rejects_reserved_response_code() -> None:
-    frame = CanFrame(0x703, bytes.fromhex("12 01 00 34 12 CD AB 56"))
+    frame = CanFrame(0x706, bytes.fromhex("12 01 00 34 12 CD AB 56"))
 
     with pytest.raises(ValueError, match="response code"):
-        decode_welcome_ack(frame, 0x703)
+        decode_welcome_ack(frame, 0x706)
 
 
 def test_registry_codecs_reject_invalid_fields_and_frame_boundaries() -> None:
@@ -119,12 +77,5 @@ def test_registry_codecs_reject_invalid_fields_and_frame_boundaries() -> None:
     with pytest.raises(ValueError, match="standard"):
         encode_hello(DeviceHelloPayload(1, 1, 1, 0), 0x800)
     with pytest.raises(ValueError, match="standard"):
-        decode_hello(CanFrame(0x702, b"\x00" * 8, is_extended_id=True), 0x702)
-    assert decode_hello(CanFrame(0x123, b"\x00" * 8), 0x702) is None
-
-
-def test_button_and_led_codecs_reject_extended_frames_on_standard_ids() -> None:
-    ids = CustomCanIds()
-
-    with pytest.raises(ValueError, match="standard"):
-        decode_button_event(CanFrame(ids.button_event, b"\x00\x01", True), ids)
+        decode_hello(CanFrame(0x705, b"\x00" * 8, is_extended_id=True), 0x705)
+    assert decode_hello(CanFrame(0x123, b"\x00" * 8), 0x705) is None

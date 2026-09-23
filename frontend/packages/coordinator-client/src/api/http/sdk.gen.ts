@@ -124,9 +124,6 @@ import type {
   StreamCoordinatorLiveApiLiveGetData,
   StreamCoordinatorLiveApiLiveGetResponse,
   StreamCoordinatorLiveApiLiveGetResponses,
-  TapSimulationButtonData,
-  TapSimulationButtonErrors,
-  TapSimulationButtonResponses,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsErrors,
   UpdateApplicationSettingsResponses,
@@ -177,7 +174,6 @@ import {
   zSilenceOilTemperatureResponse,
   zSilenceVehicleSpeedResponse,
   zStreamCoordinatorLiveApiLiveGetResponse,
-  zTapSimulationButtonResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
   zUpdateSteeringProfileResponse,
@@ -407,30 +403,6 @@ export const previewSimulationCoordinatorStatus = <
       "Content-Type": "application/json",
       ...options.headers,
     },
-  })
-
-/**
- * Tap Button
- */
-export const tapSimulationButton = <ThrowOnError extends boolean = true>(
-  options: Options<TapSimulationButtonData, ThrowOnError>
-): RequestResult<
-  TapSimulationButtonResponses,
-  TapSimulationButtonErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    TapSimulationButtonResponses,
-    TapSimulationButtonErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zTapSimulationButtonResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/button-pad/buttons/{button_index}/tap",
-    ...options,
   })
 
 /**

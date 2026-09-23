@@ -33,7 +33,6 @@ from e87canbus.service import ControllerLoop
 def build_live_controller_loop(
     *,
     config: AppConfig | None = None,
-    button_pad_source: DeviceSource | None = None,
     servotronic_source: DeviceSource | None = None,
     tx_grants: frozenset[CanNetwork] = frozenset(),
     clock: Callable[[], float] = time.monotonic,
@@ -46,15 +45,6 @@ def build_live_controller_loop(
         raise ValueError("live controller requires a SocketCAN deployment profile")
     selected_config = config or default_config()
     _validate_networks(selected_config)
-    kcan_enabled = _network_enabled(selected_config, CanNetwork.KCAN)
-    selected_button_pad = button_pad_source or (
-        DeviceSource.PHYSICAL if kcan_enabled else DeviceSource.DISABLED
-    )
-    if selected_button_pad is DeviceSource.EMULATED:
-        raise ValueError("live composition cannot select an emulated ingress authority")
-    if selected_button_pad is DeviceSource.PHYSICAL and not kcan_enabled:
-        raise ValueError("physical button pad requires live SocketCAN K-CAN")
-
     configured_tx = frozenset(
         item.network for item in selected_config.can_networks if item.enabled and item.tx_enabled
     )
@@ -66,7 +56,6 @@ def build_live_controller_loop(
     return ControllerLoop(
         LiveControllerRuntime(
             selected_config,
-            button_pad_source=selected_button_pad,
             servotronic_source=servotronic_source,
             tx_grants=tx_grants,
             bus_factory=socketcan_factory,
@@ -90,7 +79,6 @@ def build_live_controller_loop(
 def build_simulated_controller_loop(
     *,
     config: AppConfig | None = None,
-    button_pad_source: DeviceSource | None = None,
     clock: Callable[[], float] = time.monotonic,
     servotronic_factory: Callable[
         [float, Callable[[], float]], SimulatedServotronicPeer
@@ -103,25 +91,9 @@ def build_simulated_controller_loop(
         raise ValueError("simulated controller requires an in-memory deployment profile")
     selected_config = config or simulator_config()
     _validate_networks(selected_config)
-    kcan_enabled = _network_enabled(selected_config, CanNetwork.KCAN)
-    selected_button_pad = button_pad_source or (
-        DeviceSource.EMULATED if kcan_enabled else DeviceSource.DISABLED
-    )
-    if selected_button_pad is DeviceSource.PHYSICAL:
-        raise ValueError("physical button pad requires live SocketCAN K-CAN")
-    kcan_tx_enabled = any(
-        item.network is CanNetwork.KCAN and item.enabled and item.tx_enabled
-        for item in selected_config.can_networks
-    )
-    if selected_button_pad is DeviceSource.EMULATED and not kcan_enabled:
-        raise ValueError("emulated button pad requires simulated virtual K-CAN")
-    if selected_button_pad is DeviceSource.EMULATED and not kcan_tx_enabled:
-        raise ValueError("emulated button pad requires authorized simulated K-CAN output")
-
     return ControllerLoop(
         SimulatedControllerRuntime(
             config=selected_config,
-            button_pad_source=selected_button_pad,
             clock=clock,
             servotronic_factory=servotronic_factory,
         ),
@@ -159,7 +131,6 @@ def build_controller_loop(
         )
         return build_simulated_controller_loop(
             config=selected_config,
-            button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
             clock=clock,
             deployment=spec,
             profile_database_path=profile_database_path,
@@ -172,7 +143,6 @@ def build_controller_loop(
     )
     return build_live_controller_loop(
         config=selected_config,
-        button_pad_source=spec.device_source(DeviceRole.BUTTON_PAD),
         servotronic_source=spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER),
         tx_grants=spec.tx_grants,
         clock=clock,

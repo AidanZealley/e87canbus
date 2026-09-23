@@ -47,7 +47,6 @@ import {
   silenceEngineRpm,
   silenceOilTemperature,
   silenceVehicleSpeed,
-  tapSimulationButton,
   updateApplicationSettings,
   updateButtonProfile,
   updateSteeringProfile,
@@ -163,9 +162,6 @@ import type {
   SilenceVehicleSpeedData,
   SilenceVehicleSpeedError,
   SilenceVehicleSpeedResponse,
-  TapSimulationButtonData,
-  TapSimulationButtonError,
-  TapSimulationButtonResponse,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsError,
   UpdateApplicationSettingsResponse,
@@ -413,31 +409,6 @@ export const previewSimulationCoordinatorStatusMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await previewSimulationCoordinatorStatus({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Tap Button
- */
-export const tapSimulationButtonMutation = (
-  options?: Partial<Options<TapSimulationButtonData>>
-): UseMutationOptions<
-  TapSimulationButtonResponse,
-  TapSimulationButtonError,
-  Options<TapSimulationButtonData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    TapSimulationButtonResponse,
-    TapSimulationButtonError,
-    Options<TapSimulationButtonData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await tapSimulationButton({
         ...options,
         ...fnOptions,
         throwOnError: true,

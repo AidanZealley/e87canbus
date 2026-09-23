@@ -93,11 +93,9 @@ forbidden_modules = [
     "e87canbus.protocol",
     "e87canbus.transport",
 ]
-# The button-pad program model, the device catalogue and config legitimately use
-# foundational wire types; every other path from the domain into protocol/infra
-# stays forbidden.
+# The device catalogue and config use foundational wire types. Every other
+# path from the domain into protocol and infrastructure stays forbidden.
 ignore_imports = [
-    "e87canbus.domain.buttons.pad -> e87canbus.protocol.can",
     "e87canbus.domain.devices.catalogue -> e87canbus.protocol.generated",
     "e87canbus.domain.devices.registry -> e87canbus.protocol.can",
     "e87canbus.config -> e87canbus.protocol.generated",

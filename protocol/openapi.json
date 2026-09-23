@@ -320,7 +320,7 @@
       },
       "BreatheAnimationRequest": {
         "additionalProperties": false,
-        "description": "Bounds mirror the button-pad track payload, so an accepted animation is runnable.",
+        "description": "Keep authored animation bounds valid for the later device scene.",
         "properties": {
           "kind": {
             "const": "breathe",
@@ -353,44 +353,6 @@
           "maximum"
         ],
         "title": "BreatheAnimationRequest",
-        "type": "object"
-      },
-      "ButtonPadProgramState": {
-        "additionalProperties": false,
-        "properties": {
-          "commands": {
-            "items": {
-              "items": {
-                "maximum": 255.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              "maxItems": 16,
-              "minItems": 16,
-              "type": "array"
-            },
-            "maxItems": 16,
-            "minItems": 1,
-            "title": "Commands",
-            "type": "array"
-          },
-          "encoding": {
-            "const": "e87-button-pad-v2",
-            "default": "e87-button-pad-v2",
-            "title": "Encoding",
-            "type": "string"
-          },
-          "generation": {
-            "minimum": 0.0,
-            "title": "Generation",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "generation",
-          "commands"
-        ],
-        "title": "ButtonPadProgramState",
         "type": "object"
       },
       "ButtonProfileDefinitionRequest": {
@@ -710,13 +672,9 @@
               }
             ],
             "title": "Active Profile Revision"
-          },
-          "program": {
-            "$ref": "#/components/schemas/ButtonPadProgramState"
           }
         },
         "required": [
-          "program",
           "active_profile_id"
         ],
         "title": "ButtonsState",
@@ -903,10 +861,7 @@
             ]
           },
           "role": {
-            "enum": [
-              "button_pad",
-              "servotronic_controller"
-            ],
+            "const": "servotronic_controller",
             "title": "Role",
             "type": "string"
           }
@@ -920,7 +875,6 @@
       },
       "DeviceRole": {
         "enum": [
-          "button_pad",
           "servotronic_controller"
         ],
         "title": "DeviceRole",
@@ -2853,70 +2807,6 @@
         "summary": "Preview Coordinator Status",
         "tags": [
           "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/button-pad/buttons/{button_index}/tap": {
-      "post": {
-        "operationId": "tapSimulationButton",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "button_index",
-            "required": true,
-            "schema": {
-              "exclusiveMaximum": 16,
-              "minimum": 0,
-              "title": "Button Index",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Tap Button",
-        "tags": [
-          "development simulation: devices"
         ]
       }
     },

@@ -20,7 +20,6 @@ from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.runners.simulation.devices import (
-    SimulatedNeoTrellisNode,
     SimulatedServotronicPeer,
     SimulatedVehicleNode,
 )
@@ -35,7 +34,6 @@ class SimulationSession:
     topology: InMemoryCanTopology
     pi_buses: dict[CanNetwork, CanReceiver]
     vehicle: SimulatedVehicleNode
-    neotrellis: SimulatedNeoTrellisNode | None
     servotronic: SimulatedServotronicPeer
     kernel: CoordinatorKernel
     executor: EffectExecutor
@@ -45,7 +43,6 @@ def build_session(
     config: AppConfig,
     clock: Callable[[], float],
     *,
-    button_pad_source: DeviceSource,
     servotronic_factory: Callable[[float, Callable[[], float]], SimulatedServotronicPeer],
     button_profile: ActiveButtonProfile | None,
     initial_steering_curve: ActiveSteeringCurve | None,
@@ -79,15 +76,6 @@ def build_session(
 
     kcan_enabled = CanNetwork.KCAN in pi_buses
 
-    neotrellis = (
-        SimulatedNeoTrellisNode(
-            bus=topology.create_bus(CanNetwork.KCAN, "button-pad-emulator"),
-            ids=config.custom_can_ids,
-            clock=clock,
-        )
-        if button_pad_source is DeviceSource.EMULATED and kcan_enabled
-        else None
-    )
     servotronic = servotronic_factory(
         config.simulation.steering_watchdog_timeout_s,
         clock,
@@ -100,7 +88,6 @@ def build_session(
 
     router = SimulationProtocolRouter(
         config.custom_can_ids,
-        button_input_enabled=button_pad_source is DeviceSource.EMULATED,
         synthetic_speed_network=config.simulation.synthetic_speed_network,
     )
     kernel = CoordinatorKernel(
@@ -108,7 +95,6 @@ def build_session(
         engine_telemetry_config=config.engine_telemetry,
         router=router,
         device_sources={
-            DeviceRole.BUTTON_PAD: button_pad_source,
             DeviceRole.SERVOTRONIC_CONTROLLER: (
                 DeviceSource.EMULATED if kcan_enabled else DeviceSource.DISABLED
             ),
@@ -127,7 +113,6 @@ def build_session(
         topology=topology,
         pi_buses=pi_buses,
         vehicle=vehicle,
-        neotrellis=neotrellis,
         servotronic=servotronic,
         kernel=kernel,
         executor=executor,

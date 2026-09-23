@@ -81,7 +81,6 @@ def activate_simulation_devices(engine: SimulatedControllerRuntime) -> None:
     ids = engine.config.custom_can_ids
     now = engine._clock()
     for hello_id, heartbeat_id in (
-        (ids.button_pad_hello, ids.button_pad_heartbeat),
         (ids.servotronic_controller_hello, ids.servotronic_controller_heartbeat),
     ):
         engine.execute(

@@ -10,7 +10,6 @@ import pytest
 from e87canbus.api.main import create_app
 from e87canbus.api.models.coordinator_live import coordinator_health_state
 from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
-from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.events import (
     SetSteeringAssistance,
     SteeringCommandReason,
@@ -36,12 +35,10 @@ def make_app_for_config(
     config,
     *,
     servotronic_factory=SimulatedServotronicPeer,
-    button_pad_source=None,
 ):
     profile_directory = TemporaryDirectory()
     service = build_simulated_controller_loop(
         config=config,
-        button_pad_source=button_pad_source,
         servotronic_factory=servotronic_factory,
     )
     app = create_app(
@@ -120,7 +117,7 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     }
 
     response = client.options(
-        "/api/dev/simulation/devices/button-pad/buttons/0/tap",
+        "/api/dev/simulation/vehicle/speed",
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "POST",
@@ -140,10 +137,7 @@ def test_health_and_browser_cors(client: TestClient) -> None:
     )
 
     assert console_response.status_code == 200
-    assert (
-        console_response.headers["access-control-allow-origin"]
-        == "http://localhost:5174"
-    )
+    assert console_response.headers["access-control-allow-origin"] == "http://localhost:5174"
 
 
 def test_browser_cors_accepts_an_explicit_development_origin() -> None:
@@ -185,47 +179,8 @@ def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason
     assert snapshot.adapter.servotronic.watchdog_timed_out is True
 
 
-@pytest.mark.parametrize(
-    ("path", "expected_mode"),
-    (("/api/dev/simulation/devices/button-pad/buttons/0/tap", "manual"),),
-)
-def test_button_commands_return_acknowledgements(
-    client: TestClient,
-    path: str,
-    expected_mode: str,
-) -> None:
-    response = client.post(path)
-
-    assert response.status_code == 200
-    assert set(response.json()) == {
-        "accepted",
-        "boot_id",
-    }
-    assert response.json()["accepted"] is True
-    assert client.app.state.controller_loop.snapshot().application.steering_mode.value == (
-        expected_mode
-    )
-
-
-def test_disabled_composition_rejects_emulator_controls() -> None:
-    config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_config(config, button_pad_source=DeviceSource.DISABLED)
-
-    with TestClient(app) as client:
-        response = client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap")
-        snapshot = app.state.controller_loop.snapshot()
-
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "controller_failed"
-    assert snapshot.application.steering_mode.value == "auto"
-    button_pad = next(
-        entry for entry in snapshot.adapter.registry if entry.role is DeviceRole.BUTTON_PAD
-    )
-    assert button_pad.status.value == "disabled"
-
-
 def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
-    client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap")
+    client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
 
     response = client.post("/api/dev/simulation/reset")
 
@@ -234,10 +189,6 @@ def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
     assert response.json() == {"accepted": True, "boot_id": snapshot.boot_id}
     assert snapshot.adapter.simulation_session_id == 2
     assert snapshot.application.steering_mode.value == "auto"
-    button_pad = next(
-        entry for entry in snapshot.adapter.registry if entry.role is DeviceRole.BUTTON_PAD
-    )
-    assert button_pad.source_mode is DeviceSource.EMULATED
 
 
 def test_coordinator_panel_projects_status_and_resets_preview_with_the_session(
@@ -291,16 +242,6 @@ def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
     assert "fatal diagnostics" not in caplog.text
 
 
-def test_invalid_button_index_returns_validation_error(client: TestClient) -> None:
-    response = client.post("/api/dev/simulation/devices/button-pad/buttons/16/tap")
-
-    assert response.status_code == 422
-    assert response.json()["error"]["issues"][0]["location"] == [
-        "path",
-        "button_index",
-    ]
-
-
 def test_vehicle_speed_command_emits_external_frame_and_updates_application(
     client: TestClient,
 ) -> None:
@@ -350,7 +291,7 @@ def test_development_simulation_requests_reject_unknown_fields(
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("role", ["button_pad", "servotronic_controller"])
+@pytest.mark.parametrize("role", ["servotronic_controller"])
 def test_simulated_device_routes_accept_only_catalogue_roles_and_idempotent_lifecycle(
     client: TestClient,
     role: str,
@@ -372,10 +313,6 @@ def test_simulated_device_routes_accept_only_catalogue_roles_and_idempotent_life
 @pytest.mark.parametrize(
     ("path", "field"),
     [
-        (
-            "/api/dev/simulation/devices/button_pad/protocol-version",
-            "protocol_version",
-        ),
         ("/api/dev/simulation/devices/servotronic_controller/status-code", "status_code"),
     ],
 )
@@ -506,8 +443,9 @@ def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -
 
     with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
         press = pool.submit(
-            client.post,
-            "/api/dev/simulation/devices/button-pad/buttons/0/tap",
+            client.put,
+            "/api/dev/simulation/vehicle/speed",
+            json={"speed_kph": 42.5},
         )
         reset = pool.submit(client.post, "/api/dev/simulation/reset")
         press_response = press.result()
@@ -559,8 +497,9 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             controller = controllers[0]
             assert controller.entered.wait(timeout=1.0)
             second = pool.submit(
-                client.post,
-                "/api/dev/simulation/devices/button-pad/buttons/0/tap",
+                client.put,
+                "/api/dev/simulation/vehicle/speed",
+                json={"speed_kph": 42.5},
             )
             deadline = time.monotonic() + 1.0
             while app.state.controller_loop.inbox_depth != 1 and time.monotonic() < deadline:
@@ -594,7 +533,9 @@ def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() ->
             assert projected_health.fatal is True
             assert projected_health.inbox.overflow_latched is True
             assert (
-                client.post("/api/dev/simulation/devices/button-pad/buttons/0/tap").status_code
+                client.put(
+                    "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
+                ).status_code
                 == 503
             )
 

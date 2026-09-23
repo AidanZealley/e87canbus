@@ -73,7 +73,6 @@ async def test_sse_snapshot_is_first_and_contains_only_browser_projections() -> 
         "engine",
         "steering",
         "buttons",
-        "lighting",
         "health",
     }
     assert "devices" not in initial["data"]

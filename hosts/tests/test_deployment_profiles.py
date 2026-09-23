@@ -61,7 +61,6 @@ def test_car_profile_is_physical_and_has_no_simulation_capabilities() -> None:
 
     assert spec.transport is CanTransport.SOCKETCAN
     assert spec.vehicle_source is VehicleSource.PHYSICAL
-    assert spec.device_source(DeviceRole.BUTTON_PAD) is DeviceSource.PHYSICAL
     assert spec.simulation_api is SimulationApiScope.NONE
     assert spec.tx_grants == frozenset()
 
@@ -87,7 +86,6 @@ def test_bench_profile_uses_full_physical_topology_with_only_virtual_vehicle_con
     assert spec.transport is CanTransport.SOCKETCAN
     assert spec.physical_networks == frozenset(CanNetwork)
     assert spec.vehicle_source is VehicleSource.EMULATED
-    assert spec.device_source(DeviceRole.BUTTON_PAD) is DeviceSource.PHYSICAL
     assert spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER) is DeviceSource.PHYSICAL
     assert spec.simulation_api is SimulationApiScope.VEHICLE
 
@@ -156,7 +154,7 @@ def test_bench_speed_and_device_effect_share_one_kcan_rate_budget(tmp_path: Path
                 CanNetwork.KCAN,
                 encode_hello(
                     DeviceHelloPayload(1, 1, 1, 0),
-                    config.custom_can_ids.button_pad_hello,
+                    config.custom_can_ids.servotronic_controller_hello,
                 ),
                 1.0,
             )

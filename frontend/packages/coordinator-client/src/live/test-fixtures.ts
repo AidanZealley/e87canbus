@@ -1,41 +1,7 @@
 import type {
-  ButtonsState,
   SnapshotEvent,
   SteeringCurveDefinition,
 } from "@e87canbus/coordinator-client/api/http/types.gen"
-
-export const staticButtonPadProgram = (
-  rgb: readonly (readonly [number, number, number])[],
-  generation: number
-): ButtonsState["program"] => ({
-  encoding: "e87-button-pad-v2",
-  generation,
-  commands: (
-    [
-      [2, 1, 1, 0, 1, ...rgb[0], 0, 0, 0, 0, 0, ...rgb[0]],
-      ...rgb
-        .slice(1)
-        .map((colour, offset) => [
-          2,
-          2,
-          (1 << (offset + 1)) & 0xff,
-          (1 << (offset + 1)) >> 8,
-          1,
-          ...colour,
-          0,
-          0,
-          0,
-          0,
-          0,
-          ...colour,
-        ]),
-    ] as number[][]
-  ).map((command, index, commands) =>
-    index === commands.length - 1
-      ? [command[0], command[1] | 0x80, ...command.slice(2)]
-      : command
-  ) as ButtonsState["program"]["commands"],
-})
 
 const steering = {
   mode: "auto" as const,
@@ -75,13 +41,6 @@ export const snapshot = (revision: number): SnapshotEvent => ({
     buttons: {
       active_profile_id: "00000000-0000-4000-8000-000000000002",
       active_profile_revision: revision || null,
-      program: staticButtonPadProgram(
-        Array.from(
-          { length: 16 },
-          () => [revision, revision, revision] as const
-        ),
-        revision
-      ),
     },
     health: {
       ready: true,
@@ -95,7 +54,6 @@ export const snapshot = (revision: number): SnapshotEvent => ({
         overflow_latched: false,
       },
       devices: [
-        { role: "button_pad", fault: null },
         { role: "servotronic_controller", fault: null },
       ],
       steering: { fault: null },

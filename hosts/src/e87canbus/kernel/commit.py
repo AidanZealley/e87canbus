@@ -72,7 +72,6 @@ def changed_controller_topics(
     previous: ApplicationSnapshot,
     current: ApplicationSnapshot,
     *,
-    buttons_changed: bool,
     health_changed: bool,
 ) -> frozenset[StateTopic]:
     """Compare fixed projections without introducing string dispatch or registration."""
@@ -93,7 +92,10 @@ def changed_controller_topics(
         or (current.steering_curve_activation_status != previous.steering_curve_activation_status)
     ):
         changed.add(StateTopic.STEERING)
-    if buttons_changed:
+    if (
+        current.active_button_profile_id != previous.active_button_profile_id
+        or current.active_button_profile_revision != previous.active_button_profile_revision
+    ):
         changed.add(StateTopic.BUTTONS)
     if health_changed:
         changed.add(StateTopic.HEALTH)

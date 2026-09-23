@@ -37,10 +37,8 @@ from e87canbus.domain.timestamps import validate_canonical_utc_timestamp
 BUTTON_PROFILE_NAME_MAX_LENGTH = 100
 BUILT_IN_PROFILE_ID = "built-in"
 
-# The bounds ``ButtonPadTrackPayload`` enforces when an animation is finally rendered
-# into a track. They are restated here, rather than imported from the wire codec the
-# domain must not depend on, so an unrunnable animation is rejected where it is
-# authored instead of where it is transmitted.
+# Validate animation bounds where profiles are authored. The future independent
+# scene can use these values without a device wire codec in the domain.
 BREATHE_PERIOD_MIN_MS = 250
 BREATHE_PERIOD_MAX_MS = 10_000
 BLINK_DURATION_MIN_MS = 1

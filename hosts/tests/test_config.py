@@ -80,12 +80,6 @@ def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
         SimulationConfig(**{field: value})
 
 
-
-
-
-
-
-
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
@@ -174,7 +168,6 @@ def test_default_device_catalogue_and_registry_vocabulary() -> None:
     assert [
         (entry.identity.role, entry.identity.device_id) for entry in DEFAULT_DEVICE_CATALOGUE
     ] == [
-        (DeviceRole.BUTTON_PAD, 1),
         (DeviceRole.SERVOTRONIC_CONTROLLER, 1),
     ]
     assert all(
@@ -187,7 +180,7 @@ def test_default_device_catalogue_and_registry_vocabulary() -> None:
 def test_device_catalogue_protocol_version_must_fit_ack_nibble() -> None:
     with pytest.raises(ValueError, match="ACK version nibble"):
         DeviceCatalogueEntry(
-            DeviceIdentity(DeviceRole.BUTTON_PAD, 1),
+            DeviceIdentity(DeviceRole.SERVOTRONIC_CONTROLLER, 1),
             enabled=True,
             supported_protocol_version=0x10,
         )
@@ -197,22 +190,20 @@ def test_default_custom_can_ids_cover_all_project_messages() -> None:
     ids = CustomCanIds()
 
     assert (
-        ids.button_event,
-        ids.button_pad_hello,
-        ids.button_pad_welcome_ack,
-        ids.button_pad_heartbeat,
         ids.servotronic_controller_hello,
         ids.servotronic_controller_welcome_ack,
         ids.servotronic_controller_heartbeat,
-    ) == (0x700, *range(0x702, 0x708))
+        ids.servotronic_transport_coordinator_to_device,
+        ids.servotronic_transport_device_to_coordinator,
+    ) == (0x705, 0x706, 0x707, 0x70A, 0x70B)
 
 
 @pytest.mark.parametrize(
     "changes",
     [
-        {"button_event": -1},
-        {"button_event": 0x800},
-        {"button_pad_hello": 0x702, "button_pad_welcome_ack": 0x702},
+        {"servotronic_controller_hello": -1},
+        {"servotronic_controller_hello": 0x800},
+        {"servotronic_controller_hello": 0x705, "servotronic_controller_welcome_ack": 0x705},
     ],
 )
 def test_custom_can_ids_reject_invalid_or_duplicate_standard_ids(

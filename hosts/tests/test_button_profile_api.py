@@ -135,7 +135,6 @@ def test_update_installs_saved_revision_and_projects_live_identity(
     assert updated.json()["revision"] == 2
     assert snapshot.application.active_button_profile_id == created["profile_id"]
     assert snapshot.application.active_button_profile_revision == 2
-    assert snapshot.application.button_pad_program.payloads
     assert client.get("/api/button-pad/profile").json() == updated.json()
 
 

@@ -292,27 +292,15 @@ class SimulatedRegistryPeer:
 
     @property
     def _hello_id(self) -> int:
-        return (
-            self.ids.button_pad_hello
-            if self.role is DeviceRole.BUTTON_PAD
-            else self.ids.servotronic_controller_hello
-        )
+        return self.ids.servotronic_controller_hello
 
     @property
     def _welcome_ack_id(self) -> int:
-        return (
-            self.ids.button_pad_welcome_ack
-            if self.role is DeviceRole.BUTTON_PAD
-            else self.ids.servotronic_controller_welcome_ack
-        )
+        return self.ids.servotronic_controller_welcome_ack
 
     @property
     def _heartbeat_id(self) -> int:
-        return (
-            self.ids.button_pad_heartbeat
-            if self.role is DeviceRole.BUTTON_PAD
-            else self.ids.servotronic_controller_heartbeat
-        )
+        return self.ids.servotronic_controller_heartbeat
 
     def _discard_pending_frames(self) -> None:
         if self.bus is None:

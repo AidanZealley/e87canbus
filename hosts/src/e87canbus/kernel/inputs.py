@@ -12,9 +12,7 @@ from dataclasses import dataclass, field
 from e87canbus.config import CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile, validate_saved_profile_revision
 from e87canbus.domain.devices.catalogue import DeviceRole
-from e87canbus.domain.events import (
-    ButtonFeedbackDeadlineReached,
-)
+from e87canbus.domain.events import ButtonPressed
 from e87canbus.domain.intents import (
     OperatorIntent,
     is_operator_intent,
@@ -55,14 +53,12 @@ class CanEffectExecutionFailed:
     network: CanNetwork
     failed_at: float
     message: str
-    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
 class SteeringActuatorFailed:
     failed_at: float
     message: str
-    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -124,7 +120,7 @@ ControllerInput = (
     KernelStarted
     | ReceivedCanFrame
     | TimerElapsed
-    | ButtonFeedbackDeadlineReached
+    | ButtonPressed
     | CanReaderFailed
     | CanEffectExecutionFailed
     | SteeringActuatorFailed

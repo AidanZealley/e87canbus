@@ -96,29 +96,31 @@ Perform the focused closure review for Workstream 2 of the simplified coordinato
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `da5b3ca8db9cd4b875f5013e8dc81f936a1bafc6`
+- Outcome: Removed button-pad CAN ingress, program and blink output, feedback state, the simulated NeoTrellis peer, AVR firmware and its consumerless embedded library. Profile authoring and selection, active profile identity, command active-state rules and direct `ButtonPressed` dispatch remain.
+- Files changed: Button domain, controller and kernel; output adapter, protocol and generator; live models and generated browser client; simulated and live runtimes; old firmware and embedded library; affected backend and frontend tests; root, host, project context, setup, simulation, protocol and wiring documentation.
+- Decisions: A press with no assignment or a saved command rejected by the current steering configuration produces no commit or feedback. `ButtonPressed` has no CAN or simulator producer until Slice 02 adds its HTTP route. Servotronic effects and the shared device-CAN infrastructure remain for Workstream 3.
+- Verification: Targeted surviving backend tests passed (116); `generate_custom_protocol.py --check`, mypy, ruff, lint-imports and `git diff --check` passed. Frontend coordinator profile tests passed (25), console profile tests passed (26), coordinator-client live tests passed (11), all three affected package typechecks passed, and `pnpm api:check` passed. A focused search found no current-facing claim that the pad firmware, CAN transport or simulator peer still exists. Deleted LED presentation, button-pad vector, firmware-host and embedded C++ tests covered only retired behavior.
+- Known limitations or external checks: No button-pad input exists in this intermediate workstream. No external validation gate applies.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh GPT-6 Sol agent.
+- Verdict: Changes requested.
+- Required findings: Current documentation still presents the retired button-pad CAN path as available. `README.md:123-128` instructs readers to build `devices/button-pad`, which this change deletes, and `README.md:150-153` says its firmware transmits on `0x700`. `PROJECT_CONTEXT.md:223-225,277-297` lists the deleted PlatformIO project and describes `0x700` button events, `0x701` feedback, ISO-TP programs and a firmware header as current. `hosts/README.md:42-52` still calls the button pad physical or emulated in every deployment. Update these current-facing descriptions to match the temporary absence of button input and pad firmware. Historical ADRs can remain historical.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: The focused profile, CAN and registry suite passed (54 tests). The custom-protocol generator check and `git diff --check` passed. A search of the current protocol, device registry, simulator, output adapter and generated Servotronic header found no retained button-pad transport identifiers or peer code. Direct `ButtonPressed` dispatch and profile identity remain in the kernel, and the live buttons model no longer exposes program bytes.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted the one Required documentation finding. Updated `README.md`, `PROJECT_CONTEXT.md` and `hosts/README.md` to describe the absent pad and removed firmware while retaining accurate Servotronic and vehicle guidance.
+- Simplification/deletion pass: Removed current build, upload, protocol and deployment instructions for the deleted button-pad path. The implementation removed its transport, output, feedback, firmware, simulator peer and consumerless library without a compatibility path.
+- Final verification: The implementation's targeted backend and frontend checks passed. Remediation searched current-facing documentation for retired pad claims and passed `git diff --check`.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. The accepted documentation finding is resolved.
+- Remaining required findings: None. `README.md`, `PROJECT_CONTEXT.md` and `hosts/README.md` no longer direct readers to the deleted firmware or describe button-pad CAN as available. The cumulative diff retains profile identity and direct press-to-intent dispatch while removing pad program and feedback state. The focused profile, controller, runtime and live suite passed (73 tests), and `git diff --check` passed.

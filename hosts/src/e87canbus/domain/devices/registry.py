@@ -318,7 +318,6 @@ def _initial_entry(entry: DeviceCatalogueEntry, source: DeviceSource) -> DeviceR
 
 def _label_for(role: DeviceRole) -> str:
     return {
-        DeviceRole.BUTTON_PAD: "Button pad",
         DeviceRole.SERVOTRONIC_CONTROLLER: "Servotronic controller",
     }[role]
 

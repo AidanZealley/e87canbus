@@ -45,7 +45,8 @@ which API routes exist are fixed by the profile and cannot be recombined with ot
 | | `car` | `bench` | `simulator` |
 |---|---|---|---|
 | CAN transport | SocketCAN | SocketCAN | in-memory |
-| Button pad / Servotronic | physical | physical | emulated |
+| Button pad | absent | absent | absent |
+| Servotronic | physical | physical | emulated |
 | Vehicle | physical | emulated | emulated |
 | Networks opened | all three | all three | none |
 | **Transmit granted** | **none** | K-CAN | K-CAN |
@@ -169,7 +170,7 @@ verified counter and checksum behaviour, vehicle validation, and a new explicit 
 capability — never a widened generic grant.
 
 **There is no verified speed decoder.** The simulator uses a synthetic one that live
-composition never imports. Custom IDs `0x700`, `0x708` and `0x709` still need collision
+composition never imports. The remaining Servotronic custom IDs still need collision
 validation before any in-car transmit grant; see the
 [custom CAN ID registry](../protocol/custom_ids.md).
 

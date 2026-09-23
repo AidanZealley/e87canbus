@@ -6,33 +6,20 @@ it in, so every function can be tested by calling it with a state value and comp
 the result. "Effects" are inert descriptions of work, never performed here.
 
     reducer      an observed, timer or failure event -> next state
-    intents      an operator intent -> next state, plus press feedback
+    intents      an operator or button intent -> desired state
     snapshot     current state -> the immutable read-only projection clients see
-    button_leds  current state + the active button profile -> the pad's LED program
     steering     current state + the active curve -> the assistance command to send
 
-The first two answer "what changed", the last three "what should now be displayed or
-transmitted". Several of these are the verb half of a feature whose noun half lives in
-the vocabulary layer: ``button_leds`` pairs with ``domain.buttons``, ``steering`` with
-``domain.steering``. That layering is deliberate and one-directional - see the
-``domain`` package docstring.
+The first two answer "what changed". The snapshot and steering projection
+answer what should be published or sent. See the ``domain`` package docstring
+for the one-way dependency rule.
 
 Import the public surface from this package; the module split is internal layout.
 """
 
-from e87canbus.domain.controller.button_leds import (
-    RESTING_BRIGHTNESS,
-    SOFT_AMBER,
-    ButtonLedPresenter,
-    ButtonLedProjection,
-    derived_button_led_state,
-    rendered_button_track,
-    resting_rgb,
-)
 from e87canbus.domain.controller.intents import (
     clear_maximum_assistance,
     execute_operator_intent,
-    finish_button_intent,
 )
 from e87canbus.domain.controller.reducer import (
     Transition,
@@ -53,23 +40,15 @@ from e87canbus.domain.controller.steering import (
 )
 
 __all__ = [
-    "RESTING_BRIGHTNESS",
-    "SOFT_AMBER",
     "ApplicationSnapshot",
-    "ButtonLedPresenter",
-    "ButtonLedProjection",
     "EngineTelemetrySnapshot",
     "EngineTelemetryStatus",
     "EngineTelemetryValue",
     "Transition",
-    "derived_button_led_state",
     "clear_maximum_assistance",
     "execute_operator_intent",
-    "finish_button_intent",
     "initial_effects",
     "normalize_state",
-    "rendered_button_track",
-    "resting_rgb",
     "snapshot",
     "steering_command_for_active_curve",
     "steering_command_for_current_state",
