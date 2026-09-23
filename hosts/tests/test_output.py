@@ -10,40 +10,16 @@ from e87canbus.adapters.output import (
     SteeringActuatorFailure,
 )
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.domain.buttons.pad import static_button_pad_program
 from e87canbus.domain.events import (
     ConfigureServotronicCurve,
-    SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringCommandReason,
-    TriggerButtonPadBlink,
-)
-from e87canbus.domain.state import (
-    BUTTON_FEEDBACK_REJECTED,
-    BUTTON_FEEDBACK_UNAVAILABLE,
-    BUTTON_FEEDBACK_UNBOUND,
-    RGB_BLUE,
-    RGB_OFF,
-    RGB_WHITE,
-    ButtonFeedback,
-    Rgb,
 )
 from e87canbus.domain.steering.curves import initial_active_steering_curve
 from e87canbus.protocol.can import CanFrame
-from e87canbus.protocol.servotronic_protocol import (
-    CurveResult,
-    CurveSource,
-    ServotronicStatus,
-)
+from e87canbus.protocol.servotronic_protocol import CurveResult, CurveSource, ServotronicStatus
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
 from e87canbus.transport.isotp import IsoTpEndpoint
-
-BLUE_LEDS: tuple[Rgb, ...] = (RGB_BLUE,) + (RGB_OFF,) * 15
-WHITE_LEDS: tuple[Rgb, ...] = (RGB_WHITE,) * 16
-
-
-def led_program(rgb: tuple[Rgb, ...]) -> SetButtonPadProgram:
-    return SetButtonPadProgram(static_button_pad_program(rgb))
 
 
 class FakeTransmitter:
@@ -78,25 +54,6 @@ class FailingSteeringActuator:
 class FailingTransmitter:
     def send(self, frame: CanFrame) -> None:
         raise OSError(f"failed {frame.arbitration_id}")
-
-
-def test_default_executor_has_no_transmit_capability(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        EffectExecutor().execute((EffectRequest(led_program(BLUE_LEDS)),))
-
-    assert "unavailable TX capability" in caplog.text
-
-
-def test_explicit_transmit_capability_encodes_led_effect() -> None:
-    raw = FakeTransmitter()
-    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
-
-    executor.execute((EffectRequest(led_program(BLUE_LEDS)),))
-
-    # Two distinct tracks pack into one 32-byte transfer (First Frame length 0x020).
-    assert raw.sent == [CanFrame(0x708, b"\x10\x20\x02\x01\x01\x00\x01\x00")]
 
 
 def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None:
@@ -174,64 +131,6 @@ def test_servotronic_curve_effect_and_status_share_the_kcan_isotp_path() -> None
     assert executor.take_servotronic_statuses() == (status,)
 
 
-def test_incremental_button_effects_are_single_frames_and_sequenced() -> None:
-    raw = FakeTransmitter()
-    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
-
-    executor.execute(
-        (
-            EffectRequest(TriggerButtonPadBlink(3, BUTTON_FEEDBACK_REJECTED)),
-            EffectRequest(TriggerButtonPadBlink(4, BUTTON_FEEDBACK_UNBOUND)),
-            EffectRequest(TriggerButtonPadBlink(5, BUTTON_FEEDBACK_UNAVAILABLE)),
-            EffectRequest(TriggerButtonPadBlink(6, ButtonFeedback((0x2A, 0x8C, 0x13), 1))),
-        )
-    )
-
-    # One opcode carries every treatment: bytes 4-7 are pulses then RGB.
-    assert raw.sent == [
-        CanFrame(0x701, b"\x02\x01\x03\x00\x02\xff\x00\x00"),
-        CanFrame(0x701, b"\x02\x01\x04\x01\x01\xff\xff\xff"),
-        CanFrame(0x701, b"\x02\x01\x05\x02\x02\xff\xbf\x00"),
-        CanFrame(0x701, b"\x02\x01\x06\x03\x01\x2a\x8c\x13"),
-    ]
-
-
-def test_button_blink_rejects_a_pulse_count_the_pad_cannot_render() -> None:
-    raw = FakeTransmitter()
-    executor = EffectExecutor({CanNetwork.KCAN: SafeCanTransmitter(raw, TxPolicyConfig())})
-
-    # The bound lives on the value, not on the frame encoder, because the same
-    # feedback also reaches the pad as a blink track inside the ISO-TP program.
-    with pytest.raises(ValueError, match="pulses must be one or two"):
-        ButtonFeedback(RGB_WHITE, 3)
-
-    executor.execute((EffectRequest(TriggerButtonPadBlink(3, ButtonFeedback(RGB_WHITE, 1))),))
-
-    assert raw.sent == [CanFrame(0x701, b"\x02\x01\x03\x00\x01\xff\xff\xff")]
-
-
-def test_complete_led_snapshot_consumes_one_network_window_entry() -> None:
-    raw = FakeTransmitter()
-    executor = EffectExecutor(
-        {
-            CanNetwork.KCAN: SafeCanTransmitter(
-                raw,
-                TxPolicyConfig(max_frames_per_network_window=1),
-                MutableClock(),
-            )
-        }
-    )
-
-    executor.execute(
-        (
-            EffectRequest(led_program(WHITE_LEDS)),
-            EffectRequest(led_program(BLUE_LEDS)),
-        )
-    )
-
-    assert raw.sent == [CanFrame(0x708, b"\x10\x10\x02\x81\xff\xff\x01\xff")]
-
-
 def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
     actuator = FakeSteeringActuator()
     command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
@@ -242,33 +141,26 @@ def test_explicit_steering_capability_receives_dimensionless_effect() -> None:
 
 
 def test_can_and_steering_failures_are_explicit_distinct_values() -> None:
+    from e87canbus.adapters.output import SendRegistryFrame
+    from e87canbus.protocol.can import RoutedCanFrame
+
     command = SetSteeringAssistance(0.5, SteeringCommandReason.MANUAL)
     executor = EffectExecutor(
-        {
-            CanNetwork.KCAN: SafeCanTransmitter(
-                FailingTransmitter(),
-                TxPolicyConfig(),
-            )
-        },
+        {CanNetwork.KCAN: SafeCanTransmitter(FailingTransmitter(), TxPolicyConfig())},
         steering_actuator=FailingSteeringActuator(),
     )
-
     failures = executor.execute(
         (
-            EffectRequest(led_program(BLUE_LEDS)),
+            EffectRequest(
+                SendRegistryFrame(RoutedCanFrame(CanNetwork.KCAN, CanFrame(0x706, b"\x10")))
+            ),
             EffectRequest(command),
         )
     )
-
     assert failures == (
-        CanEffectFailure(CanNetwork.KCAN, "failed 1800"),
+        CanEffectFailure(CanNetwork.KCAN, "failed 1798"),
         SteeringActuatorFailure("failed 0.5"),
     )
-
-
-def test_executor_rejects_raw_effects_outside_effect_request_boundary() -> None:
-    with pytest.raises(TypeError, match="EffectRequest"):
-        EffectExecutor().execute((led_program(BLUE_LEDS),))  # type: ignore[arg-type]
 
 
 def test_effect_request_rejects_a_steering_reason_without_a_command() -> None:

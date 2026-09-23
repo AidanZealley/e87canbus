@@ -1,9 +1,7 @@
 """The event reducer: one observed/timer/failure event to its next state.
 
-``transition`` is the pure reducer for everything that is not an operator intent
-(speed and engine samples, control ticks, fallbacks
-and button-feedback deadlines). ``Transition`` is the shared result type used by
-both this reducer and the intent path.
+``transition`` is the pure reducer for observed vehicle samples, control ticks,
+and fallbacks. ``Transition`` is shared with the intent path.
 """
 
 from __future__ import annotations
@@ -16,8 +14,6 @@ from e87canbus.domain.controller.steering import steering_command
 from e87canbus.domain.events import (
     ApplicationEffect,
     ApplicationEvent,
-    ButtonCommandFailed,
-    ButtonFeedbackDeadlineReached,
     ControlTimerElapsed,
     CoolantTemperatureObserved,
     EngineRpmObserved,
@@ -27,8 +23,6 @@ from e87canbus.domain.events import (
     SteeringCommandReason,
     SteeringFallbackReason,
     SteeringFallbackRequested,
-    TriggerButtonPadBlink,
-    button_feedback_duration_s,
 )
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 from e87canbus.domain.steering.curves import SteeringCurveDefinition, clamp_manual_level
@@ -97,41 +91,6 @@ def transition(
                     ),
                 ),
             )
-        case ButtonCommandFailed(button_index, occurred_at, feedback):
-            deadlines: list[float | None] = list(state.button_feedback_deadlines)
-            pending = list(state.button_feedback)
-            deadlines[button_index] = occurred_at + button_feedback_duration_s(feedback.pulses)
-            pending[button_index] = feedback
-            next_state = replace(
-                state,
-                button_feedback_deadlines=tuple(deadlines),
-                button_feedback=tuple(pending),
-            )
-            return Transition(next_state, (TriggerButtonPadBlink(button_index, feedback),))
-        case ButtonFeedbackDeadlineReached(now):
-            next_deadlines: tuple[float | None, ...] = tuple(
-                None if deadline is not None and deadline <= now else deadline
-                for deadline in state.button_feedback_deadlines
-            )
-            if next_deadlines == state.button_feedback_deadlines:
-                return Transition(state)
-            next_feedback = tuple(
-                None if deadline is not None and deadline <= now else feedback
-                for deadline, feedback in zip(
-                    state.button_feedback_deadlines,
-                    state.button_feedback,
-                    strict=True,
-                )
-            )
-            next_state = replace(
-                state,
-                button_feedback_deadlines=next_deadlines,
-                button_feedback=next_feedback,
-            )
-            # Blink tracks carry final_rgb and stop themselves. Publishing the
-            # cleared state is sufficient; transmitting a cleanup scene can
-            # overwrite a blink that is still queued in the ISO-TP transport.
-            return Transition(next_state)
         case _:
             assert_never(event)
 

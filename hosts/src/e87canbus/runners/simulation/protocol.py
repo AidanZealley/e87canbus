@@ -200,10 +200,9 @@ class SimulationProtocolRouter(ProtocolRouter):
         self,
         ids: CustomCanIds | None = None,
         *,
-        button_input_enabled: bool = True,
         synthetic_speed_network: CanNetwork = CanNetwork.FCAN,
     ) -> None:
-        super().__init__(ids, button_input_enabled=button_input_enabled)
+        super().__init__(ids)
         self._signal_decoders = {
             (
                 synthetic_speed_network if signal is VehicleSignal.SPEED else spec.network,

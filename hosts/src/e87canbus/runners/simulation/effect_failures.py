@@ -19,9 +19,9 @@ def effect_failure_input(
     failed_at: float,
 ) -> EffectFailureInput:
     match failure:
-        case CanEffectFailure(network, message, origin_button_index):
-            return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
-        case SteeringActuatorFailure(message, origin_button_index):
-            return SteeringActuatorFailed(failed_at, message, origin_button_index)
+        case CanEffectFailure(network, message):
+            return CanEffectExecutionFailed(network, failed_at, message)
+        case SteeringActuatorFailure(message):
+            return SteeringActuatorFailed(failed_at, message)
         case _:
             assert_never(failure)

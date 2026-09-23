@@ -13,7 +13,7 @@ Two layers, and the direction between them
 what a steering curve *is*, what a button profile *is*, what an event *is*, and the
 validation and encoding that go with them. Grouped by feature:
 
-    buttons/    assignable commands, profiles, the pad's LED program
+    buttons/    assignable commands and profiles
     steering/   assistance curves
     devices/    device roles and their registry lifecycle
     settings/   user-configurable application settings
@@ -29,7 +29,7 @@ plus the shared spine that every feature depends on:
 
 **Decisions** - ``domain/controller/``. These are the verbs: pure functions from state
 plus an input to the next state plus the effects it implies. The reducer, applying
-operator intents, the snapshot projection, the LED projection, the steering command
+operator intents, the snapshot projection, and the steering command
 math.
 
 The dependency runs one way and is enforced by the import graph: ``controller`` imports
@@ -40,7 +40,7 @@ vocabulary layer.
 A feature usually appears in both layers, and that is the intended shape rather than a
 split to tidy up. Steering is the clearest example: ``steering/curves.py`` says what a
 curve is, ``controller/steering.py`` says what assistance to command right now.
-``buttons/profiles.py`` and ``controller/button_leds.py`` are the same pairing.
+Button active-state rules remain semantic. Slice 02 adds the independent scene.
 
 
 Where the rest of the system sits
@@ -61,8 +61,7 @@ carries them out.
                 snapshots into JSON; holds no rules of its own.
     protocol/   frame encoding and decoding, shared with the firmware in ``devices/``.
 
-So a button press travels: CAN frame -> ``protocol`` decodes -> ``kernel`` asks
-``domain.controller`` what it means -> Commit -> ``adapters`` transmit the resulting
-LED program. A profile edit travels: HTTP -> ``api`` -> ``adapters`` persist ->
-``kernel`` input -> the same Commit path.
+A button press will enter the kernel through a later HTTP adapter. For now,
+direct tests submit the input. A profile edit travels through HTTP and SQLite
+to a kernel activation input, which publishes the selected profile identity.
 """

@@ -1,8 +1,7 @@
 import pytest
 from e87canbus.config import SteeringConfig
 from e87canbus.domain import controller
-from e87canbus.domain.buttons.profiles import built_in_active_button_profile
-from e87canbus.domain.controller import ButtonLedProjection, Transition
+from e87canbus.domain.controller import Transition
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntent,
@@ -20,19 +19,14 @@ from e87canbus.domain.state import (
 )
 
 CONFIG = SteeringConfig(manual_level_count=11)
-BUILT_IN_LEDS = ButtonLedProjection(built_in_active_button_profile())
-
-
 
 
 def execute_operator_intent(
     state: ApplicationState,
     intent: OperatorIntent,
     config: SteeringConfig,
-    *,
-    leds: ButtonLedProjection = BUILT_IN_LEDS,
 ) -> Transition:
-    return controller.execute_operator_intent(state, intent, config, leds)
+    return controller.execute_operator_intent(state, intent, config)
 
 
 def steering(state: ApplicationState) -> NormalSteering:

@@ -13,22 +13,13 @@ from typing import Protocol, assert_never
 
 from e87canbus.adapters.can_io import CanTransmitter
 from e87canbus.config import CanNetwork, TxPolicyConfig
-from e87canbus.domain.buttons.pad import pack_button_pad_transfers
 from e87canbus.domain.events import (
-    BUTTON_LED_COUNT,
     ApplicationEffect,
     ConfigureServotronicCurve,
-    SetButtonPadProgram,
     SetSteeringAssistance,
     SteeringCommandReason,
-    TriggerButtonPadBlink,
 )
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.protocol.generated import (
-    BUTTON_PAD_EFFECT_BLINK,
-    BUTTON_PAD_EFFECT_COMMAND_VERSION,
-    BUTTON_PAD_EFFECT_LENGTH,
-)
 from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.protocol.servotronic_protocol import (
     ControlMode,
@@ -54,28 +45,20 @@ OutputEffect = ApplicationEffect | SendRegistryFrame
 
 @dataclass(frozen=True)
 class EffectRequest:
-    """An effect plus the optional originating button for synchronous failures."""
+    """An executable application effect."""
 
     effect: OutputEffect
-    origin_button_index: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(
             self.effect,
             (
-                SetButtonPadProgram,
-                TriggerButtonPadBlink,
                 SetSteeringAssistance,
                 ConfigureServotronicCurve,
                 SendRegistryFrame,
             ),
         ):
             raise ValueError("effect request must contain an executable effect")
-        if self.origin_button_index is not None and (
-            type(self.origin_button_index) is not int
-            or not 0 <= self.origin_button_index < BUTTON_LED_COUNT
-        ):
-            raise ValueError("effect origin must identify a button LED")
         if isinstance(self.effect, SetSteeringAssistance) and not math.isfinite(
             self.effect.assistance
         ):
@@ -86,13 +69,11 @@ class EffectRequest:
 class CanEffectFailure:
     network: CanNetwork
     message: str
-    origin_button_index: int | None = None
 
 
 @dataclass(frozen=True)
 class SteeringActuatorFailure:
     message: str
-    origin_button_index: int | None = None
 
 
 EffectFailure = CanEffectFailure | SteeringActuatorFailure
@@ -145,31 +126,16 @@ class EffectExecutor:
         transmitters: Mapping[CanNetwork, SafeCanTransmitter] | None = None,
         router: ProtocolRouter | None = None,
         steering_actuator: SteeringActuator | None = None,
-        button_pad_payload_interval_s: float = 0.0,
     ) -> None:
         self._transmitters = dict(transmitters or {})
         self._router = router or ProtocolRouter()
         self._steering_actuator = steering_actuator
-        self._button_pad_effect_sequence = 0
         transmitter = self._transmitters.get(CanNetwork.KCAN)
 
         def send_transport_frame(frame: CanFrame) -> None:
             if transmitter is not None:
                 transmitter.send(frame)
 
-        self._button_pad_transport = (
-            None
-            if transmitter is None
-            else IsoTpEndpoint(
-                tx_id=self._router.ids.button_pad_transport_coordinator_to_device,
-                rx_id=self._router.ids.button_pad_transport_device_to_coordinator,
-                send_frame=send_transport_frame,
-                maximum_payload_length=self._router.ids.button_pad_transport_maximum_payload_length,
-                # Live hardware spaces command starts because each 16-byte command
-                # occupies three classic CAN frames. Simulation may opt out.
-                minimum_payload_interval_s=button_pad_payload_interval_s,
-            )
-        )
         self._servotronic_transport = (
             None
             if transmitter is None
@@ -192,14 +158,13 @@ class EffectExecutor:
             if not isinstance(request, EffectRequest):
                 raise TypeError("EffectExecutor accepts only EffectRequest values")
             effect = request.effect
-            origin_button_index = request.origin_button_index
             match effect:
                 case SetSteeringAssistance():
                     if self._steering_actuator is None:
                         if self._servotronic_transport is not None:
                             servotronic_payloads.append(_pack_steering_control(effect))
                     else:
-                        steering_failure = self._execute_steering(effect, origin_button_index)
+                        steering_failure = self._execute_steering(effect)
                         if steering_failure is not None:
                             failures.append(steering_failure)
                 case ConfigureServotronicCurve():
@@ -207,16 +172,8 @@ class EffectExecutor:
                         servotronic_payloads.append(
                             pack_curve(effect.definition, effect.activation_revision)
                         )
-                case SetButtonPadProgram():
-                    can_failure = self._execute_can(effect, origin_button_index)
-                    if can_failure is not None:
-                        failures.append(can_failure)
-                case TriggerButtonPadBlink():
-                    can_failure = self._execute_button_pad_effect(effect, origin_button_index)
-                    if can_failure is not None:
-                        failures.append(can_failure)
                 case SendRegistryFrame():
-                    can_failure = self._execute_routed_can(effect, origin_button_index)
+                    can_failure = self._execute_routed_can(effect)
                     if can_failure is not None:
                         failures.append(can_failure)
                 case _:
@@ -229,72 +186,20 @@ class EffectExecutor:
                 failures.append(CanEffectFailure(CanNetwork.KCAN, str(exc)))
         return tuple(failures)
 
-    def _execute_button_pad_effect(
-        self,
-        effect: TriggerButtonPadBlink,
-        origin_button_index: int | None,
-    ) -> CanEffectFailure | None:
-        """Encode the one generic blink opcode, colour and pulse count included."""
-
-        pulses = effect.feedback.pulses
-        red, green, blue = effect.feedback.rgb
-        payload = bytes(
-            (
-                BUTTON_PAD_EFFECT_COMMAND_VERSION,
-                BUTTON_PAD_EFFECT_BLINK,
-                effect.button_index,
-                self._button_pad_effect_sequence,
-                pulses,
-                red,
-                green,
-                blue,
-            )
-        )
-        assert len(payload) == BUTTON_PAD_EFFECT_LENGTH
-        # ButtonFeedback bounds the pulse count; the pad has no other entry point.
-        assert pulses in (1, 2)
-        self._button_pad_effect_sequence = (self._button_pad_effect_sequence + 1) & 0xFF
-        return self._execute_routed_can(
-            SendRegistryFrame(
-                RoutedCanFrame(
-                    CanNetwork.KCAN,
-                    CanFrame(self._router.ids.button_pad_effect, payload),
-                )
-            ),
-            origin_button_index,
-        )
-
-    def _execute_can(
-        self,
-        effect: SetButtonPadProgram,
-        origin_button_index: int | None,
-    ) -> CanEffectFailure | None:
-        if self._button_pad_transport is None:
-            LOGGER.warning("dropped button-pad RGB effect for unavailable TX capability")
-            return None
-        try:
-            self._button_pad_transport.send_many(pack_button_pad_transfers(effect.program))
-            self._button_pad_transport.poll()
-        except (OSError, RuntimeError, ValueError) as exc:
-            return CanEffectFailure(CanNetwork.KCAN, str(exc), origin_button_index)
-        return None
-
     def poll_transport(self) -> None:
-        """Advance the button-pad ISO-TP state machine on each service tick."""
+        """Advance the Servotronic ISO-TP state machine on each service tick."""
         try:
-            if self._button_pad_transport is not None:
-                self._button_pad_transport.poll()
             if self._servotronic_transport is not None:
                 self._servotronic_transport.poll()
                 self._drain_servotronic_statuses()
         except (OSError, RuntimeError) as exc:
-            LOGGER.warning("button-pad transport poll error: %s", exc)
+            LOGGER.warning("Servotronic transport poll error: %s", exc)
 
     def on_frame(self, network: CanNetwork, frame: CanFrame) -> bool:
         if network is not CanNetwork.KCAN:
             return False
         accepted = False
-        for transport in (self._button_pad_transport, self._servotronic_transport):
+        for transport in (self._servotronic_transport,):
             if transport is not None and transport.on_frame(frame):
                 transport.poll()
                 accepted = True
@@ -318,7 +223,6 @@ class EffectExecutor:
     def _execute_routed_can(
         self,
         effect: SendRegistryFrame,
-        origin_button_index: int | None,
         *,
         log_unavailable_tx: bool = False,
     ) -> CanEffectFailure | None:
@@ -341,13 +245,12 @@ class EffectExecutor:
                 routed.frame.arbitration_id,
                 exc,
             )
-            return CanEffectFailure(routed.network, str(exc), origin_button_index)
+            return CanEffectFailure(routed.network, str(exc))
         return None
 
     def _execute_steering(
         self,
         command: SetSteeringAssistance,
-        origin_button_index: int | None,
     ) -> SteeringActuatorFailure | None:
         if self._steering_actuator is None:
             return None
@@ -355,8 +258,9 @@ class EffectExecutor:
             self._steering_actuator.set_assistance(command)
         except (OSError, RuntimeError) as exc:
             LOGGER.warning("failed to execute steering effect: error=%s", exc)
-            return SteeringActuatorFailure(str(exc), origin_button_index)
+            return SteeringActuatorFailure(str(exc))
         return None
+
 
 def _pack_steering_control(command: SetSteeringAssistance) -> bytes:
     mode = (

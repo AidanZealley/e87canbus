@@ -25,7 +25,7 @@ it("rerenders a vehicle subscriber without rerendering settings or button panels
   }
   const ButtonPanel = () => {
     renders.buttons += 1
-    const generation = useLiveStore((state) => state.buttons.program.generation)
+    const generation = useLiveStore((state) => state.buttons.active_profile_revision)
     return <span>{generation}</span>
   }
   const SettingsPanel = () => {

@@ -39,7 +39,7 @@ export const zBlinkAnimationRequest = z.object({
 /**
  * BreatheAnimationRequest
  *
- * Bounds mirror the button-pad track payload, so an accepted animation is runnable.
+ * Keep authored animation bounds valid for the later device scene.
  */
 export const zBreatheAnimationRequest = z.object({
   kind: z.literal("breathe"),
@@ -49,46 +49,11 @@ export const zBreatheAnimationRequest = z.object({
 })
 
 /**
- * ButtonPadProgramState
- */
-export const zButtonPadProgramState = z.object({
-  commands: z
-    .array(
-      z.tuple([
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-        z.int().gte(0).lte(255),
-      ])
-    )
-    .min(1)
-    .max(16),
-  encoding: z
-    .literal("e87-button-pad-v2")
-    .optional()
-    .default("e87-button-pad-v2"),
-  generation: z.int().gte(0),
-})
-
-/**
  * ButtonsState
  */
 export const zButtonsState = z.object({
   active_profile_id: z.string().min(1),
   active_profile_revision: z.int().gte(1).nullish(),
-  program: zButtonPadProgramState,
 })
 
 /**
@@ -121,7 +86,7 @@ export const zDeploymentProfile = z.enum(["car", "bench", "simulator"])
 /**
  * DeviceRole
  */
-export const zDeviceRole = z.enum(["button_pad", "servotronic_controller"])
+export const zDeviceRole = z.enum(["servotronic_controller"])
 
 /**
  * EngineRpmRequest
@@ -257,7 +222,7 @@ export const zRuntimeFaultState = z.object({
  */
 export const zDeviceHealthState = z.object({
   fault: zRuntimeFaultState.nullable(),
-  role: z.enum(["button_pad", "servotronic_controller"]),
+  role: z.literal("servotronic_controller"),
 })
 
 /**
@@ -975,15 +940,6 @@ export const zPreviewSimulationCoordinatorStatusBody =
  */
 export const zPreviewSimulationCoordinatorStatusResponse =
   zSimulationCoordinatorPanelState
-
-export const zTapSimulationButtonPath = z.object({
-  button_index: z.int().gte(0).lt(16),
-})
-
-/**
- * Successful Response
- */
-export const zTapSimulationButtonResponse = zSimulationCommandAcknowledgement
 
 export const zConnectSimulationDevicePath = z.object({
   role: zDeviceRole,

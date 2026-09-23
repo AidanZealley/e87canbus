@@ -7,11 +7,8 @@ import {
   deriveButtonProfileLedPreview,
 } from "./button-led-presentation"
 
-describe("backend colour constants", () => {
-  // Pinned against hosts/src/e87canbus/domain/events.py (RGB_*) and
-  // domain/controller/button_leds.py (SOFT_*). Changing a colour there must
-  // break this test rather than silently leave the editor preview wrong.
-  it("matches the values named in the coordinator LED modules", () => {
+describe("profile preview colours", () => {
+  it("uses the editor's off and unavailable colours", () => {
     expect(BUTTON_LED_RGB).toEqual({
       RGB_OFF: [0, 0, 0],
       SOFT_AMBER: [8, 6, 0],

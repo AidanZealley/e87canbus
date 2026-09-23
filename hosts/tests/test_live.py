@@ -13,14 +13,12 @@ from e87canbus.config import (
     default_config,
     simulator_config,
 )
-from e87canbus.domain.devices.catalogue import DeviceSource
 from e87canbus.kernel import (
     CanReaderFailed,
     ControllerInput,
     ReceivedCanFrame,
 )
-from e87canbus.protocol.can import ArduinoButtonEventPayload, CanFrame, encode_button_event
-from e87canbus.protocol.generated import CAN_ID_BUTTON_PAD_HELLO
+from e87canbus.protocol.can import CanFrame
 from e87canbus.runners.composition import build_live_controller_loop
 from e87canbus.runners.live import read_frames_into_queue
 from e87canbus.service import (
@@ -229,54 +227,6 @@ def test_default_live_composition_emits_no_startup_frames() -> None:
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 
 
-def test_physical_button_pad_observation_is_unknown_without_acknowledgement() -> None:
-    FakeSocketCanBus.instances = []
-    service = build_live_controller_loop(
-        socketcan_factory=FakeSocketCanBus,
-    )
-
-    frame = encode_button_event(
-        ArduinoButtonEventPayload(0, True),
-        default_config().custom_can_ids,
-    )
-    service.start()
-    try:
-        service.submit(ReceivedCanFrame(CanNetwork.KCAN, frame, 2.0)).result(timeout=0.2)
-        button_pad = service.snapshot().adapter.registry[0]
-    finally:
-        service.stop()
-
-    assert button_pad.source_mode is DeviceSource.PHYSICAL
-    assert button_pad.status.value == "not_found"
-    assert button_pad.device_session_id is None
-    assert button_pad.last_status_code is None
-
-
-def test_disabled_role_ignores_custom_device_ingress_and_cannot_emit_output() -> None:
-    FakeSocketCanBus.instances = []
-    config = default_config()
-    service = build_live_controller_loop(
-        config=config,
-        button_pad_source=DeviceSource.DISABLED,
-        socketcan_factory=FakeSocketCanBus,
-    )
-    frame = encode_button_event(ArduinoButtonEventPayload(0, True), config.custom_can_ids)
-
-    service.start()
-    try:
-        service.submit(ReceivedCanFrame(CanNetwork.KCAN, frame, 1.0)).result(timeout=0.2)
-        snapshot = service.snapshot()
-    finally:
-        service.stop()
-
-    assert snapshot.application.steering_mode.value == "auto"
-    button_pad = next(
-        entry for entry in snapshot.adapter.registry if entry.role.value == "button_pad"
-    )
-    assert button_pad.status.value == "disabled"
-    assert all(not bus.sent for bus in FakeSocketCanBus.instances)
-
-
 def test_explicit_kcan_tx_composition_waits_for_registry_contact() -> None:
     FakeSocketCanBus.instances = []
     config = simulator_config()
@@ -450,13 +400,12 @@ class TestConfigurableNetworkEnablement:
         )
         service = build_live_controller_loop(
             config=config,
-            button_pad_source=DeviceSource.DISABLED,
             tx_grants=frozenset(),
             socketcan_factory=FakeSocketCanBus,
         )
 
         hello_frame = CanFrame(
-            CAN_ID_BUTTON_PAD_HELLO,
+            0x705,
             bytes([0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00]),
         )
         service.start()

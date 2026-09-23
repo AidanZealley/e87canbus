@@ -11,7 +11,7 @@ scope.
 
 The headless coordinator is configured for three isolated physical networks: K-CAN (`kcan`, 100 kbit/s),
 PT-CAN (`ptcan`, 500 kbit/s), and F-CAN (`fcan`, 500 kbit/s). The Pi and simulated vehicle have an
-endpoint on all three, while the NeoTrellis attaches only to K-CAN. The simulated Servotronic
+endpoint on all three. The simulated Servotronic
 controller is a direct actuator capability because no physical wire protocol is verified. The
 simulator does not forward traffic between networks. A separate console Pi owns the driver screen,
 its locally served frontend, and receive-only K-CAN observation. It reaches the coordinator over a
@@ -40,19 +40,9 @@ virtual hardware), and `api/` for the frontend interface.
 Live readers timestamp CAN frames before placing them in a bounded inbox. One kernel owns immutable
 application state and applies pure transitions in input order; committed effects leave through an
 explicit CAN transmitter or actuator capability, with one network rate policy guarding CAN writes.
-The simulator operates external nodes and follows that same path rather than injecting application
-events or state. A button-pad LED decision has a canonical v2 program containing a resolved track
-for each button. Ordered 16-byte ISO-TP commands on `0x708`/`0x709` replace the whole scene and
-commit it atomically for synchronization. Latency-sensitive press feedback uses one incremental CAN
-frame on `0x701` carrying its own colour and pulse count; the device composites that blink over the
-base scene.
-
-Each repository-owned button-pad composition selects exactly one `physical`, `emulated`, or
-`disabled` source. Backend tests exercise the emulator's generated `0x700` wire message, but the
-browser does not expose custom-CAN device controls. Dashboard operational controls use semantic HTTP
-commands instead. `buttons.program` contains the canonical bounded program requested from the button
-pad, using the same versioned bytes sent to the device; physical application observation is not
-implied by local send success.
+The simulator operates the vehicle and Servotronic peer through their existing CAN paths. Button
+profiles still store assignments, colours and animations, but no physical or simulated button pad
+sends presses during this milestone. Direct kernel inputs exercise the retained press-to-intent path.
 
 ## Raspberry Pi deployment
 
@@ -103,12 +93,6 @@ telemetry controls remain in the toolbar. CAN topology, live trace and custom-CA
 are intentionally absent from the browser. Their internal simulation behavior remains covered by
 backend tests.
 
-Upload button-pad firmware from the host:
-
-```bash
-./scripts/button_pad_upload.sh
-```
-
 See `docs/simulation.md` and
 the [architecture decision index](docs/decisions/README.md).
 
@@ -136,13 +120,6 @@ pnpm test
 pnpm build
 ```
 
-Build the button-pad firmware:
-
-```bash
-cd devices/button-pad
-pio run
-```
-
 ## Safety Status
 
 The default live composition disables application transmission on every CAN network. K-CAN transmission
@@ -163,10 +140,11 @@ timestamping, decoding, transition, commit, and effect execution; the live route
 Future verified vehicle inputs must replace synthetic definitions with captured network-specific
 frames. There is no simulator-only state injection boundary.
 
-The bench-only `0x700`, `0x708`, and `0x709` IDs are provisional and require collision checks against a real
-K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers, termination,
-the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation, and grounding.
-The current button-pad firmware transmits automatically and must not be connected to the car.
+The remaining bench-only Servotronic IDs are provisional and require collision checks against a
+real K-CAN capture. Before any in-car connection, also verify K-CAN-compatible transceivers,
+termination, the actual vehicle bitrate, firmware auto-transmit behavior, electrical isolation,
+and grounding. The old button-pad firmware has been removed; no pad sends button presses or receives
+coordinator feedback in this milestone.
 The simulated Servotronic controller proves dimensionless target selection, stale/fault/shutdown
 fallback, watchdog timeout behavior, and terminal handling of output faults. It does not establish
 a physical command or electrical safe state. Command transport, range and polarity, valve response,

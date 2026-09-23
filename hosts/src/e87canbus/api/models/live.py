@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from e87canbus.domain.buttons.pad import BUTTON_PAD_PROGRAM_ENCODING
 from e87canbus.domain.steering.curves import STEERING_CURVE_V1_SPEEDS_DECI_KPH
-from e87canbus.kernel import StateTopic
 from e87canbus.service import ControllerLoopSnapshot
 
 STEERING_CURVE_POINT_COUNT = len(STEERING_CURVE_V1_SPEEDS_DECI_KPH)
@@ -91,18 +89,7 @@ class SteeringState(LiveModel):
     curve_activation_available: bool
 
 
-ButtonPadProgramByte = Annotated[int, Field(ge=0, le=255)]
-ButtonPadCommand = Annotated[tuple[ButtonPadProgramByte, ...], Field(min_length=16, max_length=16)]
-
-
-class ButtonPadProgramState(LiveModel):
-    encoding: Literal["e87-button-pad-v2"] = BUTTON_PAD_PROGRAM_ENCODING
-    generation: int = Field(ge=0)
-    commands: tuple[ButtonPadCommand, ...] = Field(min_length=1, max_length=16)
-
-
 class ButtonsState(LiveModel):
-    program: ButtonPadProgramState
     active_profile_id: str = Field(min_length=1)
     active_profile_revision: int | None = Field(default=None, ge=1)
 
@@ -133,7 +120,7 @@ class InboxHealthState(LiveModel):
 
 
 class DeviceHealthState(LiveModel):
-    role: Literal["button_pad", "servotronic_controller"]
+    role: Literal["servotronic_controller"]
     fault: RuntimeFaultState | None
 
 
@@ -190,12 +177,6 @@ def steering_state(snapshot: ControllerLoopSnapshot) -> SteeringState:
 
 def buttons_state(snapshot: ControllerLoopSnapshot) -> ButtonsState:
     return ButtonsState(
-        program=ButtonPadProgramState(
-            generation=dict(snapshot.topic_revisions)[StateTopic.BUTTONS],
-            commands=tuple(
-                tuple(payload) for payload in snapshot.application.button_pad_program.payloads
-            ),
-        ),
         active_profile_id=snapshot.application.active_button_profile_id,
         active_profile_revision=snapshot.application.active_button_profile_revision,
     )

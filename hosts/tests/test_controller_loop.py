@@ -7,10 +7,9 @@ from pathlib import Path
 import pytest
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.main import create_app
-from e87canbus.config import CanNetwork, default_config, simulator_config
+from e87canbus.config import default_config, simulator_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.catalogue import DeviceSource
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     CoordinatorKernel,
@@ -319,20 +318,9 @@ def test_live_transmitter_requires_separate_explicit_network_grant() -> None:
         build_live_controller_loop(config=simulator_config())
 
 
-def test_explicit_constructors_reject_invalid_device_authority_and_output() -> None:
-    with pytest.raises(ValueError, match="emulated ingress authority"):
-        build_live_controller_loop(button_pad_source=DeviceSource.EMULATED)
-
-    config = simulator_config()
-    config = replace(
-        config,
-        can_networks=tuple(
-            replace(item, tx_enabled=False) if item.network is CanNetwork.KCAN else item
-            for item in config.can_networks
-        ),
-    )
-    with pytest.raises(ValueError, match="authorized simulated K-CAN output"):
-        build_simulated_controller_loop(config=config)
+def test_simulated_constructor_accepts_vehicle_and_servotronic_without_button_source() -> None:
+    service = build_simulated_controller_loop()
+    assert service.lifecycle is ControllerLoopLifecycle.CREATED
 
 
 def test_repeated_app_construction_does_not_leak_controller_owner_threads(

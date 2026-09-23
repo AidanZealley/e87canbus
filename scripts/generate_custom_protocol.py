@@ -85,7 +85,6 @@ def load_definition(path: Path) -> ProtocolDefinition:
     if set(can_ids).intersection(link_ids) or len(set(link_ids)) != len(link_ids):
         raise ValueError("custom protocol arbitration IDs must be unique")
     definition = ProtocolDefinition(protocol_version, messages, transport_links)
-    _validate_shared_registry_layouts(definition)
     return definition
 
 
@@ -108,19 +107,6 @@ def _parse_transport_link(name: str, table: Mapping[str, Any]) -> TransportLinkD
     return TransportLinkDefinition(
         name, coordinator_to_device_id, device_to_coordinator_id, maximum_payload_length, purpose
     )
-
-
-def _validate_shared_registry_layouts(definition: ProtocolDefinition) -> None:
-    """Keep the role-generic Python codecs safe when generated layouts evolve."""
-
-    for suffix in ("hello", "welcome_ack", "heartbeat"):
-        button_pad = definition.message(f"button_pad_{suffix}")
-        servotronic = definition.message(f"servotronic_controller_{suffix}")
-        if (
-            button_pad.length != servotronic.length
-            or button_pad.byte_positions != servotronic.byte_positions
-        ):
-            raise ValueError(f"button-pad and Servotronic {suffix} layouts must remain identical")
 
 
 def _parse_message(name: str, table: Mapping[str, Any]) -> MessageDefinition:
@@ -254,9 +240,7 @@ def _constants(definition: ProtocolDefinition) -> tuple[tuple[str, int], ...]:
         constants.append((f"{prefix}_LENGTH", message.length))
         if message.command_version is not None:
             constants.append((f"{prefix}_COMMAND_VERSION", message.command_version))
-        if message.name == "button_event":
-            constants.extend((f"BUTTON_{name.upper()}", value) for name, value in message.values)
-        elif message.values and message.name != "led_snapshot":
+        if message.values:
             constants.extend((f"{prefix}_{name.upper()}", value) for name, value in message.values)
         elif message.name == "led_snapshot":
             constants.extend(
@@ -384,7 +368,6 @@ def expected_artifacts(root: Path, definition: ProtocolDefinition) -> dict[Path,
         root / "hosts" / "src" / "e87canbus" / "protocol" / "generated.py": render_python(
             definition
         ),
-        root / "devices" / "button-pad" / "include" / "can_ids.h": render_header(definition),
         root / "devices" / "servotronic-controller" / "include" / "can_ids.h": render_header(
             definition
         ),

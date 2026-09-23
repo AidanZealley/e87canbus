@@ -23,60 +23,16 @@ def test_generated_protocol_artifacts_are_current() -> None:
     assert stale_artifacts(ROOT) == ()
 
 
-def test_definition_owns_ids_lengths_positions_and_values() -> None:
+def test_definition_contains_only_servotronic_messages_and_transport() -> None:
     definition = load_definition(ROOT / "protocol" / "custom.toml")
-    button_event = definition.message("button_event")
-
     assert definition.protocol_version == 1
-    assert len(definition.messages) == 8
-    assert button_event.can_id == 0x700
-    assert button_event.length == 2
-    assert dict(button_event.byte_positions) == {"button_index": 0, "state": 1}
-    assert dict(button_event.values) == {"released": 0, "pressed": 1}
-    effect = definition.message("button_pad_effect")
-    assert effect.can_id == 0x701
-    assert effect.length == 8
-    # 0x701 carries exactly one opcode: the blink frame carries its own colour and
-    # pulse count, and steady appearance belongs to the button-pad program instead.
-    assert dict(effect.values) == {"blink": 1}
-    assert dict(effect.byte_positions) == {
-        "version": 0,
-        "opcode": 1,
-        "button_index": 2,
-        "sequence": 3,
-        "pulses": 4,
-        "red": 5,
-        "green": 6,
-        "blue": 7,
+    assert {message.name for message in definition.messages} == {
+        "servotronic_controller_hello",
+        "servotronic_controller_welcome_ack",
+        "servotronic_controller_heartbeat",
     }
-    # Version 1 read bytes 4-7 as an enabled flag plus reserved zeroes, so a v1
-    # sender must be rejected by v2 firmware rather than render a black blink.
-    assert effect.command_version == 2
-    assert definition.message("button_event").command_version is None
-
-
-def test_registry_messages_have_fixed_ids_and_layouts() -> None:
-    definition = load_definition(ROOT / "protocol" / "custom.toml")
-
-    assert [message.can_id for message in definition.messages] == list(range(0x700, 0x708))
-    assert all(message.length == 8 for message in definition.messages[2:])
-    assert dict(definition.message("button_pad_hello").byte_positions) == {
-        "protocol_version": 0,
-        "device_id_low": 1,
-        "device_id_high": 2,
-        "device_session_id_low": 3,
-        "device_session_id_high": 4,
-        "sequence": 5,
-        "reserved_6": 6,
-        "reserved_7": 7,
-    }
-    for suffix in ("hello", "welcome_ack", "heartbeat"):
-        button_pad = definition.message(f"button_pad_{suffix}")
-        servotronic = definition.message(f"servotronic_controller_{suffix}")
-        assert (button_pad.length, button_pad.byte_positions) == (
-            servotronic.length,
-            servotronic.byte_positions,
-        )
+    assert [message.can_id for message in definition.messages] == [0x705, 0x706, 0x707]
+    assert [link.name for link in definition.transport_links] == ["servotronic_transport"]
 
 
 def test_markdown_generation_preserves_surrounding_prose() -> None:
@@ -92,7 +48,7 @@ def test_markdown_generation_preserves_surrounding_prose() -> None:
     "relative_path",
     [
         Path("hosts/src/e87canbus/protocol/generated.py"),
-        Path("devices/button-pad/include/can_ids.h"),
+        Path("devices/servotronic-controller/include/can_ids.h"),
         Path("protocol/custom_ids.md"),
     ],
 )
@@ -108,6 +64,6 @@ def test_changing_one_generated_artifact_is_detected(tmp_path: Path, relative_pa
         destination.write_text(content)
 
     changed = tmp_path / relative_path
-    changed.write_text(changed.read_text().replace("0x700", "0x702", 1))
+    changed.write_text(changed.read_text().replace("0x705", "0x702", 1))
 
     assert stale_artifacts(tmp_path) == (changed,)

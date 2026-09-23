@@ -21,9 +21,6 @@ from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
-from e87canbus.domain.events import (
-    ButtonFeedbackDeadlineReached,
-)
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
@@ -74,7 +71,6 @@ CONTROLLER_INPUT_TYPES = (
     KernelStarted,
     ReceivedCanFrame,
     TimerElapsed,
-    ButtonFeedbackDeadlineReached,
     CanReaderFailed,
     CanEffectExecutionFailed,
     SteeringActuatorFailed,
@@ -176,10 +172,10 @@ def _effect_failure_input(
     failed_at: float,
 ) -> EffectFailureInput:
     match failure:
-        case CanEffectFailure(network, message, origin_button_index):
-            return CanEffectExecutionFailed(network, failed_at, message, origin_button_index)
-        case SteeringActuatorFailure(message, origin_button_index):
-            return SteeringActuatorFailed(failed_at, message, origin_button_index)
+        case CanEffectFailure(network, message):
+            return CanEffectExecutionFailed(network, failed_at, message)
+        case SteeringActuatorFailure(message):
+            return SteeringActuatorFailed(failed_at, message)
         case _:
             assert_never(failure)
 
@@ -191,7 +187,6 @@ class LiveControllerRuntime:
         self,
         config: AppConfig,
         *,
-        button_pad_source: DeviceSource = DeviceSource.PHYSICAL,
         servotronic_source: DeviceSource | None = None,
         tx_grants: frozenset[CanNetwork] = frozenset(),
         bus_factory: Callable[[str], SocketCanBus] = SocketCanBus,
@@ -205,9 +200,6 @@ class LiveControllerRuntime:
             missing = ", ".join(sorted(network.value for network in configured_tx - tx_grants))
             raise ValueError(f"live CAN TX requires an explicit network grant: {missing}")
         self.config = config
-        if button_pad_source is DeviceSource.EMULATED:
-            raise ValueError("emulated button pad cannot use the live SocketCAN runtime")
-        self._button_pad_source = button_pad_source
         selected_servotronic_source = servotronic_source or (
             DeviceSource.PHYSICAL
             if any(item.network is CanNetwork.KCAN and item.enabled for item in config.can_networks)
@@ -223,7 +215,6 @@ class LiveControllerRuntime:
         router_type = SimulationProtocolRouter if synthetic_vehicle is not None else ProtocolRouter
         self._router = router_type(
             config.custom_can_ids,
-            button_input_enabled=button_pad_source is DeviceSource.PHYSICAL,
             **(
                 {"synthetic_speed_network": config.simulation.synthetic_speed_network}
                 if synthetic_vehicle is not None
@@ -243,7 +234,6 @@ class LiveControllerRuntime:
             engine_telemetry_config=config.engine_telemetry,
             router=self._router,
             device_sources={
-                DeviceRole.BUTTON_PAD: button_pad_source,
                 DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
             },
             servotronic_output_available=servotronic_can_control_available,
@@ -293,7 +283,6 @@ class LiveControllerRuntime:
             and item.network in self._tx_grants
             and (
                 item.network is not CanNetwork.KCAN
-                or self._button_pad_source is DeviceSource.PHYSICAL
                 or self._servotronic_source is DeviceSource.PHYSICAL
             )
         }
@@ -301,7 +290,6 @@ class LiveControllerRuntime:
         self._executor = EffectExecutor(
             self._transmitters,
             self._router,
-            button_pad_payload_interval_s=0.25,
         )
         execution = self._dispatch(KernelStarted(self._clock()))
         if execution is None:
@@ -359,13 +347,6 @@ class LiveControllerRuntime:
 
     def deadline(self, now: float) -> RuntimeExecution | None:
         executions: list[RuntimeExecution] = []
-        if any(
-            deadline is not None and deadline <= now
-            for deadline in self._kernel.state.button_feedback_deadlines
-        ):
-            execution = self._dispatch(ButtonFeedbackDeadlineReached(now))
-            if execution is not None:
-                executions.append(execution)
         if any(
             entry.next_deadline is not None and entry.next_deadline <= now
             for entry in self._kernel.registry

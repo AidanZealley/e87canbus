@@ -9,7 +9,6 @@ from e87canbus.protocol.generated import CUSTOM_DEVICE_PROTOCOL_VERSION
 
 
 class DeviceRole(StrEnum):
-    BUTTON_PAD = "button_pad"
     SERVOTRONIC_CONTROLLER = "servotronic_controller"
 
 
@@ -64,11 +63,6 @@ class DeviceCatalogueEntry:
 
 
 DEFAULT_DEVICE_CATALOGUE = (
-    DeviceCatalogueEntry(
-        identity=DeviceIdentity(DeviceRole.BUTTON_PAD, 1),
-        enabled=True,
-        supported_protocol_version=CUSTOM_DEVICE_PROTOCOL_VERSION,
-    ),
     DeviceCatalogueEntry(
         identity=DeviceIdentity(DeviceRole.SERVOTRONIC_CONTROLLER, 1),
         enabled=True,

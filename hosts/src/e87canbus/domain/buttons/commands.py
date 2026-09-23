@@ -96,8 +96,8 @@ def button_command_configuration_error(
     than of the schema - an assistance stage only exists if the steering configuration
     defines it. Those bounds cannot be expressed in the stored definition, so they are
     checked here: at the save boundary, so an unusable profile is never stored, and
-    again on press, so a profile stored before a configuration change fails as button
-    feedback instead of as an exception.
+    again on press, so a profile stored before a configuration change is ignored
+    instead of raising an exception.
     """
 
     match command:

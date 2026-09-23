@@ -11,8 +11,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
-from e87canbus.domain.buttons.pad import ButtonPadProgram
-from e87canbus.domain.controller.button_leds import ButtonLedProjection
 from e87canbus.domain.controller.steering import speed_is_valid, steering_command
 from e87canbus.domain.events import ApplicationEffect
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
@@ -54,7 +52,6 @@ class ApplicationSnapshot:
     active_steering_curve: ActiveSteeringCurve
     steering_curve_activation_status: SteeringCurveActivationStatus
     curve_activation_available: bool
-    button_pad_program: ButtonPadProgram
     active_button_profile_id: str
     active_button_profile_revision: int | None
 
@@ -65,11 +62,11 @@ def snapshot(
     engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
     activation_status: SteeringCurveActivationStatus,
-    leds: ButtonLedProjection,
+    active_button_profile_id: str,
     saved_button_profile_revision: int | None,
     curve_activation_available: bool = False,
 ) -> ApplicationSnapshot:
-    """Project read-only state, including the program the pad is being driven with."""
+    """Project read-only application state."""
 
     mode, manual_level, maximum_active = _steering_projection(state, config)
     sample = state.speed_sample
@@ -111,8 +108,7 @@ def snapshot(
         active_steering_curve=active_curve,
         steering_curve_activation_status=activation_status,
         curve_activation_available=curve_activation_available,
-        button_pad_program=leds.effect(state).program,
-        active_button_profile_id=leds.profile.profile_id,
+        active_button_profile_id=active_button_profile_id,
         active_button_profile_revision=saved_button_profile_revision,
     )
 
@@ -121,14 +117,10 @@ def initial_effects(
     state: ApplicationState,
     config: SteeringConfig,
     active_definition: SteeringCurveDefinition,
-    leds: ButtonLedProjection,
 ) -> tuple[ApplicationEffect, ...]:
     """Return the complete output projection for synchronization."""
 
-    return (
-        leds.effect(state),
-        steering_command(state, config, active_definition),
-    )
+    return (steering_command(state, config, active_definition),)
 
 
 def _steering_projection(

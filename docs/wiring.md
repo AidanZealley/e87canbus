@@ -59,11 +59,6 @@ Required Pi stack and assignments:
   `fcan` / F-CAN at `500000`.
 - Set the HAT+ logic-level jumper to 3.3 V. Its factory SPI1 CE1/CE2 selections avoid the original
   HAT's SPI0 CE0 connection.
-- Arduino Micro / ATmega32U4 with MCP2515 CS pin `10`.
-- Button-pad Pro Micro pin-to-pin wiring is documented in
-  [`devices/button-pad/README.md`](../devices/button-pad/README.md#pro-micro-to-mcp2515-wiring).
-- Button-pad MCP2515 library clock setting currently `MCP_8MHZ` for the module's 8 MHz crystal.
-
 Wire CAN-H to CAN-H, CAN-L to CAN-L, and ensure the bench bus has correct termination.
 
 The physical image checkpoint verifies `kcan` → `spi0.0`, `ptcan` → `spi1.1`, and `fcan` →
@@ -98,12 +93,3 @@ No physical steering output is designed or approved. Command transport, electric
 polarity, valve behavior, feedback, safe state, watchdog behavior, and controller topology all
 remain unknown. Keep project hardware disconnected from the actuator until those properties are
 verified and documented; only then can an output circuit be selected and reviewed.
-
-## Arduino/NeoTrellis Node
-
-First milestone firmware does not initialize Trellis. It sends alternating button-event frames on
-`0x700` automatically every second. It receives provisional ISO-TP traffic on `0x708`/`0x709`; the
-firmware transport compiles but physical RGB snapshot consumption and rendering remain deferred.
-Physical topology, logical-to-pixel mapping, brightness, and current limits remain unverified and
-unimplemented. This firmware is hardware-validation-gated and must not be attached to the car while
-automatic transmission remains enabled; both IDs still require collision validation.

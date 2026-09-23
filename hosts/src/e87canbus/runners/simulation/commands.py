@@ -7,21 +7,6 @@ from e87canbus.runners.simulation.signals import VehicleSignal
 
 
 @dataclass(frozen=True)
-class PressButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class ReleaseButton:
-    index: int
-
-
-@dataclass(frozen=True)
-class TapButton:
-    index: int
-
-
-@dataclass(frozen=True)
 class RunControlTimer:
     now: float
 
@@ -97,10 +82,7 @@ class SetSimulatedDeviceStatusCode:
 
 
 SimulationCommand = (
-    PressButton
-    | ReleaseButton
-    | TapButton
-    | RunControlTimer
+    RunControlTimer
     | SetVehicleSignal
     | SilenceVehicleSignal
     | SetVehicleSweep

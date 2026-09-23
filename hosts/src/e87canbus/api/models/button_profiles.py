@@ -50,7 +50,7 @@ RgbChannel = Annotated[int, Field(ge=0, le=RGB_CHANNEL_MAX)]
 
 
 class BreatheAnimationRequest(StrictRequest):
-    """Bounds mirror the button-pad track payload, so an accepted animation is runnable."""
+    """Keep authored animation bounds valid for the later device scene."""
 
     kind: Literal["breathe"]
     period_ms: int = Field(ge=BREATHE_PERIOD_MIN_MS, le=BREATHE_PERIOD_MAX_MS)

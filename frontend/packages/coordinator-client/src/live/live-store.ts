@@ -46,11 +46,6 @@ const emptyProjections = (): LiveProjections => ({
   buttons: {
     active_profile_id: "built-in",
     active_profile_revision: null,
-    program: {
-      encoding: "e87-button-pad-v2",
-      generation: 0,
-      commands: [[2, 129, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-    },
   },
   health: {
     ready: false,
