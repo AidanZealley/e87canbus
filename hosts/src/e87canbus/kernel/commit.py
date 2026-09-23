@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from e87canbus.adapters.output import EffectRequest
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.kernel.health import RuntimeHealth
 
@@ -22,7 +21,6 @@ class StateTopic(StrEnum):
     ENGINE = "engine"
     STEERING = "steering"
     BUTTONS = "buttons"
-    DEVICES = "devices"
     HEALTH = "health"
 
 
@@ -33,7 +31,6 @@ INITIAL_KERNEL_TOPICS = frozenset(
         StateTopic.STEERING,
         StateTopic.BUTTONS,
         StateTopic.HEALTH,
-        StateTopic.DEVICES,
     }
 )
 
@@ -46,17 +43,10 @@ class KernelLifecycle(StrEnum):
 
 @dataclass(frozen=True)
 class Commit:
-    """One accepted transition after state mutation, with ordered desired effects.
-
-    ``snapshot`` is the complete immutable application projection. Button output is derived from
-    that application state and emitted atomically; adapter-owned device observations and immutable
-    runtime diagnostics remain separate service projections rather than duplicate application
-    state.
-    """
+    """One accepted state transition and its changed projections."""
 
     revision: int
     snapshot: ApplicationSnapshot
-    effects: tuple[EffectRequest, ...]
     changed_topics: frozenset[StateTopic]
     state_changed: bool
 
@@ -89,7 +79,6 @@ def changed_controller_topics(
         or current.manual_assistance_level != previous.manual_assistance_level
         or current.maximum_assistance_active != previous.maximum_assistance_active
         or current.active_steering_curve != previous.active_steering_curve
-        or (current.steering_curve_activation_status != previous.steering_curve_activation_status)
     ):
         changed.add(StateTopic.STEERING)
     if (

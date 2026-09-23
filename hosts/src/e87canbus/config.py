@@ -3,17 +3,8 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
-
-from e87canbus.protocol.generated import (
-    CAN_ID_SERVOTRONIC_CONTROLLER_HEARTBEAT,
-    CAN_ID_SERVOTRONIC_CONTROLLER_HELLO,
-    CAN_ID_SERVOTRONIC_CONTROLLER_WELCOME_ACK,
-    CAN_ID_SERVOTRONIC_TRANSPORT_COORDINATOR_TO_DEVICE,
-    CAN_ID_SERVOTRONIC_TRANSPORT_DEVICE_TO_COORDINATOR,
-    SERVOTRONIC_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH,
-)
 
 
 class CanNetwork(StrEnum):
@@ -31,7 +22,6 @@ class CanNetworkConfig:
     interface: str
     bitrate: int
     enabled: bool = True
-    tx_enabled: bool = False
 
 
 def default_can_networks() -> tuple[CanNetworkConfig, ...]:
@@ -42,33 +32,6 @@ def default_can_networks() -> tuple[CanNetworkConfig, ...]:
         CanNetworkConfig(CanNetwork.PTCAN, "PT-CAN", "ptcan", 500_000),
         CanNetworkConfig(CanNetwork.FCAN, "F-CAN", "fcan", 500_000),
     )
-
-
-@dataclass(frozen=True)
-class CustomCanIds:
-    servotronic_controller_hello: int = CAN_ID_SERVOTRONIC_CONTROLLER_HELLO
-    servotronic_controller_welcome_ack: int = CAN_ID_SERVOTRONIC_CONTROLLER_WELCOME_ACK
-    servotronic_controller_heartbeat: int = CAN_ID_SERVOTRONIC_CONTROLLER_HEARTBEAT
-    servotronic_transport_coordinator_to_device: int = (
-        CAN_ID_SERVOTRONIC_TRANSPORT_COORDINATOR_TO_DEVICE
-    )
-    servotronic_transport_device_to_coordinator: int = (
-        CAN_ID_SERVOTRONIC_TRANSPORT_DEVICE_TO_COORDINATOR
-    )
-    servotronic_transport_maximum_payload_length: int = SERVOTRONIC_TRANSPORT_MAXIMUM_PAYLOAD_LENGTH
-
-    def __post_init__(self) -> None:
-        can_ids = tuple(
-            getattr(self, item.name)
-            for item in fields(self)
-            if not item.name.endswith("maximum_payload_length")
-        )
-        if any(type(can_id) is not int or not 0 <= can_id <= 0x7FF for can_id in can_ids):
-            raise ValueError("custom CAN IDs must be unsigned standard 11-bit IDs")
-        if len(set(can_ids)) != len(can_ids):
-            raise ValueError("custom CAN IDs must be unique")
-        if self.servotronic_transport_maximum_payload_length != 64:
-            raise ValueError("Servotronic transport maximum payload length must be 64")
 
 
 @dataclass(frozen=True)
@@ -103,17 +66,11 @@ class PlaceholderBmwIds:
 @dataclass(frozen=True)
 class SimulationConfig:
     trace_capacity: int = 2_000
-    steering_watchdog_timeout_s: float = 0.25
     synthetic_speed_network: CanNetwork = CanNetwork.FCAN
 
     def __post_init__(self) -> None:
         if self.trace_capacity < 1:
             raise ValueError("simulation trace capacity must be positive")
-        if (
-            not math.isfinite(self.steering_watchdog_timeout_s)
-            or self.steering_watchdog_timeout_s <= 0
-        ):
-            raise ValueError("simulation steering watchdog timeout must be finite and positive")
         if not isinstance(self.synthetic_speed_network, CanNetwork):
             raise ValueError("simulation synthetic speed network must be a CAN network")
 
@@ -137,27 +94,13 @@ class LivePublicationConfig:
 
 
 @dataclass(frozen=True)
-class TxPolicyConfig:
-    network_window_s: float = 1.0
-    max_frames_per_network_window: int = 200
-
-    def __post_init__(self) -> None:
-        if not math.isfinite(self.network_window_s) or self.network_window_s <= 0:
-            raise ValueError("TX policy window must be finite and positive")
-        if self.max_frames_per_network_window < 1:
-            raise ValueError("TX policy frame limit must be positive")
-
-
-@dataclass(frozen=True)
 class AppConfig:
     can_networks: tuple[CanNetworkConfig, ...] = field(default_factory=default_can_networks)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
     live_publication: LivePublicationConfig = field(default_factory=LivePublicationConfig)
-    custom_can_ids: CustomCanIds = field(default_factory=CustomCanIds)
     steering: SteeringConfig = field(default_factory=SteeringConfig)
     engine_telemetry: EngineTelemetryConfig = field(default_factory=EngineTelemetryConfig)
     placeholders: PlaceholderBmwIds = field(default_factory=PlaceholderBmwIds)
-    tx_policy: TxPolicyConfig = field(default_factory=TxPolicyConfig)
     tick_interval_s: float = 0.1
     runtime_inbox_capacity: int = 1_024
     runtime_queue_latency_warning_s: float = 0.1
@@ -182,13 +125,7 @@ def default_config() -> AppConfig:
 
 
 def simulator_config() -> AppConfig:
-    """Enable the provisional project protocol for the isolated simulator."""
-
-    config = default_config()
-    networks = tuple(
-        replace(item, tx_enabled=item.network is CanNetwork.KCAN) for item in config.can_networks
-    )
-    return replace(config, can_networks=networks)
+    return default_config()
 
 
 CANONICAL_NETWORK_ORDER = (CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN)
@@ -226,30 +163,12 @@ def configure_can_networks(
     config: AppConfig,
     *,
     enabled_networks: frozenset[CanNetwork],
-    tx_networks: frozenset[CanNetwork],
 ) -> AppConfig:
-    """Apply deployment network selections to an existing AppConfig.
-
-    For every defined network:
-    - `enabled` becomes whether it appears in `enabled_networks`
-    - `tx_enabled` becomes whether it appears in `tx_networks`
-
-    Fails closed if a TX network is not in the enabled set.
-    """
-    not_enabled_tx = tx_networks - enabled_networks
-    if not_enabled_tx:
-        names = ", ".join(sorted(n.value for n in not_enabled_tx))
-        raise NetworkConfigError(f"TX network not enabled: {names}")
-
-    new_networks = tuple(
-        replace(
-            item,
-            enabled=item.network in enabled_networks,
-            tx_enabled=item.network in tx_networks,
-        )
-        for item in config.can_networks
+    """Select the enabled receive networks for a deployment."""
+    networks = tuple(
+        replace(item, enabled=item.network in enabled_networks) for item in config.can_networks
     )
-    return replace(config, can_networks=new_networks)
+    return replace(config, can_networks=networks)
 
 
 def sorted_network_names(networks: frozenset[CanNetwork]) -> list[str]:

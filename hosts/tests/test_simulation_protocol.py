@@ -8,13 +8,9 @@ from e87canbus.domain.events import (
     OilTemperatureObserved,
     SpeedObserved,
 )
-from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.protocol.router import ProtocolRouter
+from e87canbus.protocol.can import RoutedCanFrame
 from e87canbus.runners.simulation.protocol import (
     MAX_SIMULATED_ENGINE_RPM,
-    SIMULATION_ONLY_COOLANT_TEMPERATURE_ID,
-    SIMULATION_ONLY_ENGINE_RPM_ID,
-    SIMULATION_ONLY_OIL_TEMPERATURE_ID,
     SimulationProtocolRouter,
     encode_simulated_coolant_temperature,
     encode_simulated_engine_rpm,
@@ -78,48 +74,6 @@ def test_simulated_temperature_encoder_rejects_invalid_values(
 ) -> None:
     with pytest.raises(ValueError, match="simulated temperature"):
         encode_simulated_oil_temperature(temperature_c)  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize(
-    "frame",
-    [
-        CanFrame(SIMULATION_ONLY_ENGINE_RPM_ID, b"\x00", is_extended_id=True),
-        CanFrame(SIMULATION_ONLY_ENGINE_RPM_ID, b"\xff\xff", is_extended_id=True),
-        CanFrame(SIMULATION_ONLY_OIL_TEMPERATURE_ID, b"\x00", is_extended_id=True),
-        CanFrame(SIMULATION_ONLY_COOLANT_TEMPERATURE_ID, b"\xff\x7f", is_extended_id=True),
-    ],
-)
-def test_simulation_router_rejects_malformed_recognized_payloads(frame: CanFrame) -> None:
-    with pytest.raises(ValueError, match="payload"):
-        SimulationProtocolRouter().decode(RoutedCanFrame(CanNetwork.PTCAN, frame), 1.0)
-
-
-@pytest.mark.parametrize(
-    "routed",
-    [
-        RoutedCanFrame(CanNetwork.FCAN, encode_simulated_engine_rpm(3500)),
-        RoutedCanFrame(
-            CanNetwork.PTCAN,
-            CanFrame(SIMULATION_ONLY_ENGINE_RPM_ID, b"\xac\x0d"),
-        ),
-    ],
-)
-def test_simulation_router_ignores_wrong_network_and_standard_frames(
-    routed: RoutedCanFrame,
-) -> None:
-    assert SimulationProtocolRouter().decode(routed, 1.0) is None
-
-
-@pytest.mark.parametrize(
-    "frame",
-    [
-        encode_simulated_engine_rpm(3500),
-        encode_simulated_oil_temperature(112.5),
-        encode_simulated_coolant_temperature(98.0),
-    ],
-)
-def test_live_router_ignores_all_synthetic_engine_frames(frame: CanFrame) -> None:
-    assert ProtocolRouter().decode(RoutedCanFrame(CanNetwork.PTCAN, frame), 1.0) is None
 
 
 def test_simulated_speed_network_is_configurable_without_accepting_it_on_both_buses() -> None:

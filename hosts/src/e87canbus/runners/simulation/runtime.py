@@ -9,11 +9,9 @@ from dataclasses import replace
 from typing import Any
 
 from e87canbus.adapters.can_io import CanReceiver
-from e87canbus.adapters.output import EffectExecutor
-from e87canbus.config import AppConfig, CanNetwork, CustomCanIds, simulator_config
+from e87canbus.config import AppConfig, CanNetwork, simulator_config
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
@@ -21,50 +19,31 @@ from e87canbus.kernel import (
     Commit,
     ControllerInput,
     CoordinatorKernel,
-    DeviceAdapterFailed,
     DiagnosticSnapshot,
     ExecuteOperatorIntent,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
     ShutdownRequested,
-    StateTopic,
     TimerElapsed,
 )
 from e87canbus.runners.simulation.bus import InMemoryCanTopology, SimulatedCanTraceEntry
 from e87canbus.runners.simulation.commands import (
-    ConnectSimulatedDevice,
-    DisconnectSimulatedDevice,
-    RebootSimulatedDevice,
     ResetSimulation,
     RunControlTimer,
-    SetSimulatedDeviceProtocolVersion,
-    SetSimulatedDeviceStatusCode,
     SetVehicleSignal,
     SetVehicleSweep,
     SilenceVehicleSignal,
 )
-from e87canbus.runners.simulation.devices import (
-    SimulatedRegistryPeer,
-    SimulatedServotronicPeer,
-)
-from e87canbus.runners.simulation.effect_failures import effect_failure_input
 from e87canbus.runners.simulation.session import build_session
 from e87canbus.service import (
     ControllerAdapterSnapshot,
     ControllerWorkUnavailable,
-    ObservedNetworkSnapshot,
-    ObservedServotronicSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
-    SimulationDeviceUnavailable,
 )
 
 LOGGER = logging.getLogger(__name__)
-
-MAX_VIRTUAL_DRAIN_ITERATIONS = 32
-MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION = 256
-MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION = 128
 
 
 def trace_entry_to_event(entry: SimulatedCanTraceEntry, session_id: int) -> dict[str, Any]:
@@ -87,20 +66,13 @@ class SimulatedControllerRuntime:
 
     def __init__(
         self,
-        ids: CustomCanIds | None = None,
         *,
         config: AppConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
-        servotronic_factory: Callable[
-            [float, Callable[[], float]], SimulatedServotronicPeer
-        ] = SimulatedServotronicPeer,
         button_profile: ActiveButtonProfile | None = None,
     ) -> None:
         self.config = config or simulator_config()
-        if ids is not None:
-            self.config = replace(self.config, custom_can_ids=ids)
         self._clock = clock
-        self._servotronic_factory = servotronic_factory
         self._button_profile = button_profile
         self._session_id = 0
         self._started = False
@@ -112,9 +84,7 @@ class SimulatedControllerRuntime:
         self._frame_history = {network: [0, 0, 0, 0] for network in CanNetwork}
         self.topology: InMemoryCanTopology
         self.pi_buses: dict[CanNetwork, CanReceiver]
-        self.servotronic: SimulatedServotronicPeer
         self.kernel: CoordinatorKernel
-        self.executor: EffectExecutor
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
         if self._started:
@@ -138,7 +108,7 @@ class SimulatedControllerRuntime:
         self._started = True
         self._execution_commits = []
         self._build_session()
-        return self._complete((), initial=True)
+        return self._complete(())
 
     def execute(self, command: object) -> RuntimeExecution:
         self._require_started()
@@ -149,8 +119,6 @@ class SimulatedControllerRuntime:
 
         self._execution_commits = []
         before_sequence = self.topology.latest_sequence
-        initial = False
-        drain = True
         match command:
             case RunControlTimer(now):
                 self.vehicle.emit()
@@ -171,62 +139,22 @@ class SimulatedControllerRuntime:
                     )
                 self._build_session()
                 before_sequence = 0
-                initial = True
-                drain = False
-            case ConnectSimulatedDevice(role):
-                self._peer_for(role).connect()
-            case DisconnectSimulatedDevice(role):
-                self._peer_for(role).disconnect()
-            case RebootSimulatedDevice(role):
-                peer = self._peer_for(role)
-                if not peer.connected:
-                    raise SimulationDeviceUnavailable(role)
-                peer.reboot()
-            case SetSimulatedDeviceProtocolVersion(role, protocol_version):
-                self._peer_for(role).set_protocol_version(protocol_version)
-            case SetSimulatedDeviceStatusCode(role, status_code):
-                self._peer_for(role).set_status_code(status_code)
+                return self._complete(())
             case ActivateButtonProfile() | ActivateSteeringCurve() | ExecuteOperatorIntent():
                 self._dispatch(command)
-            case InboxOverflowed() | DeviceAdapterFailed():
+            case InboxOverflowed():
                 self._dispatch(command)
                 if self.kernel.health.fatal:
                     self._dispatch(ShutdownRequested(self._clock()))
             case _:
                 raise TypeError(f"unsupported simulation command: {command!r}")
 
-        if not drain:
-            return self._complete((), initial=True)
-        return self._process_pending(before_sequence, initial=initial)
+        return self._process_pending(before_sequence)
 
     def timer(self, now: float) -> RuntimeExecution | None:
         if self.kernel.health.fatal:
             return None
         return self.execute(RunControlTimer(now))
-
-    def next_deadline(self) -> float | None:
-        deadlines = [
-            deadline
-            for deadline in (
-                self.kernel.next_deadline(),
-                *(peer.next_deadline for peer in self._virtual_peers()),
-            )
-            if deadline is not None
-        ]
-        return min(deadlines) if deadlines else None
-
-    def deadline(self, now: float) -> RuntimeExecution | None:
-        if self.kernel.health.fatal:
-            return None
-        self._require_started()
-        self._execution_commits = []
-        before_sequence = self.topology.latest_sequence
-        if any(
-            entry.next_deadline is not None and entry.next_deadline <= now
-            for entry in self.kernel.registry
-        ):
-            self._dispatch(TimerElapsed(now))
-        return self._process_pending(before_sequence, now=now)
 
     def shutdown(self, now: float | None = None) -> RuntimeExecution:
         del now
@@ -244,7 +172,6 @@ class SimulatedControllerRuntime:
         session = build_session(
             self.config,
             self._clock,
-            servotronic_factory=self._servotronic_factory,
             button_profile=self._button_profile,
             button_profile_saved_revision=self._initial_button_profile_revision,
             initial_steering_curve=self._initial_steering_curve,
@@ -252,9 +179,7 @@ class SimulatedControllerRuntime:
         self.topology = session.topology
         self.pi_buses = session.pi_buses
         self.vehicle = session.vehicle
-        self.servotronic = session.servotronic
         self.kernel = session.kernel
-        self.executor = session.executor
 
         startup = self._dispatch(KernelStarted(self._clock()))
         if startup is None:
@@ -265,11 +190,8 @@ class SimulatedControllerRuntime:
     def _process_pending(
         self,
         before_sequence: int,
-        *,
-        initial: bool = False,
-        now: float | None = None,
     ) -> RuntimeExecution:
-        self._drain_virtual_devices(now=now)
+        self._drain_kernel_inputs()
         self.vehicle.drain_pending()
 
         return self._complete(
@@ -278,7 +200,6 @@ class SimulatedControllerRuntime:
                 for entry in self.topology.trace()
                 if entry.sequence > before_sequence
             ),
-            initial=initial,
         )
 
     def projection(
@@ -316,8 +237,6 @@ class SimulatedControllerRuntime:
     def _complete(
         self,
         events: tuple[dict[str, Any], ...],
-        *,
-        initial: bool = False,
     ) -> RuntimeExecution:
         changed_topics = {
             topic for commit in self._execution_commits for topic in commit.changed_topics
@@ -337,24 +256,12 @@ class SimulatedControllerRuntime:
                 history[1] += network.decoded_frames
                 history[2] += network.ignored_frames
                 history[3] += network.malformed_frames
-        if initial or (
-            previous is not None
-            and (
-                previous.registry != projection.registry or previous.networks != projection.networks
-            )
-        ):
-            changed_topics.add(StateTopic.DEVICES)
-        # Effective assistance is nested in the steering live payload, rather than
-        # the devices payload.  Its projection must therefore advance the steering
-        # topic revision so a live client receives a new curve marker.
-        if initial or (previous is not None and previous.servotronic != projection.servotronic):
-            changed_topics.add(StateTopic.STEERING)
         self._previous_projection = projection
         self._previous_diagnostics = diagnostics
         commit_count = len(self._execution_commits)
         return RuntimeExecution(events, frozenset(changed_topics), commit_count)
 
-    def _drain_kernel_inputs(self, *, limit: int | None = None) -> int:
+    def _drain_kernel_inputs(self) -> int:
         processed = 0
         ordered_networks = tuple(network for network in CanNetwork if network in self.pi_buses)
         while True:
@@ -365,107 +272,19 @@ class SimulatedControllerRuntime:
                     continue
                 found_frame = True
                 processed += 1
-                if limit is not None and processed > limit:
-                    raise RuntimeError("simulated CAN processing frame bound exceeded")
                 observed_at = self._clock()
-                self.executor.on_frame(network, frame)
                 self._dispatch(ReceivedCanFrame(network, frame, observed_at))
             if not found_frame:
                 return processed
 
-    def _drain_virtual_devices(self, *, now: float | None = None) -> None:
-        processed_frames = 0
-        processing_time = self._clock() if now is None else now
-        for _ in range(MAX_VIRTUAL_DRAIN_ITERATIONS):
-            progress = 0
-            for peer in self._virtual_peers():
-                progress += peer.advance(processing_time)
-            remaining = MAX_SIMULATION_BUS_FRAMES_PER_EXECUTION - processed_frames
-            if remaining < 1:
-                raise RuntimeError("simulated CAN processing frame bound exceeded")
-            kernel_frames = self._drain_kernel_inputs(limit=remaining)
-            processed_frames += kernel_frames
-            progress += kernel_frames
-            for peer in self._virtual_peers():
-                remaining = MAX_VIRTUAL_DEVICE_FRAMES_PER_EXECUTION - processed_frames
-                if remaining < 1:
-                    raise RuntimeError("simulated virtual-device frame bound exceeded")
-                peer_frames = peer.process_pending(processing_time, limit=remaining)
-                processed_frames += peer_frames
-                progress += peer_frames
-            if progress == 0:
-                return
-        raise RuntimeError("simulated virtual-device fixed-point bound exceeded")
-
-    def _virtual_peers(self) -> tuple[SimulatedRegistryPeer, ...]:
-        return tuple(
-            peer for peer in (self.servotronic,) if peer is not None and peer.bus is not None
-        )
-
-    def _peer_for(self, role: DeviceRole) -> SimulatedRegistryPeer:
-        if not isinstance(role, DeviceRole):
-            raise ValueError("simulation device role must be a supported DeviceRole")
-        peer = {
-            DeviceRole.SERVOTRONIC_CONTROLLER: self.servotronic,
-        }[role]
-        if peer is None or peer.bus is None:
-            raise SimulationDeviceUnavailable(role)
-        return peer
-
     def _dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         commit = self.kernel.dispatch(kernel_input)
-        commits = [] if commit is None else [commit]
-        failures = () if commit is None else self.executor.execute(commit.effects)
-        for failure in failures:
-            failure_commit = self.kernel.dispatch(effect_failure_input(failure, self._clock()))
-            if failure_commit is not None:
-                commits.append(failure_commit)
-                feedback_failures = self.executor.execute(failure_commit.effects)
-                for feedback_failure in feedback_failures:
-                    feedback_commit = self.kernel.dispatch(
-                        effect_failure_input(feedback_failure, self._clock())
-                    )
-                    if feedback_commit is not None:
-                        commits.append(feedback_commit)
-        if failures and self.kernel.health.fatal:
-            shutdown = self.kernel.dispatch(ShutdownRequested(self._clock()))
-            if shutdown is not None:
-                commits.append(shutdown)
-                # The terminal fallback is attempted once. A second actuator failure is not fed
-                # back into the stopped kernel or retried, preserving the original fault.
-                for terminal_failure in self.executor.execute(shutdown.effects):
-                    LOGGER.error(
-                        "simulation terminal shutdown effect failed and was discarded: %s",
-                        terminal_failure,
-                    )
-        self._execution_commits.extend(commits)
+        if commit is not None:
+            self._execution_commits.append(commit)
         return commit
 
     def _adapter_projection(self) -> ControllerAdapterSnapshot:
-        return ControllerAdapterSnapshot(
-            simulation_session_id=self._session_id,
-            registry=self.kernel.registry,
-            networks=tuple(
-                ObservedNetworkSnapshot(
-                    network=item.network,
-                    label=item.label,
-                    interface=item.interface,
-                    bitrate=item.bitrate,
-                    connected=item.network in self.pi_buses,
-                    nodes=self.topology.nodes(item.network),
-                )
-                for item in self.config.can_networks
-            ),
-            servotronic=ObservedServotronicSnapshot(
-                effective_assistance=self.servotronic.effective_assistance,
-                last_command_reason=(
-                    None
-                    if self.servotronic.last_command_reason is None
-                    else self.servotronic.last_command_reason.value
-                ),
-                watchdog_timed_out=self.servotronic.watchdog_timed_out,
-            ),
-        )
+        return ControllerAdapterSnapshot(simulation_session_id=self._session_id)
 
     def _require_started(self) -> None:
         if not self._started:

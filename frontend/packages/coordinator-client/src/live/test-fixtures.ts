@@ -20,12 +20,9 @@ const steering = {
     },
     fingerprint: "curve",
     activation_revision: 1,
-    status: "active" as const,
     saved_profile_id: null,
     saved_profile_revision: null,
   },
-  servotronic: null,
-  curve_activation_available: true,
 }
 
 export const snapshot = (revision: number): SnapshotEvent => ({
@@ -53,10 +50,6 @@ export const snapshot = (revision: number): SnapshotEvent => ({
         latency_warning: false,
         overflow_latched: false,
       },
-      devices: [
-        { role: "servotronic_controller", fault: null },
-      ],
-      steering: { fault: null },
       persistence: { available: true, fault: null },
     },
   },

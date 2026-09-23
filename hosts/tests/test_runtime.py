@@ -18,7 +18,7 @@ def test_retired_button_can_id_is_ignored() -> None:
 
 
 def test_vehicle_can_still_updates_complete_projection() -> None:
-    kernel = CoordinatorKernel(router=SimulationProtocolRouter())
+    kernel = CoordinatorKernel(decoder=SimulationProtocolRouter().decode)
     kernel.dispatch(KernelStarted(0.0))
 
     commit = kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, encode_simulated_speed(42.5), 1.0))

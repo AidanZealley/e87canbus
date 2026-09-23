@@ -1,10 +1,4 @@
-"""Construction of one fresh simulation session's adapters, devices and kernel.
-
-``build_session`` wires the in-memory CAN topology, virtual devices, kernel and
-effect executor for a single simulation session and returns them as an immutable
-bundle. The runtime owns the lifecycle (startup dispatch, resets); this only
-builds the components so that wiring lives apart from the runtime's control flow.
-"""
+"""Build one vehicle-only in-memory simulation session."""
 
 from __future__ import annotations
 
@@ -12,108 +6,53 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from e87canbus.adapters.can_io import CanReceiver
-from e87canbus.adapters.output import EffectExecutor, SafeCanTransmitter
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
-from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
 from e87canbus.runners.simulation.bus import InMemoryCanTopology
-from e87canbus.runners.simulation.devices import (
-    SimulatedServotronicPeer,
-    SimulatedVehicleNode,
-)
+from e87canbus.runners.simulation.devices import SimulatedVehicleNode
 from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 
 
 @dataclass(frozen=True)
 class SimulationSession:
-    """The components wired for one simulation session, before startup dispatch."""
-
     topology: InMemoryCanTopology
     pi_buses: dict[CanNetwork, CanReceiver]
     vehicle: SimulatedVehicleNode
-    servotronic: SimulatedServotronicPeer
     kernel: CoordinatorKernel
-    executor: EffectExecutor
 
 
 def build_session(
     config: AppConfig,
     clock: Callable[[], float],
     *,
-    servotronic_factory: Callable[[float, Callable[[], float]], SimulatedServotronicPeer],
     button_profile: ActiveButtonProfile | None,
     initial_steering_curve: ActiveSteeringCurve | None,
     button_profile_saved_revision: int | None = None,
 ) -> SimulationSession:
-    topology = InMemoryCanTopology(
-        trace_capacity=config.simulation.trace_capacity,
-        clock=clock,
-    )
-    enabled = tuple(item for item in config.can_networks if item.enabled)
-
-    pi_buses: dict[CanNetwork, CanReceiver] = {}
-    transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
-    for item in enabled:
-        bus = topology.create_bus(item.network, "pi")
-        pi_buses[item.network] = bus
-        if item.tx_enabled:
-            transmitters[item.network] = SafeCanTransmitter(
-                bus,
-                config.tx_policy,
-                clock,
-            )
+    topology = InMemoryCanTopology(trace_capacity=config.simulation.trace_capacity, clock=clock)
+    pi_buses: dict[CanNetwork, CanReceiver] = {
+        item.network: topology.create_bus(item.network, "pi")
+        for item in config.can_networks
+        if item.enabled
+    }
     vehicle_buses = {
         item.network: topology.create_bus(item.network, "simulated-vehicle")
         for item in config.can_networks
     }
     vehicle = SimulatedVehicleNode(
-        vehicle_buses,
-        SyntheticVehicleSource(config.simulation.synthetic_speed_network, clock),
-    )
-
-    kcan_enabled = CanNetwork.KCAN in pi_buses
-
-    servotronic = servotronic_factory(
-        config.simulation.steering_watchdog_timeout_s,
-        clock,
-    )
-    if kcan_enabled:
-        servotronic.configure_registry(
-            topology.create_bus(CanNetwork.KCAN, "servotronic-emulator"),
-            config.custom_can_ids,
-        )
-
-    router = SimulationProtocolRouter(
-        config.custom_can_ids,
-        synthetic_speed_network=config.simulation.synthetic_speed_network,
+        vehicle_buses, SyntheticVehicleSource(config.simulation.synthetic_speed_network, clock)
     )
     kernel = CoordinatorKernel(
         steering_config=config.steering,
         engine_telemetry_config=config.engine_telemetry,
-        router=router,
-        device_sources={
-            DeviceRole.SERVOTRONIC_CONTROLLER: (
-                DeviceSource.EMULATED if kcan_enabled else DeviceSource.DISABLED
-            ),
-        },
-        servotronic_output_available=kcan_enabled,
+        decoder=SimulationProtocolRouter(
+            synthetic_speed_network=config.simulation.synthetic_speed_network
+        ).decode,
         active_steering_curve=initial_steering_curve,
     )
     if button_profile is not None:
         kernel.configure_initial_button_profile(button_profile, button_profile_saved_revision)
-    executor = EffectExecutor(
-        transmitters,
-        router,
-        steering_actuator=servotronic,
-    )
-    return SimulationSession(
-        topology=topology,
-        pi_buses=pi_buses,
-        vehicle=vehicle,
-        servotronic=servotronic,
-        kernel=kernel,
-        executor=executor,
-    )
+    return SimulationSession(topology, pi_buses, vehicle, kernel)

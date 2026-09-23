@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from e87canbus.config import CanNetwork, CustomCanIds
+from e87canbus.config import CanNetwork
 from e87canbus.domain.events import (
     ApplicationEvent,
     CoolantTemperatureObserved,
@@ -21,7 +21,6 @@ from e87canbus.domain.state import (
     SpeedSample,
 )
 from e87canbus.protocol.can import CanFrame, RoutedCanFrame
-from e87canbus.protocol.router import DecodedProtocolEvent, ProtocolRouter
 from e87canbus.runners.simulation.signals import VehicleSignal
 
 SIMULATION_ONLY_SPEED_ID = 0x1FFFFF00
@@ -193,16 +192,10 @@ VEHICLE_SIGNALS = {
 }
 
 
-class SimulationProtocolRouter(ProtocolRouter):
-    """Add unmistakably synthetic messages to the normal project router."""
+class SimulationProtocolRouter:
+    """Decode simulation-only vehicle frames."""
 
-    def __init__(
-        self,
-        ids: CustomCanIds | None = None,
-        *,
-        synthetic_speed_network: CanNetwork = CanNetwork.FCAN,
-    ) -> None:
-        super().__init__(ids)
+    def __init__(self, *, synthetic_speed_network: CanNetwork = CanNetwork.FCAN) -> None:
         self._signal_decoders = {
             (
                 synthetic_speed_network if signal is VehicleSignal.SPEED else spec.network,
@@ -215,10 +208,7 @@ class SimulationProtocolRouter(ProtocolRouter):
         self,
         routed: RoutedCanFrame,
         observed_at: float,
-    ) -> DecodedProtocolEvent | None:
-        event = super().decode(routed, observed_at)
-        if event is not None:
-            return event
+    ) -> ApplicationEvent | None:
         frame = routed.frame
         if not frame.is_extended_id:
             return None

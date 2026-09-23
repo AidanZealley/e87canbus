@@ -6,44 +6,29 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import assert_never
 
 from e87canbus.adapters.can_io import CanReceiver
-from e87canbus.adapters.output import (
-    CanEffectFailure,
-    EffectExecutor,
-    EffectFailure,
-    SafeCanTransmitter,
-    SteeringActuatorFailure,
-)
 from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
     ActivateSteeringCurve,
-    CanEffectExecutionFailed,
     CanReaderFailed,
     Commit,
     ControllerInput,
     CoordinatorKernel,
-    DeviceAdapterFailed,
     DiagnosticSnapshot,
     ExecuteOperatorIntent,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
-    ServotronicStatusObserved,
     ShutdownRequested,
-    StateTopic,
-    SteeringActuatorFailed,
     TimerElapsed,
 )
 from e87canbus.protocol.can import RoutedCanFrame
-from e87canbus.protocol.router import ProtocolRouter
 from e87canbus.runners.simulation.commands import (
     SetVehicleSignal,
     SetVehicleSweep,
@@ -53,10 +38,8 @@ from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.service import (
     ControllerAdapterSnapshot,
-    ObservedNetworkSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
-    observed_servotronic_snapshot,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -66,16 +49,12 @@ MAX_CONSECUTIVE_READER_ERRORS = 3
 INITIAL_READER_ERROR_BACKOFF_S = 0.05
 
 ReaderInput = ReceivedCanFrame | CanReaderFailed
-EffectFailureInput = CanEffectExecutionFailed | SteeringActuatorFailed
 CONTROLLER_INPUT_TYPES = (
     KernelStarted,
     ReceivedCanFrame,
     TimerElapsed,
     CanReaderFailed,
-    CanEffectExecutionFailed,
-    SteeringActuatorFailed,
     InboxOverflowed,
-    DeviceAdapterFailed,
     ShutdownRequested,
     ActivateButtonProfile,
     ActivateSteeringCurve,
@@ -155,93 +134,34 @@ def _submit_or_stop(
         stop.set()
 
 
-def _execute(
-    commit: Commit | None,
-    executor: EffectExecutor,
-    clock: Callable[[], float],
-) -> tuple[EffectFailureInput, ...]:
-    if commit is None:
-        return ()
-    return tuple(
-        _effect_failure_input(failure, clock()) for failure in executor.execute(commit.effects)
-    )
-
-
-def _effect_failure_input(
-    failure: EffectFailure,
-    failed_at: float,
-) -> EffectFailureInput:
-    match failure:
-        case CanEffectFailure(network, message):
-            return CanEffectExecutionFailed(network, failed_at, message)
-        case SteeringActuatorFailure(message):
-            return SteeringActuatorFailed(failed_at, message)
-        case _:
-            assert_never(failure)
-
-
 class LiveControllerRuntime:
-    """SocketCAN reader/effect adapter selected behind ``ControllerLoop``."""
+    """SocketCAN receive adapter selected behind ``ControllerLoop``."""
 
     def __init__(
         self,
         config: AppConfig,
         *,
-        servotronic_source: DeviceSource | None = None,
-        tx_grants: frozenset[CanNetwork] = frozenset(),
         bus_factory: Callable[[str], SocketCanBus] = SocketCanBus,
         synthetic_vehicle: SyntheticVehicleSource | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        configured_tx = frozenset(
-            item.network for item in config.can_networks if item.enabled and item.tx_enabled
-        )
-        if not configured_tx.issubset(tx_grants):
-            missing = ", ".join(sorted(network.value for network in configured_tx - tx_grants))
-            raise ValueError(f"live CAN TX requires an explicit network grant: {missing}")
         self.config = config
-        selected_servotronic_source = servotronic_source or (
-            DeviceSource.PHYSICAL
-            if any(item.network is CanNetwork.KCAN and item.enabled for item in config.can_networks)
-            else DeviceSource.DISABLED
-        )
-        if selected_servotronic_source is DeviceSource.EMULATED:
-            raise ValueError("emulated Servotronic cannot use the SocketCAN runtime")
-        self._servotronic_source = selected_servotronic_source
-        self._tx_grants = tx_grants
         self._bus_factory = bus_factory
         self._synthetic_vehicle = synthetic_vehicle
         self._clock = clock
-        router_type = SimulationProtocolRouter if synthetic_vehicle is not None else ProtocolRouter
-        self._router = router_type(
-            config.custom_can_ids,
-            **(
-                {"synthetic_speed_network": config.simulation.synthetic_speed_network}
-                if synthetic_vehicle is not None
-                else {}
-            ),
-        )
-        servotronic_can_control_available = (
-            selected_servotronic_source is DeviceSource.PHYSICAL
-            and CanNetwork.KCAN in tx_grants
-            and any(
-                item.network is CanNetwork.KCAN and item.enabled and item.tx_enabled
-                for item in config.can_networks
-            )
+        decoder = (
+            SimulationProtocolRouter(
+                synthetic_speed_network=config.simulation.synthetic_speed_network
+            ).decode
+            if synthetic_vehicle is not None
+            else None
         )
         self._kernel = CoordinatorKernel(
             steering_config=config.steering,
             engine_telemetry_config=config.engine_telemetry,
-            router=self._router,
-            device_sources={
-                DeviceRole.SERVOTRONIC_CONTROLLER: selected_servotronic_source,
-            },
-            servotronic_output_available=servotronic_can_control_available,
-            servotronic_config_available=servotronic_can_control_available,
+            decoder=decoder,
         )
-        self._executor = EffectExecutor(router=self._router)
         self._raw_buses: dict[CanNetwork, SocketCanBus] = {}
-        self._transmitters: dict[CanNetwork, SafeCanTransmitter] = {}
         self._readers: list[threading.Thread] = []
         self._reader_stop = threading.Event()
         self._started = False
@@ -272,33 +192,9 @@ class LiveControllerRuntime:
             self._close_buses()
             raise
 
-        transmitters = {
-            item.network: SafeCanTransmitter(
-                self._raw_buses[item.network],
-                self.config.tx_policy,
-                self._clock,
-            )
-            for item in enabled
-            if item.tx_enabled
-            and item.network in self._tx_grants
-            and (
-                item.network is not CanNetwork.KCAN
-                or self._servotronic_source is DeviceSource.PHYSICAL
-            )
-        }
-        self._transmitters = transmitters
-        self._executor = EffectExecutor(
-            self._transmitters,
-            self._router,
-        )
         execution = self._dispatch(KernelStarted(self._clock()))
         if execution is None:
             raise RuntimeError("live controller kernel did not start")
-        execution = RuntimeExecution(
-            execution.events,
-            execution.changed_topics | {StateTopic.DEVICES},
-            execution.commit_count,
-        )
 
         self._readers = [
             threading.Thread(
@@ -342,25 +238,9 @@ class LiveControllerRuntime:
             executions.append(timer_execution)
         return _merge_executions(executions)
 
-    def next_deadline(self) -> float | None:
-        return self._kernel.next_deadline()
-
-    def deadline(self, now: float) -> RuntimeExecution | None:
-        executions: list[RuntimeExecution] = []
-        if any(
-            entry.next_deadline is not None and entry.next_deadline <= now
-            for entry in self._kernel.registry
-        ):
-            execution = self._dispatch(TimerElapsed(now))
-            if execution is not None:
-                executions.append(execution)
-        return _merge_executions(executions)
-
     def shutdown(self, now: float) -> RuntimeExecution | None:
         self._reader_stop.set()
         execution = self._dispatch(ShutdownRequested(now)) if self._started else None
-        # Keep endpoints open through the ordered safe-state transition. Normal receivers use a
-        # bounded timeout and stop before the publisher and adapters are closed by the lifecycle.
         for reader in self._readers:
             reader.join(timeout=READER_JOIN_TIMEOUT_S)
         alive = tuple(reader.name for reader in self._readers if reader.is_alive())
@@ -377,62 +257,18 @@ class LiveControllerRuntime:
     ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
         diagnostics = self._kernel.diagnostics()
         application = self._kernel.snapshot()
-        enabled = tuple(item for item in self.config.can_networks if item.enabled)
-        servotronic_status = self._kernel.servotronic_status
-        return (
-            application,
-            diagnostics,
-            ControllerAdapterSnapshot(
-                simulation_session_id=None,
-                registry=self._kernel.registry,
-                networks=tuple(
-                    ObservedNetworkSnapshot(
-                        network=item.network,
-                        label=item.label,
-                        interface=item.interface,
-                        bitrate=item.bitrate,
-                        connected=item.network in self._raw_buses,
-                        nodes=(),
-                    )
-                    for item in enabled
-                ),
-                servotronic=(
-                    None
-                    if servotronic_status is None
-                    else observed_servotronic_snapshot(servotronic_status)
-                ),
-            ),
-        )
+        return application, diagnostics, ControllerAdapterSnapshot(simulation_session_id=None)
 
     @property
     def terminal(self) -> bool:
         return self._kernel.health.fatal
 
     def _dispatch(self, work: ControllerInput) -> RuntimeExecution | None:
-        if isinstance(work, ReceivedCanFrame):
-            self._executor.on_frame(work.network, work.frame)
         commit = self._kernel.dispatch(work)
-        commits = [] if commit is None else [commit]
-        for status in self._executor.take_servotronic_statuses():
-            status_commit = self._kernel.dispatch(ServotronicStatusObserved(status))
-            if status_commit is not None:
-                commits.append(status_commit)
-        failures = _execute(commit, self._executor, self._clock)
-        for failure in failures:
-            failure_commit = self._kernel.dispatch(failure)
-            if failure_commit is not None:
-                commits.append(failure_commit)
-                feedback_failures = _execute(failure_commit, self._executor, self._clock)
-                for feedback_failure in feedback_failures:
-                    feedback_commit = self._kernel.dispatch(feedback_failure)
-                    if feedback_commit is not None:
-                        commits.append(feedback_commit)
-        self._executor.poll_transport()
-        if not commits:
-            return None
-        return RuntimeExecution(
-            changed_topics=frozenset(topic for item in commits for topic in item.changed_topics),
-            commit_count=len(commits),
+        return (
+            None
+            if commit is None
+            else RuntimeExecution(changed_topics=commit.changed_topics, commit_count=1)
         )
 
     def _current_execution(self, commit: Commit | None) -> RuntimeExecution:
@@ -447,20 +283,6 @@ class LiveControllerRuntime:
     ) -> RuntimeExecution:
         executions: list[RuntimeExecution] = []
         for routed in frames:
-            transmitter = self._transmitters.get(routed.network)
-            if transmitter is not None:
-                try:
-                    transmitter.send(routed.frame)
-                except OSError as exc:
-                    failure = self._dispatch(
-                        CanEffectExecutionFailed(
-                            routed.network,
-                            self._clock(),
-                            str(exc),
-                        )
-                    )
-                    if failure is not None:
-                        executions.append(failure)
             execution = self._dispatch(
                 ReceivedCanFrame(
                     network=routed.network,

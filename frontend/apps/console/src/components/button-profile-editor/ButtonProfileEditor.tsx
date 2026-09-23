@@ -27,24 +27,8 @@ export const ButtonProfileEditor = ({
   const savedProfile = profileOverride ?? profileQuery.data
   const synchronized = useLiveStore((state) => state.connection.synchronized)
   const steering = useLiveStore((state) => state.steering)
-  const steeringFault = useLiveStore((state) => state.health.steering.fault)
-  const servotronicFault = useLiveStore(
-    (state) =>
-      state.health.devices.find(
-        (device) => device.role === "servotronic_controller"
-      )?.fault ?? null
-  )
   const slots = savedProfile?.definition.slots
-  const presentationContext = {
-    synchronized,
-    steering,
-    servotronicUsable:
-      synchronized &&
-      steering !== null &&
-      steering.servotronic !== null &&
-      steeringFault === null &&
-      servotronicFault === null,
-  }
+  const presentationContext = { synchronized, steering }
   const visualStates = (slots ?? []).map((slot) =>
     deriveButtonVisualState(slot, presentationContext)
   )

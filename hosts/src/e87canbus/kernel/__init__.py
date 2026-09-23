@@ -1,9 +1,4 @@
-"""The single-owner coordinator kernel: inputs, the state machine, and its commit contract.
-
-Import the public surface from this package (``from e87canbus.kernel import ...``);
-the submodules split the former ``runtime.py`` into inputs, health, the commit
-contract and the kernel itself, but external callers should not depend on that layout.
-"""
+"""Coordinator kernel inputs, health and commit contract."""
 
 from e87canbus.kernel.commit import (
     INITIAL_KERNEL_TOPICS,
@@ -14,7 +9,6 @@ from e87canbus.kernel.commit import (
     changed_controller_topics,
 )
 from e87canbus.kernel.health import (
-    DeviceRuntimeHealth,
     NetworkRuntimeHealth,
     RuntimeFault,
     RuntimeFaultKind,
@@ -23,46 +17,37 @@ from e87canbus.kernel.health import (
 from e87canbus.kernel.inputs import (
     ActivateButtonProfile,
     ActivateSteeringCurve,
-    CanEffectExecutionFailed,
     CanReaderFailed,
     ControllerInput,
-    DeviceAdapterFailed,
     ExecuteOperatorIntent,
     InboxOverflowed,
     KernelStarted,
     ReceivedCanFrame,
-    ServotronicStatusObserved,
     ShutdownRequested,
-    SteeringActuatorFailed,
     TimerElapsed,
 )
 from e87canbus.kernel.kernel import CoordinatorKernel
 
 __all__ = [
     "INITIAL_KERNEL_TOPICS",
-    "ActivateButtonProfile",
-    "ActivateSteeringCurve",
-    "CanEffectExecutionFailed",
-    "CanReaderFailed",
     "Commit",
-    "ControllerInput",
-    "CoordinatorKernel",
-    "DeviceAdapterFailed",
-    "DeviceRuntimeHealth",
     "DiagnosticSnapshot",
-    "ExecuteOperatorIntent",
-    "InboxOverflowed",
     "KernelLifecycle",
-    "KernelStarted",
+    "StateTopic",
+    "changed_controller_topics",
     "NetworkRuntimeHealth",
-    "ReceivedCanFrame",
     "RuntimeFault",
     "RuntimeFaultKind",
     "RuntimeHealth",
-    "ServotronicStatusObserved",
+    "ActivateButtonProfile",
+    "ActivateSteeringCurve",
+    "CanReaderFailed",
+    "ControllerInput",
+    "ExecuteOperatorIntent",
+    "InboxOverflowed",
+    "KernelStarted",
+    "ReceivedCanFrame",
     "ShutdownRequested",
-    "SteeringActuatorFailed",
-    "StateTopic",
     "TimerElapsed",
-    "changed_controller_topics",
+    "CoordinatorKernel",
 ]

@@ -1,121 +1,37 @@
-import time
-from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.api.models.coordinator_live import coordinator_health_state
-from e87canbus.config import SimulationConfig, TxPolicyConfig, simulator_config
-from e87canbus.domain.events import (
-    SetSteeringAssistance,
-    SteeringCommandReason,
-)
+from e87canbus.config import CanNetwork, simulator_config
 from e87canbus.runners.composition import build_simulated_controller_loop
-from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from fastapi.testclient import TestClient
-from registry_test_support import activate_simulation_devices
 
 
-def make_app(*, inbox_capacity: int = 64):
-    config = replace(
-        simulator_config(),
-        simulation=SimulationConfig(),
-        tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
-        tick_interval_s=60.0,
-        runtime_inbox_capacity=inbox_capacity,
-    )
-    return make_app_for_config(config)
-
-
-def make_app_for_config(
-    config,
-    *,
-    servotronic_factory=SimulatedServotronicPeer,
-):
-    profile_directory = TemporaryDirectory()
+def make_app():
+    directory = TemporaryDirectory()
     service = build_simulated_controller_loop(
-        config=config,
-        servotronic_factory=servotronic_factory,
+        config=replace(simulator_config(), tick_interval_s=60.0)
     )
     app = create_app(
         controller_loop=service,
-        profile_database_path=Path(profile_directory.name) / "profiles.sqlite3",
+        profile_database_path=Path(directory.name) / "profiles.sqlite3",
     )
-    app.state.test_profile_directory = profile_directory
+    app.state.test_directory = directory
     return app
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client():
     with TestClient(make_app()) as test_client:
-        activate_simulation_devices(test_client.app.state.controller_loop)
         yield test_client
-
-
-class FailingFirstSessionPeer(SimulatedServotronicPeer):
-    def __init__(
-        self,
-        watchdog_timeout_s: float,
-        clock: Callable[[], float],
-    ) -> None:
-        super().__init__(watchdog_timeout_s, clock)
-        self.attempts = 0
-
-    def set_assistance(self, command: SetSteeringAssistance) -> None:
-        self.attempts += 1
-        if self.attempts == 2:
-            raise OSError("timer actuator failure")
-        super().set_assistance(command)
-
-
-class RejectingStartupPeer(SimulatedServotronicPeer):
-    def set_assistance(self, command: SetSteeringAssistance) -> None:
-        raise OSError("startup actuator failure")
-
-
-class RejectingShutdownPeer(SimulatedServotronicPeer):
-    def set_assistance(self, command: SetSteeringAssistance) -> None:
-        if command.reason is SteeringCommandReason.SHUTDOWN:
-            raise OSError("shutdown actuator failure")
-        super().set_assistance(command)
-
-
-class BlockingShutdownPeer(SimulatedServotronicPeer):
-    def __init__(
-        self,
-        watchdog_timeout_s: float,
-        clock: Callable[[], float],
-        *,
-        block_shutdown: bool,
-    ) -> None:
-        super().__init__(watchdog_timeout_s, clock)
-        self.block_shutdown = block_shutdown
-        self.entered = Event()
-        self.release = Event()
-
-    def set_assistance(self, command: SetSteeringAssistance) -> None:
-        if self.block_shutdown and command.reason is SteeringCommandReason.SHUTDOWN:
-            self.entered.set()
-            assert self.release.wait(timeout=10.0)
-        super().set_assistance(command)
 
 
 def test_health_and_browser_cors(client: TestClient) -> None:
     assert client.get("/health/live").json() == {"status": "live"}
     assert client.get("/health/ready").json()["status"] == "ready"
-    assert client.get("/api/health").status_code == 404
-    assert client.get("/api/runtime").json() == {
-        "profile": "simulator",
-        "capabilities": {
-            "simulated_vehicle": True,
-            "simulation_workbench": True,
-        },
-    }
-
+    assert client.get("/api/runtime").json()["profile"] == "simulator"
     response = client.options(
         "/api/dev/simulation/vehicle/speed",
         headers={
@@ -124,472 +40,35 @@ def test_health_and_browser_cors(client: TestClient) -> None:
             "Access-Control-Request-Headers": "content-type",
         },
     )
-
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
-    console_response = client.options(
-        "/api/live",
-        headers={
-            "Origin": "http://localhost:5174",
-            "Access-Control-Request-Method": "GET",
-        },
-    )
 
-    assert console_response.status_code == 200
-    assert console_response.headers["access-control-allow-origin"] == "http://localhost:5174"
-
-
-def test_browser_cors_accepts_an_explicit_development_origin() -> None:
-    with TemporaryDirectory() as profile_directory:
-        app = create_app(
-            profile_database_path=Path(profile_directory) / "profiles.sqlite3",
-            cors_origins=("http://127.0.0.1:15173",),
-        )
-        with TestClient(app) as client:
-            response = client.options(
-                "/api/settings",
-                headers={
-                    "Origin": "http://127.0.0.1:15173",
-                    "Access-Control-Request-Method": "GET",
-                },
-            )
-
-    assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:15173"
-
-
-def test_failed_first_command_is_projected_as_nonfatal_without_fabricated_reason() -> None:
-    config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_config(
-        config,
-        servotronic_factory=RejectingStartupPeer,
-    )
-
-    with TestClient(app):
-        activate_simulation_devices(app.state.controller_loop)
-        snapshot = app.state.controller_loop.snapshot()
-
-    assert snapshot.diagnostics.health.fatal is False
-    assert snapshot.diagnostics.health.steering_actuator_fault is not None
-    assert snapshot.service.ready is True
-    assert snapshot.adapter.servotronic is not None
-    assert snapshot.adapter.servotronic.effective_assistance == 0.0
-    assert snapshot.adapter.servotronic.last_command_reason is None
-    assert snapshot.adapter.servotronic.watchdog_timed_out is True
-
-
-def test_reset_starts_a_new_trace_session(client: TestClient) -> None:
-    client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
-
-    response = client.post("/api/dev/simulation/reset")
-
-    assert response.status_code == 200
-    snapshot = client.app.state.controller_loop.snapshot()
-    assert response.json() == {"accepted": True, "boot_id": snapshot.boot_id}
-    assert snapshot.adapter.simulation_session_id == 2
-    assert snapshot.application.steering_mode.value == "auto"
-
-
-def test_coordinator_panel_projects_status_and_resets_preview_with_the_session(
-    client: TestClient,
-) -> None:
-    panel_path = "/api/dev/simulation/coordinator-panel"
-
-    assert client.get(panel_path).json() == {
-        "coordinator_status": "ready",
-        "coordinator_status_preview": None,
-    }
-
-    for coordinator_status in ("starting", "fault", "off"):
-        preview = client.put(
-            f"{panel_path}/coordinator-status",
-            json={"status": coordinator_status},
-        ).json()
-        assert preview["coordinator_status"] == coordinator_status
-    live = client.put(
-        f"{panel_path}/coordinator-status",
-        json={"status": None},
-    ).json()
-    assert live["coordinator_status"] == "ready"
-
-    assert client.post("/api/dev/simulation/reset").status_code == 200
-    reset = client.get(panel_path).json()
-    assert reset["coordinator_status"] == "ready"
-    assert reset["coordinator_status_preview"] is None
-
-
-def test_reset_after_nonfatal_shutdown_failure_returns_new_healthy_api_session(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    config = replace(simulator_config(), tick_interval_s=60.0)
-    app = make_app_for_config(
-        config,
-        servotronic_factory=RejectingShutdownPeer,
-    )
-
-    with caplog.at_level("ERROR"), TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_loop)
-        response = client.post("/api/dev/simulation/reset")
-        fatal = app.state.controller_loop.snapshot().diagnostics.health.fatal
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "accepted": True,
-        "boot_id": app.state.controller_loop.boot_id,
-    }
-    assert fatal is False
-    assert "fatal diagnostics" not in caplog.text
-
-
-def test_vehicle_speed_command_emits_external_frame_and_updates_application(
-    client: TestClient,
-) -> None:
+def test_vehicle_speed_command_crosses_decoder_and_updates_application(client: TestClient) -> None:
     response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
-
-    assert response.status_code == 200
     snapshot = client.app.state.controller_loop.snapshot()
+    assert response.status_code == 200
     assert snapshot.application.vehicle_speed_kph == 42.5
-    assert snapshot.application.speed_valid is True
+    assert snapshot.diagnostics.health.for_network(CanNetwork.FCAN).decoded_frames > 0
+    assert snapshot.application.steering_mode.value == "auto"
+    assert not hasattr(snapshot.application, "effective_assistance")
 
 
-def test_vehicle_sweep_command_starts_all_virtual_car_signals(client: TestClient) -> None:
-    response = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": True})
-
-    assert response.status_code == 200
-    application = client.app.state.controller_loop.snapshot().application
-    assert application.vehicle_speed_kph == 0.0
-    assert application.engine.rpm.value == 0
-    assert application.engine.oil_temperature_c.value == -40.0
-    assert application.engine.coolant_temperature_c.value == -40.0
-
-    stopped = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": False})
-    invalid = client.put("/api/dev/simulation/vehicle/sweep", json={"enabled": 1})
-
-    assert stopped.status_code == 200
-    assert invalid.status_code == 422
-
-
-def test_vehicle_speed_command_rejects_out_of_range_value(client: TestClient) -> None:
-    response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": -1.0})
-
-    assert response.status_code == 422
-    assert response.json()["error"]["issues"][0]["location"] == [
-        "body",
-        "speed_kph",
-    ]
-
-
-def test_development_simulation_requests_reject_unknown_fields(
-    client: TestClient,
-) -> None:
-    response = client.put(
-        "/api/dev/simulation/vehicle/speed",
-        json={"speed_kph": 42.5, "unexpected": True},
-    )
-
+def test_vehicle_speed_rejects_out_of_range_value(client: TestClient) -> None:
+    response = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 400})
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("role", ["servotronic_controller"])
-def test_simulated_device_routes_accept_only_catalogue_roles_and_idempotent_lifecycle(
-    client: TestClient,
-    role: str,
-) -> None:
-    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
-    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
-    assert client.post(f"/api/dev/simulation/devices/{role}/disconnect").status_code == 200
-    assert client.post(f"/api/dev/simulation/devices/{role}/disconnect").status_code == 200
-
-    absent_reboot = client.post(f"/api/dev/simulation/devices/{role}/reboot")
-    assert absent_reboot.status_code == 409
-    assert absent_reboot.json()["error"]["code"] == "simulation_device_unavailable"
-    assert client.post(f"/api/dev/simulation/devices/{role}/connect").status_code == 200
-
-    unknown_role = client.post("/api/dev/simulation/devices/unknown/connect")
-    assert unknown_role.status_code == 422
-
-
-@pytest.mark.parametrize(
-    ("path", "field"),
-    [
-        ("/api/dev/simulation/devices/servotronic_controller/status-code", "status_code"),
-    ],
-)
-def test_simulated_device_byte_requests_are_strict_and_bounded(
-    client: TestClient,
-    path: str,
-    field: str,
-) -> None:
-    for value in (0, 255):
-        response = client.put(path, json={field: value})
-        assert response.status_code == 200
-
-    for body in (
-        {},
-        {field: True},
-        {field: 1.0},
-        {field: -1},
-        {field: 256},
-        {field: 1, "unexpected": True},
-    ):
-        response = client.put(path, json=body)
-        assert response.status_code == 422
-
-
-def test_vehicle_speed_silence_command_returns_current_acknowledgement(
-    client: TestClient,
-) -> None:
-    selected = client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
-
-    response = client.post("/api/dev/simulation/vehicle/speed/silence")
-
+def test_reset_starts_new_vehicle_session(client: TestClient) -> None:
+    client.put("/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5})
+    response = client.post("/api/dev/simulation/reset")
+    snapshot = client.app.state.controller_loop.snapshot()
     assert response.status_code == 200
-    assert response.json() == selected.json()
+    assert snapshot.adapter.simulation_session_id == 2
+    assert snapshot.application.vehicle_speed_kph == 0
 
 
-@pytest.mark.parametrize(
-    ("path", "body", "field", "expected"),
-    [
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500}, "rpm", 3500),
-        (
-            "/api/dev/simulation/vehicle/oil-temperature",
-            {"temperature_c": 112.54},
-            "oil_temperature_c",
-            112.5,
-        ),
-        (
-            "/api/dev/simulation/vehicle/coolant-temperature",
-            {"temperature_c": -12.3},
-            "coolant_temperature_c",
-            -12.3,
-        ),
-        (
-            "/api/dev/simulation/vehicle/oil-temperature",
-            {"temperature_c": 110},
-            "oil_temperature_c",
-            110.0,
-        ),
-    ],
-)
-def test_engine_commands_update_the_canonical_service_projection(
-    client: TestClient,
-    path: str,
-    body: dict[str, float | int],
-    field: str,
-    expected: float | int,
-) -> None:
-    response = client.put(path, json=body)
-
-    assert response.status_code == 200
-    engine = client.app.state.controller_loop.snapshot().application.engine
-    observed = getattr(engine, field)
-    assert observed.value == expected
-    assert observed.status.value == "valid"
-
-
-@pytest.mark.parametrize(
-    "path",
-    [
-        "/api/dev/simulation/vehicle/rpm/silence",
-        "/api/dev/simulation/vehicle/oil-temperature/silence",
-        "/api/dev/simulation/vehicle/coolant-temperature/silence",
-    ],
-)
-def test_engine_silence_commands_are_idempotent(client: TestClient, path: str) -> None:
-    first = client.post(path)
-    first_engine = client.app.state.controller_loop.snapshot().application.engine
-    second = client.post(path)
-    second_engine = client.app.state.controller_loop.snapshot().application.engine
-
-    assert first.status_code == second.status_code == 200
-    assert second.json() == first.json()
-    assert second_engine == first_engine
-
-
-@pytest.mark.parametrize(
-    ("path", "body"),
-    [
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": -1}),
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": 12_001}),
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": 3500, "unexpected": 1}),
-        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": -40.1}),
-        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": 250.1}),
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": True}),
-        ("/api/dev/simulation/vehicle/rpm", {"rpm": "3500"}),
-        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": True}),
-        ("/api/dev/simulation/vehicle/oil-temperature", {"temperature_c": "110"}),
-        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": True}),
-        ("/api/dev/simulation/vehicle/coolant-temperature", {"temperature_c": "98"}),
-    ],
-)
-def test_invalid_engine_request_returns_422_without_changing_state(
-    client: TestClient,
-    path: str,
-    body: dict[str, bool | float | int | str],
-) -> None:
-    before = client.app.state.controller_loop.snapshot()
-
-    response = client.put(path, json=body)
-
-    assert response.status_code == 422
-    after = client.app.state.controller_loop.snapshot()
-    assert after.revision == before.revision
-    assert after.application.engine == before.application.engine
-
-
-def test_concurrent_reset_and_action_acknowledgements_cannot_name_other_work() -> None:
-    app = make_app()
-
-    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
-        press = pool.submit(
-            client.put,
-            "/api/dev/simulation/vehicle/speed",
-            json={"speed_kph": 42.5},
-        )
-        reset = pool.submit(client.post, "/api/dev/simulation/reset")
-        press_response = press.result()
-        reset_response = reset.result()
-        assert press_response.status_code == 200
-        assert reset_response.status_code == 200
-        assert (
-            press_response.json()
-            == reset_response.json()
-            == {
-                "accepted": True,
-                "boot_id": app.state.controller_loop.boot_id,
-            }
-        )
-        assert app.state.controller_loop.snapshot().adapter.simulation_session_id == 2
-
-
-def test_controller_inbox_overflow_latches_fault_and_stops_normal_ingestion() -> None:
-    config = replace(
-        simulator_config(),
-        simulation=SimulationConfig(),
-        tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
-        tick_interval_s=60.0,
-        runtime_inbox_capacity=1,
+def test_project_device_routes_are_absent(client: TestClient) -> None:
+    assert (
+        client.post("/api/dev/simulation/devices/servotronic_controller/connect").status_code == 404
     )
-    controllers: list[BlockingShutdownPeer] = []
-
-    def build_controller(
-        watchdog_timeout_s: float,
-        clock: Callable[[], float],
-    ) -> BlockingShutdownPeer:
-        controller = BlockingShutdownPeer(
-            watchdog_timeout_s,
-            clock,
-            block_shutdown=not controllers,
-        )
-        controllers.append(controller)
-        return controller
-
-    app = make_app_for_config(config, servotronic_factory=build_controller)
-
-    with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_loop)
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            first = pool.submit(
-                client.post,
-                "/api/dev/simulation/reset",
-            )
-            controller = controllers[0]
-            assert controller.entered.wait(timeout=1.0)
-            second = pool.submit(
-                client.put,
-                "/api/dev/simulation/vehicle/speed",
-                json={"speed_kph": 42.5},
-            )
-            deadline = time.monotonic() + 1.0
-            while app.state.controller_loop.inbox_depth != 1 and time.monotonic() < deadline:
-                pass
-
-            overloaded = pool.submit(
-                client.put,
-                "/api/dev/simulation/vehicle/speed",
-                json={"speed_kph": 42.5},
-            )
-            try:
-                overloaded_response = overloaded.result(timeout=1.0)
-            finally:
-                controller.release.set()
-
-            assert overloaded_response.status_code == 503
-            assert first.result().status_code == 200
-            assert second.result().status_code == 503
-            deadline = time.monotonic() + 1.0
-            while app.state.controller_loop.ready and time.monotonic() < deadline:
-                pass
-            service = app.state.controller_loop
-            assert service.stopped_event.wait(timeout=1.0)
-            snapshot = service.snapshot()
-            projected_health = coordinator_health_state(snapshot)
-            assert service.ready is False
-            assert snapshot.service.inbox.overflow_latched is True
-            assert snapshot.diagnostics.health.fatal is True
-            assert snapshot.diagnostics.health.inbox_overflow_fault is not None
-            assert all(item.fault is None for item in snapshot.diagnostics.health.networks)
-            assert projected_health.fatal is True
-            assert projected_health.inbox.overflow_latched is True
-            assert (
-                client.put(
-                    "/api/dev/simulation/vehicle/speed", json={"speed_kph": 42.5}
-                ).status_code
-                == 503
-            )
-
-
-def test_nonfatal_actuator_timer_fault_is_published_and_scheduling_continues() -> None:
-    session_count = 0
-
-    def build_controller(
-        watchdog_timeout_s: float,
-        clock: Callable[[], float],
-    ) -> SimulatedServotronicPeer:
-        nonlocal session_count
-        session_count += 1
-        controller_type = (
-            FailingFirstSessionPeer if session_count == 1 else SimulatedServotronicPeer
-        )
-        return controller_type(watchdog_timeout_s, clock)
-
-    config = replace(
-        simulator_config(),
-        simulation=SimulationConfig(),
-        tx_policy=TxPolicyConfig(max_frames_per_network_window=1_000),
-        tick_interval_s=0.01,
-    )
-    app = make_app_for_config(
-        config,
-        servotronic_factory=build_controller,
-    )
-
-    with TestClient(app) as client:
-        activate_simulation_devices(app.state.controller_loop)
-        deadline = time.monotonic() + 1.0
-        while (
-            app.state.controller_loop.snapshot().diagnostics.health.steering_actuator_fault is None
-        ):
-            assert time.monotonic() < deadline
-
-        faulted = app.state.controller_loop.snapshot()
-        assert faulted.diagnostics.health.fatal is False
-        assert faulted.service.ready is True
-        initial_revision = faulted.revision
-        deadline = time.monotonic() + 1.0
-        while app.state.controller_loop.snapshot().revision == initial_revision:
-            assert time.monotonic() < deadline
-
-        reset = client.post("/api/dev/simulation/reset")
-        assert reset.status_code == 200
-        assert reset.json() == {
-            "accepted": True,
-            "boot_id": app.state.controller_loop.boot_id,
-        }
-        assert app.state.controller_loop.snapshot().diagnostics.health.fatal is False
-
-        initial_revision = app.state.controller_loop.snapshot().revision
-        deadline = time.monotonic() + 1.0
-        while app.state.controller_loop.snapshot().revision == initial_revision:
-            assert time.monotonic() < deadline

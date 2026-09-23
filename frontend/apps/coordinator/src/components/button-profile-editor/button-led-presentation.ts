@@ -7,7 +7,6 @@ export type ButtonLedRgb = readonly [number, number, number]
 export type ButtonLedPresentationContext = {
   synchronized: boolean
   steering: SteeringState | null
-  servotronicUsable: boolean
 }
 
 export type ButtonLedPresentationAdapter = (
@@ -15,20 +14,18 @@ export type ButtonLedPresentationAdapter = (
   context: ButtonLedPresentationContext
 ) => ButtonLedRgb
 
-/** Preview colours for an unassigned or unavailable button. */
+/** Preview colour for an unassigned button. */
 export const BUTTON_LED_RGB = {
   RGB_OFF: [0, 0, 0],
-  SOFT_AMBER: [8, 6, 0],
 } as const satisfies Record<string, ButtonLedRgb>
 
-const { RGB_OFF: OFF, SOFT_AMBER } = BUTTON_LED_RGB
+const { RGB_OFF: OFF } = BUTTON_LED_RGB
 const RESTING_BRIGHTNESS = 8
 
 const currentMode = (steering: SteeringState): "auto" | "manual" =>
   steering.maximum_assistance_active ? "manual" : steering.mode
 
-export type ButtonVisualState =
-  "unassigned" | "unavailable" | "active" | "inactive"
+export type ButtonVisualState = "unassigned" | "active" | "inactive"
 
 const commandIsActive = (
   command: NonNullable<ButtonCommand>,
@@ -66,7 +63,7 @@ export const deriveButtonVisualState = (
   context: ButtonLedPresentationContext
 ): ButtonVisualState => {
   if (slot === null) return "unassigned"
-  if (!context.synchronized || !context.servotronicUsable) return "unavailable"
+  if (!context.synchronized || context.steering === null) return "inactive"
   return commandIsActive(slot.command, context.steering) ? "active" : "inactive"
 }
 
@@ -78,13 +75,10 @@ export const derivedButtonLedPresentation: ButtonLedPresentationAdapter = (
   switch (deriveButtonVisualState(slot, context)) {
     case "unassigned":
       return OFF
-    case "unavailable":
-      return SOFT_AMBER
     case "inactive":
       return restingButtonLedRgb(slot!.colour)
     case "active":
       // Animations deliberately preview as their steady full-brightness colour.
-      // Preview animation belongs with the workstream 2 animation controls.
       return slot!.active_colour ?? slot!.colour
   }
 }

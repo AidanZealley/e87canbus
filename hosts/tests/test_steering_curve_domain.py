@@ -13,7 +13,6 @@ from e87canbus.domain.steering.curves import (
     canonical_steering_curve_bytes,
     canonical_utc_timestamp,
     default_steering_curve_definition,
-    interpolate_steering_curve_definition,
     steering_curve_fingerprint,
     validate_steering_curve_definition,
 )
@@ -248,31 +247,3 @@ def test_timestamp_formatter_normalizes_aware_values_to_canonical_utc() -> None:
     assert canonical_utc_timestamp(datetime(2026, 7, 14, 10, 30, tzinfo=UTC)) == CREATED_AT
     with pytest.raises(ValueError, match="timezone-aware"):
         canonical_utc_timestamp(datetime(2026, 7, 14, 10, 30))
-
-
-def test_integer_projection_and_definition_evaluation_preserve_resolution() -> None:
-    assert tuple(point.speed_deci_kph for point in BUILT_IN_STEERING_CURVE.points) == (
-        STEERING_CURVE_V1_SPEEDS_DECI_KPH
-    )
-    assert tuple(point.assistance_per_mille for point in BUILT_IN_STEERING_CURVE.points) == (
-        1000,
-        889,
-        778,
-        667,
-        381,
-        0,
-        0,
-        0,
-    )
-    for point in BUILT_IN_STEERING_CURVE.points:
-        assert (
-            interpolate_steering_curve_definition(
-                point.speed_deci_kph / 10, BUILT_IN_STEERING_CURVE
-            )
-            == point.assistance_per_mille / 1000
-        )
-
-
-def test_definition_evaluation_holds_endpoint_values_outside_grid() -> None:
-    assert interpolate_steering_curve_definition(-1.0, BUILT_IN_STEERING_CURVE) == 1.0
-    assert interpolate_steering_curve_definition(251.0, BUILT_IN_STEERING_CURVE) == 0.0

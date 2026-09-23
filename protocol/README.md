@@ -1,8 +1,6 @@
 # Protocol
 
-custom.toml defines the remaining provisional Servotronic CAN messages. Run uv run python scripts/generate_custom_protocol.py from the repository root to update Python constants, the Servotronic firmware header, and the generated table in custom_ids.md. Use --check to verify them.
-
-The Servotronic registry uses K-CAN IDs 0x705 through 0x707 for HELLO, WELCOME_ACK, and HEARTBEAT. All have DLC 8 and unsigned little-endian multi-byte fields. The bench-only curve and status ISO-TP link uses 0x70A and 0x70B. These IDs need collision validation before vehicle use. The protocol is removed in Slice 1.5 Workstream 3.
+The coordinator retains vehicle CAN frame values and simulation-only vehicle decoders. There is no project-device CAN protocol.
 
 BMW message definitions remain unverified until backed by a named capture in docs/candump_sessions and recorded in docs/decoded_messages.md.
 

@@ -12,7 +12,7 @@ type checking names every remaining decision:
 2. a :class:`ButtonCommandSpec` in ``BUTTON_COMMAND_CATALOGUE`` below
 
 ``mypy`` then fails on each exhaustive match that has not yet handled it - whether the
-command needs Servotronic, whether it has a configuration-dependent bound, and what it
+command has a configuration-dependent bound and what it
 actually does - so nothing can half-land.
 """
 

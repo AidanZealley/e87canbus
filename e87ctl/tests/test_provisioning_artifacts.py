@@ -327,7 +327,7 @@ def test_locked_exports_cover_runtime_and_pep517_build_requirements() -> None:
         check=True,
     ).stdout
 
-    assert "can-isotp==2.0.7" in runtime
+    assert "can-isotp" not in runtime
     assert "hatchling==" not in runtime
     assert "hatchling==1.32.0" in build
     assert "--hash=sha256:" in runtime

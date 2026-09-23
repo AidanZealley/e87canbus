@@ -11,15 +11,11 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from e87canbus.config import CanNetwork
-from e87canbus.domain.devices.catalogue import DeviceRole
 
 
 class RuntimeFaultKind(StrEnum):
     CAN_READER = "can_reader"
-    CAN_EFFECT_EXECUTION = "can_effect_execution"
-    STEERING_ACTUATOR = "steering_actuator"
     INBOX_OVERFLOW = "inbox_overflow"
-    DEVICE_ADAPTER = "device_adapter"
 
 
 @dataclass(frozen=True)
@@ -39,12 +35,6 @@ class NetworkRuntimeHealth:
     malformed_frames: int = 0
 
 
-@dataclass(frozen=True)
-class DeviceRuntimeHealth:
-    role: DeviceRole
-    fault: RuntimeFault | None = None
-
-
 def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
     return tuple(NetworkRuntimeHealth(network) for network in CanNetwork)
 
@@ -52,11 +42,7 @@ def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
 @dataclass(frozen=True)
 class RuntimeHealth:
     networks: tuple[NetworkRuntimeHealth, ...] = field(default_factory=_empty_network_health)
-    steering_actuator_fault: RuntimeFault | None = None
     inbox_overflow_fault: RuntimeFault | None = None
-    devices: tuple[DeviceRuntimeHealth, ...] = tuple(
-        DeviceRuntimeHealth(role) for role in DeviceRole
-    )
 
     def for_network(self, network: CanNetwork) -> NetworkRuntimeHealth:
         return next(item for item in self.networks if item.network is network)
@@ -79,9 +65,6 @@ class RuntimeHealth:
             ),
         )
 
-    def with_steering_actuator_fault(self, fault: RuntimeFault) -> RuntimeHealth:
-        return replace(self, steering_actuator_fault=fault)
-
     def with_inbox_overflow(
         self,
         network: CanNetwork | None,
@@ -89,14 +72,6 @@ class RuntimeHealth:
     ) -> RuntimeHealth:
         updated = replace(self, inbox_overflow_fault=fault)
         return updated if network is None else updated.with_fault(network, fault)
-
-    def with_device_fault(self, role: DeviceRole, fault: RuntimeFault) -> RuntimeHealth:
-        return replace(
-            self,
-            devices=tuple(
-                replace(item, fault=fault) if item.role is role else item for item in self.devices
-            ),
-        )
 
     def with_frame_outcome(self, network: CanNetwork, outcome: str) -> RuntimeHealth:
         current = self.for_network(network)

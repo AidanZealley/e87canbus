@@ -19,20 +19,14 @@ import { SteeringCurveEditor } from "./SteeringCurveEditor"
 
 vi.mock("./components/curve-chart", () => ({
   CurveChart: ({
-    onPointChange,
     onPointCommit,
-    activeAssistance,
   }: {
-    onPointChange: (index: number, value: number) => void
-    onPointCommit: (index: number) => void
-    activeAssistance?: number | null
+    onPointCommit: (definition: SteeringCurveDefinition) => void
   }) => (
     <button
-      data-active-assistance={activeAssistance ?? "none"}
-      onClick={() => {
-        onPointChange(1, 800)
-        onPointCommit(1)
-      }}
+      onClick={() =>
+        onPointCommit(definition([1000, 800, 780, 670, 380, 0, 0, 0]))
+      }
     >
       Simulate point drag
     </button>
@@ -59,7 +53,6 @@ const active = (
   definition: value as SteeringProfileResponse["definition"],
   fingerprint: `fingerprint-${revision}`,
   activation_revision: revision,
-  status: "active",
   saved_profile_id: savedProfile?.profile_id ?? null,
   saved_profile_revision: savedProfile?.revision ?? null,
 })
@@ -101,8 +94,6 @@ const requestBody = async <Body,>(
 
 const renderEditor = (
   activeCurve: ActiveSteeringCurveState,
-  speedKph: number | null = 10,
-  activeAssistance: number | null = null,
   steering: {
     mode?: "auto" | "manual"
     manualAssistanceLevel?: number
@@ -122,8 +113,6 @@ const renderEditor = (
       manualAssistanceLevel={steering.manualAssistanceLevel ?? 0}
       manualAssistanceLevelCount={11}
       maximumAssistanceActive={steering.maximumAssistanceActive ?? false}
-      speedKph={speedKph}
-      activeAssistance={activeAssistance}
     />,
     { wrapper: Wrapper }
   )
@@ -140,21 +129,6 @@ afterEach(() => {
 })
 
 describe("SteeringCurveEditor", () => {
-  it("keeps current manual assistance on the chart without a speed sample", () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse([]))
-    )
-
-    renderEditor(active(), null, 3 / 7)
-
-    expect(
-      screen
-        .getByText("Simulate point drag")
-        .getAttribute("data-active-assistance")
-    ).toBe(String(3 / 7))
-  })
-
   it("maps the up and max controls to the button-pad command semantics", async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.stubGlobal(
@@ -196,7 +170,7 @@ describe("SteeringCurveEditor", () => {
         return commandResponse()
       })
     )
-    renderEditor(active(), 10, 1, {
+    renderEditor(active(), {
       mode: "manual",
       manualAssistanceLevel: 0,
       maximumAssistanceActive: true,
@@ -222,7 +196,7 @@ describe("SteeringCurveEditor", () => {
       "fetch",
       vi.fn(async () => jsonResponse([]))
     )
-    renderEditor(active(), 10, 0, {
+    renderEditor(active(), {
       mode: "manual",
       manualAssistanceLevel: 0,
       maximumAssistanceActive: false,

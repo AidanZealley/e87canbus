@@ -16,9 +16,7 @@ ApiProblemCode = Literal[
     "runtime_queue_full",
     "controller_unavailable",
     "command_timeout",
-    "simulation_device_unavailable",
     "controller_failed",
-    "feature_unavailable",
     "controller_runtime_error",
 ]
 

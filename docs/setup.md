@@ -17,7 +17,6 @@ uv sync --locked
 uv run pytest
 uv run ruff check .
 uv run mypy
-uv run python scripts/generate_custom_protocol.py --check
 ```
 
 Run the visual simulator in three terminals:
@@ -54,6 +53,6 @@ From a provisioned coordinator on a safe bench or vehicle setup:
 ./scripts/capture_can.sh ccc-knob
 ```
 
-The capture helper validates `kcan`, stops the coordinator to prevent application transmissions,
+The capture helper validates `kcan`, stops the coordinator,
 records until Ctrl-C, and restores the prior service state. It writes captures outside the checkout
 under `~/e87canbus-captures/` by default.

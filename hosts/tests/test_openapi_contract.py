@@ -72,14 +72,12 @@ def test_profile_schemas_preserve_runtime_route_scopes(tmp_path: Path) -> None:
     ]
 
     vehicle_path = "/api/dev/simulation/vehicle/speed"
-    device_path = "/api/dev/simulation/devices/{role}/connect"
     reset_path = "/api/dev/simulation/reset"
     runtime_path = "/api/runtime"
     assert vehicle_path not in car_paths
     assert vehicle_path in bench_paths
-    assert device_path not in bench_paths
     assert reset_path not in bench_paths
-    assert {vehicle_path, device_path, reset_path}.issubset(simulator_paths)
+    assert {vehicle_path, reset_path}.issubset(simulator_paths)
     assert runtime_path in car_paths
     assert runtime_path in bench_paths
     assert runtime_path in simulator_paths

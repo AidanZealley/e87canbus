@@ -46,10 +46,6 @@ export type ActiveSteeringCurveState = {
    * Saved Profile Revision
    */
   saved_profile_revision: number | null
-  /**
-   * Status
-   */
-  status: "active" | "activating" | "activation_failed"
 }
 
 /**
@@ -95,9 +91,7 @@ export type ApiProblemDetail = {
     | "runtime_queue_full"
     | "controller_unavailable"
     | "command_timeout"
-    | "simulation_device_unavailable"
     | "controller_failed"
-    | "feature_unavailable"
     | "controller_runtime_error"
   /**
    * Current Revision
@@ -448,10 +442,6 @@ export type CommandAcknowledgement = {
  */
 export type CoordinatorHealthState = {
   /**
-   * Devices
-   */
-  devices: Array<DeviceHealthState>
-  /**
    * Fatal
    */
   fatal: boolean
@@ -465,7 +455,6 @@ export type CoordinatorHealthState = {
    * Ready
    */
   ready: boolean
-  steering: SteeringCapabilityHealthState
 }
 
 /**
@@ -510,22 +499,6 @@ export type CreateProfileRequest = {
  * DeploymentProfile
  */
 export type DeploymentProfile = "car" | "bench" | "simulator"
-
-/**
- * DeviceHealthState
- */
-export type DeviceHealthState = {
-  fault: RuntimeFaultState | null
-  /**
-   * Role
-   */
-  role: "servotronic_controller"
-}
-
-/**
- * DeviceRole
- */
-export type DeviceRole = "servotronic_controller"
 
 /**
  * EngineEvent
@@ -778,12 +751,7 @@ export type RuntimeFaultState = {
   /**
    * Kind
    */
-  kind:
-    | "can_reader"
-    | "can_effect_execution"
-    | "steering_actuator"
-    | "inbox_overflow"
-    | "device_adapter"
+  kind: "can_reader" | "inbox_overflow"
   /**
    * Message
    */
@@ -806,61 +774,6 @@ export type SelectSteeringModeCommand = {
    * Type
    */
   type: "select_steering_mode"
-}
-
-/**
- * ServotronicState
- */
-export type ServotronicState = {
-  /**
-   * Active Curve Crc32
-   */
-  active_curve_crc32?: number | null
-  /**
-   * Active Curve Revision
-   */
-  active_curve_revision?: number | null
-  /**
-   * Active Curve Source
-   */
-  active_curve_source?: "builtin_fallback" | "coordinator_ram" | null
-  /**
-   * Effective Assistance
-   */
-  effective_assistance: number
-  /**
-   * Inhibit Reason
-   */
-  inhibit_reason?: string | null
-  /**
-   * Last Command Reason
-   */
-  last_command_reason:
-    | "auto"
-    | "manual"
-    | "maximum"
-    | "speed_never_observed"
-    | "speed_stale"
-    | "can_reader_failure"
-    | "inbox_overflow"
-    | "shutdown"
-    | null
-  /**
-   * Observed Speed Kph
-   */
-  observed_speed_kph?: number | null
-  /**
-   * Pwm Duty
-   */
-  pwm_duty?: number | null
-  /**
-   * Speed Fresh
-   */
-  speed_fresh?: boolean | null
-  /**
-   * Watchdog Timed Out
-   */
-  watchdog_timed_out: boolean
 }
 
 /**
@@ -972,26 +885,6 @@ export type SimulationCoordinatorStatusRequest = {
 }
 
 /**
- * SimulationDeviceProtocolVersionRequest
- */
-export type SimulationDeviceProtocolVersionRequest = {
-  /**
-   * Protocol Version
-   */
-  protocol_version: number
-}
-
-/**
- * SimulationDeviceStatusCodeRequest
- */
-export type SimulationDeviceStatusCodeRequest = {
-  /**
-   * Status Code
-   */
-  status_code: number
-}
-
-/**
  * SnapshotEvent
  */
 export type SnapshotEvent = {
@@ -1016,13 +909,6 @@ export type SpeedRequest = {
  * SpeedUnit
  */
 export type SpeedUnit = "mph" | "kmh"
-
-/**
- * SteeringCapabilityHealthState
- */
-export type SteeringCapabilityHealthState = {
-  fault: RuntimeFaultState | null
-}
 
 /**
  * SteeringCurveDefinition
@@ -1179,10 +1065,6 @@ export type SteeringProfileResponse = {
 export type SteeringState = {
   active_curve: ActiveSteeringCurveState
   /**
-   * Curve Activation Available
-   */
-  curve_activation_available: boolean
-  /**
    * Manual Assistance Level
    */
   manual_assistance_level: number
@@ -1198,7 +1080,6 @@ export type SteeringState = {
    * Mode
    */
   mode: "auto" | "manual"
-  servotronic: ServotronicState | null
 }
 
 /**
@@ -1684,191 +1565,6 @@ export type PreviewSimulationCoordinatorStatusResponses = {
 
 export type PreviewSimulationCoordinatorStatusResponse =
   PreviewSimulationCoordinatorStatusResponses[keyof PreviewSimulationCoordinatorStatusResponses]
-
-export type ConnectSimulationDeviceData = {
-  body?: never
-  path: {
-    role: DeviceRole
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/{role}/connect"
-}
-
-export type ConnectSimulationDeviceErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type ConnectSimulationDeviceError =
-  ConnectSimulationDeviceErrors[keyof ConnectSimulationDeviceErrors]
-
-export type ConnectSimulationDeviceResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type ConnectSimulationDeviceResponse =
-  ConnectSimulationDeviceResponses[keyof ConnectSimulationDeviceResponses]
-
-export type DisconnectSimulationDeviceData = {
-  body?: never
-  path: {
-    role: DeviceRole
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/{role}/disconnect"
-}
-
-export type DisconnectSimulationDeviceErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type DisconnectSimulationDeviceError =
-  DisconnectSimulationDeviceErrors[keyof DisconnectSimulationDeviceErrors]
-
-export type DisconnectSimulationDeviceResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type DisconnectSimulationDeviceResponse =
-  DisconnectSimulationDeviceResponses[keyof DisconnectSimulationDeviceResponses]
-
-export type SetSimulationDeviceProtocolVersionData = {
-  body: SimulationDeviceProtocolVersionRequest
-  path: {
-    role: DeviceRole
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/{role}/protocol-version"
-}
-
-export type SetSimulationDeviceProtocolVersionErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type SetSimulationDeviceProtocolVersionError =
-  SetSimulationDeviceProtocolVersionErrors[keyof SetSimulationDeviceProtocolVersionErrors]
-
-export type SetSimulationDeviceProtocolVersionResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type SetSimulationDeviceProtocolVersionResponse =
-  SetSimulationDeviceProtocolVersionResponses[keyof SetSimulationDeviceProtocolVersionResponses]
-
-export type RebootSimulationDeviceData = {
-  body?: never
-  path: {
-    role: DeviceRole
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/{role}/reboot"
-}
-
-export type RebootSimulationDeviceErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type RebootSimulationDeviceError =
-  RebootSimulationDeviceErrors[keyof RebootSimulationDeviceErrors]
-
-export type RebootSimulationDeviceResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type RebootSimulationDeviceResponse =
-  RebootSimulationDeviceResponses[keyof RebootSimulationDeviceResponses]
-
-export type SetSimulationDeviceStatusCodeData = {
-  body: SimulationDeviceStatusCodeRequest
-  path: {
-    role: DeviceRole
-  }
-  query?: never
-  url: "/api/dev/simulation/devices/{role}/status-code"
-}
-
-export type SetSimulationDeviceStatusCodeErrors = {
-  /**
-   * Conflict
-   */
-  409: ApiProblemResponse
-  /**
-   * Unprocessable Entity
-   */
-  422: ApiProblemResponse
-  /**
-   * Service Unavailable
-   */
-  503: ApiProblemResponse
-}
-
-export type SetSimulationDeviceStatusCodeError =
-  SetSimulationDeviceStatusCodeErrors[keyof SetSimulationDeviceStatusCodeErrors]
-
-export type SetSimulationDeviceStatusCodeResponses = {
-  /**
-   * Successful Response
-   */
-  200: SimulationCommandAcknowledgement
-}
-
-export type SetSimulationDeviceStatusCodeResponse =
-  SetSimulationDeviceStatusCodeResponses[keyof SetSimulationDeviceStatusCodeResponses]
 
 export type ResetSimulationData = {
   body?: never

@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "argon2-cffi>=25.1",
-    "can-isotp==2.0.7",
     "cantools>=40.0",
     "cryptography>=46.0",
     "fastapi>=0.115",
@@ -91,12 +90,4 @@ forbidden_modules = [
     "e87canbus.deployment",
     "e87canbus.adapters",
     "e87canbus.protocol",
-    "e87canbus.transport",
-]
-# The device catalogue and config use foundational wire types. Every other
-# path from the domain into protocol and infrastructure stays forbidden.
-ignore_imports = [
-    "e87canbus.domain.devices.catalogue -> e87canbus.protocol.generated",
-    "e87canbus.domain.devices.registry -> e87canbus.protocol.can",
-    "e87canbus.config -> e87canbus.protocol.generated",
 ]

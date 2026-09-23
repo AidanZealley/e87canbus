@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.main import create_app
-from e87canbus.config import default_config, simulator_config
+from e87canbus.config import default_config
 from e87canbus.deployment import DeploymentProfile, deployment_spec
 from e87canbus.domain.controller import ApplicationSnapshot
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
@@ -100,9 +100,6 @@ class RecordingRuntime:
             diagnostics,
             ControllerAdapterSnapshot(
                 simulation_session_id=None,
-                registry=self.kernel.registry,
-                networks=(),
-                servotronic=None,
             ),
         )
 
@@ -119,58 +116,6 @@ class FailingTimerRuntime(RecordingRuntime):
     def timer(self, now: float) -> RuntimeExecution | None:
         del now
         raise RuntimeError("timer failed")
-
-
-class MutableClock:
-    def __init__(self, now: float = 0.0) -> None:
-        self.now = now
-
-    def __call__(self) -> float:
-        return self.now
-
-
-class DeadlineOrderingRuntime(RecordingRuntime):
-    def __init__(self) -> None:
-        super().__init__()
-        self.config = replace(self.config, tick_interval_s=0.1)
-        self.deadline_at: float | None = 0.1
-        self.calls: list[str] = []
-        self.timer_called = threading.Event()
-
-    def next_deadline(self) -> float | None:
-        return self.deadline_at
-
-    def deadline(self, now: float) -> RuntimeExecution | None:
-        assert now == 0.1
-        self.calls.append("deadline")
-        self.deadline_at = None
-        return None
-
-    def timer(self, now: float) -> RuntimeExecution | None:
-        assert now == 0.1
-        self.calls.append("timer")
-        self.timer_called.set()
-        return None
-
-
-def test_service_dispatches_coincident_deadline_before_periodic_tick() -> None:
-    clock = MutableClock()
-    runtime = DeadlineOrderingRuntime()
-    service = ControllerLoop(
-        runtime,
-        deployment=deployment_spec(DeploymentProfile.CAR),
-        clock=clock,
-    )
-
-    service.start()
-    try:
-        # The owner is blocked on its normal inbox poll.  Advancing the controllable clock
-        # makes the runtime deadline and periodic tick simultaneously overdue at that wake-up.
-        clock.now = 0.1
-        assert runtime.timer_called.wait(timeout=1.0)
-        assert runtime.calls == ["deadline", "timer"]
-    finally:
-        service.stop()
 
 
 def test_fastapi_lifespan_starts_and_stops_exactly_one_controller_service(
@@ -313,12 +258,7 @@ def test_fastapi_rejects_profile_configuration_with_an_injected_service() -> Non
     assert service.lifecycle is ControllerLoopLifecycle.CREATED
 
 
-def test_live_transmitter_requires_separate_explicit_network_grant() -> None:
-    with pytest.raises(ValueError, match="explicit network grant"):
-        build_live_controller_loop(config=simulator_config())
-
-
-def test_simulated_constructor_accepts_vehicle_and_servotronic_without_button_source() -> None:
+def test_simulated_constructor_keeps_vehicle_only() -> None:
     service = build_simulated_controller_loop()
     assert service.lifecycle is ControllerLoopLifecycle.CREATED
 

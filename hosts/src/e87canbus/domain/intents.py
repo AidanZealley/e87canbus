@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeGuard, assert_never
+from typing import TypeGuard
 
 from e87canbus.domain.state import SteeringMode
 
@@ -83,24 +83,3 @@ def is_operator_intent(value: object) -> TypeGuard[OperatorIntent]:
     """Return whether a value belongs to the closed operator-intent vocabulary."""
 
     return isinstance(value, _OPERATOR_INTENT_TYPES)
-
-
-def intent_requires_servotronic(intent: OperatorIntent) -> bool:
-    """Return whether executing an intent requires usable Servotronic output.
-
-    This exhaustive match makes every new catalogue intent choose its capability
-    requirements explicitly instead of leaving that decision to an input adapter.
-    """
-
-    match intent:
-        case (
-            SelectSteeringMode()
-            | ToggleAutomaticAssistance()
-            | AdjustManualAssistance()
-            | SetManualAssistanceLevel()
-            | SetMaximumAssistance()
-            | ToggleMaximumAssistance()
-        ):
-            return True
-        case _:
-            assert_never(intent)

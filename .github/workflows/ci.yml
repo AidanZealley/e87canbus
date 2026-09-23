@@ -14,7 +14,6 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run python scripts/generate_custom_protocol.py --check
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: frontend/package.json

@@ -23,7 +23,6 @@ from e87canbus.domain.intents import (
     SetMaximumAssistance,
     ToggleAutomaticAssistance,
     ToggleMaximumAssistance,
-    intent_requires_servotronic,
 )
 from e87canbus.domain.state import (
     RGB_WHITE,
@@ -50,20 +49,6 @@ def test_exact_steering_intents_validate_their_values() -> None:
 def test_adjust_manual_assistance_requires_one_stage_delta(delta: object) -> None:
     with pytest.raises(ValueError, match="-1 or 1"):
         AdjustManualAssistance(delta)  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize(
-    "intent",
-    [
-        SelectSteeringMode(SteeringMode.AUTO),
-        ToggleAutomaticAssistance(),
-        AdjustManualAssistance(1),
-        SetMaximumAssistance(True),
-        ToggleMaximumAssistance(),
-    ],
-)
-def test_steering_intents_require_servotronic(intent: object) -> None:
-    assert intent_requires_servotronic(intent) is True  # type: ignore[arg-type]
 
 
 def test_built_in_profile_has_sixteen_unassigned_slots() -> None:

@@ -8,13 +8,10 @@ from e87canbus.service.diagnostics import (
     ControllerAdapterSnapshot,
     ControllerLoopSnapshot,
     InboxDiagnostics,
-    ObservedNetworkSnapshot,
-    ObservedServotronicSnapshot,
     PersistenceDiagnostics,
     PublisherDiagnostics,
     RuntimeExecution,
     ServiceDiagnostics,
-    observed_servotronic_snapshot,
 )
 from e87canbus.service.loop import (
     ControllerInboxFull,
@@ -26,7 +23,6 @@ from e87canbus.service.loop import (
     ControllerWorkUnavailable,
     RuntimeInputSink,
     RuntimeNotification,
-    SimulationDeviceUnavailable,
 )
 
 __all__ = [
@@ -40,14 +36,10 @@ __all__ = [
     "ControllerLoopSnapshot",
     "ControllerWorkUnavailable",
     "InboxDiagnostics",
-    "ObservedNetworkSnapshot",
-    "ObservedServotronicSnapshot",
     "PersistenceDiagnostics",
     "PublisherDiagnostics",
     "RuntimeExecution",
     "RuntimeInputSink",
     "RuntimeNotification",
     "ServiceDiagnostics",
-    "SimulationDeviceUnavailable",
-    "observed_servotronic_snapshot",
 ]

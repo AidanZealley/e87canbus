@@ -133,29 +133,34 @@ Perform the focused closure review for Workstream 3 of the simplified coordinato
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `16322347d93987916cba8c6cd441cffe4829aa36`
+- Outcome: The coordinator retains desired steering modes, levels, maximum override and curve selection without calculating or sending Servotronic output. Vehicle speed remains telemetry. The Servotronic firmware, wire protocol, registry, ISO-TP transport, project-device simulator and generic effect stack are removed.
+- Files changed: Steering domain/kernel and commit contracts; live and simulation composition; configuration, deployment, health and API models; console/coordinator UI and generated client; protocol sources and OpenAPI; firmware and transport directories; affected tests, dependencies, CI and current documentation.
+- Decisions: The kernel accepts a vehicle-frame decoder for simulation; live composition has no decoder or transmitter. Simulation injects vehicle frames through the production decoder. The low-level CAN endpoint send operation remains for vehicle simulation. Removed tests that covered only deleted device behavior and kept focused tests for retained steering, vehicle and API behavior. After review, removed the unused steering-control availability props and inlined the curve chart rather than retaining a pass-through wrapper.
+- Verification: `uv run pytest -q` passed (597 tests); final affected backend suite passed (153 tests). `uv run mypy`, `uv run ruff check hosts scripts/generate_openapi.py`, `uv run lint-imports`, `uv lock --check`, `pnpm api:check`, `pnpm typecheck`, `pnpm lint`, and `git diff --check` passed. Frontend Vitest passed with one worker: console (97), coordinator (36), coordinator-client (20). After review remediation, the three focused console suites passed (9 tests), and frontend typecheck, lint and diff check passed again. Repository searches confirmed removal of the deleted platform symbols and files from active code.
+- Known limitations or external checks: Hardware CAN behavior was not exercised. The default parallel console Vitest run timed out on its route test; the full console suite passed with one worker.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Independent Workstream 3 review agent.
+- Verdict: Changes requested.
+- Required findings:
+  1. `docs/reliability.md:3-5,11-23,32-40` still describes device adapters, effect execution, steering and CAN-output fallbacks, emulator faults, device and steering health fields, and a safe output request on shutdown as current behavior. These paths were removed. Rewrite the current failure policy and health contract around the surviving CAN reader, inbox, persistence and publisher behavior.
+  2. `deploy/systemd/controller.env.example:10-11` still says deployment profiles grant device sources and CAN transmission. The configuration and live composition no longer expose either choice. Update this installed configuration example so it does not advertise removed authority.
+  3. `frontend/apps/console/src/components/steering-curve-editor/SteeringCurveEditor.tsx:36-49,145-163` and `components/curve-actions/CurveActions.tsx:25-43,51-101` retain `activationAvailable` and `modeControlAvailable` props that disable curve and desired steering controls. Repository search found no caller supplying either prop; both always default to true. Remove these dormant availability gates and their pass-through props instead of leaving a way to reinstate the retired device predicate.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: The focused steering, profile, live, runtime, simulation and configuration suites passed (135 tests). OpenAPI generation `--check`, `uv lock --check` and `git diff --check` passed. Active-code searches found no Servotronic codec, device registry, ISO-TP transport, effect executor, output failure input, old firmware or live transmit grant. Desired steering state, curve persistence and selection, and simulation vehicle frames through the kernel decoder remain present. Hardware CAN was not exercised.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted all three Required findings. The current reliability guide and installed environment example describe deleted runtime behavior; the two frontend availability props leave dormant device gating in the desired-state controls. No Optional findings or Questions need disposition.
+- Simplification/deletion pass: Updated the reliability guide and installed environment example to describe the surviving runtime. Removed unused frontend availability props and control gates, the now pass-through chart wrapper and its unused point-change callback. The original implementation deleted the Servotronic and shared device-CAN systems with their dead tests, dependencies and current documentation; it added no compatibility shell.
+- Final verification: After remediation, focused console tests passed (9), as did frontend typecheck, lint and `git diff --check`. The implementation handoff records the full targeted checks. A search found none of the retired frontend gates or stale guide phrases.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. All three accepted Required findings are resolved in the current cumulative diff.
+- Remaining required findings: None. `docs/reliability.md` now describes reader, inbox, persistence and publisher behavior without steering-output fallbacks; `deploy/systemd/controller.env.example` no longer advertises device sources or TX grants; and the console curve editor and actions have no availability props or gates. The deleted chart wrapper and applied-output marker leave no replacement device predicate. The commit contract has no effects, the ISO-TP dependency is absent from the project and lockfile, and simulated vehicle frames still pass through the in-memory bus and kernel decoder. Focused backend tests passed (40), as did `uv lock --check` and `git diff --check`. Hardware CAN was not exercised.

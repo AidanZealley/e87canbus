@@ -107,10 +107,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             "profile": selected_profile.value,
             "transport": service.deployment.transport.value,
             "config": asdict(service.config),
-            "device_adapters": [
-                {"role": role.value, "source": source.value}
-                for role, source in service.deployment.device_sources
-            ],
             "simulation_api": service.deployment.simulation_api.value,
         }
         print(json.dumps(dry_run_output, indent=2, sort_keys=True))

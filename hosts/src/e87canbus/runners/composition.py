@@ -22,9 +22,7 @@ from e87canbus.deployment import (
     VehicleSource,
     deployment_spec,
 )
-from e87canbus.domain.devices.catalogue import DeviceRole, DeviceSource
 from e87canbus.runners.live import LiveControllerRuntime
-from e87canbus.runners.simulation.devices import SimulatedServotronicPeer
 from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.service import ControllerLoop
@@ -33,8 +31,6 @@ from e87canbus.service import ControllerLoop
 def build_live_controller_loop(
     *,
     config: AppConfig | None = None,
-    servotronic_source: DeviceSource | None = None,
-    tx_grants: frozenset[CanNetwork] = frozenset(),
     clock: Callable[[], float] = time.monotonic,
     socketcan_factory: Callable[[str], SocketCanBus] = SocketCanBus,
     deployment: DeploymentSpec | None = None,
@@ -45,19 +41,9 @@ def build_live_controller_loop(
         raise ValueError("live controller requires a SocketCAN deployment profile")
     selected_config = config or default_config()
     _validate_networks(selected_config)
-    configured_tx = frozenset(
-        item.network for item in selected_config.can_networks if item.enabled and item.tx_enabled
-    )
-    unused_grants = tx_grants - configured_tx
-    if unused_grants:
-        unused = ", ".join(sorted(network.value for network in unused_grants))
-        raise ValueError(f"live CAN TX grant has no enabled transmitter: {unused}")
-
     return ControllerLoop(
         LiveControllerRuntime(
             selected_config,
-            servotronic_source=servotronic_source,
-            tx_grants=tx_grants,
             bus_factory=socketcan_factory,
             synthetic_vehicle=(
                 SyntheticVehicleSource(
@@ -80,9 +66,6 @@ def build_simulated_controller_loop(
     *,
     config: AppConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
-    servotronic_factory: Callable[
-        [float, Callable[[], float]], SimulatedServotronicPeer
-    ] = SimulatedServotronicPeer,
     deployment: DeploymentSpec | None = None,
     profile_database_path: str | Path | None = None,
 ) -> ControllerLoop:
@@ -95,7 +78,6 @@ def build_simulated_controller_loop(
         SimulatedControllerRuntime(
             config=selected_config,
             clock=clock,
-            servotronic_factory=servotronic_factory,
         ),
         deployment=selected_deployment,
         clock=clock,
@@ -127,7 +109,6 @@ def build_controller_loop(
         selected_config = configure_can_networks(
             selected_config,
             enabled_networks=frozenset(CanNetwork),
-            tx_networks=spec.tx_grants,
         )
         return build_simulated_controller_loop(
             config=selected_config,
@@ -139,12 +120,9 @@ def build_controller_loop(
     selected_config = configure_can_networks(
         selected_config,
         enabled_networks=spec.physical_networks,
-        tx_networks=spec.tx_grants,
     )
     return build_live_controller_loop(
         config=selected_config,
-        servotronic_source=spec.device_source(DeviceRole.SERVOTRONIC_CONTROLLER),
-        tx_grants=spec.tx_grants,
         clock=clock,
         socketcan_factory=socketcan_factory,
         deployment=spec,
