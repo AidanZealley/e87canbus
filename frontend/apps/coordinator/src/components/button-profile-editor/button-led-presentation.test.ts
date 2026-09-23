@@ -8,10 +8,9 @@ import {
 } from "./button-led-presentation"
 
 describe("profile preview colours", () => {
-  it("uses the editor's off and unavailable colours", () => {
+  it("uses the editor's off colour", () => {
     expect(BUTTON_LED_RGB).toEqual({
       RGB_OFF: [0, 0, 0],
-      SOFT_AMBER: [8, 6, 0],
     })
   })
 })
@@ -35,7 +34,6 @@ const slot = (
 const context = {
   synchronized: true,
   steering,
-  servotronicUsable: true,
 } as const
 
 describe("button profile LED presentation", () => {
@@ -152,27 +150,14 @@ describe("button profile LED presentation", () => {
     ])
   })
 
-  it("uses unavailable before active when the link or capability is unusable", () => {
-    expect(
-      deriveButtonProfileLedPreview(
-        [
-          slot({ type: "toggle_automatic_assistance" }),
-          slot({ type: "adjust_manual_assistance", delta: 1 }),
-        ],
-        { ...context, servotronicUsable: false }
-      )
-    ).toEqual([
-      [8, 6, 0],
-      [8, 6, 0],
-    ])
-
+  it("shows saved colours when live steering is absent", () => {
     expect(
       deriveButtonProfileLedPreview(
         [slot({ type: "adjust_manual_assistance", delta: 1 }), null],
-        { synchronized: false, steering: null, servotronicUsable: false }
+        { synchronized: false, steering: null }
       )
     ).toEqual([
-      [8, 6, 0],
+      [3, 5, 6],
       [0, 0, 0],
     ])
   })

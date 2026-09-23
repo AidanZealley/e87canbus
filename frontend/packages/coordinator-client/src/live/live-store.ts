@@ -58,8 +58,6 @@ const emptyProjections = (): LiveProjections => ({
       latency_warning: false,
       overflow_latched: false,
     },
-    devices: [],
-    steering: { fault: null },
     persistence: { available: false, fault: "not initialized" },
   },
 })

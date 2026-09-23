@@ -19,7 +19,7 @@ import type {
 import { cn } from "@/lib/utils"
 import { CurveActionError } from "./components/curve-action-error"
 import { CurveActions } from "./components/curve-actions"
-import { EditorCurveChart } from "./components/editor-curve-chart"
+import { CurveChart } from "./components/curve-chart"
 import type { PendingCurveAction } from "./types"
 import { definitionsEqual } from "./utils"
 
@@ -31,12 +31,8 @@ type SteeringCurveEditorProps = {
   manualAssistanceLevel: number
   manualAssistanceLevelCount: number
   maximumAssistanceActive: boolean
-  speedKph: number | null
-  activeAssistance?: number | null
   className?: string
   chartClassName?: string
-  activationAvailable?: boolean
-  modeControlAvailable?: boolean
 }
 
 export const SteeringCurveEditor = ({
@@ -45,12 +41,8 @@ export const SteeringCurveEditor = ({
   manualAssistanceLevel,
   manualAssistanceLevelCount,
   maximumAssistanceActive,
-  speedKph,
-  activeAssistance = null,
   className,
   chartClassName,
-  activationAvailable = true,
-  modeControlAvailable = true,
 }: SteeringCurveEditorProps) => {
   const queryClient = useQueryClient()
   const { data: savedProfile = null } = useQuery({
@@ -146,13 +138,10 @@ export const SteeringCurveEditor = ({
   return (
     <div className={cn("grid gap-4", className)}>
       <CurveActionError lastError={lastError} />
-      <EditorCurveChart
+      <CurveChart
         key={activeCurve.fingerprint}
-        activeDefinition={activeCurve.definition}
-        speedKph={speedKph}
-        activeAssistance={activeAssistance}
+        draft={activeCurve.definition}
         className={chartClassName}
-        disabled={!activationAvailable}
         onPointCommit={(definition) =>
           void runAction("apply", () => activateCurve({ body: { definition } }))
         }
@@ -162,12 +151,9 @@ export const SteeringCurveEditor = ({
         manualAssistanceLevel={manualAssistanceLevel}
         manualAssistanceLevelCount={manualAssistanceLevelCount}
         maximumAssistanceActive={maximumAssistanceActive}
-        activeAssistance={activeAssistance}
         pendingAction={pendingAction}
         activeMatchesSaved={activeMatchesSaved}
         hasSavedProfile={savedProfile !== null}
-        activationAvailable={activationAvailable}
-        modeControlAvailable={modeControlAvailable}
         onModeChange={(nextMode) =>
           void runAction("mode", () => setMode({ body: { mode: nextMode } }))
         }

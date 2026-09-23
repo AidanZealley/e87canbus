@@ -9,16 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from e87canbus.config import CanNetwork
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.registry import DeviceRegistryEntry
 from e87canbus.kernel import DiagnosticSnapshot, StateTopic
-from e87canbus.protocol.servotronic_protocol import (
-    CONTROL_MODE_WIRE,
-    CURVE_SOURCE_WIRE,
-    ServotronicStatus,
-    inhibit_reason_wire,
-)
 
 
 @dataclass(frozen=True)
@@ -29,60 +21,10 @@ class RuntimeExecution:
 
 
 @dataclass(frozen=True)
-class ObservedNetworkSnapshot:
-    network: CanNetwork
-    label: str
-    interface: str
-    bitrate: int
-    connected: bool
-    nodes: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class ObservedServotronicSnapshot:
-    effective_assistance: float
-    last_command_reason: str | None
-    watchdog_timed_out: bool
-    active_curve_source: str | None = None
-    active_curve_revision: int | None = None
-    active_curve_crc32: int | None = None
-    observed_speed_kph: float | None = None
-    speed_fresh: bool | None = None
-    pwm_duty: int | None = None
-    inhibit_reason: str | None = None
-
-
-def observed_servotronic_snapshot(status: ServotronicStatus) -> ObservedServotronicSnapshot:
-    """Project a physical controller status frame into the observed adapter snapshot.
-
-    This is the single live-side conversion; the string spellings come from the canonical
-    wire mappings so live, firmware, and the frontend stay identical.  The simulated runtime
-    intentionally omits the physical-only fields (``active_curve_source`` and friends), so it
-    builds its snapshot directly rather than routing through here.
-    """
-
-    return ObservedServotronicSnapshot(
-        effective_assistance=status.assistance_per_mille / 1000,
-        last_command_reason=CONTROL_MODE_WIRE[status.control_mode],
-        watchdog_timed_out=False,
-        active_curve_source=CURVE_SOURCE_WIRE[status.source],
-        active_curve_revision=status.activation_revision,
-        active_curve_crc32=status.curve_crc32,
-        observed_speed_kph=status.speed_deci_kph / 10,
-        speed_fresh=status.speed_fresh,
-        pwm_duty=status.pwm_duty,
-        inhibit_reason=inhibit_reason_wire(status.inhibit_reason),
-    )
-
-
-@dataclass(frozen=True)
 class ControllerAdapterSnapshot:
-    """Immutable adapter observations alongside the kernel-owned registry."""
+    """Immutable adapter observations."""
 
     simulation_session_id: int | None
-    registry: tuple[DeviceRegistryEntry, ...]
-    networks: tuple[ObservedNetworkSnapshot, ...]
-    servotronic: ObservedServotronicSnapshot | None
 
 
 @dataclass(frozen=True)

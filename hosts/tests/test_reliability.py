@@ -103,7 +103,10 @@ def test_live_composition_has_no_dev_routes_or_development_cors(tmp_path: Path) 
         )
         assert response.status_code == 400
         assert "access-control-allow-origin" not in response.headers
-        assert not any(item.tx_enabled for item in app.state.controller_loop.config.can_networks)
+        assert all(
+            not hasattr(item, "tx_enabled")
+            for item in app.state.controller_loop.config.can_networks
+        )
 
 
 def test_built_frontend_is_served_same_origin(tmp_path: Path) -> None:

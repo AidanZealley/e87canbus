@@ -1,51 +1,48 @@
 # Reliability, health and service operation
 
-`ControllerService` owns the process-local failure policy and bounded operational projection. Its
-owner thread is the only controller mutation/effect path; HTTP, SSE publication, CAN readers and
-device adapters submit work without becoming alternate state owners.
+`ControllerLoop` owns the process-local failure policy and bounded operational projection. Its
+owner thread is the only controller state mutation path; HTTP requests and CAN readers submit work
+without becoming alternate state owners.
 
 ## Failure policy
 
 | Failure | Owner | Behavior |
 |---|---|---|
-| CAN reader failure | Controller runtime | Record the network fault, dispatch the safe fallback and terminate for supervisor restart when fatal. |
-| Controller inbox overflow | Controller service | Latch one fault, reject new work, stop normal ingestion and dispatch the safe fallback without growing the queue. |
-| Queue latency warning | Controller service | Preserve the ingress timestamp and expose current latency plus a warning while the configured threshold is exceeded. |
-| CAN output failure | Effect executor/controller runtime | Record desired/output fault, dispatch the configured fallback once and terminate for supervisor restart. An unknown send result is never retried; software does not prove a physical safe state. |
-| Steering actuator failure | Controller runtime | Mark fatal and execute the software safe request; do not claim a physical safe state. |
+| CAN reader failure | Live runtime | Retry transient receive errors with bounded backoff; after repeated errors, record a fatal network fault and stop for supervisor restart. |
+| Controller inbox overflow | Controller loop | Latch one fatal fault, reject new work and stop ingestion without growing the queue. |
+| Queue latency warning | Controller loop | Preserve the ingress timestamp and expose current latency plus a warning while the configured threshold is exceeded. |
 | SQLite read/write failure | Resource repository/API | Reject that resource operation, mark persistence unavailable and preserve already-loaded runtime operation where safe. |
-| SSE publisher failure | Live-state publisher | End affected requests without blocking or recursively notifying the controller owner. |
+| SSE publisher failure | Live-state publisher | End affected requests without blocking the controller owner. |
 | Slow SSE subscriber | Live-state publisher | Coalesce projection intermediates, bound pending records and disconnect the saturated request. |
-| Emulator failure | Simulation runtime | Detach the failed emulator and report a typed adapter fault without claiming physical behavior. |
-| Shutdown | Controller service/lifespan | Reject commands, stop ingress, commit the safe request, drain bounded completion, stop publication, close adapters and verify owned threads/tasks stop. |
+| Shutdown | Controller loop/lifespan | Mark not ready, reject commands, stop readers and the owner thread, stop publication, close CAN adapters and check bounded thread/task termination. |
 
-Automatic retry is limited to bounded operations with known idempotence. CAN sends with an unknown
-outcome are dropped and diagnosed, never replayed in a retry loop.
+The coordinator has no steering-output send or fallback path. Reader and inbox faults change health
+and readiness; they do not issue steering commands.
 
 ## Health and bounds
 
 `GET /health/live` proves the ASGI process responds. `GET /health/ready` additionally requires
-successful durable-storage initialization, a running controller owner and no fatal controller
-fault. Publisher failures and browser disconnects remain transport concerns and do not make the
-controller itself unready.
+available persistence, a running controller owner and no fatal CAN reader or inbox fault. Publisher
+failures and browser disconnects remain transport concerns and do not make the controller itself
+unready.
 
-The `health` SSE projection contains readiness and fatal truth, explicit network, device and
-steering faults, bounded inbox depth, capacity and current latency, overflow truth, and persistence
-status. Health is coalesced to at most 1 Hz. The internal simulation trace remains limited to 2,000
-rows for backend tests. Each SSE subscriber has a fixed pending-record capacity, and saturation
-cancels that request.
+The `health` SSE projection contains readiness and fatal truth, per-network reader faults, bounded
+inbox depth, capacity and current latency, overflow truth, and persistence status. By default, health
+updates are coalesced to 1 Hz. The internal simulation trace remains limited to 2,000 rows for
+backend tests. Each SSE subscriber has a fixed pending-record capacity, and saturation cancels that
+request. Publisher diagnostics remain service-local rather than part of the browser health event.
 
 Startup validates authority, initializes SQLite, starts the controller and readers, starts the
-publisher, then marks ready. Shutdown reverses ownership deliberately: not-ready/reject, stop
-ingress and commit safe state, stop SSE publisher tasks, then close adapters. Each thread and
-task has one owner and a bounded join/cancellation check.
+publisher, then marks ready. Shutdown marks the service not ready, stops the controller and readers,
+stops SSE publisher tasks, then closes adapters. Each thread and task has one owner and a bounded
+join or cancellation check.
 
 On physical Raspberry Pi deployments, `kcan`, `ptcan`, and `fcan` are boot-managed by dedicated
 `systemd` units that apply their SocketCAN bitrates and raise the interfaces before the controller
 starts. The controller requires all three units on physical installations, so a failed CAN bootstrap
 also fails the controller start. The provisioned image fixes their SPI assignments, and the
-physical checkpoint validates those parents before release acceptance. That keeps transport stable
-across reboot and makes device reconnects independent from any manual bench script.
+physical checkpoint validates those parents before release acceptance. That keeps CAN observation
+stable across reboot without a manual bench script.
 
 The console has an independent, smaller lifecycle. `e87canbus-console-kcan.service` raises only
 `kcan` at 100 kbit/s before `e87canbus-console.service` starts. The car console profile uses kernel

@@ -14,7 +14,6 @@ export const CurveActions = ({
   manualAssistanceLevel,
   manualAssistanceLevelCount,
   maximumAssistanceActive,
-  activeAssistance = null,
   pendingAction,
   activeMatchesSaved,
   hasSavedProfile,
@@ -23,14 +22,11 @@ export const CurveActions = ({
   onMaximumChange,
   onSave,
   onReset,
-  activationAvailable = true,
-  modeControlAvailable = true,
 }: {
   mode: Mode
   manualAssistanceLevel: number
   manualAssistanceLevelCount: number
   maximumAssistanceActive: boolean
-  activeAssistance?: number | null
   pendingAction: PendingCurveAction
   activeMatchesSaved: boolean
   hasSavedProfile: boolean
@@ -39,14 +35,11 @@ export const CurveActions = ({
   onMaximumChange: (enabled: boolean) => void
   onSave: () => void
   onReset: () => void
-  activationAvailable?: boolean
-  modeControlAvailable?: boolean
 }) => {
-  const canAct = activationAvailable && !activeMatchesSaved && hasSavedProfile
-  const assistanceReadout =
-    activeAssistance !== null && (mode === "manual" || maximumAssistanceActive)
-      ? `${Math.round(activeAssistance * 100)}%`
-      : "Manual"
+  const canAct = !activeMatchesSaved && hasSavedProfile
+  const assistanceReadout = maximumAssistanceActive
+    ? "Maximum selected"
+    : `Level ${manualAssistanceLevel}`
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -54,7 +47,7 @@ export const CurveActions = ({
         <Switch
           id="auto-assist"
           checked={mode === "auto"}
-          disabled={pendingAction !== null || !modeControlAvailable}
+          disabled={pendingAction !== null}
           onCheckedChange={(checked) =>
             onModeChange(checked ? "auto" : "manual")
           }
@@ -70,7 +63,6 @@ export const CurveActions = ({
             aria-label="Decrease assistance"
             disabled={
               pendingAction !== null ||
-              !modeControlAvailable ||
               (mode === "manual" &&
                 !maximumAssistanceActive &&
                 manualAssistanceLevel === 0)
@@ -88,7 +80,6 @@ export const CurveActions = ({
             aria-label="Increase assistance"
             disabled={
               pendingAction !== null ||
-              !modeControlAvailable ||
               (mode === "manual" &&
                 !maximumAssistanceActive &&
                 manualAssistanceLevel === manualAssistanceLevelCount - 1)
@@ -101,7 +92,7 @@ export const CurveActions = ({
             variant={maximumAssistanceActive ? "default" : "outline"}
             size="sm"
             aria-pressed={maximumAssistanceActive}
-            disabled={pendingAction !== null || !modeControlAvailable}
+            disabled={pendingAction !== null}
             onClick={() => onMaximumChange(!maximumAssistanceActive)}
           >
             <Gauge />

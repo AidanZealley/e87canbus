@@ -52,72 +52,9 @@ it("renders eight accessible points on honest linear series", async () => {
     ) as SteeringCurveDefinition["points"],
   }
 
-  const { rerender } = render(
-    <CurveChart
-      active={definition}
-      draft={definition}
-      activeSpeedKph={20}
-      activeAssistance={0.78}
-      onPointChange={vi.fn()}
-      onPointCommit={vi.fn()}
-    />
-  )
+  render(<CurveChart draft={definition} onPointCommit={vi.fn()} />)
 
   expect(await screen.findAllByRole("slider")).toHaveLength(8)
   expect(document.querySelectorAll(".recharts-line-curve")).toHaveLength(1)
-  for (const path of document.querySelectorAll(".recharts-line-curve")) {
-    expect(path.getAttribute("d")).not.toContain("C")
-    expect(path.getAttribute("stroke")).toBe("var(--color-assistance)")
-  }
-  expect(document.querySelector("style")?.textContent).toContain(
-    "--color-assistance: var(--color-foreground)"
-  )
-  const marker = document.querySelector(".recharts-reference-line line")
-  expect(marker?.getAttribute("stroke")).toBe("var(--color-indigo-500)")
-  const activeDots = document.querySelectorAll(".recharts-active-dot circle")
-  expect(activeDots).toHaveLength(0)
-  expect(document.querySelector(".recharts-zIndex-layer_1300")).not.toBeNull()
-  const activeCurvePath = document
-    .querySelectorAll(".recharts-line-curve")[0]
-    ?.getAttribute("d")
-  const markerYAtCurveAssistance = marker?.getAttribute("y1")
-
-  rerender(
-    <CurveChart
-      active={definition}
-      draft={definition}
-      activeSpeedKph={20}
-      activeAssistance={1}
-      onPointChange={vi.fn()}
-      onPointCommit={vi.fn()}
-    />
-  )
-  const maximumAssistanceMarker = document.querySelector(
-    ".recharts-reference-line line"
-  )
-  expect(maximumAssistanceMarker?.getAttribute("stroke")).toBe(
-    "var(--color-indigo-500)"
-  )
-  expect(maximumAssistanceMarker?.getAttribute("y1")).not.toBe(
-    markerYAtCurveAssistance
-  )
-  expect(
-    document.querySelectorAll(".recharts-line-curve")[0]?.getAttribute("d")
-  ).toBe(activeCurvePath)
-
-  rerender(
-    <CurveChart
-      active={definition}
-      draft={definition}
-      activeSpeedKph={null}
-      activeAssistance={null}
-      onPointChange={vi.fn()}
-      onPointCommit={vi.fn()}
-    />
-  )
-  const stoppedMarker = document.querySelector(".recharts-reference-line line")
-  expect(stoppedMarker).not.toBeNull()
-  expect(stoppedMarker?.getAttribute("y1")).toBe(
-    maximumAssistanceMarker?.getAttribute("y1")
-  )
+  expect(document.querySelector(".recharts-reference-line")).toBeNull()
 })

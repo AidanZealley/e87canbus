@@ -213,19 +213,17 @@ e87canbus/
 │   │   ├── domain/                 # Pure state and decisions
 │   │   ├── kernel/                 # Single-owner state transition boundary
 │   │   ├── service/                # Coordinator lifecycle and publication
-│   │   ├── protocol/              # Generated wire values and CAN codecs
+│   │   ├── protocol/              # Vehicle CAN frame values and decoder
 │   │   ├── adapters/              # Real hardware and OS integrations
 │   │   ├── runners/                # Live and simulated compositions
 │   │   ├── api/                   # FastAPI HTTP and SSE interface
 │   │   └── cli/                   # Executable entry points
 │   └── tests/
-├── devices/
-│   └── servotronic-controller/    # Current bench controller firmware
 ├── frontend/
 │   ├── apps/coordinator/          # Coordinator workbench
 │   ├── apps/console/              # Driver console
 │   └── packages/coordinator-client/ # Shared generated contracts and client transport
-├── protocol/                      # Protocol source TOML, generated docs, and DBC notes
+├── protocol/                      # OpenAPI contracts and BMW DBC notes
 ├── docs/
 ├── scripts/
 └── deploy/
@@ -240,10 +238,7 @@ e87canbus/
 - **Concurrency model:** one synchronous `python-can` reader thread per interface feeding a shared
   bounded queue; the main thread is the sole kernel owner and runs periodic timers
 
-Readers timestamp frames at receipt. The kernel decodes each ordered input, applies a pure immutable
-state transition, commits a revision, then returns effects to the composition. Effects can write
-only through explicitly granted, rate-limited transmitter capabilities. The visual simulator uses
-the same decode, transition, commit, effect, and policy path through simulated external CAN nodes.
+Readers timestamp frames at receipt. The kernel decodes each ordered input and commits immutable desired state. The simulator emits encoded vehicle frames through the normal decoder. Live composition has no transmitter or steering output.
 
 Verified speed decoding and an isolated actuator boundary are prerequisites for the later steering
 failsafe. No speed ID, DSC replay, strobe command, or Servotronic output is executable without
@@ -255,16 +250,14 @@ serves its local frontend. The snapshot exposes connection, frame count and faul
 CAN identifiers and payloads never reach the browser. The console frontend separately consumes the
 coordinator's authoritative APIs over provisioned mutual TLS at `https://10.42.0.1`.
 
-### Button pad transition
+### Independent device transition
 
-The old AVR button-pad firmware, button-event CAN input, ISO-TP LED program and press-feedback
-frames have been removed. Profiles still store button assignments, colours and animations, but no
-physical or simulated pad produces presses in this milestone. The independent ESP32 pad is planned
-for a later slice. The remaining provisional Servotronic protocol is documented in
-`protocol/custom_ids.md` and requires collision validation before in-car transmission. Future
-simulated speed, RPM, lighting, oil-temperature, and coolant-temperature signals must use real
-network-specific CAN frames and pass through the same protocol-routing path as physical traffic.
-No BMW DBC definition is verified or active in the current milestone.
+The old button-pad and Servotronic firmware, CAN protocol, registry, ISO-TP transport and
+simulator peers have been removed. Profiles still store button assignments, colours and animations,
+but no pad produces presses. The coordinator stores desired steering values and an active curve
+without calculating or observing applied assistance. Independent devices arrive in later slices.
+Synthetic vehicle telemetry still enters through the simulation-only CAN decoder. No BMW DBC
+definition is verified or active in the current milestone.
 
 ---
 

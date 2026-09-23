@@ -4,16 +4,15 @@ from e87canbus.runners.simulation.runtime import SimulatedControllerRuntime
 from e87canbus.runners.simulation.signals import VehicleSignal
 
 
-def test_simulation_has_vehicle_and_servotronic_peers_without_button_peer() -> None:
+def test_simulation_has_only_vehicle_peers() -> None:
     runtime = SimulatedControllerRuntime()
     runtime.start()
 
     assert runtime.topology.nodes(CanNetwork.KCAN) == (
         "pi",
         "simulated-vehicle",
-        "servotronic-emulator",
     )
-    assert not hasattr(runtime, "neotrellis")
+    assert not hasattr(runtime, "servotronic")
 
 
 def test_simulated_vehicle_speed_crosses_can_decoder() -> None:

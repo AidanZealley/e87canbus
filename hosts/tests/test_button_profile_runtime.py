@@ -1,4 +1,4 @@
-from e87canbus.config import CanNetwork, CustomCanIds, SteeringConfig
+from e87canbus.config import SteeringConfig
 from e87canbus.domain.buttons.profiles import (
     ActiveButtonProfile,
     ButtonSlot,
@@ -11,36 +11,8 @@ from e87canbus.kernel import (
     ActivateButtonProfile,
     CoordinatorKernel,
     KernelStarted,
-    ReceivedCanFrame,
     StateTopic,
 )
-from e87canbus.protocol.can import (
-    DeviceHeartbeatPayload,
-    DeviceHelloPayload,
-    encode_heartbeat,
-    encode_hello,
-)
-
-
-def active_servotronic(kernel: CoordinatorKernel) -> None:
-    ids = CustomCanIds()
-    kernel.dispatch(
-        ReceivedCanFrame(
-            CanNetwork.KCAN,
-            encode_hello(DeviceHelloPayload(1, 1, 1, 0), ids.servotronic_controller_hello),
-            1.0,
-        )
-    )
-    kernel.dispatch(
-        ReceivedCanFrame(
-            CanNetwork.KCAN,
-            encode_heartbeat(
-                DeviceHeartbeatPayload(1, 1, kernel.controller_session_id, 0, 0),
-                ids.servotronic_controller_heartbeat,
-            ),
-            1.1,
-        )
-    )
 
 
 def test_profile_activation_changes_identity_without_pad_program() -> None:
@@ -56,7 +28,6 @@ def test_profile_activation_changes_identity_without_pad_program() -> None:
     assert commit is not None
     assert commit.snapshot.active_button_profile_id == "custom"
     assert commit.snapshot.active_button_profile_revision == 3
-    assert commit.effects == ()
     assert commit.changed_topics == {StateTopic.BUTTONS}
     assert kernel.button_profile.slots[5].colour == (12, 34, 56)
 
@@ -64,7 +35,6 @@ def test_profile_activation_changes_identity_without_pad_program() -> None:
 def test_direct_button_input_uses_active_profile_with_no_can_producer() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted(0.0))
-    active_servotronic(kernel)
     profile = ActiveButtonProfile(
         "custom",
         button_profile_definition_with({5: ButtonSlot(ToggleAutomaticAssistance(), (12, 34, 56))}),

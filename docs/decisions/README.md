@@ -7,9 +7,9 @@ complete.
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-single-owner-event-kernel.md) | Single-owner event kernel | Accepted |
-| [0002](0002-capability-controlled-output.md) | Capability-controlled, bounded output | Accepted |
+| [0002](0002-capability-controlled-output.md) | Capability-controlled, bounded output | Partially superseded by 0018 |
 | [0003](0003-production-path-simulation.md) | Production-path simulation with one owner | Accepted |
-| [0004](0004-generated-custom-protocol.md) | Generated custom-protocol source of truth | Accepted |
+| [0004](0004-generated-custom-protocol.md) | Generated custom-protocol source of truth | Superseded by 0018 |
 | [0005](0005-atomic-button-led-snapshots.md) | Atomic button-pad LED snapshots | Accepted |
 | [0006](0006-evidence-gated-hardware-behavior.md) | Evidence-gated hardware behavior | Accepted |
 | [0007](0007-servotronic-controller-owns-assistance-mapping.md) | Servotronic-controller-owned assistance mapping | Proposed |

@@ -91,9 +91,7 @@ class ConsoleSsePublisher:
             self._urgent = self._urgent or snapshot.fault is not None
         self._signal()
 
-    async def events(
-        self, request_task: asyncio.Task[object] | None = None
-    ) -> AsyncIterator[str]:
+    async def events(self, request_task: asyncio.Task[object] | None = None) -> AsyncIterator[str]:
         follows_consumer_task = request_task is None
         task = request_task or asyncio.current_task()
         if task is None:
@@ -205,9 +203,7 @@ class ConsoleSsePublisher:
         for subscriber, terminate in notifications:
             self._notify_subscriber(subscriber, terminate=terminate)
 
-    def _enqueue_locked(
-        self, snapshot: ConsoleServiceSnapshot
-    ) -> list[tuple[_Subscriber, bool]]:
+    def _enqueue_locked(self, snapshot: ConsoleServiceSnapshot) -> list[tuple[_Subscriber, bool]]:
         notifications: list[tuple[_Subscriber, bool]] = []
         payload = _serialize(snapshot)
         for subscriber in tuple(self._subscribers):
@@ -264,6 +260,6 @@ def _serialize(snapshot: ConsoleServiceSnapshot) -> str:
                 frames_received=snapshot.frames_received,
                 fault=snapshot.fault,
             )
-        )
+        ),
     )
     return f"data: {event.model_dump_json()}\n\n"

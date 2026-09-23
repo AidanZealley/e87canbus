@@ -1,8 +1,7 @@
-"""Closed command vocabulary accepted by simulated vehicle and device adapters."""
+"""Closed commands accepted by the simulated vehicle runtime."""
 
 from dataclasses import dataclass
 
-from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.runners.simulation.signals import VehicleSignal
 
 
@@ -36,60 +35,6 @@ class ResetSimulation:
     pass
 
 
-@dataclass(frozen=True)
-class ConnectSimulatedDevice:
-    role: DeviceRole
-
-
-@dataclass(frozen=True)
-class DisconnectSimulatedDevice:
-    role: DeviceRole
-
-
-@dataclass(frozen=True)
-class RebootSimulatedDevice:
-    role: DeviceRole
-
-
-def _require_device_role(role: DeviceRole) -> None:
-    if not isinstance(role, DeviceRole):
-        raise ValueError("role must be a DeviceRole")
-
-
-def _require_byte(value: int, name: str) -> None:
-    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFF:
-        raise ValueError(f"{name} must be an unsigned byte")
-
-
-@dataclass(frozen=True)
-class SetSimulatedDeviceProtocolVersion:
-    role: DeviceRole
-    protocol_version: int
-
-    def __post_init__(self) -> None:
-        _require_device_role(self.role)
-        _require_byte(self.protocol_version, "protocol_version")
-
-
-@dataclass(frozen=True)
-class SetSimulatedDeviceStatusCode:
-    role: DeviceRole
-    status_code: int
-
-    def __post_init__(self) -> None:
-        _require_device_role(self.role)
-        _require_byte(self.status_code, "status_code")
-
-
 SimulationCommand = (
-    RunControlTimer
-    | SetVehicleSignal
-    | SilenceVehicleSignal
-    | SetVehicleSweep
-    | ResetSimulation
-    | ConnectSimulatedDevice
-    | DisconnectSimulatedDevice
-    | RebootSimulatedDevice
-    | SetSimulatedDeviceProtocolVersion
-    | SetSimulatedDeviceStatusCode
+    RunControlTimer | SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep | ResetSimulation
 )

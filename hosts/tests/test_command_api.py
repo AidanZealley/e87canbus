@@ -17,7 +17,6 @@ from e87canbus.kernel import (
 )
 from e87canbus.runners.composition import build_live_controller_loop
 from fastapi.testclient import TestClient
-from registry_test_support import activate_simulation_devices
 
 
 def command_app(path: Path):
@@ -43,7 +42,6 @@ def definition_json() -> dict[str, Any]:
 
 def test_set_commands_are_small_explicit_and_idempotent(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_loop)
         first = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         repeated = client.put("/api/steering/maximum-assistance", json={"enabled": True})
         mode = client.put(
@@ -79,7 +77,6 @@ def test_manual_level_validation_uses_the_server_steering_configuration(
     app = create_app(config=config, profile_database_path=tmp_path / "app.sqlite3")
 
     with TestClient(app) as client:
-        activate_simulation_devices(client.app.state.controller_loop)
         accepted = client.put(
             "/api/steering/manual-assistance-level",
             json={"level": 2},
@@ -101,7 +98,6 @@ def test_relative_adjustment_from_max_restores_remembered_level_before_adjusting
     tmp_path: Path,
 ) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_loop)
         client.put("/api/steering/manual-assistance-level", json={"level": 4})
         client.put("/api/steering/maximum-assistance", json={"enabled": True})
 
@@ -139,7 +135,6 @@ def test_relative_adjustment_rejects_more_than_one_stage(
 
 def test_saved_profile_and_unsaved_curve_commands_are_distinct(tmp_path: Path) -> None:
     with TestClient(command_app(tmp_path / "app.sqlite3")) as client:
-        activate_simulation_devices(client.app.state.controller_loop)
         created = client.post(
             "/api/steering/profiles",
             json={"name": "Dry", "definition": definition_json()},
@@ -283,10 +278,9 @@ def test_live_mode_accepts_semantic_commands_and_rejects_dev_actions(
         application = app.state.controller_loop.snapshot().application
 
     for response in (maximum, mode, normal, activated):
-        assert response.status_code == 409
-        assert response.json()["error"]["code"] == "feature_unavailable"
+        assert response.status_code == 200
     assert application.maximum_assistance_active is False
-    assert application.steering_mode is SteeringMode.AUTO
-    assert application.manual_assistance_level == 0
-    assert application.active_steering_curve.saved_profile_id is None
+    assert application.steering_mode is SteeringMode.MANUAL
+    assert application.manual_assistance_level == 3
+    assert application.active_steering_curve.saved_profile_id == profile["profile_id"]
     assert dev_action.status_code == 404

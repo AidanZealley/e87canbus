@@ -17,7 +17,6 @@ from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentSpec
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
-from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     DiagnosticSnapshot,
@@ -54,14 +53,6 @@ class ControllerWorkUnavailable(ControllerLoopError):
     """Raised when selected runtime state cannot process otherwise valid work."""
 
 
-class SimulationDeviceUnavailable(ControllerWorkUnavailable):
-    """Raised when a requested virtual peer is absent from the composition."""
-
-    def __init__(self, role: DeviceRole) -> None:
-        self.role = role
-        super().__init__(f"simulated {role.value} is unavailable")
-
-
 class ControllerLoopLifecycle(StrEnum):
     CREATED = "created"
     RUNNING = "running"
@@ -80,7 +71,7 @@ class ControllerRuntime(Protocol):
 
     - ``runners.live.LiveControllerRuntime`` - a kernel wired to real CAN sockets.
     - ``runners.simulation.SimulatedControllerRuntime`` - a kernel wired to in-memory
-      simulated devices and a virtual car.
+      a virtual car.
 
     The service knows only this interface, so the lifecycle, threading and inbox code
     is identical in both cases and neither runner can grow its own idea of them.
@@ -99,10 +90,6 @@ class ControllerRuntime(Protocol):
     def execute(self, work: object) -> RuntimeExecution: ...
 
     def timer(self, now: float) -> RuntimeExecution | None: ...
-
-    def next_deadline(self) -> float | None: ...
-
-    def deadline(self, now: float) -> RuntimeExecution | None: ...
 
     def shutdown(self, now: float) -> RuntimeExecution | None: ...
 
@@ -383,8 +370,7 @@ class ControllerLoop:
                     self._stop.set()
                     break
                 now = self._clock()
-                deadline = self._runtime.next_deadline()
-                next_wakeup = next_tick if deadline is None else min(next_tick, deadline)
+                next_wakeup = next_tick
                 timeout = min(max(next_wakeup - now, 0.0), self._POLL_INTERVAL_S)
                 try:
                     queued = self._inbox.get(timeout=timeout)
@@ -423,14 +409,6 @@ class ControllerLoop:
                         self._inbox.task_done()
 
                 now = self._clock()
-                # Process an overdue phase before the periodic control tick.  The transition
-                # receives the actual owner time, preserving the application's defined
-                # overdue-deadline behavior rather than quantizing it to a control tick.
-                deadline = self._runtime.next_deadline()
-                if deadline is not None and now >= deadline and not self._runtime.terminal:
-                    deadline_execution = self._runtime.deadline(now)
-                    if deadline_execution is not None:
-                        self._record(deadline_execution)
                 if now >= next_tick and not self._runtime.terminal:
                     timer_execution = self._runtime.timer(now)
                     if timer_execution is not None:

@@ -24,9 +24,6 @@ import type {
   CheckReadinessData,
   CheckReadinessErrors,
   CheckReadinessResponses,
-  ConnectSimulationDeviceData,
-  ConnectSimulationDeviceErrors,
-  ConnectSimulationDeviceResponses,
   CreateButtonProfileData,
   CreateButtonProfileErrors,
   CreateButtonProfileResponses,
@@ -39,9 +36,6 @@ import type {
   DeleteSteeringProfileData,
   DeleteSteeringProfileErrors,
   DeleteSteeringProfileResponses,
-  DisconnectSimulationDeviceData,
-  DisconnectSimulationDeviceErrors,
-  DisconnectSimulationDeviceResponses,
   GetApplicationSettingsData,
   GetApplicationSettingsErrors,
   GetApplicationSettingsResponses,
@@ -73,9 +67,6 @@ import type {
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusErrors,
   PreviewSimulationCoordinatorStatusResponses,
-  RebootSimulationDeviceData,
-  RebootSimulationDeviceErrors,
-  RebootSimulationDeviceResponses,
   ResetSimulationData,
   ResetSimulationErrors,
   ResetSimulationResponses,
@@ -94,12 +85,6 @@ import type {
   SetOilTemperatureData,
   SetOilTemperatureErrors,
   SetOilTemperatureResponses,
-  SetSimulationDeviceProtocolVersionData,
-  SetSimulationDeviceProtocolVersionErrors,
-  SetSimulationDeviceProtocolVersionResponses,
-  SetSimulationDeviceStatusCodeData,
-  SetSimulationDeviceStatusCodeErrors,
-  SetSimulationDeviceStatusCodeResponses,
   SetSteeringModeData,
   SetSteeringModeErrors,
   SetSteeringModeResponses,
@@ -140,12 +125,10 @@ import {
   zAdjustManualAssistanceResponse,
   zCheckLivenessResponse,
   zCheckReadinessResponse,
-  zConnectSimulationDeviceResponse,
   zCreateButtonProfileResponse,
   zCreateSteeringProfileResponse,
   zDeleteButtonProfileResponse,
   zDeleteSteeringProfileResponse,
-  zDisconnectSimulationDeviceResponse,
   zGetApplicationSettingsResponse,
   zGetButtonProfileResponse,
   zGetProvisioningStatusResponse,
@@ -157,15 +140,12 @@ import {
   zListButtonProfilesResponse,
   zListSteeringProfilesResponse,
   zPreviewSimulationCoordinatorStatusResponse,
-  zRebootSimulationDeviceResponse,
   zResetSimulationResponse,
   zSetCoolantTemperatureResponse,
   zSetEngineRpmResponse,
   zSetManualAssistanceLevelResponse,
   zSetMaximumAssistanceResponse,
   zSetOilTemperatureResponse,
-  zSetSimulationDeviceProtocolVersionResponse,
-  zSetSimulationDeviceStatusCodeResponse,
   zSetSteeringModeResponse,
   zSetVehicleSpeedResponse,
   zSetVehicleSweepResponse,
@@ -398,138 +378,6 @@ export const previewSimulationCoordinatorStatus = <
       await zPreviewSimulationCoordinatorStatusResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/dev/simulation/coordinator-panel/coordinator-status",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Connect Device
- */
-export const connectSimulationDevice = <ThrowOnError extends boolean = true>(
-  options: Options<ConnectSimulationDeviceData, ThrowOnError>
-): RequestResult<
-  ConnectSimulationDeviceResponses,
-  ConnectSimulationDeviceErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    ConnectSimulationDeviceResponses,
-    ConnectSimulationDeviceErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zConnectSimulationDeviceResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/{role}/connect",
-    ...options,
-  })
-
-/**
- * Disconnect Device
- */
-export const disconnectSimulationDevice = <ThrowOnError extends boolean = true>(
-  options: Options<DisconnectSimulationDeviceData, ThrowOnError>
-): RequestResult<
-  DisconnectSimulationDeviceResponses,
-  DisconnectSimulationDeviceErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    DisconnectSimulationDeviceResponses,
-    DisconnectSimulationDeviceErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zDisconnectSimulationDeviceResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/{role}/disconnect",
-    ...options,
-  })
-
-/**
- * Set Device Protocol Version
- */
-export const setSimulationDeviceProtocolVersion = <
-  ThrowOnError extends boolean = true,
->(
-  options: Options<SetSimulationDeviceProtocolVersionData, ThrowOnError>
-): RequestResult<
-  SetSimulationDeviceProtocolVersionResponses,
-  SetSimulationDeviceProtocolVersionErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    SetSimulationDeviceProtocolVersionResponses,
-    SetSimulationDeviceProtocolVersionErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zSetSimulationDeviceProtocolVersionResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/{role}/protocol-version",
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-/**
- * Reboot Device
- */
-export const rebootSimulationDevice = <ThrowOnError extends boolean = true>(
-  options: Options<RebootSimulationDeviceData, ThrowOnError>
-): RequestResult<
-  RebootSimulationDeviceResponses,
-  RebootSimulationDeviceErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).post<
-    RebootSimulationDeviceResponses,
-    RebootSimulationDeviceErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zRebootSimulationDeviceResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/{role}/reboot",
-    ...options,
-  })
-
-/**
- * Set Device Status Code
- */
-export const setSimulationDeviceStatusCode = <
-  ThrowOnError extends boolean = true,
->(
-  options: Options<SetSimulationDeviceStatusCodeData, ThrowOnError>
-): RequestResult<
-  SetSimulationDeviceStatusCodeResponses,
-  SetSimulationDeviceStatusCodeErrors,
-  ThrowOnError,
-  "data"
-> =>
-  (options.client ?? client).put<
-    SetSimulationDeviceStatusCodeResponses,
-    SetSimulationDeviceStatusCodeErrors,
-    ThrowOnError,
-    "data"
-  >({
-    responseValidator: async (data) =>
-      await zSetSimulationDeviceStatusCodeResponse.parseAsync(data),
-    responseStyle: "data",
-    url: "/api/dev/simulation/devices/{role}/status-code",
     ...options,
     headers: {
       "Content-Type": "application/json",

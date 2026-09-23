@@ -116,9 +116,7 @@ class CoordinatorSsePublisher:
             return
         self._publish(resource_changed_event(event))
 
-    async def events(
-        self, request_task: asyncio.Task[object] | None = None
-    ) -> AsyncIterator[str]:
+    async def events(self, request_task: asyncio.Task[object] | None = None) -> AsyncIterator[str]:
         follows_consumer_task = request_task is None
         task = request_task or asyncio.current_task()
         if task is None:

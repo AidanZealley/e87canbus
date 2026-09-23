@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 
 from e87canbus.config import CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile, validate_saved_profile_revision
-from e87canbus.domain.devices.catalogue import DeviceRole
 from e87canbus.domain.events import ButtonPressed
 from e87canbus.domain.intents import (
     OperatorIntent,
@@ -19,7 +18,6 @@ from e87canbus.domain.intents import (
 )
 from e87canbus.domain.steering.curves import SteeringCurveDefinition
 from e87canbus.protocol.can import CanFrame
-from e87canbus.protocol.servotronic_protocol import ServotronicStatus
 
 
 @dataclass(frozen=True)
@@ -49,28 +47,8 @@ class CanReaderFailed:
 
 
 @dataclass(frozen=True)
-class CanEffectExecutionFailed:
-    network: CanNetwork
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class SteeringActuatorFailed:
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
 class InboxOverflowed:
     network: CanNetwork | None
-    failed_at: float
-    message: str
-
-
-@dataclass(frozen=True)
-class DeviceAdapterFailed:
-    role: DeviceRole
     failed_at: float
     message: str
 
@@ -101,11 +79,6 @@ class ActivateButtonProfile:
 
 
 @dataclass(frozen=True)
-class ServotronicStatusObserved:
-    status: ServotronicStatus
-
-
-@dataclass(frozen=True)
 class ExecuteOperatorIntent:
     """A transport-independent operator intent submitted through a non-button adapter."""
 
@@ -122,13 +95,9 @@ ControllerInput = (
     | TimerElapsed
     | ButtonPressed
     | CanReaderFailed
-    | CanEffectExecutionFailed
-    | SteeringActuatorFailed
     | InboxOverflowed
-    | DeviceAdapterFailed
     | ShutdownRequested
     | ActivateSteeringCurve
     | ActivateButtonProfile
-    | ServotronicStatusObserved
     | ExecuteOperatorIntent
 )

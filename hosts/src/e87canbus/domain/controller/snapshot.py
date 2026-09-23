@@ -1,8 +1,6 @@
-"""The immutable application snapshot and the startup output projection.
+"""The immutable desired-state and vehicle telemetry snapshot.
 
-``snapshot`` composes the complete read-only view published to adapters; engine
-telemetry freshness and the steering projection are derived here. ``initial_effects``
-returns the outputs a fresh kernel must synchronise on startup.
+``snapshot`` composes the complete read-only view published to adapters.
 """
 
 from __future__ import annotations
@@ -11,13 +9,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
-from e87canbus.domain.controller.steering import speed_is_valid, steering_command
-from e87canbus.domain.events import ApplicationEffect
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 from e87canbus.domain.steering.curves import (
     ActiveSteeringCurve,
-    SteeringCurveActivationStatus,
-    SteeringCurveDefinition,
 )
 
 
@@ -50,8 +44,6 @@ class ApplicationSnapshot:
     speed_valid: bool
     engine: EngineTelemetrySnapshot
     active_steering_curve: ActiveSteeringCurve
-    steering_curve_activation_status: SteeringCurveActivationStatus
-    curve_activation_available: bool
     active_button_profile_id: str
     active_button_profile_revision: int | None
 
@@ -61,10 +53,8 @@ def snapshot(
     config: SteeringConfig,
     engine_config: EngineTelemetryConfig,
     active_curve: ActiveSteeringCurve,
-    activation_status: SteeringCurveActivationStatus,
     active_button_profile_id: str,
     saved_button_profile_revision: int | None,
-    curve_activation_available: bool = False,
 ) -> ApplicationSnapshot:
     """Project read-only application state."""
 
@@ -76,7 +66,10 @@ def snapshot(
         manual_assistance_level=manual_level,
         manual_assistance_level_count=config.manual_level_count,
         maximum_assistance_active=maximum_active,
-        speed_valid=speed_is_valid(state, config),
+        speed_valid=(
+            sample is not None
+            and state.speed_evaluated_at - sample.observed_at <= config.speed_timeout_s
+        ),
         engine=EngineTelemetrySnapshot(
             rpm=_engine_value(
                 None if state.engine_rpm_sample is None else state.engine_rpm_sample.rpm,
@@ -106,21 +99,9 @@ def snapshot(
             ),
         ),
         active_steering_curve=active_curve,
-        steering_curve_activation_status=activation_status,
-        curve_activation_available=curve_activation_available,
         active_button_profile_id=active_button_profile_id,
         active_button_profile_revision=saved_button_profile_revision,
     )
-
-
-def initial_effects(
-    state: ApplicationState,
-    config: SteeringConfig,
-    active_definition: SteeringCurveDefinition,
-) -> tuple[ApplicationEffect, ...]:
-    """Return the complete output projection for synchronization."""
-
-    return (steering_command(state, config, active_definition),)
 
 
 def _steering_projection(

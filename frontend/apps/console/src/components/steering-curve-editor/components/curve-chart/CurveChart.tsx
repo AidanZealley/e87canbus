@@ -5,21 +5,15 @@ import type { SteeringCurveDefinition } from "@e87canbus/coordinator-client/api/
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import {
   assistanceToPercent,
-  evaluateSteeringCurve,
   replaceAssistanceAt,
   sampleSteeringCurve,
 } from "../../utils"
-import { CurvePositionMarker } from "./components/curve-position-marker"
 import { CurvePoints } from "./components/curve-points"
 import { cn } from "@/lib/utils"
 
 type CurveChartProps = {
-  active: SteeringCurveDefinition
   draft: SteeringCurveDefinition
-  activeSpeedKph?: number | null
-  activeAssistance?: number | null
   className?: string
-  onPointChange?: (index: number, value: number) => void
   onPointCommit?: (definition: SteeringCurveDefinition) => void
 }
 
@@ -40,12 +34,8 @@ const ASSISTANCE_TICKS = [0, 25, 50, 75, 100] as const
 const formatSpeedTick = (value: number) => `${value}`
 const formatAssistanceTick = (value: number) => `${value}%`
 export const CurveChart = ({
-  active,
   draft,
-  activeSpeedKph = null,
-  activeAssistance = null,
   className,
-  onPointChange,
   onPointCommit = () => undefined,
 }: CurveChartProps) => {
   const [preview, setPreview] = useState(draft)
@@ -55,13 +45,9 @@ export const CurveChart = ({
     const next = replaceAssistanceAt(previewRef.current, index, value)
     previewRef.current = next
     setPreview(next)
-    onPointChange?.(index, value)
   }
 
   const handlePointCommit = () => onPointCommit(previewRef.current)
-  const markerSpeedKph = activeSpeedKph ?? 0
-  const markerAssistance =
-    activeAssistance ?? evaluateSteeringCurve(active, markerSpeedKph)
   const data = useMemo(
     () =>
       sampleSteeringCurve(preview).map((sample) => ({
@@ -75,7 +61,7 @@ export const CurveChart = ({
       config={chartConfig}
       className={cn("aspect-auto h-75 min-h-75 w-full sm:h-90", className)}
       role="group"
-      aria-label="Steering assistance curve. Drag the points to edit; changes apply immediately."
+      aria-label="Desired steering assistance curve. Drag the points to edit."
     >
       <LineChart data={data} margin={CHART_MARGIN}>
         <CartesianGrid vertical={false} />
@@ -106,10 +92,6 @@ export const CurveChart = ({
           dot={false}
           activeDot={false}
           isAnimationActive={false}
-        />
-        <CurvePositionMarker
-          speedKph={markerSpeedKph}
-          activeAssistance={markerAssistance}
         />
         <CurvePoints
           definition={preview}

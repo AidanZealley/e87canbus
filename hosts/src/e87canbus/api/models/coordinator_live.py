@@ -8,13 +8,11 @@ from pydantic import Field
 
 from e87canbus.api.models.live import (
     ButtonsState,
-    DeviceHealthState,
     EngineState,
     InboxHealthState,
     LiveModel,
     NetworkHealthState,
     PersistenceHealthState,
-    SteeringCapabilityHealthState,
     SteeringState,
     VehicleState,
     buttons_state,
@@ -32,8 +30,6 @@ class CoordinatorHealthState(LiveModel):
     fatal: bool
     networks: tuple[NetworkHealthState, ...]
     inbox: InboxHealthState
-    devices: tuple[DeviceHealthState, ...]
-    steering: SteeringCapabilityHealthState
     persistence: PersistenceHealthState
 
 
@@ -146,7 +142,6 @@ def resource_changed_event(event: ResourceChangedEvent) -> ResourceChangedSseEve
 
 def coordinator_health_state(snapshot: ControllerLoopSnapshot) -> CoordinatorHealthState:
     health = snapshot.diagnostics.health
-    device_faults = {item.role: item.fault for item in health.devices}
     return CoordinatorHealthState(
         ready=snapshot.service.ready,
         fatal=health.fatal,
@@ -158,16 +153,6 @@ def coordinator_health_state(snapshot: ControllerLoopSnapshot) -> CoordinatorHea
             for network in health.networks
         ),
         inbox=InboxHealthState.model_validate(snapshot.service.inbox, from_attributes=True),
-        devices=tuple(
-            DeviceHealthState(
-                role=device.role.value,
-                fault=fault_state(device_faults.get(device.role)),
-            )
-            for device in health.devices
-        ),
-        steering=SteeringCapabilityHealthState(
-            fault=fault_state(health.steering_actuator_fault),
-        ),
         persistence=PersistenceHealthState.model_validate(
             snapshot.service.persistence,
             from_attributes=True,

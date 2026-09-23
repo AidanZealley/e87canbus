@@ -84,11 +84,6 @@ export const zCoordinatorStatus = z.enum(["starting", "ready", "fault", "off"])
 export const zDeploymentProfile = z.enum(["car", "bench", "simulator"])
 
 /**
- * DeviceRole
- */
-export const zDeviceRole = z.enum(["servotronic_controller"])
-
-/**
  * EngineRpmRequest
  */
 export const zEngineRpmRequest = z.object({
@@ -206,23 +201,9 @@ export const zRuntimeConfigurationResponse = z.object({
  * RuntimeFaultState
  */
 export const zRuntimeFaultState = z.object({
-  kind: z.enum([
-    "can_reader",
-    "can_effect_execution",
-    "steering_actuator",
-    "inbox_overflow",
-    "device_adapter",
-  ]),
+  kind: z.enum(["can_reader", "inbox_overflow"]),
   message: z.string(),
   monotonic_s: z.number(),
-})
-
-/**
- * DeviceHealthState
- */
-export const zDeviceHealthState = z.object({
-  fault: zRuntimeFaultState.nullable(),
-  role: z.literal("servotronic_controller"),
 })
 
 /**
@@ -234,40 +215,30 @@ export const zNetworkHealthState = z.object({
 })
 
 /**
+ * CoordinatorHealthState
+ */
+export const zCoordinatorHealthState = z.object({
+  fatal: z.boolean(),
+  inbox: zInboxHealthState,
+  networks: z.array(zNetworkHealthState),
+  persistence: zPersistenceHealthState,
+  ready: z.boolean(),
+})
+
+/**
+ * HealthEvent
+ */
+export const zHealthEvent = z.object({
+  data: zCoordinatorHealthState,
+  type: z.literal("health"),
+})
+
+/**
  * SelectSteeringModeCommand
  */
 export const zSelectSteeringModeCommand = z.object({
   mode: z.enum(["auto", "manual"]),
   type: z.literal("select_steering_mode"),
-})
-
-/**
- * ServotronicState
- */
-export const zServotronicState = z.object({
-  active_curve_crc32: z.int().nullish(),
-  active_curve_revision: z.int().nullish(),
-  active_curve_source: z
-    .enum(["builtin_fallback", "coordinator_ram"])
-    .nullish(),
-  effective_assistance: z.number(),
-  inhibit_reason: z.string().nullish(),
-  last_command_reason: z
-    .enum([
-      "auto",
-      "manual",
-      "maximum",
-      "speed_never_observed",
-      "speed_stale",
-      "can_reader_failure",
-      "inbox_overflow",
-      "shutdown",
-    ])
-    .nullable(),
-  observed_speed_kph: z.number().nullish(),
-  pwm_duty: z.int().nullish(),
-  speed_fresh: z.boolean().nullish(),
-  watchdog_timed_out: z.boolean(),
 })
 
 /**
@@ -356,20 +327,6 @@ export const zSimulationCoordinatorStatusRequest = z.object({
 })
 
 /**
- * SimulationDeviceProtocolVersionRequest
- */
-export const zSimulationDeviceProtocolVersionRequest = z.object({
-  protocol_version: z.int().gte(0).lte(255),
-})
-
-/**
- * SimulationDeviceStatusCodeRequest
- */
-export const zSimulationDeviceStatusCodeRequest = z.object({
-  status_code: z.int().gte(0).lte(255),
-})
-
-/**
  * SpeedRequest
  */
 export const zSpeedRequest = z.object({
@@ -380,34 +337,6 @@ export const zSpeedRequest = z.object({
  * SpeedUnit
  */
 export const zSpeedUnit = z.enum(["mph", "kmh"])
-
-/**
- * SteeringCapabilityHealthState
- */
-export const zSteeringCapabilityHealthState = z.object({
-  fault: zRuntimeFaultState.nullable(),
-})
-
-/**
- * CoordinatorHealthState
- */
-export const zCoordinatorHealthState = z.object({
-  devices: z.array(zDeviceHealthState),
-  fatal: z.boolean(),
-  inbox: zInboxHealthState,
-  networks: z.array(zNetworkHealthState),
-  persistence: zPersistenceHealthState,
-  ready: z.boolean(),
-  steering: zSteeringCapabilityHealthState,
-})
-
-/**
- * HealthEvent
- */
-export const zHealthEvent = z.object({
-  data: zCoordinatorHealthState,
-  type: z.literal("health"),
-})
 
 /**
  * SteeringCurvePoint
@@ -443,7 +372,6 @@ export const zActiveSteeringCurveState = z.object({
   fingerprint: z.string(),
   saved_profile_id: z.string().nullable(),
   saved_profile_revision: z.int().nullable(),
-  status: z.enum(["active", "activating", "activation_failed"]),
 })
 
 /**
@@ -530,12 +458,10 @@ export const zSteeringProfileResponse = z.object({
  */
 export const zSteeringState = z.object({
   active_curve: zActiveSteeringCurveState,
-  curve_activation_available: z.boolean(),
   manual_assistance_level: z.int().gte(0),
   manual_assistance_level_count: z.int().gt(0),
   maximum_assistance_active: z.boolean(),
   mode: z.enum(["auto", "manual"]),
-  servotronic: zServotronicState.nullable(),
 })
 
 /**
@@ -809,9 +735,7 @@ export const zApiProblemDetail = z.object({
     "runtime_queue_full",
     "controller_unavailable",
     "command_timeout",
-    "simulation_device_unavailable",
     "controller_failed",
-    "feature_unavailable",
     "controller_runtime_error",
   ]),
   current_revision: z.int().nullish(),
@@ -940,61 +864,6 @@ export const zPreviewSimulationCoordinatorStatusBody =
  */
 export const zPreviewSimulationCoordinatorStatusResponse =
   zSimulationCoordinatorPanelState
-
-export const zConnectSimulationDevicePath = z.object({
-  role: zDeviceRole,
-})
-
-/**
- * Successful Response
- */
-export const zConnectSimulationDeviceResponse =
-  zSimulationCommandAcknowledgement
-
-export const zDisconnectSimulationDevicePath = z.object({
-  role: zDeviceRole,
-})
-
-/**
- * Successful Response
- */
-export const zDisconnectSimulationDeviceResponse =
-  zSimulationCommandAcknowledgement
-
-export const zSetSimulationDeviceProtocolVersionBody =
-  zSimulationDeviceProtocolVersionRequest
-
-export const zSetSimulationDeviceProtocolVersionPath = z.object({
-  role: zDeviceRole,
-})
-
-/**
- * Successful Response
- */
-export const zSetSimulationDeviceProtocolVersionResponse =
-  zSimulationCommandAcknowledgement
-
-export const zRebootSimulationDevicePath = z.object({
-  role: zDeviceRole,
-})
-
-/**
- * Successful Response
- */
-export const zRebootSimulationDeviceResponse = zSimulationCommandAcknowledgement
-
-export const zSetSimulationDeviceStatusCodeBody =
-  zSimulationDeviceStatusCodeRequest
-
-export const zSetSimulationDeviceStatusCodePath = z.object({
-  role: zDeviceRole,
-})
-
-/**
- * Successful Response
- */
-export const zSetSimulationDeviceStatusCodeResponse =
-  zSimulationCommandAcknowledgement
 
 /**
  * Successful Response

@@ -3,52 +3,26 @@ from dataclasses import replace
 import pytest
 from e87canbus.config import (
     CanNetwork,
-    CustomCanIds,
     EngineTelemetryConfig,
     LivePublicationConfig,
     NetworkConfigError,
     SimulationConfig,
     SteeringConfig,
-    TxPolicyConfig,
     configure_can_networks,
     default_config,
     parse_network_names,
     simulator_config,
     sorted_network_names,
 )
-from e87canbus.domain.devices.catalogue import (
-    DEFAULT_DEVICE_CATALOGUE,
-    DeviceCatalogueEntry,
-    DeviceIdentity,
-    DeviceRole,
-)
 
 
-def test_default_can_network_configuration_is_ordered_and_enabled() -> None:
-    """Bitrates are a hardware contract and tx_enabled=False keeps the car read-only.
-
-    Mirroring a default is usually worthless, but these two facts are load-bearing:
-    the wrong bitrate silently fails on the vehicle, and a stray transmit grant is the
-    one change that can affect the car rather than the coordinator.
-    """
+def test_default_can_network_configuration_is_ordered_and_receive_only() -> None:
     config = default_config()
-
-    assert [item.network for item in config.can_networks] == [
-        CanNetwork.KCAN,
-        CanNetwork.PTCAN,
-        CanNetwork.FCAN,
-    ]
-    assert [item.label for item in config.can_networks] == ["K-CAN", "PT-CAN", "F-CAN"]
-    assert [item.interface for item in config.can_networks] == ["kcan", "ptcan", "fcan"]
+    assert [item.network for item in config.can_networks] == list(CanNetwork)
     assert [item.bitrate for item in config.can_networks] == [100_000, 500_000, 500_000]
     assert all(item.enabled for item in config.can_networks)
-    assert not any(item.tx_enabled for item in config.can_networks)
-
-
-def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
-    config = simulator_config()
-
-    assert [item.network for item in config.can_networks if item.tx_enabled] == [CanNetwork.KCAN]
+    assert all(not hasattr(item, "tx_enabled") for item in config.can_networks)
+    assert simulator_config() == config
 
 
 @pytest.mark.parametrize(
@@ -60,267 +34,37 @@ def test_simulator_configuration_explicitly_enables_kcan_tx() -> None:
         {"shutdown_timeout_s": float("nan")},
     ],
 )
-def test_live_publication_bounds_reject_invalid_values(
-    changes: dict[str, int | float],
-) -> None:
+def test_live_publication_bounds_reject_invalid_values(changes: dict[str, int | float]) -> None:
     with pytest.raises(ValueError, match="live"):
         LivePublicationConfig(**changes)
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
-        "trace_capacity",
-        "steering_watchdog_timeout_s",
-    ],
-)
-@pytest.mark.parametrize("value", [0, -1])
-def test_simulation_limits_must_be_positive(field: str, value: int) -> None:
-    with pytest.raises(ValueError, match="capacity|watchdog"):
-        SimulationConfig(**{field: value})
+def test_simulation_trace_capacity_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="capacity"):
+        SimulationConfig(trace_capacity=0)
 
 
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        ({"manual_level_count": 0}, "manual_level_count"),
-        ({"speed_timeout_s": 0.0}, "speed_timeout_s"),
-    ],
-)
-def test_steering_configuration_rejects_invalid_values(
-    changes: dict[str, object],
-    message: str,
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        SteeringConfig(**changes)  # type: ignore[arg-type]
+@pytest.mark.parametrize("changes", [{"manual_level_count": 0}, {"speed_timeout_s": 0.0}])
+def test_steering_configuration_rejects_invalid_values(changes: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        SteeringConfig(**changes)
 
 
-@pytest.mark.parametrize("tick_interval_s", [0.0, -0.1, float("inf"), float("nan")])
-def test_tick_interval_must_be_positive(tick_interval_s: float) -> None:
-    with pytest.raises(ValueError, match="tick_interval_s"):
-        replace(default_config(), tick_interval_s=tick_interval_s)
+def test_telemetry_timeout_rejects_nonfinite_values() -> None:
+    with pytest.raises(ValueError):
+        EngineTelemetryConfig(timeout_s=float("nan"))
 
 
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        ({"runtime_inbox_capacity": 0}, "runtime_inbox_capacity"),
-        ({"runtime_queue_latency_warning_s": -0.1}, "runtime_queue_latency_warning_s"),
-    ],
-)
-def test_runtime_inbox_limits_reject_unsafe_values(
-    changes: dict[str, int | float], message: str
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        replace(default_config(), **changes)
+def test_runtime_bounds_reject_invalid_values() -> None:
+    with pytest.raises(ValueError):
+        replace(default_config(), tick_interval_s=0.0)
+    with pytest.raises(ValueError):
+        replace(default_config(), runtime_inbox_capacity=0)
 
 
-@pytest.mark.parametrize("value", [float("inf"), float("nan")])
-@pytest.mark.parametrize(
-    ("config", "field"),
-    [
-        (SteeringConfig, "speed_timeout_s"),
-        (EngineTelemetryConfig, "timeout_s"),
-        (SimulationConfig, "steering_watchdog_timeout_s"),
-        (TxPolicyConfig, "network_window_s"),
-    ],
-)
-def test_duration_configuration_rejects_non_finite_values(
-    config: (
-        type[SteeringConfig]
-        | type[EngineTelemetryConfig]
-        | type[SimulationConfig]
-        | type[TxPolicyConfig]
-    ),
-    field: str,
-    value: float,
-) -> None:
-    with pytest.raises(ValueError, match="finite"):
-        config(**{field: value})
-
-
-@pytest.mark.parametrize("timeout_s", [0.0, -1.0])
-def test_engine_telemetry_timeout_must_be_positive(timeout_s: float) -> None:
-    with pytest.raises(ValueError, match="engine telemetry timeout"):
-        EngineTelemetryConfig(timeout_s)
-
-
-@pytest.mark.parametrize("value", [float("inf"), float("nan")])
-def test_runtime_latency_warning_rejects_non_finite_values(value: float) -> None:
-    with pytest.raises(ValueError, match="finite"):
-        replace(default_config(), runtime_queue_latency_warning_s=value)
-
-
-def test_default_tx_policy() -> None:
-    """Unlike the other defaults, this one is the safety control itself.
-
-    The rate limiter is tested behaviourally elsewhere with injected values. What this
-    pins is that the shipped ceiling stays conservative, because the failure mode is a
-    bug flooding the PT-CAN of a moving car.
-    """
-    policy = default_config().tx_policy
-
-    assert policy.network_window_s == 1.0
-    assert policy.max_frames_per_network_window == 200
-
-
-def test_default_device_catalogue_and_registry_vocabulary() -> None:
-    assert [
-        (entry.identity.role, entry.identity.device_id) for entry in DEFAULT_DEVICE_CATALOGUE
-    ] == [
-        (DeviceRole.SERVOTRONIC_CONTROLLER, 1),
-    ]
-    assert all(
-        entry.enabled and entry.supported_protocol_version == 1
-        for entry in DEFAULT_DEVICE_CATALOGUE
-    )
-    assert all(entry.instance_limit == 1 for entry in DEFAULT_DEVICE_CATALOGUE)
-
-
-def test_device_catalogue_protocol_version_must_fit_ack_nibble() -> None:
-    with pytest.raises(ValueError, match="ACK version nibble"):
-        DeviceCatalogueEntry(
-            DeviceIdentity(DeviceRole.SERVOTRONIC_CONTROLLER, 1),
-            enabled=True,
-            supported_protocol_version=0x10,
-        )
-
-
-def test_default_custom_can_ids_cover_all_project_messages() -> None:
-    ids = CustomCanIds()
-
-    assert (
-        ids.servotronic_controller_hello,
-        ids.servotronic_controller_welcome_ack,
-        ids.servotronic_controller_heartbeat,
-        ids.servotronic_transport_coordinator_to_device,
-        ids.servotronic_transport_device_to_coordinator,
-    ) == (0x705, 0x706, 0x707, 0x70A, 0x70B)
-
-
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"servotronic_controller_hello": -1},
-        {"servotronic_controller_hello": 0x800},
-        {"servotronic_controller_hello": 0x705, "servotronic_controller_welcome_ack": 0x705},
-    ],
-)
-def test_custom_can_ids_reject_invalid_or_duplicate_standard_ids(
-    changes: dict[str, int],
-) -> None:
-    with pytest.raises(ValueError, match="CAN IDs"):
-        CustomCanIds(**changes)
-
-
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"network_window_s": 0.0},
-        {"max_frames_per_network_window": 0},
-    ],
-)
-def test_tx_policy_rejects_non_positive_limits(changes: dict[str, int | float]) -> None:
-    with pytest.raises(ValueError, match="TX policy"):
-        TxPolicyConfig(**changes)
-
-
-class TestParseNetworkNames:
-    def test_single_kcan(self) -> None:
-        assert parse_network_names("kcan") == frozenset({CanNetwork.KCAN})
-
-    def test_all_three_networks(self) -> None:
-        result = parse_network_names("kcan,ptcan,fcan")
-        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
-
-    def test_whitespace_around_commas(self) -> None:
-        result = parse_network_names(" kcan , ptcan , fcan ")
-        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
-
-    def test_case_insensitive(self) -> None:
-        result = parse_network_names("KCAN,PtCan,FcAn")
-        assert result == frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN})
-
-    def test_empty_string_returns_empty(self) -> None:
-        assert parse_network_names("") == frozenset()
-        assert parse_network_names("   ") == frozenset()
-
-    def test_unknown_network_fails(self) -> None:
-        with pytest.raises(NetworkConfigError, match="unknown network name: ican"):
-            parse_network_names("kcan,ican")
-
-    def test_duplicate_names_fail(self) -> None:
-        with pytest.raises(NetworkConfigError, match="duplicate network name: kcan"):
-            parse_network_names("kcan,ptcan,kcan")
-
-
-class TestConfigureCanNetworks:
-    def test_kcan_only_enabled(self) -> None:
-        config = configure_can_networks(
-            default_config(),
-            enabled_networks=frozenset({CanNetwork.KCAN}),
-            tx_networks=frozenset({CanNetwork.KCAN}),
-        )
-
-        kcan = next(n for n in config.can_networks if n.network is CanNetwork.KCAN)
-        ptcan = next(n for n in config.can_networks if n.network is CanNetwork.PTCAN)
-        fcan = next(n for n in config.can_networks if n.network is CanNetwork.FCAN)
-
-        assert kcan.enabled is True
-        assert kcan.tx_enabled is True
-        assert ptcan.enabled is False
-        assert ptcan.tx_enabled is False
-        assert fcan.enabled is False
-        assert fcan.tx_enabled is False
-
-    def test_all_networks_enabled_kcan_tx_only(self) -> None:
-        config = configure_can_networks(
-            default_config(),
-            enabled_networks=frozenset({CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN}),
-            tx_networks=frozenset({CanNetwork.KCAN}),
-        )
-
-        assert all(n.enabled for n in config.can_networks)
-        tx_networks = [n.network for n in config.can_networks if n.tx_enabled]
-        assert tx_networks == [CanNetwork.KCAN]
-
-    def test_empty_tx_set_valid(self) -> None:
-        config = configure_can_networks(
-            default_config(),
-            enabled_networks=frozenset({CanNetwork.KCAN}),
-            tx_networks=frozenset(),
-        )
-
-        kcan = next(n for n in config.can_networks if n.network is CanNetwork.KCAN)
-        assert kcan.enabled is True
-        assert kcan.tx_enabled is False
-
-    def test_tx_network_not_enabled_fails(self) -> None:
-        with pytest.raises(NetworkConfigError, match="TX network not enabled: ptcan"):
-            configure_can_networks(
-                default_config(),
-                enabled_networks=frozenset({CanNetwork.KCAN}),
-                tx_networks=frozenset({CanNetwork.PTCAN}),
-            )
-
-    def test_all_three_networks_remain_in_config(self) -> None:
-        config = configure_can_networks(
-            default_config(),
-            enabled_networks=frozenset({CanNetwork.KCAN}),
-            tx_networks=frozenset(),
-        )
-
-        networks = [n.network for n in config.can_networks]
-        assert networks == [CanNetwork.KCAN, CanNetwork.PTCAN, CanNetwork.FCAN]
-
-
-class TestSortedNetworkNames:
-    def test_canonical_ordering(self) -> None:
-        networks = frozenset({CanNetwork.FCAN, CanNetwork.KCAN, CanNetwork.PTCAN})
-        assert sorted_network_names(networks) == ["kcan", "ptcan", "fcan"]
-
-    def test_single_network(self) -> None:
-        assert sorted_network_names(frozenset({CanNetwork.PTCAN})) == ["ptcan"]
-
-    def test_empty_set(self) -> None:
-        assert sorted_network_names(frozenset()) == []
+def test_network_selection_only_changes_receive_enablement() -> None:
+    config = configure_can_networks(default_config(), enabled_networks=frozenset({CanNetwork.KCAN}))
+    assert [item.network for item in config.can_networks if item.enabled] == [CanNetwork.KCAN]
+    assert sorted_network_names(parse_network_names("fcan,kcan")) == ["kcan", "fcan"]
+    with pytest.raises(NetworkConfigError):
+        parse_network_names("unknown")

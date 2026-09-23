@@ -1,13 +1,13 @@
 # WeAct CAN485 ESP32 device board
 
-- **Status:** Selected for the button pad and Servotronic controller
+- **Status:** Candidate board for future independent devices
 - **Board family:** WeActStudio CAN485DevBoardV1 ESP32
 - **Vendor source:** [WeActStudio.CAN485DevBoardV1_ESP32](https://github.com/WeActStudio/WeActStudio.CAN485DevBoardV1_ESP32)
 - **Source revision checked:** `0865d397b931602d10bc740aa135b3a2c782340a`
 
 ## Project use
 
-The button pad and Servotronic controller use this board. They remain separate firmware projects
+The planned independent button pad and Servotronic controller may use this board. They remain separate firmware projects
 with separate roles and behavior. Sharing a board does not require a shared application framework.
 
 The vendor specifies an ESP32-D0WD-V3, 8 MB flash and CH343P USB-to-serial bridge. Its Arduino

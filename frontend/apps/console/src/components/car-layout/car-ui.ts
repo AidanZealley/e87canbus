@@ -1,50 +1,5 @@
 import type { ApplicationSettingsResponse } from "@e87canbus/coordinator-client/api/http/types.gen"
-import type {
-  EngineTelemetryValue,
-  RuntimeFaultState,
-  SteeringState,
-} from "@e87canbus/coordinator-client/api/http/types.gen"
-
-export type ServotronicAvailability = {
-  telemetry: boolean
-  modeControl: boolean
-  activation: boolean
-  reason: string
-}
-
-export const deriveServotronicAvailability = ({
-  synchronized,
-  steering,
-  steeringFault,
-  adapterFault,
-}: {
-  synchronized: boolean
-  steering: SteeringState | null
-  steeringFault: RuntimeFaultState | null
-  adapterFault: RuntimeFaultState | null
-}): ServotronicAvailability => {
-  const unavailable = (reason: string): ServotronicAvailability => ({
-    telemetry: false,
-    modeControl: false,
-    activation: false,
-    reason,
-  })
-  if (!synchronized || steering === null) {
-    return unavailable("live steering state unavailable")
-  }
-  if (steeringFault !== null || adapterFault !== null) {
-    return unavailable("servotronic output adapter is faulted")
-  }
-  if (steering.servotronic === null) {
-    return unavailable("live servotronic state unavailable")
-  }
-  return {
-    telemetry: true,
-    modeControl: true,
-    activation: steering.curve_activation_available,
-    reason: "",
-  }
-}
+import type { EngineTelemetryValue } from "@e87canbus/coordinator-client/api/http/types.gen"
 
 export type TemperatureSeverity =
   "normal" | "warning" | "critical" | "unavailable"

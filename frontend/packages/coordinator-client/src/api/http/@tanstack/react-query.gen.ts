@@ -13,12 +13,10 @@ import {
   adjustManualAssistance,
   checkLiveness,
   checkReadiness,
-  connectSimulationDevice,
   createButtonProfile,
   createSteeringProfile,
   deleteButtonProfile,
   deleteSteeringProfile,
-  disconnectSimulationDevice,
   getApplicationSettings,
   getButtonProfile,
   getProvisioningStatus,
@@ -31,15 +29,12 @@ import {
   listSteeringProfiles,
   type Options,
   previewSimulationCoordinatorStatus,
-  rebootSimulationDevice,
   resetSimulation,
   setCoolantTemperature,
   setEngineRpm,
   setManualAssistanceLevel,
   setMaximumAssistance,
   setOilTemperature,
-  setSimulationDeviceProtocolVersion,
-  setSimulationDeviceStatusCode,
   setSteeringMode,
   setVehicleSpeed,
   setVehicleSweep,
@@ -66,9 +61,6 @@ import type {
   CheckReadinessData,
   CheckReadinessError,
   CheckReadinessResponse,
-  ConnectSimulationDeviceData,
-  ConnectSimulationDeviceError,
-  ConnectSimulationDeviceResponse,
   CreateButtonProfileData,
   CreateButtonProfileError,
   CreateButtonProfileResponse,
@@ -81,9 +73,6 @@ import type {
   DeleteSteeringProfileData,
   DeleteSteeringProfileError,
   DeleteSteeringProfileResponse,
-  DisconnectSimulationDeviceData,
-  DisconnectSimulationDeviceError,
-  DisconnectSimulationDeviceResponse,
   GetApplicationSettingsData,
   GetApplicationSettingsError,
   GetApplicationSettingsResponse,
@@ -114,9 +103,6 @@ import type {
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusError,
   PreviewSimulationCoordinatorStatusResponse,
-  RebootSimulationDeviceData,
-  RebootSimulationDeviceError,
-  RebootSimulationDeviceResponse,
   ResetSimulationData,
   ResetSimulationError,
   ResetSimulationResponse,
@@ -135,12 +121,6 @@ import type {
   SetOilTemperatureData,
   SetOilTemperatureError,
   SetOilTemperatureResponse,
-  SetSimulationDeviceProtocolVersionData,
-  SetSimulationDeviceProtocolVersionError,
-  SetSimulationDeviceProtocolVersionResponse,
-  SetSimulationDeviceStatusCodeData,
-  SetSimulationDeviceStatusCodeError,
-  SetSimulationDeviceStatusCodeResponse,
   SetSteeringModeData,
   SetSteeringModeError,
   SetSteeringModeResponse,
@@ -409,131 +389,6 @@ export const previewSimulationCoordinatorStatusMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await previewSimulationCoordinatorStatus({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Connect Device
- */
-export const connectSimulationDeviceMutation = (
-  options?: Partial<Options<ConnectSimulationDeviceData>>
-): UseMutationOptions<
-  ConnectSimulationDeviceResponse,
-  ConnectSimulationDeviceError,
-  Options<ConnectSimulationDeviceData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    ConnectSimulationDeviceResponse,
-    ConnectSimulationDeviceError,
-    Options<ConnectSimulationDeviceData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await connectSimulationDevice({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Disconnect Device
- */
-export const disconnectSimulationDeviceMutation = (
-  options?: Partial<Options<DisconnectSimulationDeviceData>>
-): UseMutationOptions<
-  DisconnectSimulationDeviceResponse,
-  DisconnectSimulationDeviceError,
-  Options<DisconnectSimulationDeviceData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    DisconnectSimulationDeviceResponse,
-    DisconnectSimulationDeviceError,
-    Options<DisconnectSimulationDeviceData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await disconnectSimulationDevice({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Device Protocol Version
- */
-export const setSimulationDeviceProtocolVersionMutation = (
-  options?: Partial<Options<SetSimulationDeviceProtocolVersionData>>
-): UseMutationOptions<
-  SetSimulationDeviceProtocolVersionResponse,
-  SetSimulationDeviceProtocolVersionError,
-  Options<SetSimulationDeviceProtocolVersionData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSimulationDeviceProtocolVersionResponse,
-    SetSimulationDeviceProtocolVersionError,
-    Options<SetSimulationDeviceProtocolVersionData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSimulationDeviceProtocolVersion({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Reboot Device
- */
-export const rebootSimulationDeviceMutation = (
-  options?: Partial<Options<RebootSimulationDeviceData>>
-): UseMutationOptions<
-  RebootSimulationDeviceResponse,
-  RebootSimulationDeviceError,
-  Options<RebootSimulationDeviceData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    RebootSimulationDeviceResponse,
-    RebootSimulationDeviceError,
-    Options<RebootSimulationDeviceData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await rebootSimulationDevice({
-        ...options,
-        ...fnOptions,
-        throwOnError: true,
-      }),
-  }
-  return mutationOptions
-}
-
-/**
- * Set Device Status Code
- */
-export const setSimulationDeviceStatusCodeMutation = (
-  options?: Partial<Options<SetSimulationDeviceStatusCodeData>>
-): UseMutationOptions<
-  SetSimulationDeviceStatusCodeResponse,
-  SetSimulationDeviceStatusCodeError,
-  Options<SetSimulationDeviceStatusCodeData>
-> => {
-  const mutationOptions: UseMutationOptions<
-    SetSimulationDeviceStatusCodeResponse,
-    SetSimulationDeviceStatusCodeError,
-    Options<SetSimulationDeviceStatusCodeData>
-  > = {
-    mutationFn: async (fnOptions) =>
-      await setSimulationDeviceStatusCode({
         ...options,
         ...fnOptions,
         throwOnError: true,

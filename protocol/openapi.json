@@ -70,22 +70,12 @@
               }
             ],
             "title": "Saved Profile Revision"
-          },
-          "status": {
-            "enum": [
-              "active",
-              "activating",
-              "activation_failed"
-            ],
-            "title": "Status",
-            "type": "string"
           }
         },
         "required": [
           "definition",
           "fingerprint",
           "activation_revision",
-          "status",
           "saved_profile_id",
           "saved_profile_revision"
         ],
@@ -150,9 +140,7 @@
               "runtime_queue_full",
               "controller_unavailable",
               "command_timeout",
-              "simulation_device_unavailable",
               "controller_failed",
-              "feature_unavailable",
               "controller_runtime_error"
             ],
             "title": "Code",
@@ -709,13 +697,6 @@
       "CoordinatorHealthState": {
         "additionalProperties": false,
         "properties": {
-          "devices": {
-            "items": {
-              "$ref": "#/components/schemas/DeviceHealthState"
-            },
-            "title": "Devices",
-            "type": "array"
-          },
           "fatal": {
             "title": "Fatal",
             "type": "boolean"
@@ -736,9 +717,6 @@
           "ready": {
             "title": "Ready",
             "type": "boolean"
-          },
-          "steering": {
-            "$ref": "#/components/schemas/SteeringCapabilityHealthState"
           }
         },
         "required": [
@@ -746,8 +724,6 @@
           "fatal",
           "networks",
           "inbox",
-          "devices",
-          "steering",
           "persistence"
         ],
         "title": "CoordinatorHealthState",
@@ -845,39 +821,6 @@
           "simulator"
         ],
         "title": "DeploymentProfile",
-        "type": "string"
-      },
-      "DeviceHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "fault": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "role": {
-            "const": "servotronic_controller",
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "fault"
-        ],
-        "title": "DeviceHealthState",
-        "type": "object"
-      },
-      "DeviceRole": {
-        "enum": [
-          "servotronic_controller"
-        ],
-        "title": "DeviceRole",
         "type": "string"
       },
       "EngineEvent": {
@@ -1326,10 +1269,7 @@
           "kind": {
             "enum": [
               "can_reader",
-              "can_effect_execution",
-              "steering_actuator",
-              "inbox_overflow",
-              "device_adapter"
+              "inbox_overflow"
             ],
             "title": "Kind",
             "type": "string"
@@ -1373,128 +1313,6 @@
           "mode"
         ],
         "title": "SelectSteeringModeCommand",
-        "type": "object"
-      },
-      "ServotronicState": {
-        "additionalProperties": false,
-        "properties": {
-          "active_curve_crc32": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Curve Crc32"
-          },
-          "active_curve_revision": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Curve Revision"
-          },
-          "active_curve_source": {
-            "anyOf": [
-              {
-                "enum": [
-                  "builtin_fallback",
-                  "coordinator_ram"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Curve Source"
-          },
-          "effective_assistance": {
-            "title": "Effective Assistance",
-            "type": "number"
-          },
-          "inhibit_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inhibit Reason"
-          },
-          "last_command_reason": {
-            "anyOf": [
-              {
-                "enum": [
-                  "auto",
-                  "manual",
-                  "maximum",
-                  "speed_never_observed",
-                  "speed_stale",
-                  "can_reader_failure",
-                  "inbox_overflow",
-                  "shutdown"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Command Reason"
-          },
-          "observed_speed_kph": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Observed Speed Kph"
-          },
-          "pwm_duty": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pwm Duty"
-          },
-          "speed_fresh": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Speed Fresh"
-          },
-          "watchdog_timed_out": {
-            "title": "Watchdog Timed Out",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "effective_assistance",
-          "last_command_reason",
-          "watchdog_timed_out"
-        ],
-        "title": "ServotronicState",
         "type": "object"
       },
       "SetManualAssistanceLevelCommand": {
@@ -1682,38 +1500,6 @@
         "title": "SimulationCoordinatorStatusRequest",
         "type": "object"
       },
-      "SimulationDeviceProtocolVersionRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "protocol_version": {
-            "maximum": 255.0,
-            "minimum": 0.0,
-            "title": "Protocol Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "protocol_version"
-        ],
-        "title": "SimulationDeviceProtocolVersionRequest",
-        "type": "object"
-      },
-      "SimulationDeviceStatusCodeRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "status_code": {
-            "maximum": 255.0,
-            "minimum": 0.0,
-            "title": "Status Code",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status_code"
-        ],
-        "title": "SimulationDeviceStatusCodeRequest",
-        "type": "object"
-      },
       "SnapshotEvent": {
         "additionalProperties": false,
         "properties": {
@@ -1756,26 +1542,6 @@
         ],
         "title": "SpeedUnit",
         "type": "string"
-      },
-      "SteeringCapabilityHealthState": {
-        "additionalProperties": false,
-        "properties": {
-          "fault": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RuntimeFaultState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "fault"
-        ],
-        "title": "SteeringCapabilityHealthState",
-        "type": "object"
       },
       "SteeringCurveDefinition": {
         "additionalProperties": false,
@@ -1982,10 +1748,6 @@
           "active_curve": {
             "$ref": "#/components/schemas/ActiveSteeringCurveState"
           },
-          "curve_activation_available": {
-            "title": "Curve Activation Available",
-            "type": "boolean"
-          },
           "manual_assistance_level": {
             "minimum": 0.0,
             "title": "Manual Assistance Level",
@@ -2007,16 +1769,6 @@
             ],
             "title": "Mode",
             "type": "string"
-          },
-          "servotronic": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ServotronicState"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
@@ -2024,9 +1776,7 @@
           "manual_assistance_level",
           "manual_assistance_level_count",
           "maximum_assistance_active",
-          "active_curve",
-          "servotronic",
-          "curve_activation_available"
+          "active_curve"
         ],
         "title": "SteeringState",
         "type": "object"
@@ -2807,331 +2557,6 @@
         "summary": "Preview Coordinator Status",
         "tags": [
           "development simulation: coordinator panel"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/{role}/connect": {
-      "post": {
-        "operationId": "connectSimulationDevice",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DeviceRole"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Connect Device",
-        "tags": [
-          "development simulation: devices"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/{role}/disconnect": {
-      "post": {
-        "operationId": "disconnectSimulationDevice",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DeviceRole"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Disconnect Device",
-        "tags": [
-          "development simulation: devices"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/{role}/protocol-version": {
-      "put": {
-        "operationId": "setSimulationDeviceProtocolVersion",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DeviceRole"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SimulationDeviceProtocolVersionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Set Device Protocol Version",
-        "tags": [
-          "development simulation: devices"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/{role}/reboot": {
-      "post": {
-        "operationId": "rebootSimulationDevice",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DeviceRole"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Reboot Device",
-        "tags": [
-          "development simulation: devices"
-        ]
-      }
-    },
-    "/api/dev/simulation/devices/{role}/status-code": {
-      "put": {
-        "operationId": "setSimulationDeviceStatusCode",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DeviceRole"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SimulationDeviceStatusCodeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblemResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Set Device Status Code",
-        "tags": [
-          "development simulation: devices"
         ]
       }
     },

@@ -70,7 +70,7 @@ def test_dry_run_reports_closed_profile(
     assert output["profile"] == profile
     assert output["transport"] == transport
     assert output["simulation_api"] == simulation_api
-    assert output["device_adapters"]
+    assert "device_adapters" not in output
 
 
 def test_profile_environment_variable_is_used_for_dry_run(

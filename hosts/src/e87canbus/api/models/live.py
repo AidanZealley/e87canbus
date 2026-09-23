@@ -49,34 +49,8 @@ class ActiveSteeringCurveState(LiveModel):
     definition: SteeringCurveDefinition
     fingerprint: str
     activation_revision: int
-    status: Literal["active", "activating", "activation_failed"]
     saved_profile_id: str | None
     saved_profile_revision: int | None
-
-
-class ServotronicState(LiveModel):
-    effective_assistance: float
-    last_command_reason: (
-        Literal[
-            "auto",
-            "manual",
-            "maximum",
-            "speed_never_observed",
-            "speed_stale",
-            "can_reader_failure",
-            "inbox_overflow",
-            "shutdown",
-        ]
-        | None
-    )
-    watchdog_timed_out: bool
-    active_curve_source: Literal["builtin_fallback", "coordinator_ram"] | None = None
-    active_curve_revision: int | None = None
-    active_curve_crc32: int | None = None
-    observed_speed_kph: float | None = None
-    speed_fresh: bool | None = None
-    pwm_duty: int | None = None
-    inhibit_reason: str | None = None
 
 
 class SteeringState(LiveModel):
@@ -85,8 +59,6 @@ class SteeringState(LiveModel):
     manual_assistance_level_count: int = Field(gt=0)
     maximum_assistance_active: bool
     active_curve: ActiveSteeringCurveState
-    servotronic: ServotronicState | None
-    curve_activation_available: bool
 
 
 class ButtonsState(LiveModel):
@@ -97,10 +69,7 @@ class ButtonsState(LiveModel):
 class RuntimeFaultState(LiveModel):
     kind: Literal[
         "can_reader",
-        "can_effect_execution",
-        "steering_actuator",
         "inbox_overflow",
-        "device_adapter",
     ]
     monotonic_s: float
     message: str
@@ -117,15 +86,6 @@ class InboxHealthState(LiveModel):
     current_latency_s: float = Field(ge=0)
     latency_warning: bool
     overflow_latched: bool
-
-
-class DeviceHealthState(LiveModel):
-    role: Literal["servotronic_controller"]
-    fault: RuntimeFaultState | None
-
-
-class SteeringCapabilityHealthState(LiveModel):
-    fault: RuntimeFaultState | None
 
 
 class PersistenceHealthState(LiveModel):
@@ -159,19 +119,9 @@ def steering_state(snapshot: ControllerLoopSnapshot) -> SteeringState:
             ),
             fingerprint=active.fingerprint,
             activation_revision=active.activation_revision,
-            status=application.steering_curve_activation_status.value,
             saved_profile_id=active.saved_profile_id,
             saved_profile_revision=active.saved_profile_revision,
         ),
-        servotronic=(
-            None
-            if snapshot.adapter.servotronic is None
-            else ServotronicState.model_validate(
-                snapshot.adapter.servotronic,
-                from_attributes=True,
-            )
-        ),
-        curve_activation_available=application.curve_activation_available,
     )
 
 
