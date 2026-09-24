@@ -33,3 +33,9 @@ session.
 - Overload is reported instead of growing an unbounded command backlog.
 - Synthetic speed and the dimensionless steering actuator prove software semantics only; they do
   not imply a verified vehicle protocol or physical safe state.
+
+## Implementation note, 2026-09-24
+
+Slice 1.5 retains simulated vehicle frames through an in-memory bus and the kernel decoder. It
+removed project-device peers, actuator output and the unused CAN trace. The controller owner still
+serializes simulator commands and periodic telemetry.

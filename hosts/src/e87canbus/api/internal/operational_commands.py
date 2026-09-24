@@ -133,6 +133,5 @@ async def _activate(
             definition,
             profile_id,
             profile_revision,
-            requested_at=app.state.monotonic_clock(),
         ),
     )

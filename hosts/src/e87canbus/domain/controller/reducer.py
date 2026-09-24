@@ -1,6 +1,6 @@
 """Pure transitions for vehicle observations and telemetry freshness."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import assert_never
 
 from e87canbus.config import SteeringConfig
@@ -16,34 +16,25 @@ from e87canbus.domain.state import ApplicationState, MaximumAssistance
 from e87canbus.domain.steering.curves import clamp_manual_level
 
 
-@dataclass(frozen=True)
-class Transition:
-    state: ApplicationState
-
-
-def transition(state: ApplicationState, event: ApplicationEvent) -> Transition:
+def transition(state: ApplicationState, event: ApplicationEvent) -> ApplicationState:
     match event:
         case SpeedObserved(sample):
-            return Transition(
-                replace(
-                    state,
-                    speed_sample=replace(sample, speed_kph=max(0.0, sample.speed_kph)),
-                    speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
-                )
+            return replace(
+                state,
+                speed_sample=replace(sample, speed_kph=max(0.0, sample.speed_kph)),
+                speed_evaluated_at=max(state.speed_evaluated_at, sample.observed_at),
             )
         case EngineRpmObserved(sample):
-            return Transition(replace(state, engine_rpm_sample=sample))
+            return replace(state, engine_rpm_sample=sample)
         case OilTemperatureObserved(sample):
-            return Transition(replace(state, oil_temperature_sample=sample))
+            return replace(state, oil_temperature_sample=sample)
         case CoolantTemperatureObserved(sample):
-            return Transition(replace(state, coolant_temperature_sample=sample))
+            return replace(state, coolant_temperature_sample=sample)
         case ControlTimerElapsed(now):
-            return Transition(
-                replace(
-                    state,
-                    speed_evaluated_at=max(state.speed_evaluated_at, now),
-                    engine_telemetry_evaluated_at=max(state.engine_telemetry_evaluated_at, now),
-                )
+            return replace(
+                state,
+                speed_evaluated_at=max(state.speed_evaluated_at, now),
+                engine_telemetry_evaluated_at=max(state.engine_telemetry_evaluated_at, now),
             )
         case _:
             assert_never(event)

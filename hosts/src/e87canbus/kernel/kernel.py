@@ -15,7 +15,6 @@ from e87canbus.domain.buttons.profiles import (
 )
 from e87canbus.domain.controller import (
     ApplicationSnapshot,
-    Transition,
     execute_operator_intent,
     normalize_state,
     snapshot,
@@ -77,7 +76,6 @@ class CoordinatorKernel:
         validate_active_steering_curve(self._active_steering_curve)
         self._button_profile = button_profile or built_in_active_button_profile()
         self._button_profile_saved_revision: int | None = None
-        self._revision = 0
         self._lifecycle = KernelLifecycle.CREATED
         self._health = RuntimeHealth()
 
@@ -93,10 +91,6 @@ class CoordinatorKernel:
     def button_profile(self) -> ActiveButtonProfile:
         return self._button_profile
 
-    @property
-    def button_profile_saved_revision(self) -> int | None:
-        return self._button_profile_saved_revision
-
     def snapshot(self) -> ApplicationSnapshot:
         return snapshot(
             self._state,
@@ -108,7 +102,7 @@ class CoordinatorKernel:
         )
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:
-        if self._lifecycle is not KernelLifecycle.CREATED or self._revision != 0:
+        if self._lifecycle is not KernelLifecycle.CREATED:
             raise RuntimeError("initial steering curve must be configured before startup")
         validate_active_steering_curve(curve)
         self._active_steering_curve = curve
@@ -116,7 +110,7 @@ class CoordinatorKernel:
     def configure_initial_button_profile(
         self, profile: ActiveButtonProfile, saved_profile_revision: int | None = None
     ) -> None:
-        if self._lifecycle is not KernelLifecycle.CREATED or self._revision != 0:
+        if self._lifecycle is not KernelLifecycle.CREATED:
             raise RuntimeError("initial button profile must be configured before startup")
         if not isinstance(profile, ActiveButtonProfile):
             raise TypeError("profile must be an ActiveButtonProfile")
@@ -125,7 +119,7 @@ class CoordinatorKernel:
         self._button_profile_saved_revision = saved_profile_revision
 
     def diagnostics(self) -> DiagnosticSnapshot:
-        return DiagnosticSnapshot(self._lifecycle, self._revision, self._health)
+        return DiagnosticSnapshot(self._lifecycle, self._health)
 
     def dispatch(self, kernel_input: ControllerInput) -> Commit | None:
         if self._lifecycle is KernelLifecycle.STOPPED:
@@ -135,8 +129,7 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.CREATED:
                     return None
                 self._lifecycle = KernelLifecycle.RUNNING
-                self._revision = 1
-                return Commit(self._revision, self.snapshot(), INITIAL_KERNEL_TOPICS, True)
+                return Commit(self.snapshot(), INITIAL_KERNEL_TOPICS)
             case ShutdownRequested():
                 self._lifecycle = KernelLifecycle.STOPPED
                 return None
@@ -203,11 +196,7 @@ class CoordinatorKernel:
                 routed.frame.data.hex(),
                 exc,
             )
-            self._health = self._health.with_frame_outcome(received.network, "malformed")
             return None
-        self._health = self._health.with_frame_outcome(
-            received.network, "ignored" if event is None else "decoded"
-        )
         return None if event is None else self._transition(event)
 
     def _dispatch_button_press(self, event: ButtonPressed) -> Commit | None:
@@ -235,22 +224,18 @@ class CoordinatorKernel:
         return self._commit_application_result(transition(self._state, event), previous)
 
     def _commit_application_result(
-        self, result: Transition, previous: ApplicationSnapshot
+        self, result: ApplicationState, previous: ApplicationSnapshot
     ) -> Commit:
-        self._state = result.state
-        self._revision += 1
+        self._state = result
         current = self.snapshot()
         return Commit(
-            self._revision,
             current,
             changed_controller_topics(previous, current, health_changed=False),
-            current != previous,
         )
 
     def _commit_health(self, previous: RuntimeHealth) -> Commit:
-        self._revision += 1
         topics = frozenset({StateTopic.HEALTH}) if self._health != previous else frozenset()
-        return Commit(self._revision, self.snapshot(), topics, False)
+        return Commit(self.snapshot(), topics)
 
     def _activate_steering_curve(self, request: ActivateSteeringCurve) -> Commit:
         validate_steering_curve_definition(request.definition)
@@ -264,24 +249,18 @@ class CoordinatorKernel:
             saved_profile_id=request.saved_profile_id,
             saved_profile_revision=request.saved_profile_revision,
         )
-        self._revision += 1
         committed = self.snapshot()
         return Commit(
-            self._revision,
             committed,
             changed_controller_topics(previous, committed, health_changed=False),
-            committed != previous,
         )
 
     def _activate_button_profile(self, request: ActivateButtonProfile) -> Commit:
         previous = self.snapshot()
         self._button_profile = request.profile
         self._button_profile_saved_revision = request.saved_profile_revision
-        self._revision += 1
         committed = self.snapshot()
         return Commit(
-            self._revision,
             committed,
             changed_controller_topics(previous, committed, health_changed=False),
-            committed != previous,
         )

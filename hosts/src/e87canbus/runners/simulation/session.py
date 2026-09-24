@@ -10,7 +10,7 @@ from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import CoordinatorKernel
-from e87canbus.runners.simulation.bus import InMemoryCanTopology
+from e87canbus.runners.simulation.bus import InMemoryCanNetwork
 from e87canbus.runners.simulation.devices import SimulatedVehicleNode
 from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
@@ -18,7 +18,6 @@ from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 
 @dataclass(frozen=True)
 class SimulationSession:
-    topology: InMemoryCanTopology
     pi_buses: dict[CanNetwork, CanReceiver]
     vehicle: SimulatedVehicleNode
     kernel: CoordinatorKernel
@@ -32,14 +31,14 @@ def build_session(
     initial_steering_curve: ActiveSteeringCurve | None,
     button_profile_saved_revision: int | None = None,
 ) -> SimulationSession:
-    topology = InMemoryCanTopology(trace_capacity=config.simulation.trace_capacity, clock=clock)
+    networks = {network: InMemoryCanNetwork() for network in CanNetwork}
     pi_buses: dict[CanNetwork, CanReceiver] = {
-        item.network: topology.create_bus(item.network, "pi")
+        item.network: networks[item.network].create_bus("pi")
         for item in config.can_networks
         if item.enabled
     }
     vehicle_buses = {
-        item.network: topology.create_bus(item.network, "simulated-vehicle")
+        item.network: networks[item.network].create_bus("simulated-vehicle")
         for item in config.can_networks
     }
     vehicle = SimulatedVehicleNode(
@@ -55,4 +54,4 @@ def build_session(
     )
     if button_profile is not None:
         kernel.configure_initial_button_profile(button_profile, button_profile_saved_revision)
-    return SimulationSession(topology, pi_buses, vehicle, kernel)
+    return SimulationSession(pi_buses, vehicle, kernel)

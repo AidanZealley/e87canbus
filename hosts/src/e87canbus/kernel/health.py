@@ -1,8 +1,7 @@
 """Immutable runtime-health diagnostics owned by the kernel.
 
-Health is a separate service projection from application state: it records
-adapter and transport faults and per-network frame outcomes without ever
-mutating the authoritative controller state.
+Health is a separate service projection from application state. It records
+adapter and transport faults without mutating authoritative controller state.
 """
 
 from __future__ import annotations
@@ -29,10 +28,6 @@ class RuntimeFault:
 class NetworkRuntimeHealth:
     network: CanNetwork
     fault: RuntimeFault | None = None
-    received_frames: int = 0
-    decoded_frames: int = 0
-    ignored_frames: int = 0
-    malformed_frames: int = 0
 
 
 def _empty_network_health() -> tuple[NetworkRuntimeHealth, ...]:
@@ -72,27 +67,3 @@ class RuntimeHealth:
     ) -> RuntimeHealth:
         updated = replace(self, inbox_overflow_fault=fault)
         return updated if network is None else updated.with_fault(network, fault)
-
-    def with_frame_outcome(self, network: CanNetwork, outcome: str) -> RuntimeHealth:
-        current = self.for_network(network)
-        if outcome == "decoded":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                decoded_frames=current.decoded_frames + 1,
-            )
-        elif outcome == "ignored":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                ignored_frames=current.ignored_frames + 1,
-            )
-        elif outcome == "malformed":
-            updated = replace(
-                current,
-                received_frames=current.received_frames + 1,
-                malformed_frames=current.malformed_frames + 1,
-            )
-        else:
-            raise ValueError(f"unsupported frame outcome: {outcome}")
-        return self._replace(updated)

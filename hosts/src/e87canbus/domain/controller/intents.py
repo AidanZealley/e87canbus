@@ -6,7 +6,6 @@ from dataclasses import dataclass, replace
 from typing import assert_never
 
 from e87canbus.config import SteeringConfig
-from e87canbus.domain.controller.reducer import Transition
 from e87canbus.domain.intents import (
     AdjustManualAssistance,
     OperatorIntent,
@@ -31,31 +30,21 @@ from e87canbus.domain.steering.curves import (
 
 def execute_operator_intent(
     state: ApplicationState, intent: OperatorIntent, config: SteeringConfig
-) -> Transition:
+) -> ApplicationState:
     """Apply one operator request to desired coordinator state."""
-    return _apply_operator_intent(state, intent, config)
-
-
-def _apply_operator_intent(
-    state: ApplicationState,
-    intent: OperatorIntent,
-    config: SteeringConfig,
-) -> Transition:
-    """Apply one transport-independent operator request to authoritative state."""
-
     match intent:
         case SelectSteeringMode(mode):
             return _select_steering_mode(state, mode, config)
         case ToggleAutomaticAssistance():
-            return Transition(_toggled_automatic_assistance(state))
+            return _toggled_automatic_assistance(state)
         case AdjustManualAssistance(delta):
-            return Transition(_establish_manual_assistance(state, _AdjustLevel(delta), config))
+            return _establish_manual_assistance(state, _AdjustLevel(delta), config)
         case SetManualAssistanceLevel(level):
-            return Transition(_establish_manual_assistance(state, _SelectLevel(level), config))
+            return _establish_manual_assistance(state, _SelectLevel(level), config)
         case SetMaximumAssistanceIntent(enabled):
             return _set_maximum_assistance(state, enabled)
         case ToggleMaximumAssistance():
-            return Transition(_toggled_maximum_assistance(state))
+            return _toggled_maximum_assistance(state)
         case _:
             assert_never(intent)
 
@@ -138,7 +127,7 @@ def _toggled_maximum_assistance(
 def _set_maximum_assistance(
     state: ApplicationState,
     enabled: bool,
-) -> Transition:
+) -> ApplicationState:
     steering = state.steering
     next_steering: SteeringState
     if enabled:
@@ -150,23 +139,23 @@ def _set_maximum_assistance(
     else:
         next_steering = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_state = replace(state, steering=next_steering)
-    return Transition(next_state)
+    return next_state
 
 
 def _select_steering_mode(
     state: ApplicationState,
     mode: SteeringMode,
     config: SteeringConfig,
-) -> Transition:
+) -> ApplicationState:
     if not isinstance(mode, SteeringMode):
         raise ValueError("mode must be a supported SteeringMode value")
     if mode is SteeringMode.MANUAL:
         next_state = _establish_manual_assistance(state, _RestoreLevel(), config)
-        return Transition(next_state)
+        return next_state
     steering = state.steering
     normal = steering.previous if isinstance(steering, MaximumAssistance) else steering
     next_normal = replace(normal, mode=mode)
     # An explicit mode selection returns to normal steering, so it also
     # cancels the temporary maximum-assistance override.
     next_state = replace(state, steering=next_normal)
-    return Transition(next_state)
+    return next_state

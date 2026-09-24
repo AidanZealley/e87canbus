@@ -1,4 +1,4 @@
-"""The closed set of timed inputs accepted by the coordinator kernel.
+"""The closed set of ordered inputs accepted by the coordinator kernel.
 
 These are transport-independent: an input carries no FastAPI request, SSE
 connection or simulator UI value. Adapters translate their own concerns into one of
@@ -7,7 +7,7 @@ these before submitting it through the single ``CoordinatorKernel.dispatch`` pat
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from e87canbus.config import CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile, validate_saved_profile_revision
@@ -22,7 +22,7 @@ from e87canbus.protocol.can import CanFrame
 
 @dataclass(frozen=True)
 class KernelStarted:
-    now: float
+    pass
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class InboxOverflowed:
 
 @dataclass(frozen=True)
 class ShutdownRequested:
-    now: float
+    pass
 
 
 @dataclass(frozen=True)
@@ -63,14 +63,12 @@ class ActivateSteeringCurve:
     definition: SteeringCurveDefinition
     saved_profile_id: str | None = None
     saved_profile_revision: int | None = None
-    requested_at: float = field(kw_only=True)
 
 
 @dataclass(frozen=True)
 class ActivateButtonProfile:
     profile: ActiveButtonProfile
     saved_profile_revision: int | None = None
-    requested_at: float = field(kw_only=True)
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile, ActiveButtonProfile):

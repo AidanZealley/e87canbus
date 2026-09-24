@@ -108,29 +108,33 @@ Perform the focused closure review for Workstream 4 of the simplified coordinato
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `f6dd22f5f56ee2fc76ce26919e8db5a0fd0c606b`
+- Outcome: The kernel retains vehicle observations, desired state, profiles and complete projection changes. The bounded controller service owns the boot-scoped live revision and per-topic revisions. Simulation sends vehicle frames through in-memory CAN buses and the production kernel decoder without trace or project-device topology state.
+- Files changed: Kernel inputs, commits and diagnostics; domain transition and button input values; controller loop and runtime contracts; live and simulated runtime composition, CAN bus and session; affected API command construction and focused tests; current simulation, reliability and live API documentation; ADR implementation notes.
+- Decisions: Removed the kernel's duplicate revision and `state_changed` flag, unused input timestamps, the single-field `Transition` wrapper, the adapter snapshot wrapper, simulator trace events and buffer, and dead deadline mocks. Kept the simulation session ID as a direct service snapshot field because the simulated coordinator panel uses it to clear previews after reset. After review, added `ButtonPressed` to both runtime dispatch paths and removed consumerless frame outcome counters and simulator frame history. Kept periodic telemetry freshness, CAN reader faults, bounded ordered input and complete SSE topic replacements.
+- Verification: The final targeted backend suite plus affected domain, bus, button, config and deployment tests passed (84). OpenAPI `--check`, mypy, ruff, lint-imports and `git diff --check` passed after remediation. Frontend `pnpm api:check` and `pnpm typecheck` passed. Frontend client and coordinator suites passed (20 and 36 tests). The console suite passed with one worker (97 tests).
+- Known limitations or external checks: The default parallel `pnpm test` run timed out on one console route test; its full suite passed with one worker. No hardware or vehicle validation gate applies to this slice.
+- Specification drift: None. The older live API document's statement about retaining an internal simulation trace was updated to match this slice's removal of consumerless trace state.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh independent Workstream 4 review agent.
+- Verdict: Changes requested.
+- Required findings:
+  1. The ordered runtime path still rejects the retained button input. `CoordinatorKernel.dispatch` accepts `ButtonPressed` (`kernel/kernel.py:172-177`), but `LiveControllerRuntime.execute` rejects it because `CONTROLLER_INPUT_TYPES` omits it (`runners/live.py:49-60,216-225`), and `SimulatedControllerRuntime.execute` has no matching case (`runners/simulation/runtime.py:95-128`). Calling the simulated runtime with `ButtonPressed(0)` raises `TypeError: unsupported simulation command`. Slice 1.5 requires later device presses to enter the existing bounded owner; add the input to both runtime dispatch paths so Slice 02 can use that seam.
+  2. Per-network frame outcome counters and the simulator's cumulative `_frame_history` have no retained product consumer. `kernel/health.py:27-35,78-100` stores received, decoded, ignored and malformed counts; `runners/simulation/runtime.py:67,147-169,191-197` carries them across resets. Repository search finds readers only in that history code and tests. The browser health projection in `api/models/coordinator_live.py:139-159` publishes reader faults but none of these counters, and current reliability documentation lists no counter contract. The packet requires deleting diagnostics with no retained consumer. Remove these counters and history while preserving reader faults, inbox overflow and their health publication.
+- Optional observations: `kernel/commit.py:3-5,45-50` says every commit follows a mutation, although no-op intents and periodic freshness ticks can return commits with no changed topic. Align that comment with the contract when touching the file.
+- Questions: None.
+
+Review evidence: The focused architecture, controller loop, live and simulated runtime, simulator API, live projection, SSE and application-controller suite passed (49 tests). `uv run lint-imports` and `git diff --check` passed. The bounded queue, ingress timestamps and network identity survive in `service/loop.py:292-315`, `runners/live.py:77-129` and `kernel/kernel.py:187-204`. Desired steering state and active profile/curve activation still commit complete snapshots with fixed changed topics. The service owns the boot-scoped revision and per-topic revisions (`service/loop.py:445-475`), and browser SSE sends complete topic replacements. Active-code search found no old device role, effect executor, output seam, exact deadline scheduler, device or lighting topic, simulator peer topology or trace buffer. Live and simulated runtimes remain separate.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Accepted both Required findings. Both runtimes now pass `ButtonPressed` to the kernel through their ordered execution paths. Removed the frame outcome counters and reset history because no product projection reads them. Also accepted the Optional `Commit` docstring correction.
+- Simplification/deletion pass: Removed the counter state and its test-only reset logic outright. Retained CAN reader faults, inbox overflow health, ingress timestamps and network identity. The implementation also removed duplicate revisions, unused wrappers, trace and topology state without adding a replacement output seam.
+- Final verification: The final targeted backend suite passed (84 tests). OpenAPI `--check`, mypy, ruff, lint-imports and `git diff --check` passed after remediation. Frontend API and type checks passed in the initial implementation, and its client, coordinator and serial console suites passed.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. Both accepted Required findings are resolved in the cumulative diff from `f6dd22f`.
+- Remaining required findings: None. Both runtimes now accept `ButtonPressed` and dispatch it to the kernel; the focused runtime test confirms that an assigned press changes desired steering state and reports `StateTopic.STEERING` in live and simulated execution. The service still serializes submitted work through its bounded inbox and records changed topics with its boot-scoped revision. The kernel and simulator no longer retain frame outcome counters or reset history; network reader faults and inbox overflow still feed the published health projection. The focused architecture, controller loop, runtime, simulation, SSE publication and button profile suite passed (31 tests), and `git diff --check` passed.

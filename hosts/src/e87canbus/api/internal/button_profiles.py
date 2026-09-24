@@ -148,7 +148,6 @@ async def _install_updated_profile(
         ActivateButtonProfile(
             profile.as_active(),
             saved_profile_revision=profile.revision,
-            requested_at=app.state.monotonic_clock(),
         ),
     )
     # Runtime installation cannot share SQLite's transaction. If selection persistence

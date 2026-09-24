@@ -33,3 +33,9 @@ control evaluation time cannot move backwards.
   latency.
 - Threading and queue primitives remain composition concerns and do not enter the application
   domain.
+
+## Implementation note, 2026-09-24
+
+Slice 1.5 retains ordered, timestamped inputs and the bounded owner. Kernel commits carry a
+complete snapshot and changed topics. The controller service owns the boot-scoped SSE revision;
+the kernel has no separate revision or effect contract.
