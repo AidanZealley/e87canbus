@@ -33,6 +33,7 @@ from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.composition import build_controller_loop
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
 from e87canbus.runners.simulation.api import install_simulation_api
+from e87canbus.runners.simulation.devices.button_pad import SimulatedButtonPad
 from e87canbus.service import ControllerLoop
 
 PROFILE_DATABASE_ENVIRONMENT_VARIABLE = "E87CANBUS_PROFILE_DATABASE"
@@ -67,6 +68,7 @@ def create_app(
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
     authenticator: ApplicationAuthenticator | None = None,
+    simulate_button_pad: bool = True,
     provisioning_status_path: str | Path = PROVISIONING_STATUS_PATH,
 ) -> FastAPI:
     if controller_loop is not None and (profile is not None or config is not None):
@@ -144,6 +146,17 @@ def create_app(
     app.state.deployment = service.deployment
     app.state.live_publisher = publisher
     app.state.device_configuration = device_configuration
+    app.state.simulated_button_pad = (
+        SimulatedButtonPad(
+            app, shutdown_timeout_s=service.config.live_publication.shutdown_timeout_s
+        )
+        if (
+            service.deployment.profile is DeploymentProfile.SIMULATOR
+            and authenticator is None
+            and simulate_button_pad
+        )
+        else None
+    )
     app.state.coordinator_panel = coordinator_panel
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository

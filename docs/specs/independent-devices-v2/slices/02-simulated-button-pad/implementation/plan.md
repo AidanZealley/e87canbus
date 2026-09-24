@@ -19,7 +19,7 @@ Status: implementation in progress.
 | 3 | [Persist device configuration and status](03-persist-device-state.md) | Workstream 2 | Accepted |
 | 4 | [Accept device status and button presses](04-device-http-inputs.md) | Workstream 3 | Accepted |
 | 5 | [Deliver durable device configuration over SSE](05-device-configuration-stream.md) | Workstream 4 | Accepted |
-| 6 | [Run the simulated pad through the production API](06-simulated-button-pad-client.md) | Workstream 5 | Not started |
+| 6 | [Run the simulated pad through the production API](06-simulated-button-pad-client.md) | Workstream 5 | Accepted |
 | Final | [Whole-feature review](final-review.md) | Workstreams 1-6 | Not started |
 
 Each lead updates its own row on each transition, using one of `Not started`, `Implementing`,

@@ -18,6 +18,7 @@ from e87canbus.domain.steering.curves import (
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
+from e87canbus.runners.simulation.devices.button_pad import SimulatedButtonPad
 from e87canbus.service import ControllerLoop, RuntimeExecution
 
 
@@ -32,6 +33,7 @@ def create_lifespan(
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        simulated_button_pad: SimulatedButtonPad | None = app.state.simulated_button_pad
         try:
             if database is not None:
                 await asyncio.to_thread(database.initialize)
@@ -80,11 +82,17 @@ def create_lifespan(
             await asyncio.to_thread(service.start, notify)
             await publisher.start()
             await device_configuration.start()
+            if simulated_button_pad is not None:
+                await simulated_button_pad.start()
             service.mark_ready()
         except BaseException:
             service.mark_not_ready()
             try:
-                await asyncio.to_thread(service.stop, False)
+                try:
+                    if simulated_button_pad is not None:
+                        await simulated_button_pad.stop()
+                finally:
+                    await asyncio.to_thread(service.stop, False)
             finally:
                 try:
                     if publisher.running:
@@ -110,7 +118,11 @@ def create_lifespan(
             finally:
                 service.mark_not_ready()
                 try:
-                    await asyncio.to_thread(service.stop, False)
+                    try:
+                        if simulated_button_pad is not None:
+                            await simulated_button_pad.stop()
+                    finally:
+                        await asyncio.to_thread(service.stop, False)
                 finally:
                     try:
                         await publisher.stop()

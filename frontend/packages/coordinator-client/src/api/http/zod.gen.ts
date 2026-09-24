@@ -943,6 +943,13 @@ export const zUpdateButtonProfilePath = z.object({
  */
 export const zUpdateButtonProfileResponse = zButtonProfileResponse
 
+export const zTapSimulatedButtonPadBody = zButtonPadPressRequest
+
+/**
+ * Successful Response
+ */
+export const zTapSimulatedButtonPadResponse = zSimulationCommandAcknowledgement
+
 /**
  * Successful Response
  */

@@ -44,6 +44,7 @@ import {
   silenceOilTemperature,
   silenceVehicleSpeed,
   submitButtonPadPress,
+  tapSimulatedButtonPad,
   updateApplicationSettings,
   updateButtonProfile,
   updateSteeringProfile,
@@ -150,6 +151,9 @@ import type {
   SubmitButtonPadPressData,
   SubmitButtonPadPressError,
   SubmitButtonPadPressResponse,
+  TapSimulatedButtonPadData,
+  TapSimulatedButtonPadError,
+  TapSimulatedButtonPadResponse,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsError,
   UpdateApplicationSettingsResponse,
@@ -346,6 +350,31 @@ export const updateButtonProfileMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await updateButtonProfile({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Tap Button Pad
+ */
+export const tapSimulatedButtonPadMutation = (
+  options?: Partial<Options<TapSimulatedButtonPadData>>
+): UseMutationOptions<
+  TapSimulatedButtonPadResponse,
+  TapSimulatedButtonPadError,
+  Options<TapSimulatedButtonPadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    TapSimulatedButtonPadResponse,
+    TapSimulatedButtonPadError,
+    Options<TapSimulatedButtonPadData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await tapSimulatedButtonPad({
         ...options,
         ...fnOptions,
         throwOnError: true,

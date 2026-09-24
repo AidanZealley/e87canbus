@@ -118,6 +118,9 @@ import type {
   SubmitButtonPadPressData,
   SubmitButtonPadPressErrors,
   SubmitButtonPadPressResponses,
+  TapSimulatedButtonPadData,
+  TapSimulatedButtonPadErrors,
+  TapSimulatedButtonPadResponses,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsErrors,
   UpdateApplicationSettingsResponses,
@@ -166,6 +169,7 @@ import {
   zStreamCoordinatorLiveApiLiveGetResponse,
   zStreamDeviceConfigurationResponse,
   zSubmitButtonPadPressResponse,
+  zTapSimulatedButtonPadResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
   zUpdateSteeringProfileResponse,
@@ -334,6 +338,34 @@ export const updateButtonProfile = <ThrowOnError extends boolean = true>(
       await zUpdateButtonProfileResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/button-pad/profiles/{profile_id}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Tap Button Pad
+ */
+export const tapSimulatedButtonPad = <ThrowOnError extends boolean = true>(
+  options: Options<TapSimulatedButtonPadData, ThrowOnError>
+): RequestResult<
+  TapSimulatedButtonPadResponses,
+  TapSimulatedButtonPadErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    TapSimulatedButtonPadResponses,
+    TapSimulatedButtonPadErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zTapSimulatedButtonPadResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/dev/simulation/button-pad/tap",
     ...options,
     headers: {
       "Content-Type": "application/json",
