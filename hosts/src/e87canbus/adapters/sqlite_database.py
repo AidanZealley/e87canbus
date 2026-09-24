@@ -28,7 +28,7 @@ from e87canbus.domain.steering.curves import (
 )
 from e87canbus.domain.timestamps import canonical_utc_timestamp
 
-CURRENT_MIGRATION_VERSION = 9
+CURRENT_MIGRATION_VERSION = 10
 BUILT_IN_PROFILE_ID = "00000000-0000-4000-8000-000000000001"
 BUILT_IN_PROFILE_NAME = "Built-in default"
 BUILT_IN_BUTTON_PROFILE_ID = "00000000-0000-4000-8000-000000000002"
@@ -118,6 +118,8 @@ class SqliteApplicationDatabase:
                     self._apply_migration_8(connection)
                 elif version == 9:
                     self._apply_migration_9(connection)
+                elif version == 10:
+                    self._apply_migration_10(connection)
             # Migration 1 historically restored the built-in only when the whole
             # catalog was empty. Preserve that startup behavior for upgraded files.
             self._seed_profiles_if_empty(connection)
@@ -414,6 +416,28 @@ class SqliteApplicationDatabase:
             f"ADD COLUMN dashboard_id TEXT NOT NULL DEFAULT '{DEFAULT_DASHBOARD_ID}'"
         )
         self._record_migration(connection, 9)
+
+    def _apply_migration_10(self, connection: sqlite3.Connection) -> None:
+        connection.execute("""
+            CREATE TABLE device_configurations (
+                device_id TEXT PRIMARY KEY,
+                role TEXT NOT NULL,
+                generation INTEGER NOT NULL CHECK (generation >= 0),
+                configuration_json TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE device_statuses (
+                device_id TEXT PRIMARY KEY,
+                role TEXT NOT NULL,
+                status_version INTEGER NOT NULL,
+                applied_configuration_generation INTEGER NOT NULL,
+                configuration_error TEXT,
+                device_json TEXT NOT NULL,
+                received_at_utc TEXT NOT NULL
+            )
+        """)
+        self._record_migration(connection, 10)
 
     def _seed_profiles_if_empty(self, connection: sqlite3.Connection) -> None:
         count = connection.execute("SELECT COUNT(*) FROM steering_profiles").fetchone()[0]

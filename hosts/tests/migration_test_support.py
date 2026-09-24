@@ -5,11 +5,18 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Callable
 
+
 # Reversals for the schema each migration adds, keyed by the version that added
 # it. Rewinding has to undo the schema as well as the history row: replaying a
 # migration over a schema that already has its changes is not what an upgrade
 # from an older install does, and would hide a genuinely broken migration.
+def _remove_device_state(connection: sqlite3.Connection) -> None:
+    connection.execute("DROP TABLE device_statuses")
+    connection.execute("DROP TABLE device_configurations")
+
+
 _SCHEMA_REVERSALS: dict[int, Callable[[sqlite3.Connection], None]] = {
+    10: _remove_device_state,
     9: lambda connection: connection.execute(
         "ALTER TABLE application_settings DROP COLUMN dashboard_id"
     ),
