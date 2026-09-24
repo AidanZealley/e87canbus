@@ -140,6 +140,19 @@ class SqliteDeviceStateRepository:
         finally:
             connection.close()
 
+    def list_button_pad_configurations(self) -> tuple[StoredButtonPadConfiguration, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM device_configurations WHERE role = ? ORDER BY device_id",
+                (DeviceRole.BUTTON_PAD.value,),
+            ).fetchall()
+            return tuple(self._configuration_from_row(row, DeviceRole.BUTTON_PAD) for row in rows)
+        except sqlite3.Error as error:
+            raise DeviceStateStorageError("could not list device configurations") from error
+        finally:
+            connection.close()
+
     def upsert_status(
         self, device_id: str, role: DeviceRole, status: ButtonPadStatus
     ) -> StoredButtonPadStatus:

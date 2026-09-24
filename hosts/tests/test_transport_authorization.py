@@ -111,6 +111,7 @@ def test_http_table_is_the_exact_console_allowlist() -> None:
         if PrincipalKind.DEVICE in permissions
     }
     assert device_routes == {
+        ("GET", "/api/devices/configuration"),
         ("POST", "/api/devices/status"),
         ("POST", "/api/devices/button-pad/presses"),
     }

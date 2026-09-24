@@ -17,7 +17,7 @@ from e87canbus.domain.buttons.profiles import (
     BlinkAnimation,
     BreatheAnimation,
 )
-from e87canbus.domain.buttons.scene import resolve_button_pad
+from e87canbus.domain.buttons.scene import ResolvedButton, resolve_button_pad
 from e87canbus.domain.events import BUTTON_LED_COUNT
 from e87canbus.domain.state import ApplicationState
 
@@ -76,8 +76,12 @@ class ButtonPadScene(StrictRequest):
 
     @classmethod
     def from_profile(cls, state: ApplicationState, profile: ActiveButtonProfile) -> Self:
+        return cls.from_resolved_buttons(resolve_button_pad(state, profile))
+
+    @classmethod
+    def from_resolved_buttons(cls, resolved: tuple[ResolvedButton, ...]) -> Self:
         buttons = []
-        for button in resolve_button_pad(state, profile):
+        for button in resolved:
             animation = button.animation
             scene_animation: SceneAnimation | None
             if isinstance(animation, BreatheAnimation):
@@ -99,3 +103,8 @@ class ButtonPadScene(StrictRequest):
                 )
             )
         return cls(schema_version=1, brightness=255, buttons=buttons)
+
+
+class ButtonPadConfigurationEnvelope(StrictRequest):
+    generation: int = Field(ge=0, le=9_007_199_254_740_991)
+    configuration: ButtonPadScene

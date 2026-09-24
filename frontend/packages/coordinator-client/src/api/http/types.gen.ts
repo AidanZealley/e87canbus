@@ -190,6 +190,24 @@ export type BlinkAnimationRequest = {
 }
 
 /**
+ * BlinkSceneAnimation
+ */
+export type BlinkSceneAnimation = {
+  /**
+   * Off Ms
+   */
+  off_ms: number
+  /**
+   * On Ms
+   */
+  on_ms: number
+  /**
+   * Type
+   */
+  type: "blink"
+}
+
+/**
  * BreatheAnimationRequest
  *
  * Keep authored animation bounds valid for the later device scene.
@@ -214,6 +232,39 @@ export type BreatheAnimationRequest = {
 }
 
 /**
+ * BreatheSceneAnimation
+ */
+export type BreatheSceneAnimation = {
+  /**
+   * Maximum
+   */
+  maximum: number
+  /**
+   * Minimum
+   */
+  minimum: number
+  /**
+   * Period Ms
+   */
+  period_ms: number
+  /**
+   * Type
+   */
+  type: "breathe"
+}
+
+/**
+ * ButtonPadConfigurationEnvelope
+ */
+export type ButtonPadConfigurationEnvelope = {
+  configuration: ButtonPadScene
+  /**
+   * Generation
+   */
+  generation: number
+}
+
+/**
  * ButtonPadDeviceStatus
  *
  * The first button-pad status document has no role-specific fields.
@@ -230,6 +281,41 @@ export type ButtonPadPressRequest = {
    * Button Index
    */
   button_index: number
+}
+
+/**
+ * ButtonPadScene
+ */
+export type ButtonPadScene = {
+  /**
+   * Brightness
+   */
+  brightness: number
+  /**
+   * Buttons
+   */
+  buttons: [
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+    SceneButton,
+  ]
+  /**
+   * Schema Version
+   */
+  schema_version: 1
 }
 
 /**
@@ -799,6 +885,31 @@ export type RuntimeFaultState = {
    * Monotonic S
    */
   monotonic_s: number
+}
+
+/**
+ * SceneButton
+ */
+export type SceneButton = {
+  /**
+   * Animation
+   */
+  animation:
+    | ({
+        type: "breathe"
+      } & BreatheSceneAnimation)
+    | ({
+        type: "blink"
+      } & BlinkSceneAnimation)
+    | null
+  /**
+   * Assigned
+   */
+  assigned: boolean
+  /**
+   * Colour
+   */
+  colour: [number, number, number]
 }
 
 /**
@@ -1984,6 +2095,23 @@ export type SubmitButtonPadPressResponses = {
 
 export type SubmitButtonPadPressResponse =
   SubmitButtonPadPressResponses[keyof SubmitButtonPadPressResponses]
+
+export type StreamDeviceConfigurationData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/devices/configuration"
+}
+
+export type StreamDeviceConfigurationResponses = {
+  /**
+   * Successful Response
+   */
+  200: ButtonPadConfigurationEnvelope
+}
+
+export type StreamDeviceConfigurationResponse =
+  StreamDeviceConfigurationResponses[keyof StreamDeviceConfigurationResponses]
 
 export type ReportDeviceStatusData = {
   body: ButtonPadStatus

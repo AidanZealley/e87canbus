@@ -77,6 +77,18 @@ def test_coordinator_sse_disables_proxy_buffering_with_a_bounded_idle_timeout() 
     assert "proxy_set_header Connection" not in nginx
 
 
+def test_device_configuration_sse_has_its_own_unbuffered_location() -> None:
+    nginx = read(ROOT / "deploy/nginx/e87canbus.conf")
+    location = nginx.split("location = /api/devices/configuration {", maxsplit=1)[1].split(
+        "}", maxsplit=1
+    )[0]
+    assert "proxy_buffering off;" in location
+    assert "proxy_read_timeout 30s;" in location
+    assert "X-E87-Client-Verify $ssl_client_verify" in location
+    assert "X-E87-Client-Certificate $ssl_client_escaped_cert" in location
+    assert nginx.count("proxy_buffering off;") == 2
+
+
 @pytest.mark.parametrize("origin", controller_origins())
 def test_deployed_controller_origins_are_allowed_by_http(origin: str, tmp_path: Path) -> None:
     origins = controller_origins()

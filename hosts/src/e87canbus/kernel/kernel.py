@@ -99,6 +99,7 @@ class CoordinatorKernel:
             self._active_steering_curve,
             self._button_profile.profile_id,
             self._button_profile_saved_revision,
+            self._button_profile,
         )
 
     def configure_initial_steering_curve(self, curve: ActiveSteeringCurve) -> None:

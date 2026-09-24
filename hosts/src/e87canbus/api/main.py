@@ -21,6 +21,7 @@ from e87canbus.adapters.web import SpaStaticFiles
 from e87canbus.api.auth import ApplicationAuthenticator, AuthorizationMiddleware
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
+from e87canbus.api.internal.device_configuration import ButtonPadConfigurationService
 from e87canbus.api.internal.lifecycle import create_lifespan
 from e87canbus.api.routes import button_profiles, devices, health, live, settings, steering, system
 from e87canbus.api.routes.system import PROVISIONING_STATUS_PATH
@@ -109,6 +110,7 @@ def create_app(
         device_state_repository = SqliteDeviceStateRepository(database, clock=utc_clock)
 
     publisher = CoordinatorSsePublisher(service, service.config)
+    device_configuration = ButtonPadConfigurationService(service, device_state_repository)
     coordinator_panel = (
         None
         if service.deployment.profile is DeploymentProfile.SIMULATOR
@@ -123,6 +125,7 @@ def create_app(
             profile_repository,
             button_profile_repository,
             publisher,
+            device_configuration,
             coordinator_panel,
         ),
     )
@@ -140,6 +143,7 @@ def create_app(
     app.state.deployment_profile = service.deployment.profile
     app.state.deployment = service.deployment
     app.state.live_publisher = publisher
+    app.state.device_configuration = device_configuration
     app.state.coordinator_panel = coordinator_panel
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository

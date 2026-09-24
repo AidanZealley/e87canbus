@@ -307,6 +307,35 @@
         "title": "BlinkAnimationRequest",
         "type": "object"
       },
+      "BlinkSceneAnimation": {
+        "additionalProperties": false,
+        "properties": {
+          "off_ms": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Off Ms",
+            "type": "integer"
+          },
+          "on_ms": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "On Ms",
+            "type": "integer"
+          },
+          "type": {
+            "const": "blink",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "on_ms",
+          "off_ms"
+        ],
+        "title": "BlinkSceneAnimation",
+        "type": "object"
+      },
       "BreatheAnimationRequest": {
         "additionalProperties": false,
         "description": "Keep authored animation bounds valid for the later device scene.",
@@ -344,6 +373,62 @@
         "title": "BreatheAnimationRequest",
         "type": "object"
       },
+      "BreatheSceneAnimation": {
+        "additionalProperties": false,
+        "properties": {
+          "maximum": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Maximum",
+            "type": "integer"
+          },
+          "minimum": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Minimum",
+            "type": "integer"
+          },
+          "period_ms": {
+            "maximum": 10000.0,
+            "minimum": 250.0,
+            "title": "Period Ms",
+            "type": "integer"
+          },
+          "type": {
+            "const": "breathe",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "period_ms",
+          "minimum",
+          "maximum"
+        ],
+        "title": "BreatheSceneAnimation",
+        "type": "object"
+      },
+      "ButtonPadConfigurationEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/ButtonPadScene"
+          },
+          "generation": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generation",
+          "configuration"
+        ],
+        "title": "ButtonPadConfigurationEnvelope",
+        "type": "object"
+      },
       "ButtonPadDeviceStatus": {
         "additionalProperties": false,
         "description": "The first button-pad status document has no role-specific fields.",
@@ -365,6 +450,38 @@
           "button_index"
         ],
         "title": "ButtonPadPressRequest",
+        "type": "object"
+      },
+      "ButtonPadScene": {
+        "additionalProperties": false,
+        "properties": {
+          "brightness": {
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Brightness",
+            "type": "integer"
+          },
+          "buttons": {
+            "items": {
+              "$ref": "#/components/schemas/SceneButton"
+            },
+            "maxItems": 16,
+            "minItems": 16,
+            "title": "Buttons",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "brightness",
+          "buttons"
+        ],
+        "title": "ButtonPadScene",
         "type": "object"
       },
       "ButtonPadStatus": {
@@ -1351,6 +1468,58 @@
           "message"
         ],
         "title": "RuntimeFaultState",
+        "type": "object"
+      },
+      "SceneButton": {
+        "additionalProperties": false,
+        "properties": {
+          "animation": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "blink": "#/components/schemas/BlinkSceneAnimation",
+                    "breathe": "#/components/schemas/BreatheSceneAnimation"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/BreatheSceneAnimation"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BlinkSceneAnimation"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Animation"
+          },
+          "assigned": {
+            "title": "Assigned",
+            "type": "boolean"
+          },
+          "colour": {
+            "items": {
+              "maximum": 255.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Colour",
+            "type": "array"
+          }
+        },
+        "required": [
+          "assigned",
+          "colour",
+          "animation"
+        ],
+        "title": "SceneButton",
         "type": "object"
       },
       "SelectSteeringModeCommand": {
@@ -3221,6 +3390,27 @@
           }
         },
         "summary": "Submit Button Pad Press",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/devices/configuration": {
+      "get": {
+        "operationId": "streamDeviceConfiguration",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ButtonPadConfigurationEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stream Configuration",
         "tags": [
           "devices"
         ]
