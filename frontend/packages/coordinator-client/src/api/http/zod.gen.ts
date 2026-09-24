@@ -49,6 +49,30 @@ export const zBreatheAnimationRequest = z.object({
 })
 
 /**
+ * ButtonPadDeviceStatus
+ *
+ * The first button-pad status document has no role-specific fields.
+ */
+export const zButtonPadDeviceStatus = z.record(z.string(), z.never())
+
+/**
+ * ButtonPadPressRequest
+ */
+export const zButtonPadPressRequest = z.object({
+  button_index: z.int().gte(0).lt(16),
+})
+
+/**
+ * ButtonPadStatus
+ */
+export const zButtonPadStatus = z.object({
+  applied_configuration_generation: z.int().gte(0).lte(9007199254740991),
+  configuration_error: z.string().nullable(),
+  device: zButtonPadDeviceStatus,
+  status_version: z.literal(1),
+})
+
+/**
  * ButtonsState
  */
 export const zButtonsState = z.object({
@@ -731,6 +755,7 @@ export const zApiProblemDetail = z.object({
     "profile_revision_conflict",
     "profile_name_conflict",
     "profile_storage_error",
+    "device_storage_error",
     "profile_protected",
     "runtime_queue_full",
     "controller_unavailable",
@@ -925,6 +950,20 @@ export const zSetVehicleSweepBody = zVehicleSweepRequest
  * Successful Response
  */
 export const zSetVehicleSweepResponse = zSimulationCommandAcknowledgement
+
+export const zSubmitButtonPadPressBody = zButtonPadPressRequest
+
+/**
+ * Successful Response
+ */
+export const zSubmitButtonPadPressResponse = z.void()
+
+export const zReportDeviceStatusBody = zButtonPadStatus
+
+/**
+ * Successful Response
+ */
+export const zReportDeviceStatusResponse = z.void()
 
 /**
  * Response Stream Coordinator Live Api Live Get

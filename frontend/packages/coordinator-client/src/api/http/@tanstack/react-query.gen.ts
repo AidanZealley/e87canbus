@@ -29,6 +29,7 @@ import {
   listSteeringProfiles,
   type Options,
   previewSimulationCoordinatorStatus,
+  reportDeviceStatus,
   resetSimulation,
   setCoolantTemperature,
   setEngineRpm,
@@ -42,6 +43,7 @@ import {
   silenceEngineRpm,
   silenceOilTemperature,
   silenceVehicleSpeed,
+  submitButtonPadPress,
   updateApplicationSettings,
   updateButtonProfile,
   updateSteeringProfile,
@@ -103,6 +105,9 @@ import type {
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusError,
   PreviewSimulationCoordinatorStatusResponse,
+  ReportDeviceStatusData,
+  ReportDeviceStatusError,
+  ReportDeviceStatusResponse,
   ResetSimulationData,
   ResetSimulationError,
   ResetSimulationResponse,
@@ -142,6 +147,9 @@ import type {
   SilenceVehicleSpeedData,
   SilenceVehicleSpeedError,
   SilenceVehicleSpeedResponse,
+  SubmitButtonPadPressData,
+  SubmitButtonPadPressError,
+  SubmitButtonPadPressResponse,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsError,
   UpdateApplicationSettingsResponse,
@@ -639,6 +647,56 @@ export const setVehicleSweepMutation = (
   > = {
     mutationFn: async (fnOptions) =>
       await setVehicleSweep({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Submit Button Pad Press
+ */
+export const submitButtonPadPressMutation = (
+  options?: Partial<Options<SubmitButtonPadPressData>>
+): UseMutationOptions<
+  SubmitButtonPadPressResponse,
+  SubmitButtonPadPressError,
+  Options<SubmitButtonPadPressData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SubmitButtonPadPressResponse,
+    SubmitButtonPadPressError,
+    Options<SubmitButtonPadPressData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await submitButtonPadPress({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      }),
+  }
+  return mutationOptions
+}
+
+/**
+ * Report Status
+ */
+export const reportDeviceStatusMutation = (
+  options?: Partial<Options<ReportDeviceStatusData>>
+): UseMutationOptions<
+  ReportDeviceStatusResponse,
+  ReportDeviceStatusError,
+  Options<ReportDeviceStatusData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    ReportDeviceStatusResponse,
+    ReportDeviceStatusError,
+    Options<ReportDeviceStatusData>
+  > = {
+    mutationFn: async (fnOptions) =>
+      await reportDeviceStatus({
         ...options,
         ...fnOptions,
         throwOnError: true,

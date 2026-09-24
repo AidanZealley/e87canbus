@@ -56,6 +56,7 @@ PUBLIC = frozenset(
 )
 CONSOLE_AND_OPERATOR = frozenset({PrincipalKind.CONSOLE, PrincipalKind.OPERATOR})
 OPERATOR_ONLY = frozenset({PrincipalKind.OPERATOR})
+DEVICE_ONLY = frozenset({PrincipalKind.DEVICE})
 
 # This table is the executable copy of the Wi-Fi device network contract. A route
 # added elsewhere does not inherit console access.
@@ -85,6 +86,8 @@ HTTP_PERMISSIONS: dict[tuple[str, str], frozenset[PrincipalKind]] = {
     ("PUT", "/api/button-pad/profiles/{profile_id}"): CONSOLE_AND_OPERATOR,
     ("DELETE", "/api/button-pad/profiles/{profile_id}"): CONSOLE_AND_OPERATOR,
     ("GET", "/api/system/provisioning"): OPERATOR_ONLY,
+    ("POST", "/api/devices/status"): DEVICE_ONLY,
+    ("POST", "/api/devices/button-pad/presses"): DEVICE_ONLY,
 }
 
 

@@ -8,18 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, ValidationError
+from pydantic import ValidationError
 
 from e87canbus.adapters.sqlite_database import ApplicationDatabaseError, SqliteApplicationDatabase
 from e87canbus.api.auth import DeviceRole
-from e87canbus.api.models.button_pad import ButtonPadScene
-from e87canbus.api.models.steering import StrictRequest
+from e87canbus.api.models.button_pad import ButtonPadScene, ButtonPadStatus
 from e87canbus.domain.timestamps import canonical_utc_timestamp, validate_canonical_utc_timestamp
-
-JSON_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 class DeviceStateStorageError(Exception):
@@ -28,17 +24,6 @@ class DeviceStateStorageError(Exception):
 
 class DeviceRoleMismatchError(DeviceStateStorageError):
     """A stored device ID belongs to a different role."""
-
-
-class ButtonPadDeviceStatus(StrictRequest):
-    """The first button-pad status document has no role-specific fields."""
-
-
-class ButtonPadStatus(StrictRequest):
-    status_version: Literal[1]
-    applied_configuration_generation: int = Field(ge=0, le=JSON_SAFE_INTEGER)
-    configuration_error: str | None
-    device: ButtonPadDeviceStatus
 
 
 @dataclass(frozen=True, slots=True)

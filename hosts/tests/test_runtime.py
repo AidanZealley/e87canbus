@@ -33,6 +33,6 @@ def test_unassigned_direct_button_press_has_no_transient_feedback() -> None:
     kernel = CoordinatorKernel()
     kernel.dispatch(KernelStarted())
 
-    assert kernel.dispatch(ButtonPressed(0)) is None
+    assert kernel.dispatch(ButtonPressed(0, observed_at=1.0)) is None
     assert kernel.snapshot().steering_mode is SteeringMode.AUTO
     assert not hasattr(kernel.state, "button_feedback")

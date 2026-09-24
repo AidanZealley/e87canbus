@@ -136,6 +136,7 @@
               "profile_revision_conflict",
               "profile_name_conflict",
               "profile_storage_error",
+              "device_storage_error",
               "profile_protected",
               "runtime_queue_full",
               "controller_unavailable",
@@ -341,6 +342,67 @@
           "maximum"
         ],
         "title": "BreatheAnimationRequest",
+        "type": "object"
+      },
+      "ButtonPadDeviceStatus": {
+        "additionalProperties": false,
+        "description": "The first button-pad status document has no role-specific fields.",
+        "properties": {},
+        "title": "ButtonPadDeviceStatus",
+        "type": "object"
+      },
+      "ButtonPadPressRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "button_index": {
+            "exclusiveMaximum": 16.0,
+            "minimum": 0.0,
+            "title": "Button Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "button_index"
+        ],
+        "title": "ButtonPadPressRequest",
+        "type": "object"
+      },
+      "ButtonPadStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "applied_configuration_generation": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Applied Configuration Generation",
+            "type": "integer"
+          },
+          "configuration_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configuration Error"
+          },
+          "device": {
+            "$ref": "#/components/schemas/ButtonPadDeviceStatus"
+          },
+          "status_version": {
+            "const": 1,
+            "title": "Status Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status_version",
+          "applied_configuration_generation",
+          "configuration_error",
+          "device"
+        ],
+        "title": "ButtonPadStatus",
         "type": "object"
       },
       "ButtonProfileDefinitionRequest": {
@@ -3117,6 +3179,94 @@
         "summary": "Set Vehicle Sweep",
         "tags": [
           "development simulation: vehicle"
+        ]
+      }
+    },
+    "/api/devices/button-pad/presses": {
+      "post": {
+        "operationId": "submitButtonPadPress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ButtonPadPressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Submit Button Pad Press",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/devices/status": {
+      "post": {
+        "operationId": "reportDeviceStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ButtonPadStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Report Status",
+        "tags": [
+          "devices"
         ]
       }
     },

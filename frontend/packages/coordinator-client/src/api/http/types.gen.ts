@@ -87,6 +87,7 @@ export type ApiProblemDetail = {
     | "profile_revision_conflict"
     | "profile_name_conflict"
     | "profile_storage_error"
+    | "device_storage_error"
     | "profile_protected"
     | "runtime_queue_full"
     | "controller_unavailable"
@@ -210,6 +211,44 @@ export type BreatheAnimationRequest = {
    * Period Ms
    */
   period_ms: number
+}
+
+/**
+ * ButtonPadDeviceStatus
+ *
+ * The first button-pad status document has no role-specific fields.
+ */
+export type ButtonPadDeviceStatus = {
+  [key: string]: never
+}
+
+/**
+ * ButtonPadPressRequest
+ */
+export type ButtonPadPressRequest = {
+  /**
+   * Button Index
+   */
+  button_index: number
+}
+
+/**
+ * ButtonPadStatus
+ */
+export type ButtonPadStatus = {
+  /**
+   * Applied Configuration Generation
+   */
+  applied_configuration_generation: number
+  /**
+   * Configuration Error
+   */
+  configuration_error: string | null
+  device: ButtonPadDeviceStatus
+  /**
+   * Status Version
+   */
+  status_version: 1
 }
 
 /**
@@ -1914,6 +1953,68 @@ export type SetVehicleSweepResponses = {
 
 export type SetVehicleSweepResponse =
   SetVehicleSweepResponses[keyof SetVehicleSweepResponses]
+
+export type SubmitButtonPadPressData = {
+  body: ButtonPadPressRequest
+  path?: never
+  query?: never
+  url: "/api/devices/button-pad/presses"
+}
+
+export type SubmitButtonPadPressErrors = {
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type SubmitButtonPadPressError =
+  SubmitButtonPadPressErrors[keyof SubmitButtonPadPressErrors]
+
+export type SubmitButtonPadPressResponses = {
+  /**
+   * Successful Response
+   */
+  204: void
+}
+
+export type SubmitButtonPadPressResponse =
+  SubmitButtonPadPressResponses[keyof SubmitButtonPadPressResponses]
+
+export type ReportDeviceStatusData = {
+  body: ButtonPadStatus
+  path?: never
+  query?: never
+  url: "/api/devices/status"
+}
+
+export type ReportDeviceStatusErrors = {
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type ReportDeviceStatusError =
+  ReportDeviceStatusErrors[keyof ReportDeviceStatusErrors]
+
+export type ReportDeviceStatusResponses = {
+  /**
+   * Successful Response
+   */
+  204: void
+}
+
+export type ReportDeviceStatusResponse =
+  ReportDeviceStatusResponses[keyof ReportDeviceStatusResponses]
 
 export type StreamCoordinatorLiveApiLiveGetData = {
   body?: never

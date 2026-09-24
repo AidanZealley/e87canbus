@@ -1,6 +1,6 @@
 # Workstream 4: Accept device status and button presses
 
-Status: not started.
+Status: accepted.
 
 ## Task packet
 
@@ -110,29 +110,31 @@ Perform the focused closure review for Workstream 4 of the simulated independent
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `90c99b6b66a8b2d0e990638a6bc9645e5c2ab1b1`
+- Outcome: Button-pad certificates can post strict last-reported status and submit one stamped `ButtonPressed` through the controller inbox. Both routes return empty `204` responses. Servotronic, console, operator and unauthenticated principals cannot use them. The existing kernel and both runtimes already admitted the canonical input; their profile and intent behavior is unchanged.
+- Files changed: Added `api/routes/devices.py`, `api/internal/devices.py` and `hosts/tests/test_device_api.py`; extended button-pad models, authorization, app composition, `ButtonPressed`, and focused authorization/runtime tests; moved the status models out of the repository module; regenerated `protocol/openapi.json` and the coordinator Hey API client.
+- Decisions: Both routes share the device-only table permission and check the button-pad role before request model validation. Status identity comes only from the authenticated principal; the direct repository receives the coordinator UTC clock through app composition. Presses use the existing bounded `submit_runtime_work` seam once and receive the coordinator monotonic timestamp. Adding `observed_at` required a direct edit to `domain/events.py` outside initial ownership; no input wrapper or second dispatch path was added. The status model moved from SQLite into the established API model module to avoid two definitions.
+- Verification: The packet's 52 targeted tests, OpenAPI drift check, mypy, Ruff, import contracts, diff whitespace check, frontend `api:check`, and coordinator client typecheck passed. The existing direct-input and repository tests also passed in the first focused run, aside from the two authorization assertions updated for the new routes. The deletion pass removed the repository-owned model definition and found no additional speculative machinery.
+- Known limitations or external checks: None for this slice. Ambiguous press outcomes receive no retry or deduplication handling, as specified.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh independent review agent.
+- Verdict: Approved. The two device inputs meet this workstream's authorization, persistence and controller submission contract.
+- Required findings: None. The closed permission table admits device principals only to the two new POST routes, and both handlers check the button-pad role before validating the body. Status and press bodies use strict models, so a body cannot supply identity or an extra field; status storage takes the canonical ID from `request.state.principal`. The repository stamps status with the coordinator UTC clock. A valid press creates one `ButtonPressed` with the coordinator monotonic time and passes it once through `submit_runtime_work`; the kernel applies the existing profile and intent rules. Both live and simulation runtimes admit that input. The routes return empty `204` responses, and the change adds no retry, deduplication or CAN compatibility input.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: Inspected the uncommitted diff, accepted dependency handoffs, linked device contracts, authorization middleware, request models, SQLite repository, controller inbox, kernel dispatch, both runtimes, OpenAPI and generated client. The targeted 52 tests passed. OpenAPI and frontend contract drift checks, coordinator-client typecheck, mypy, Ruff, import contracts and `git diff --check` passed.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No Required, Optional or Question findings; no remediation was needed.
+- Simplification/deletion pass: The implementation moved the one status model out of the SQLite repository and removed its old definition. The lead found no further duplicate state, compatibility path or speculative machinery in the cumulative diff.
+- Final verification: The implementation and independent review each passed the packet's targeted checks, including 52 tests and generated-contract drift checks. Focused closure review approved the cumulative diff after 33 API and authorization tests and `git diff --check` passed.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. The independent review accepted no Required findings, so no remediation needed verification. The cumulative diff has no release-blocking authorization, persistence or single-submission defect in the device routes.
+- Remaining required findings: None. The device-only permission entries and button-pad role dependency gate both routes; strict request models exclude body-supplied identity. Status storage uses the authenticated device ID and the coordinator UTC clock. A valid press creates one monotonic-stamped `ButtonPressed` and calls the controller inbox once. The focused API and authorization checks passed (33 tests), as did `git diff --check`.

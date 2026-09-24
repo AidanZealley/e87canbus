@@ -105,7 +105,15 @@ def status_document() -> dict[str, object]:
 
 
 def test_http_table_is_the_exact_console_allowlist() -> None:
-    assert all(PrincipalKind.DEVICE not in permissions for permissions in HTTP_PERMISSIONS.values())
+    device_routes = {
+        route
+        for route, permissions in HTTP_PERMISSIONS.items()
+        if PrincipalKind.DEVICE in permissions
+    }
+    assert device_routes == {
+        ("POST", "/api/devices/status"),
+        ("POST", "/api/devices/button-pad/presses"),
+    }
     console_routes = {
         route
         for route, permissions in HTTP_PERMISSIONS.items()
@@ -216,7 +224,7 @@ def test_devices_cannot_access_existing_protected_routes(tmp_path: Path) -> None
     client = TestClient(app)
     for role in DeviceRole:
         for method, path in HTTP_PERMISSIONS:
-            if path == "/health/live":
+            if path == "/health/live" or path.startswith("/api/devices/"):
                 continue
             response = client.request(
                 method,
