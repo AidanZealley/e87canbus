@@ -147,6 +147,7 @@ Review evidence: Read the accepted Workstream 1 through 5 handoffs and linked de
 - Finding dispositions: No Required findings. Defer the optional disabled-client tap guard. The production simulator always composes the client; the disabled option exists only to isolate an existing configuration-service test, and no approved behavior depends on tapping that test composition.
 - Simplification/deletion pass: Reviewed the client, lifespan and route for duplicate scene or press paths, reusable streaming infrastructure and restored CAN device code. None remain. The implementation agent removed a redundant UUID conversion and kept the route-specific stream loop private.
 - Final verification: The implementation and independent review each ran the 53 targeted host tests, OpenAPI drift check, mypy, Ruff, import contracts and `git diff --check`. The implementation also ran frontend `api:check` and coordinator client typecheck for the new development route.
+- Final-review correction: Removed the simulation-client import used only to annotate `app.state.simulated_button_pad` in shared API lifecycle. Startup and shutdown calls are unchanged. Architecture, controller lifecycle, simulated-client and configuration-route tests passed (28 tests); mypy and focused Ruff passed.
 
 ## Closure review
 

@@ -18,7 +18,6 @@ from e87canbus.domain.steering.curves import (
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
-from e87canbus.runners.simulation.devices.button_pad import SimulatedButtonPad
 from e87canbus.service import ControllerLoop, RuntimeExecution
 
 
@@ -33,7 +32,7 @@ def create_lifespan(
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        simulated_button_pad: SimulatedButtonPad | None = app.state.simulated_button_pad
+        simulated_button_pad = app.state.simulated_button_pad
         try:
             if database is not None:
                 await asyncio.to_thread(database.initialize)

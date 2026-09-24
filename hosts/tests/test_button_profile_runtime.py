@@ -70,7 +70,7 @@ def test_runtime_dispatches_button_input(simulated: bool) -> None:
 
     execution = runtime.execute(ButtonPressed(5, observed_at=1.0))
 
-    assert execution.changed_topics == {StateTopic.STEERING}
+    assert execution.changed_topics == {StateTopic.STEERING, StateTopic.BUTTONS}
     assert runtime.projection()[0].steering_mode is SteeringMode.MANUAL
     runtime.shutdown()
     runtime.close()
