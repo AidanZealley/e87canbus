@@ -112,6 +112,9 @@ import type {
   StreamCoordinatorLiveApiLiveGetData,
   StreamCoordinatorLiveApiLiveGetResponse,
   StreamCoordinatorLiveApiLiveGetResponses,
+  StreamDeviceConfigurationData,
+  StreamDeviceConfigurationResponse,
+  StreamDeviceConfigurationResponses,
   SubmitButtonPadPressData,
   SubmitButtonPadPressErrors,
   SubmitButtonPadPressResponses,
@@ -161,6 +164,7 @@ import {
   zSilenceOilTemperatureResponse,
   zSilenceVehicleSpeedResponse,
   zStreamCoordinatorLiveApiLiveGetResponse,
+  zStreamDeviceConfigurationResponse,
   zSubmitButtonPadPressResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
@@ -679,6 +683,29 @@ export const submitButtonPadPress = <ThrowOnError extends boolean = true>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  })
+
+/**
+ * Stream Configuration
+ */
+export const streamDeviceConfiguration = <ThrowOnError extends boolean = true>(
+  options?: Options<
+    StreamDeviceConfigurationData,
+    ThrowOnError,
+    StreamDeviceConfigurationResponse
+  >
+): Promise<ServerSentEventsResult<StreamDeviceConfigurationResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamDeviceConfigurationResponses,
+    unknown,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zStreamDeviceConfigurationResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/devices/configuration",
+    ...options,
   })
 
 /**

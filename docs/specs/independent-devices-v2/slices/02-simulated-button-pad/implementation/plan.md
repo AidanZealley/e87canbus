@@ -18,7 +18,7 @@ Status: implementation in progress.
 | 2 | [Authenticate role-bearing devices](02-authenticate-role-bearing-devices.md) | Workstream 1 | Accepted |
 | 3 | [Persist device configuration and status](03-persist-device-state.md) | Workstream 2 | Accepted |
 | 4 | [Accept device status and button presses](04-device-http-inputs.md) | Workstream 3 | Accepted |
-| 5 | [Deliver durable device configuration over SSE](05-device-configuration-stream.md) | Workstream 4 | Not started |
+| 5 | [Deliver durable device configuration over SSE](05-device-configuration-stream.md) | Workstream 4 | Accepted |
 | 6 | [Run the simulated pad through the production API](06-simulated-button-pad-client.md) | Workstream 5 | Not started |
 | Final | [Whole-feature review](final-review.md) | Workstreams 1-6 | Not started |
 

@@ -155,29 +155,69 @@ Perform the focused closure review for Workstream 5 of the simulated independent
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `2c35b2a` (accepted Workstream 4).
+- Outcome: Button-pad identities receive their stored complete envelope first, followed by durable
+  replacements from controller button-state changes. The production SSE route rejects other roles,
+  sends idle comments, and closes slow or disconnected requests.
+- Files changed: `api/internal/device_configuration.py`, `api/internal/lifecycle.py`,
+  `api/routes/devices.py`, `api/auth.py`, `api/main.py`, `api/models/button_pad.py`,
+  `adapters/sqlite_device_state.py`, `domain/controller/snapshot.py`, `kernel/kernel.py`,
+  `deploy/nginx/e87canbus.conf`, focused host tests, `protocol/openapi.json`, and regenerated
+  coordinator-client HTTP artifacts. `plan.md` records the workstream state.
+- Decisions: The controller callback offers only immutable snapshots; the event-loop service alone
+  reads SQLite and uses the repository's compare-and-increment operation. The subscription lock
+  orders first contact against publication. Each subscriber holds at most one pending envelope and
+  a second pending change cancels its outer ASGI request. The authorization middleware records that
+  outer task because Starlette runs the endpoint in a child task. The route reads identity only
+  from `request.state.principal` and uses the subscription's initial envelope. The snapshot carries
+  resolved, feedback-free buttons so the service does not read kernel internals or maintain another
+  scene cache. The response also owns registration cleanup if ASGI send fails before iteration.
+  A failed publication worker closes current streams and rejects new subscriptions; it cannot send
+  stale keepalives. The simplification pass found no obsolete path or speculative abstraction.
+- Verification: Targeted host suite, 96 passed; OpenAPI generation check; mypy; Ruff; import
+  contracts; `git diff --check`; frontend `pnpm api:check` and coordinator-client typecheck passed.
+- Known limitations or external checks: None for this simulated slice.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Independent review agent.
+- Verdict: Changes required. The normal synchronization and contract checks pass, but two failure paths leave a stream registered or permanently stale.
+- Required findings:
+  1. A failed send before the first event leaks the subscriber. `stream_configuration()` registers it before returning the response (`api/routes/devices.py:49-52`), while `events()` unregisters only in the async generator's `finally` (`api/internal/device_configuration.py:113-129`). If ASGI `send` raises on `http.response.start`, Starlette never starts that generator. I exercised the production app with an ASGI sender that raises `OSError` on its first call: the request failed and `subscriber_count` remained 1. The existing route tests cover disconnection only after the first record. Ensure response failure and early disconnect close registrations even if iteration never starts, then cover that path through the real response.
+  2. One SQLite publication error permanently disables configuration updates. `_run()` has no error handling around `list_button_pad_configurations()` or `replace_configuration_if_changed()` (`api/internal/device_configuration.py:131-159`), and `subscribe()` considers any non-`None` task running (`:83-85`). With one injected `DeviceStateStorageError` from `list_button_pad_configurations()`, the worker task finished; after restoring the repository and changing the profile again, the stored generation remained 0. Existing clients can continue receiving keepalives while their document is stale. Fail or recover the service explicitly so it cannot advertise a healthy stream after publication has stopped, and test a publication failure.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: Read the accepted dependency handoffs, ADR 0017 and the linked device contracts; inspected the controller notification, immutable button snapshot, SQLite compare-and-increment transaction, route authorization and response lifecycle, lifespan, nginx location, and served/exported/generated schema. The focused host suite passed (48 tests). OpenAPI drift, mypy, Ruff, import contracts, frontend API drift and coordinator-client typecheck passed; `git diff --check` passed. The route uses the subscription's initial envelope, exact button-pad role check, bounded pending slot, 15-second keepalive, and one-line records without replay IDs. Nginx disables buffering only for the two SSE locations and forwards certificate verification and certificate data. The two failure paths above need closure.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: Both Required findings accepted and fixed. The response unregisters its
+  subscriber even if ASGI send fails before iteration. A publication worker failure closes active
+  streams and rejects new subscriptions, so clients cannot remain on a stale healthy stream.
+- Simplification/deletion pass: The service retains only the latest offered snapshot and one
+  pending complete envelope per subscriber. No second generation source, replay log, generic SSE
+  framework, compatibility path or obsolete code remains in this workstream.
+- Final verification: The packet's 96 targeted host tests, OpenAPI drift check, mypy, Ruff,
+  import contracts, `git diff --check`, frontend `pnpm api:check` and coordinator-client typecheck
+  passed after remediation. Closure passed 12 focused service and real-response route tests plus
+  OpenAPI and generated-client checks.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Accepted. Both Required findings are closed.
+- Remaining required findings: None.
+
+The response now unregisters its subscriber in `DeviceConfigurationStreamResponse.__call__`
+even when ASGI send fails before iteration starts. The real-response test raises on
+`http.response.start` and confirms that the request ends with no registered subscriber.
+When SQLite publication fails, the worker's `finally` closes and cancels active requests;
+`subscribe()` rejects new requests once that worker has stopped. The injected storage-failure
+test confirms both behaviors. The publication lock still orders first contact and replacement,
+and each subscriber retains at most one pending envelope. I found no release-blocking defect in
+authorization, SSE framing, lifecycle, nginx, or the generated contract while checking these fixes.
+
+Closure verification: 12 focused service and real-response route tests passed;
+`generate_openapi.py --check`, `pnpm api:check`, coordinator-client typecheck, and
+`git diff --check` passed.

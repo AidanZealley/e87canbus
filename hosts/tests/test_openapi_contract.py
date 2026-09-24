@@ -64,6 +64,18 @@ def test_schema_models_actual_success_and_problem_responses(tmp_path: Path) -> N
     ]
 
 
+def test_device_stream_schema_is_complete_button_pad_envelope(tmp_path: Path) -> None:
+    schema = schema_for(DeploymentProfile.CAR, tmp_path / "car.sqlite3")
+    content = schema["paths"]["/api/devices/configuration"]["get"]["responses"]["200"][
+        "content"
+    ]
+    assert content == {
+        "text/event-stream": {
+            "schema": {"$ref": "#/components/schemas/ButtonPadConfigurationEnvelope"}
+        }
+    }
+
+
 def test_profile_schemas_preserve_runtime_route_scopes(tmp_path: Path) -> None:
     car_paths = schema_for(DeploymentProfile.CAR, tmp_path / "car.sqlite3")["paths"]
     bench_paths = schema_for(DeploymentProfile.BENCH, tmp_path / "bench.sqlite3")["paths"]

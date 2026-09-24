@@ -37,6 +37,15 @@ export const zBlinkAnimationRequest = z.object({
 })
 
 /**
+ * BlinkSceneAnimation
+ */
+export const zBlinkSceneAnimation = z.object({
+  off_ms: z.int().gte(1).lte(10000),
+  on_ms: z.int().gte(1).lte(10000),
+  type: z.literal("blink"),
+})
+
+/**
  * BreatheAnimationRequest
  *
  * Keep authored animation bounds valid for the later device scene.
@@ -46,6 +55,16 @@ export const zBreatheAnimationRequest = z.object({
   maximum: z.int().gte(0).lte(255),
   minimum: z.int().gte(0).lte(255),
   period_ms: z.int().gte(250).lte(10000),
+})
+
+/**
+ * BreatheSceneAnimation
+ */
+export const zBreatheSceneAnimation = z.object({
+  maximum: z.int().gte(0).lte(255),
+  minimum: z.int().gte(0).lte(255),
+  period_ms: z.int().gte(250).lte(10000),
+  type: z.literal("breathe"),
 })
 
 /**
@@ -255,6 +274,55 @@ export const zCoordinatorHealthState = z.object({
 export const zHealthEvent = z.object({
   data: zCoordinatorHealthState,
   type: z.literal("health"),
+})
+
+/**
+ * SceneButton
+ */
+export const zSceneButton = z.object({
+  animation: z
+    .discriminatedUnion("type", [zBreatheSceneAnimation, zBlinkSceneAnimation])
+    .nullable(),
+  assigned: z.boolean(),
+  colour: z.tuple([
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+    z.int().gte(0).lte(255),
+  ]),
+})
+
+/**
+ * ButtonPadScene
+ */
+export const zButtonPadScene = z.object({
+  brightness: z.int().gte(0).lte(255),
+  buttons: z.tuple([
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+    zSceneButton,
+  ]),
+  schema_version: z.literal(1),
+})
+
+/**
+ * ButtonPadConfigurationEnvelope
+ */
+export const zButtonPadConfigurationEnvelope = z.object({
+  configuration: zButtonPadScene,
+  generation: z.int().gte(0).lte(9007199254740991),
 })
 
 /**
@@ -957,6 +1025,12 @@ export const zSubmitButtonPadPressBody = zButtonPadPressRequest
  * Successful Response
  */
 export const zSubmitButtonPadPressResponse = z.void()
+
+/**
+ * Successful Response
+ */
+export const zStreamDeviceConfigurationResponse =
+  zButtonPadConfigurationEnvelope
 
 export const zReportDeviceStatusBody = zButtonPadStatus
 

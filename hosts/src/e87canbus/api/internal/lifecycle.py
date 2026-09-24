@@ -11,13 +11,14 @@ from fastapi import FastAPI
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_profiles import BUILT_IN_PROFILE_ID
 from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
+from e87canbus.api.internal.device_configuration import ButtonPadConfigurationService
 from e87canbus.domain.buttons.repository import ButtonProfileRepository
 from e87canbus.domain.steering.curves import (
     initial_active_steering_curve,
 )
 from e87canbus.domain.steering.repository import SteeringProfileRepository
 from e87canbus.runners.coordinator_panel import PhysicalCoordinatorPanel
-from e87canbus.service import ControllerLoop
+from e87canbus.service import ControllerLoop, RuntimeExecution
 
 
 def create_lifespan(
@@ -26,6 +27,7 @@ def create_lifespan(
     profiles: SteeringProfileRepository,
     button_profiles: ButtonProfileRepository,
     publisher: CoordinatorSsePublisher,
+    device_configuration: ButtonPadConfigurationService,
     coordinator_panel: PhysicalCoordinatorPanel | None,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
@@ -71,8 +73,13 @@ def create_lifespan(
         if coordinator_panel is not None:
             coordinator_panel.start()
         try:
-            await asyncio.to_thread(service.start, publisher.offer)
+            def notify(execution: RuntimeExecution) -> None:
+                publisher.offer(execution)
+                device_configuration.offer(execution)
+
+            await asyncio.to_thread(service.start, notify)
             await publisher.start()
+            await device_configuration.start()
             service.mark_ready()
         except BaseException:
             service.mark_not_ready()
@@ -84,10 +91,15 @@ def create_lifespan(
                         await publisher.stop()
                 finally:
                     try:
-                        if coordinator_panel is not None:
-                            await asyncio.to_thread(coordinator_panel.stop)
+                        await device_configuration.stop(
+                            service.config.live_publication.shutdown_timeout_s
+                        )
                     finally:
-                        await asyncio.to_thread(service.close_adapter)
+                        try:
+                            if coordinator_panel is not None:
+                                await asyncio.to_thread(coordinator_panel.stop)
+                        finally:
+                            await asyncio.to_thread(service.close_adapter)
             raise
         try:
             yield
@@ -103,6 +115,11 @@ def create_lifespan(
                     try:
                         await publisher.stop()
                     finally:
-                        await asyncio.to_thread(service.close_adapter)
+                        try:
+                            await device_configuration.stop(
+                                service.config.live_publication.shutdown_timeout_s
+                            )
+                        finally:
+                            await asyncio.to_thread(service.close_adapter)
 
     return lifespan

@@ -87,6 +87,7 @@ HTTP_PERMISSIONS: dict[tuple[str, str], frozenset[PrincipalKind]] = {
     ("DELETE", "/api/button-pad/profiles/{profile_id}"): CONSOLE_AND_OPERATOR,
     ("GET", "/api/system/provisioning"): OPERATOR_ONLY,
     ("POST", "/api/devices/status"): DEVICE_ONLY,
+    ("GET", "/api/devices/configuration"): DEVICE_ONLY,
     ("POST", "/api/devices/button-pad/presses"): DEVICE_ONLY,
 }
 
@@ -200,6 +201,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 content={"detail": "authentication required" if status == 401 else "forbidden"},
                 headers=headers,
             )
+        if request.url.path == "/api/devices/configuration":
+            request.state.configuration_request_task = asyncio.current_task()
         return await call_next(request)
 
 

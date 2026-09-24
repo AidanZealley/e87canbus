@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from e87canbus.config import EngineTelemetryConfig, SteeringConfig
+from e87canbus.domain.buttons.profiles import ActiveButtonProfile
+from e87canbus.domain.buttons.scene import ResolvedButton, resolve_button_pad
 from e87canbus.domain.state import ApplicationState, MaximumAssistance, SteeringMode
 from e87canbus.domain.steering.curves import (
     ActiveSteeringCurve,
@@ -46,6 +48,7 @@ class ApplicationSnapshot:
     active_steering_curve: ActiveSteeringCurve
     active_button_profile_id: str
     active_button_profile_revision: int | None
+    button_pad: tuple[ResolvedButton, ...] = ()
 
 
 def snapshot(
@@ -55,6 +58,7 @@ def snapshot(
     active_curve: ActiveSteeringCurve,
     active_button_profile_id: str,
     saved_button_profile_revision: int | None,
+    button_profile: ActiveButtonProfile | None = None,
 ) -> ApplicationSnapshot:
     """Project read-only application state."""
 
@@ -101,6 +105,7 @@ def snapshot(
         active_steering_curve=active_curve,
         active_button_profile_id=active_button_profile_id,
         active_button_profile_revision=saved_button_profile_revision,
+        button_pad=resolve_button_pad(state, button_profile) if button_profile else (),
     )
 
 
