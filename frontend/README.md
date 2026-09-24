@@ -69,7 +69,7 @@ directly.
 
 ## Car data and instrument foundation
 
-One Zustand store owns complete current vehicle, engine, steering, button, lighting and health
+One Zustand store owns complete current vehicle, engine, steering, button and health
 projections. Components subscribe to the smallest stable value they need; no car-layout context
 copies or rebroadcasts live state. When coordinator SSE is connecting or
 reconnecting, retained live values are presented as unavailable while navigation and cached durable
@@ -98,8 +98,8 @@ drafts and theme choice are not stored in the settings query cache.
 
 ## In-car screens
 
-The overview deliberately excludes speed and RPM. It reports the steering mode, effective
-assistance, one-based manual level when relevant, honest active-profile provenance and persistent
+The overview deliberately excludes speed and RPM. It reports the desired steering mode,
+desired one-based manual level when relevant, active-profile provenance and persistent
 oil/coolant severity. The drive screen keeps speed dominant,
 adds RPM stage presentation and uses the selected speed and temperature units. Both screens mask
 live values as unavailable or stale whenever the shared car connection is not healthy.
@@ -108,8 +108,7 @@ The compact car steering editor keeps a browser-local draft separate from both t
 curve and saved profiles. Selecting a profile only loads the draft; a dirty selection change asks
 before replacement. Apply is separately confirmed, remains available while moving, activates once
 without writing the profile catalog and includes saved provenance only when the draft still exactly
-matches that saved revision. The active marker combines current speed with the controller's
-effective assistance and disappears when its live inputs are unavailable.
+matches that saved revision.
 
 The car settings form mounts editable values only after an authoritative settings revision loads.
 Its Theme control remains available during initial loading/failure, and an explicit Retry refetches

@@ -1,8 +1,8 @@
 """The kernel's output contract: commits, projection topics and their diff.
 
-A ``Commit`` records an accepted input and its complete projection. Its
-``changed_topics`` is a closed set derived purely from projection differences,
-so publication never depends on a runtime-registered event bus.
+A ``Commit`` reports changed topics for an accepted input. Its
+``changed_topics`` is a closed set derived from state comparisons, so
+publication never depends on a runtime-registered event bus.
 """
 
 from __future__ import annotations
@@ -43,9 +43,8 @@ class KernelLifecycle(StrEnum):
 
 @dataclass(frozen=True)
 class Commit:
-    """One accepted state transition and its changed projections."""
+    """Changed projections after one accepted input."""
 
-    snapshot: ApplicationSnapshot
     changed_topics: frozenset[StateTopic]
 
 
@@ -58,8 +57,6 @@ class DiagnosticSnapshot:
 def changed_controller_topics(
     previous: ApplicationSnapshot,
     current: ApplicationSnapshot,
-    *,
-    health_changed: bool,
 ) -> frozenset[StateTopic]:
     """Compare fixed projections without introducing string dispatch or registration."""
 
@@ -83,6 +80,4 @@ def changed_controller_topics(
         or current.active_button_profile_revision != previous.active_button_profile_revision
     ):
         changed.add(StateTopic.BUTTONS)
-    if health_changed:
-        changed.add(StateTopic.HEALTH)
     return frozenset(changed)

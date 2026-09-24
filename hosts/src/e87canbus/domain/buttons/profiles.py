@@ -174,11 +174,11 @@ class StoredButtonProfile:
 
 @dataclass(frozen=True)
 class ActiveButtonProfile:
-    """The profile the pad is running: a stored profile's identity and its slots.
+    """The coordinator's selected profile identity and button assignments.
 
     ``profile_id`` is the stored UUID once a saved profile has been activated, and
-    ``BUILT_IN_PROFILE_ID`` while the empty default is in force; live state
-    reports it so a client can tell which saved revision the pad is obeying.
+    ``BUILT_IN_PROFILE_ID`` while the empty default is in force. Live state
+    reports the identity and saved revision for browser clients.
     """
 
     profile_id: str
