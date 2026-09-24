@@ -87,29 +87,31 @@ Perform the focused closure review for Workstream 2 of the simulated independent
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `d38708dfd5a6fbcde4939af2749727d9d9077af8`
+- Outcome: Verified button-pad and Servotronic certificates now produce `DEVICE` principals with a closed role and canonical UUID. The existing console certificate and operator Basic paths retain their principals. Middleware puts the classified principal on request state before an authorized handler runs. Device principals cannot access any existing protected route.
+- Files changed: `hosts/src/e87canbus/api/auth.py`, `hosts/tests/test_transport_authorization.py`, and this handoff.
+- Decisions: `DeviceRole` contains only the two canonical certificate role strings. The shared certificate parser keeps the existing loopback, verification, one-URI-SAN, installation and UUID checks. The liveness permission names its existing allowed kinds explicitly so adding `DEVICE` does not silently open it; the permission table has no device entry. No registry, claims wrapper or route was added.
+- Verification: `uv run pytest -q hosts/tests/test_transport_authorization.py` passed (18 tests). `uv run mypy`, `uv run ruff check hosts`, `uv run lint-imports`, and `git diff --check` passed. The deletion and simplification pass found no obsolete classifier path or additional abstraction to remove.
+- Known limitations or external checks: No external validation gate applies. Device routes belong to later workstreams.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh independent review agent.
+- Verdict: Approved. The certificate parser accepts the three specified roles, and the closed permission table gives device principals no route access in this workstream.
+- Required findings: None. `ApplicationAuthenticator` accepts certificate headers only from its trusted proxy addresses with `SUCCESS` verification; production defaults to loopback. It requires exactly one URI SAN, matches the installation ID, and accepts only a canonical UUID v4. The role parser maps `console` to the existing console principal and the two specified device strings to `DeviceRole`; unknown roles remain unauthenticated. Middleware sets `request.state.principal` after classification and before an allowed handler runs. `HTTP_PERMISSIONS` contains no `DEVICE` permission, including for liveness. The new role enum is confined to certificate identity and introduces no device catalogue or registry.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: Compared the diff with the accepted Slice 1.5 and Workstream 1 handoffs, the Slice 02 and live/device API contracts, and ADR 0018. Production Uvicorn disables forwarded-header rewriting (`proxy_headers=False`), while nginx supplies verification and certificate headers. The targeted authorization suite passed (18 tests); `uv run mypy`, `uv run ruff check hosts`, `uv run lint-imports`, and `git diff --check` passed. Existing tests also exercised console and operator permissions, CORS preflight, and the browser live stream.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: The independent reviewer found no Required, Optional or Question items. No remediation was needed.
+- Simplification/deletion pass: The implementation retains one certificate parser and the existing closed permission table. No obsolete console-only classifier or extra abstraction remains.
+- Final verification: The implementation and independent review each ran the five targeted checks successfully. Closure review reran the authorization suite (18 passed) and `git diff --check`.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. The independent review accepted no Required findings, so no remediation needed closure. The cumulative diff preserves trusted proxy and verification checks, exact URI SAN cardinality, installation and canonical UUID validation, and a closed mapping to the two device roles. Middleware exposes the classified principal before an authorized handler runs, while the permission table grants `DEVICE` no existing route.
+- Remaining required findings: None. The focused authorization suite passed (18 tests), and `git diff --check` passed.

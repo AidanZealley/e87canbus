@@ -19,10 +19,14 @@ from e87canbus.api.auth import (
     CLIENT_VERIFY_HEADER,
     HTTP_PERMISSIONS,
     ApplicationAuthenticator,
+    AuthorizationMiddleware,
+    DeviceRole,
+    Principal,
     PrincipalKind,
 )
 from e87canbus.api.main import create_app
 from e87canbus.deployment import DeploymentProfile
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 INSTALLATION_ID = "a" * 52
@@ -44,9 +48,18 @@ def authenticator(*, trust_test_client: bool = False) -> ApplicationAuthenticato
     )
 
 
-def certificate_header(*, installation_id: str = INSTALLATION_ID, role: str = "console") -> str:
+def certificate_header(
+    *,
+    installation_id: str = INSTALLATION_ID,
+    role: str = "console",
+    device_id: str = DEVICE_ID,
+    extra_identity: str | None = None,
+) -> str:
     private_key = ec.generate_private_key(ec.SECP256R1())
-    identity = f"urn:e87canbus:device:v1:{installation_id}:{role}:{DEVICE_ID}"
+    identity = f"urn:e87canbus:device:v1:{installation_id}:{role}:{device_id}"
+    identities = [x509.UniformResourceIdentifier(identity)]
+    if extra_identity is not None:
+        identities.append(x509.UniformResourceIdentifier(extra_identity))
     now = datetime.now(UTC)
     certificate = (
         x509.CertificateBuilder()
@@ -57,7 +70,7 @@ def certificate_header(*, installation_id: str = INSTALLATION_ID, role: str = "c
         .not_valid_before(now - timedelta(minutes=1))
         .not_valid_after(now + timedelta(minutes=1))
         .add_extension(
-            x509.SubjectAlternativeName([x509.UniformResourceIdentifier(identity)]),
+            x509.SubjectAlternativeName(identities),
             critical=False,
         )
         .sign(private_key, hashes.SHA256())
@@ -92,6 +105,7 @@ def status_document() -> dict[str, object]:
 
 
 def test_http_table_is_the_exact_console_allowlist() -> None:
+    assert all(PrincipalKind.DEVICE not in permissions for permissions in HTTP_PERMISSIONS.values())
     console_routes = {
         route
         for route, permissions in HTTP_PERMISSIONS.items()
@@ -124,6 +138,92 @@ def test_http_table_is_the_exact_console_allowlist() -> None:
         ("DELETE", "/api/button-pad/profiles/{profile_id}"),
     }
     assert HTTP_PERMISSIONS[("GET", "/api/system/provisioning")] == {PrincipalKind.OPERATOR}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("role", "kind", "device_role"),
+    [
+        ("console", PrincipalKind.CONSOLE, None),
+        ("button-pad", PrincipalKind.DEVICE, DeviceRole.BUTTON_PAD),
+        (
+            "servotronic-controller",
+            PrincipalKind.DEVICE,
+            DeviceRole.SERVOTRONIC_CONTROLLER,
+        ),
+    ],
+)
+async def test_certificate_identity_classification(
+    role: str, kind: PrincipalKind, device_role: DeviceRole | None
+) -> None:
+    principal = await authenticator()._authenticate(
+        client_address="127.0.0.1", headers=console_headers(role=role)
+    )
+    assert principal == Principal(kind, INSTALLATION_ID, DEVICE_ID, device_role)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "identity",
+    [
+        {"role": "unknown-device"},
+        {"installation_id": "b" * 52, "role": "button-pad"},
+        {"role": "button-pad", "device_id": DEVICE_ID.upper()},
+        {"role": "button-pad", "device_id": "12345678-1234-1234-9234-123456789abc"},
+        {"role": "button-pad", "extra_identity": "urn:e87canbus:device:v1:extra"},
+    ],
+)
+async def test_invalid_certificate_identities_are_unauthenticated(identity: dict[str, str]) -> None:
+    principal = await authenticator()._authenticate(
+        client_address="127.0.0.1", headers=console_headers(**identity)
+    )
+    assert principal.kind is PrincipalKind.UNAUTHENTICATED
+
+
+@pytest.mark.asyncio
+async def test_certificate_headers_require_loopback_and_verification() -> None:
+    headers = console_headers(role="button-pad")
+    auth = authenticator()
+    for address, supplied_headers in (
+        ("192.0.2.1", headers),
+        ("127.0.0.1", {**headers, CLIENT_VERIFY_HEADER: "NONE"}),
+        ("127.0.0.1", {CLIENT_CERTIFICATE_HEADER: headers[CLIENT_CERTIFICATE_HEADER]}),
+        ("127.0.0.1", {CLIENT_VERIFY_HEADER: "SUCCESS"}),
+    ):
+        principal = await auth._authenticate(client_address=address, headers=supplied_headers)
+        assert principal.kind is PrincipalKind.UNAUTHENTICATED
+
+
+def test_middleware_exposes_classified_principal_to_handler() -> None:
+    app = FastAPI()
+    app.add_middleware(AuthorizationMiddleware, authenticator=authenticator(trust_test_client=True))
+
+    @app.get("/health/ready")
+    def identity(request: Request) -> dict[str, str | None]:
+        principal: Principal = request.state.principal
+        return {"kind": principal.kind, "device_id": principal.device_id}
+
+    response = TestClient(app).get("/health/ready", headers=console_headers())
+    assert response.json() == {"kind": "console", "device_id": DEVICE_ID}
+
+
+def test_devices_cannot_access_existing_protected_routes(tmp_path: Path) -> None:
+    app = create_app(
+        profile=DeploymentProfile.CAR,
+        profile_database_path=tmp_path / "profiles.sqlite3",
+        authenticator=authenticator(trust_test_client=True),
+    )
+    client = TestClient(app)
+    for role in DeviceRole:
+        for method, path in HTTP_PERMISSIONS:
+            if path == "/health/live":
+                continue
+            response = client.request(
+                method,
+                path.replace("{profile_id}", DEVICE_ID),
+                headers=console_headers(role=role),
+            )
+            assert response.status_code == 403, (role, method, path)
 
 
 def test_http_table_accounts_for_every_production_operation(tmp_path: Path) -> None:
