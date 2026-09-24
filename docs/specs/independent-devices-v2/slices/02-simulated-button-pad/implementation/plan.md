@@ -1,20 +1,20 @@
 # Simulated independent button pad implementation plan
 
-Status: draft; implementation has not started.
+Status: implementation in progress.
 
 ## Orchestration record
 
-- Integration branch: `TBD` (`feature/simulated-button-pad` when started)
-- Starting commit: `TBD` (must contain the accepted Slice 1.5 implementation)
+- Integration branch: `feature/simulated-button-pad`
+- Starting commit: `64183cd` (accepted Slice 1.5 implementation)
 - Reviewers: fresh lead subagents inheriting the orchestrator's model and effort
 - Specification approved at commit: `TBD` after Slice 1.5 documentation approval
-- Started: `TBD`
+- Started: `2026-09-24`
 
 ## Workstream order
 
 | # | Workstream | Depends on | Status |
 |---:|---|---|---|
-| 1 | [Define the independent button-pad scene](01-define-button-pad-scene.md) | Completed Slice 1.5 | Not started |
+| 1 | [Define the independent button-pad scene](01-define-button-pad-scene.md) | Completed Slice 1.5 | Accepted |
 | 2 | [Authenticate role-bearing devices](02-authenticate-role-bearing-devices.md) | Workstream 1 | Not started |
 | 3 | [Persist device configuration and status](03-persist-device-state.md) | Workstream 2 | Not started |
 | 4 | [Accept device status and button presses](04-device-http-inputs.md) | Workstream 3 | Not started |

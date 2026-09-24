@@ -120,29 +120,32 @@ Perform the focused closure review for Workstream 1 of the simulated independent
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `64183cd0c68a3d2fa7a94ae978873495d6926270`
+- Outcome: Added a pure profile and state projection and one strict, complete button-pad scene model. It emits 16 ordered entries at brightness 255. Empty slots are off; assigned slots use full authored colour and their animation only while active, then a static colour rounded to the 8/255 resting level while inactive.
+- Files changed: `hosts/src/e87canbus/domain/buttons/scene.py`, `hosts/src/e87canbus/api/models/button_pad.py`, `hosts/tests/test_button_pad_scene.py`, and this handoff.
+- Decisions: The scene's array order is the physical button position, as in the approved JSON contract, so the fixed length rejects missing or extra positions and there is no separate position field to duplicate. The API model is the sole validated document for later storage and HTTP use. Domain resolution stays free of transport and persistence. Blink and breathe carry only the approved animation fields; the device renderer derives blink's resting colour from the resolved colour and breathe returns to its own colour.
+- Verification: The targeted pytest suite passed (43 tests). `uv run mypy`, `uv run ruff check hosts`, `uv run lint-imports`, and `git diff --check` passed. The deletion pass found no obsolete scene code or duplicate persistence and transport models to remove.
+- Known limitations or external checks: No external validation gate applies. Routes, storage and simulation belong to later workstreams.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Fresh independent review agent.
+- Verdict: Approved. The projection and validated document meet Workstream 1's scene contract.
+- Required findings: None. `resolve_button_pad` walks the validated 16-slot profile in physical order, renders empty slots off, scales inactive authored colours by 8/255 with nearest-byte rounding, and includes the authored animation only for an active command. `ButtonPadScene.from_profile` sets brightness to 255. Its strict model requires exactly 16 entries and rejects missing fields, extra fields, wrong versions, invalid channel and animation bounds, and malformed animation types. The scene carries no coordinator press feedback, CAN transport, registry, connection or applied-generation field. The domain projection imports only retained domain state and profile rules; the API model adapts its result without reversing that dependency.
+- Optional observations: None.
+- Questions: None.
+
+Review evidence: Compared the new projection with `button_leds.py` at the Slice 1.5 Workstream 2 base and checked the accepted Slice 1.5 handoff and superseding ADR 0018. The old presenter, CAN program and feedback overlay remain absent. The focused test command passed (43 tests); `uv run mypy`, `uv run ruff check hosts`, `uv run lint-imports` and `git diff --check` passed. The change adds no generic renderer, partial-update protocol or device-CAN compatibility path.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No Required, Optional or Question findings. No remediation pass needed.
+- Simplification/deletion pass: Confirmed the change adds one domain projection and one validated document, without a second DTO, presenter protocol, CAN compatibility path or coordinator feedback state.
+- Final verification: Implementation, independent review and closure review passed the targeted 43 tests, mypy, Ruff, import boundaries and `git diff --check`.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. The independent review accepted no Required findings, so there is no remediation to close. The cumulative diff has no release-blocking scene semantics, validation or dependency defect.
+- Remaining required findings: None. The 16-slot profile yields 16 ordered buttons at brightness 255. Inactive colours use nearest-byte 8/255 scaling, and only active slots retain their authored animation. The strict document rejects incomplete and oversized button arrays, malformed entries and extra fields. Its `animation: null` representation matches the approved JSON contract for an inactive or unassigned button. The domain projection depends only on retained profile and application state; the API model performs the outward conversion.
+- Closure evidence: The targeted tests passed (43 tests). `uv run mypy`, `uv run ruff check hosts`, `uv run lint-imports` and `git diff --check` passed on the cumulative worktree.
