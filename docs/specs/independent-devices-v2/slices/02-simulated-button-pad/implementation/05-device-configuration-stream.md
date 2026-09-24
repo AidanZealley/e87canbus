@@ -203,6 +203,9 @@ Review evidence: Read the accepted dependency handoffs, ADR 0017 and the linked 
   import contracts, `git diff --check`, frontend `pnpm api:check` and coordinator-client typecheck
   passed after remediation. Closure passed 12 focused service and real-response route tests plus
   OpenAPI and generated-client checks.
+- Whole-feature correction: The kernel now emits `BUTTONS` when the resolved button scene changes,
+  including a steering-only transition with no profile edit. The simulated pad test verifies that
+  the production stream applies one new durable generation and reports it through device status.
 
 ## Closure review
 

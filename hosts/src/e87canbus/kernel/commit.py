@@ -78,6 +78,7 @@ def changed_controller_topics(
     if (
         current.active_button_profile_id != previous.active_button_profile_id
         or current.active_button_profile_revision != previous.active_button_profile_revision
+        or current.button_pad != previous.button_pad
     ):
         changed.add(StateTopic.BUTTONS)
     return frozenset(changed)

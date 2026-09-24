@@ -16,7 +16,7 @@ from e87canbus.domain.buttons.profiles import (
 from e87canbus.domain.events import ButtonPressed
 from e87canbus.domain.intents import ToggleAutomaticAssistance
 from e87canbus.domain.state import SteeringMode
-from e87canbus.kernel import ActivateButtonProfile
+from e87canbus.kernel import ActivateButtonProfile, ExecuteOperatorIntent
 from e87canbus.runners.simulation.devices.button_pad import SIMULATED_BUTTON_PAD_ID
 from fastapi.testclient import TestClient
 
@@ -45,6 +45,10 @@ def test_initial_scene_and_replacement_report_status(tmp_path: Path) -> None:
         assert status.status.applied_configuration_generation == initial.generation
         assert app.state.device_configuration.subscriber_count == 1
 
+        def reported_generation() -> int | None:
+            reported = repository.get_status(SIMULATED_BUTTON_PAD_ID, DeviceRole.BUTTON_PAD)
+            return None if reported is None else reported.status.applied_configuration_generation
+
         profile = ActiveButtonProfile(
             "test",
             button_profile_definition_with(
@@ -53,17 +57,23 @@ def test_initial_scene_and_replacement_report_status(tmp_path: Path) -> None:
         )
         app.state.controller_loop.submit(ActivateButtonProfile(profile)).result(timeout=2)
         wait_until(lambda: pad.applied is not None and pad.applied.generation == 1)
-        wait_until(
-            lambda: (
-                (reported := repository.get_status(SIMULATED_BUTTON_PAD_ID, DeviceRole.BUTTON_PAD))
-                is not None
-                and reported.status.applied_configuration_generation == 1
-            )
-        )
-        status = repository.get_status(SIMULATED_BUTTON_PAD_ID, DeviceRole.BUTTON_PAD)
-        assert status is not None
-        assert status.status.applied_configuration_generation == 1
+        wait_until(lambda: reported_generation() == 1)
         assert pad.applied.scene.buttons[5].colour == [12, 34, 56]
+
+        before = app.state.controller_loop.snapshot().application
+        app.state.controller_loop.submit(
+            ExecuteOperatorIntent(ToggleAutomaticAssistance())
+        ).result(timeout=2)
+        wait_until(lambda: pad.applied is not None and pad.applied.generation == 2)
+        wait_until(lambda: reported_generation() == 2)
+        after = app.state.controller_loop.snapshot().application
+        assert after.active_button_profile_id == before.active_button_profile_id
+        assert after.active_button_profile_revision == before.active_button_profile_revision
+        assert pad.applied.scene.buttons[5].colour == [0, 1, 2]
+        stored = repository.get_configuration(SIMULATED_BUTTON_PAD_ID, DeviceRole.BUTTON_PAD)
+        assert stored is not None
+        assert stored.generation == 2
+        assert stored.configuration.buttons[5].colour == [0, 1, 2]
 
     assert app.state.device_configuration.subscriber_count == 0
 
