@@ -1668,6 +1668,37 @@ export type UpdateButtonProfileResponses = {
 export type UpdateButtonProfileResponse =
   UpdateButtonProfileResponses[keyof UpdateButtonProfileResponses]
 
+export type TapSimulatedButtonPadData = {
+  body: ButtonPadPressRequest
+  path?: never
+  query?: never
+  url: "/api/dev/simulation/button-pad/tap"
+}
+
+export type TapSimulatedButtonPadErrors = {
+  /**
+   * Unprocessable Entity
+   */
+  422: ApiProblemResponse
+  /**
+   * Service Unavailable
+   */
+  503: ApiProblemResponse
+}
+
+export type TapSimulatedButtonPadError =
+  TapSimulatedButtonPadErrors[keyof TapSimulatedButtonPadErrors]
+
+export type TapSimulatedButtonPadResponses = {
+  /**
+   * Successful Response
+   */
+  200: SimulationCommandAcknowledgement
+}
+
+export type TapSimulatedButtonPadResponse =
+  TapSimulatedButtonPadResponses[keyof TapSimulatedButtonPadResponses]
+
 export type GetSimulationCoordinatorPanelData = {
   body?: never
   path?: never

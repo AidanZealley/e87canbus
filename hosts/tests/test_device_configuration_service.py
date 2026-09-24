@@ -32,7 +32,7 @@ async def wait_for_generation(repository, device_id: str, generation: int) -> No
 async def test_first_contact_replacement_and_restart(tmp_path: Path) -> None:
     path = tmp_path / "state.sqlite3"
     first_id, second_id, late_id = (str(uuid4()) for _ in range(3))
-    app = create_app(profile_database_path=path)
+    app = create_app(profile_database_path=path, simulate_button_pad=False)
     async with app.router.lifespan_context(app):
         configuration = app.state.device_configuration
         task = asyncio.create_task(asyncio.Event().wait())
@@ -79,7 +79,7 @@ async def test_first_contact_replacement_and_restart(tmp_path: Path) -> None:
         await asyncio.gather(task, return_exceptions=True)
         assert configuration.subscriber_count == 0
 
-    restarted = create_app(profile_database_path=path)
+    restarted = create_app(profile_database_path=path, simulate_button_pad=False)
     async with restarted.router.lifespan_context(restarted):
         task = asyncio.create_task(asyncio.Event().wait())
         subscriber = await restarted.state.device_configuration.subscribe(first_id, task)

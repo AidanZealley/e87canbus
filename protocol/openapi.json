@@ -2719,6 +2719,57 @@
         ]
       }
     },
+    "/api/dev/simulation/button-pad/tap": {
+      "post": {
+        "operationId": "tapSimulatedButtonPad",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ButtonPadPressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationCommandAcknowledgement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Tap Button Pad",
+        "tags": [
+          "development simulation: button pad"
+        ]
+      }
+    },
     "/api/dev/simulation/coordinator-panel": {
       "get": {
         "operationId": "getSimulationCoordinatorPanel",

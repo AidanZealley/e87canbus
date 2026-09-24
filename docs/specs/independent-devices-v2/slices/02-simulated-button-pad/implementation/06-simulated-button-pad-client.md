@@ -1,6 +1,6 @@
 # Workstream 6: Run the simulated pad through the production API
 
-Status: not started.
+Status: accepted.
 
 ## Task packet
 
@@ -124,29 +124,31 @@ Perform the focused closure review for Workstream 6 of the simulated independent
 
 ## Implementation handoff
 
-- Base commit: `TBD`
-- Outcome: `TBD`
-- Files changed: `TBD`
-- Decisions: `TBD`
-- Verification: `TBD`
-- Known limitations or external checks: `TBD`
-- Specification drift: `TBD`
+- Base commit: `c3d995bc063d5f9367e3c90c114c979a627e4024` (accepted Workstream 5).
+- Outcome: The simulator starts one authenticated in-process button pad, applies complete production SSE envelopes, reports its applied generation through the production status route, and sends each development tap through one production press request. It reconnects after stream failure, EOF or idle timeout and shuts down before the configuration publisher and controller.
+- Files changed: Added `runners/simulation/devices/button_pad.py`, `runners/simulation/api/routes/button_pad.py` and `hosts/tests/test_simulated_button_pad_client.py`; changed `api/main.py`, `api/internal/lifecycle.py`, `runners/simulation/api/install.py`, `hosts/tests/test_device_configuration_service.py`, `protocol/openapi.json`, the generated coordinator client and this handoff.
+- Decisions: The fixed simulated identity uses an ephemeral certificate and the existing trusted-proxy parser. Only the private client wraps the app with production authorization; the served simulator keeps its browser behavior. The worktree had no development tap route after Slice 1.5, so the new simulator-only `/api/dev/simulation/button-pad/tap` route accepts the existing press request model. A `simulate_button_pad=False` app-composition option keeps the direct configuration-service test isolated from the simulator's own subscriber. No CAN device peer or alternative scene and press path was added.
+- Verification: The packet's targeted host suite passed (53 tests). OpenAPI drift check, mypy, Ruff, import contracts, frontend `api:check`, coordinator client typecheck and `git diff --check` passed. The deletion and simplification pass removed a redundant UUID conversion, shared the lifespan client reference and kept the stream loop private to this client.
+- Known limitations or external checks: The simulated certificate proves application parsing and authorization, not nginx TLS verification. TLS, Wi-Fi and hardware checks are outside this slice.
+- Specification drift: None.
 
 ## Independent review
 
-- Reviewer: `TBD` (fresh lead subagent)
-- Verdict: `TBD`
-- Required findings: `TBD`
-- Optional observations: `TBD`
-- Questions: `TBD`
+- Reviewer: Independent review agent.
+- Verdict: Approved. The simulated pad uses the production configuration, status and press handlers, and its private authentication wrapper leaves the served simulator app unchanged.
+- Required findings: None. The stream request passes through `AuthorizationMiddleware`, certificate classification, role authorization and the production configuration route. The client parses complete SSE records with `ButtonPadConfigurationEnvelope`, applies each valid scene, then posts its generation through the production status route. The development tap makes one HTTP press request, which the production handler stamps and submits through the controller inbox; the client has no press retry or direct kernel injection. The stream task starts after the configuration publisher and stops before the publisher and controller. Startup and stream cleanup use finite waits. The simulator session still creates only vehicle and Pi CAN endpoints, with no button-pad peer, device protocol or second delivery path.
+- Optional observations: The tap route is installed for every `FULL` simulation API, but `create_app(simulate_button_pad=False)` or a supplied authenticator leaves `app.state.simulated_button_pad` as `None`. Calling the tap route in those compositions raises an attribute error instead of returning its declared 503 (`runners/simulation/api/install.py`, `api/main.py`, `runners/simulation/api/routes/button_pad.py`). Normal simulator composition always creates the client, so this does not block the slice. A small availability guard would make the route match its declared error response.
+- Questions: None.
+
+Review evidence: Read the accepted Workstream 1 through 5 handoffs and linked device contracts. Inspected the uncommitted diff, lifespan, authorization middleware, device handlers, stream service, simulation session and development route. The targeted host suite passed (53 tests); OpenAPI drift, mypy, Ruff, import contracts and `git diff --check` passed. No frontend device UI was added, and the generated client change is limited to the new development tap operation.
 
 ## Resolution
 
-- Finding dispositions: `TBD`
-- Simplification/deletion pass: `TBD`
-- Final verification: `TBD`
+- Finding dispositions: No Required findings. Defer the optional disabled-client tap guard. The production simulator always composes the client; the disabled option exists only to isolate an existing configuration-service test, and no approved behavior depends on tapping that test composition.
+- Simplification/deletion pass: Reviewed the client, lifespan and route for duplicate scene or press paths, reusable streaming infrastructure and restored CAN device code. None remain. The implementation agent removed a redundant UUID conversion and kept the route-specific stream loop private.
+- Final verification: The implementation and independent review each ran the 53 targeted host tests, OpenAPI drift check, mypy, Ruff, import contracts and `git diff --check`. The implementation also ran frontend `api:check` and coordinator client typecheck for the new development route.
 
 ## Closure review
 
-- Verdict: `TBD`
-- Remaining required findings: `TBD`
+- Verdict: Approved. The independent review accepted no Required findings. The current diff has no release-blocking production-path, lifecycle, authentication or double-delivery defect.
+- Remaining required findings: None. The private client alone wraps the app with `AuthorizationMiddleware`; configuration, status and press requests reach the production routes. The lifespan starts the client after configuration publication and stops it before publisher and controller teardown. The tap sends one HTTP press with no retry or direct kernel submission. Focused simulator tests passed (8 tests), and `git diff --check` passed.
