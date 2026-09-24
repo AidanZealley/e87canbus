@@ -4,7 +4,7 @@ Status: draft; implementation has not started.
 
 ## Orchestration record
 
-- Integration branch: `TBD` (create from the approved Slice 02 HEAD)
+- Integration branch: `TBD` (create from `main`)
 - Starting commit: `TBD`
 - Specification approved at commit: `TBD` (the workflow request approves the Slice 03 draft as the implementation source)
 - Review command: `claude -p "<review brief>" --model claude-opus-5-5 --effort medium --permission-mode plan`
@@ -93,5 +93,4 @@ its handoff and, when later workstreams depend on them, the log below, then remo
 
 | Date | Decision or drift | Reason | Approved by | Affected workstreams |
 |---|---|---|---|---|
-| 2026-09-24 | Use the Slice 03 draft as the implementation source | Aidan requested its workflow on the accepted Slice 02 branch | Aidan | All |
 | 2026-09-24 | Specify `e87ctl firmware flash button-pad` for ordinary reflash | A verified, confirmed reflash must omit both persistent partitions; the product spec requires reflash behavior but does not name its operator command | Aidan | 3 |
