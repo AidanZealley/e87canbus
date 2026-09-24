@@ -129,7 +129,7 @@ class CoordinatorKernel:
                 if self._lifecycle is not KernelLifecycle.CREATED:
                     return None
                 self._lifecycle = KernelLifecycle.RUNNING
-                return Commit(self.snapshot(), INITIAL_KERNEL_TOPICS)
+                return Commit(INITIAL_KERNEL_TOPICS)
             case ShutdownRequested():
                 self._lifecycle = KernelLifecycle.STOPPED
                 return None
@@ -228,14 +228,11 @@ class CoordinatorKernel:
     ) -> Commit:
         self._state = result
         current = self.snapshot()
-        return Commit(
-            current,
-            changed_controller_topics(previous, current, health_changed=False),
-        )
+        return Commit(changed_controller_topics(previous, current))
 
     def _commit_health(self, previous: RuntimeHealth) -> Commit:
         topics = frozenset({StateTopic.HEALTH}) if self._health != previous else frozenset()
-        return Commit(self.snapshot(), topics)
+        return Commit(topics)
 
     def _activate_steering_curve(self, request: ActivateSteeringCurve) -> Commit:
         validate_steering_curve_definition(request.definition)
@@ -250,17 +247,11 @@ class CoordinatorKernel:
             saved_profile_revision=request.saved_profile_revision,
         )
         committed = self.snapshot()
-        return Commit(
-            committed,
-            changed_controller_topics(previous, committed, health_changed=False),
-        )
+        return Commit(changed_controller_topics(previous, committed))
 
     def _activate_button_profile(self, request: ActivateButtonProfile) -> Commit:
         previous = self.snapshot()
         self._button_profile = request.profile
         self._button_profile_saved_revision = request.saved_profile_revision
         committed = self.snapshot()
-        return Commit(
-            committed,
-            changed_controller_topics(previous, committed, health_changed=False),
-        )
+        return Commit(changed_controller_topics(previous, committed))

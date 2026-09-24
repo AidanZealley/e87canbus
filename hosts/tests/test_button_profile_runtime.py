@@ -29,8 +29,8 @@ def test_profile_activation_changes_identity_without_pad_program() -> None:
     commit = kernel.dispatch(ActivateButtonProfile(profile, 3))
 
     assert commit is not None
-    assert commit.snapshot.active_button_profile_id == "custom"
-    assert commit.snapshot.active_button_profile_revision == 3
+    assert kernel.snapshot().active_button_profile_id == "custom"
+    assert kernel.snapshot().active_button_profile_revision == 3
     assert commit.changed_topics == {StateTopic.BUTTONS}
     assert kernel.button_profile.slots[5].colour == (12, 34, 56)
 
@@ -48,8 +48,8 @@ def test_direct_button_input_uses_active_profile_with_no_can_producer() -> None:
     commit = kernel.dispatch(ButtonPressed(5))
 
     assert commit is not None
-    assert commit.snapshot.steering_mode is SteeringMode.MANUAL
-    assert commit.snapshot.active_button_profile_id == "custom"
+    assert kernel.snapshot().steering_mode is SteeringMode.MANUAL
+    assert kernel.snapshot().active_button_profile_id == "custom"
     assert StateTopic.STEERING in commit.changed_topics
 
 

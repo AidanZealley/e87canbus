@@ -24,8 +24,8 @@ def test_vehicle_can_still_updates_complete_projection() -> None:
     commit = kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, encode_simulated_speed(42.5), 1.0))
 
     assert commit is not None
-    assert commit.snapshot.vehicle_speed_kph == 42.5
-    assert commit.snapshot.speed_valid
+    assert kernel.snapshot().vehicle_speed_kph == 42.5
+    assert kernel.snapshot().speed_valid
     assert StateTopic.VEHICLE in commit.changed_topics
 
 
