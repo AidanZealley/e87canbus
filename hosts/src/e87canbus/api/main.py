@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
+from e87canbus.adapters.sqlite_device_state import SqliteDeviceStateRepository
 from e87canbus.adapters.sqlite_profiles import SqliteSteeringProfileRepository
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
 from e87canbus.adapters.web import SpaStaticFiles
@@ -55,6 +56,7 @@ def create_app(
     profile_repository: SteeringProfileRepository | None = None,
     button_profile_repository: ButtonProfileRepository | None = None,
     settings_repository: ApplicationSettingsRepository | None = None,
+    device_state_repository: SqliteDeviceStateRepository | None = None,
     cors_origins: Sequence[str] | None = None,
     frontend_directory: str | Path | None = None,
     authenticator: ApplicationAuthenticator | None = None,
@@ -83,6 +85,7 @@ def create_app(
             profile_repository is None
             or button_profile_repository is None
             or settings_repository is None
+            or device_state_repository is None
         )
         else None
     )
@@ -95,6 +98,9 @@ def create_app(
     if settings_repository is None:
         assert database is not None
         settings_repository = SqliteApplicationSettingsRepository(database)
+    if device_state_repository is None:
+        assert database is not None
+        device_state_repository = SqliteDeviceStateRepository(database)
 
     publisher = CoordinatorSsePublisher(service, service.config)
     coordinator_panel = (
@@ -132,6 +138,7 @@ def create_app(
     app.state.profile_repository = profile_repository
     app.state.button_profile_repository = button_profile_repository
     app.state.settings_repository = settings_repository
+    app.state.device_state_repository = device_state_repository
     app.state.monotonic_clock = clock
     app.state.provisioning_status_path = Path(provisioning_status_path)
     # Read-check-write profile sequences must not interleave: without these, a concurrent
