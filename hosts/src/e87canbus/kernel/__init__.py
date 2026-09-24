@@ -1,12 +1,10 @@
 """Coordinator kernel inputs, health and commit contract."""
 
 from e87canbus.kernel.commit import (
-    INITIAL_KERNEL_TOPICS,
     Commit,
     DiagnosticSnapshot,
     KernelLifecycle,
     StateTopic,
-    changed_controller_topics,
 )
 from e87canbus.kernel.health import (
     NetworkRuntimeHealth,
@@ -29,12 +27,10 @@ from e87canbus.kernel.inputs import (
 from e87canbus.kernel.kernel import CoordinatorKernel
 
 __all__ = [
-    "INITIAL_KERNEL_TOPICS",
     "Commit",
     "DiagnosticSnapshot",
     "KernelLifecycle",
     "StateTopic",
-    "changed_controller_topics",
     "NetworkRuntimeHealth",
     "RuntimeFault",
     "RuntimeFaultKind",

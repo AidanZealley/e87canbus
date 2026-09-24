@@ -22,7 +22,6 @@ from e87canbus.runners.composition import (
     build_simulated_controller_loop,
 )
 from e87canbus.service import (
-    ControllerAdapterSnapshot,
     ControllerLoop,
     ControllerLoopError,
     ControllerLoopLifecycle,
@@ -55,7 +54,7 @@ class RecordingRuntime:
         del submit_input
         self.starts += 1
         self.lifecycle_events.append("start")
-        commit = self.kernel.dispatch(KernelStarted(1.0))
+        commit = self.kernel.dispatch(KernelStarted())
         assert commit is not None
         return RuntimeExecution(
             changed_topics=commit.changed_topics,
@@ -69,17 +68,10 @@ class RecordingRuntime:
         del now
         return None
 
-    def next_deadline(self) -> float | None:
-        return None
-
-    def deadline(self, now: float) -> RuntimeExecution | None:
-        del now
-        return None
-
-    def shutdown(self, now: float) -> RuntimeExecution | None:
+    def shutdown(self) -> RuntimeExecution | None:
         self.stops += 1
         self.lifecycle_events.append("shutdown")
-        commit = self.kernel.dispatch(ShutdownRequested(now))
+        commit = self.kernel.dispatch(ShutdownRequested())
         if commit is None:
             return None
         return RuntimeExecution(
@@ -93,14 +85,12 @@ class RecordingRuntime:
 
     def projection(
         self,
-    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, int | None]:
         diagnostics = self.kernel.diagnostics()
         return (
             self.kernel.snapshot(),
             diagnostics,
-            ControllerAdapterSnapshot(
-                simulation_session_id=None,
-            ),
+            None,
         )
 
     @property
@@ -240,9 +230,9 @@ def test_simulation_reset_changes_session_without_changing_service_boot(
         before = app.state.controller_loop.snapshot()
         reset = client.post("/api/dev/simulation/reset").json()
 
-        assert before.adapter.simulation_session_id == 1
+        assert before.simulation_session_id == 1
         assert reset == {"accepted": True, "boot_id": boot_id}
-        assert app.state.controller_loop.snapshot().adapter.simulation_session_id == 2
+        assert app.state.controller_loop.snapshot().simulation_session_id == 2
         assert app.state.controller_loop.boot_id == boot_id
 
 

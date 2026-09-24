@@ -6,11 +6,6 @@ from e87canbus.runners.simulation.signals import VehicleSignal
 
 
 @dataclass(frozen=True)
-class RunControlTimer:
-    now: float
-
-
-@dataclass(frozen=True)
 class SetVehicleSignal:
     signal: VehicleSignal
     value: int | float
@@ -36,5 +31,5 @@ class ResetSimulation:
 
 
 SimulationCommand = (
-    RunControlTimer | SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep | ResetSimulation
+    SetVehicleSignal | SilenceVehicleSignal | SetVehicleSweep | ResetSimulation
 )

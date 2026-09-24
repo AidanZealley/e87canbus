@@ -46,5 +46,10 @@ HTTP.
   bounded backend trace and CAN registry remain for simulation, protocol tests and current physical
   devices.
 - Host-local contracts remain separate even though both endpoints use SSE.
+
+## Implementation note, 2026-09-24
+
+Slice 1.5 removed the remaining backend CAN trace and device registry mentioned above. Browser SSE
+still sends complete replacements with service-owned, boot-scoped revisions.
 - A host restart or dropped connection loses intermediate events by design. The next complete
   snapshot restores current state.

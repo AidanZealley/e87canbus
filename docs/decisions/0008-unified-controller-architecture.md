@@ -140,3 +140,10 @@ bounded diagnostic trace; operation-local trace deltas feed the sole live trace 
 Current browser live state flows only from Socket.IO into Zustand; durable HTTP resources remain in
 TanStack Query. Development HTTP actions return only `accepted` and the stable process `boot_id`,
 while revisioned/session-scoped authority arrives through Socket.IO rather than an HTTP facade.
+
+## Implementation note, 2026-09-24
+
+ADRs 0017 and 0018 replace the earlier Socket.IO and device-output details above. The current
+controller publishes complete browser projections through SSE. Its service owns the boot-scoped
+revision and per-topic revisions; kernel commits carry changed topics without a second revision,
+state-change flag, effects or trace events. Simulation has vehicle input only.

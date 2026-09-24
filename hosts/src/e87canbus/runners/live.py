@@ -12,12 +12,12 @@ from e87canbus.adapters.socketcan import SocketCanBus
 from e87canbus.config import AppConfig, CanNetwork
 from e87canbus.domain.buttons.profiles import ActiveButtonProfile
 from e87canbus.domain.controller import ApplicationSnapshot
+from e87canbus.domain.events import ButtonPressed
 from e87canbus.domain.steering.curves import ActiveSteeringCurve
 from e87canbus.kernel import (
     ActivateButtonProfile,
     ActivateSteeringCurve,
     CanReaderFailed,
-    Commit,
     ControllerInput,
     CoordinatorKernel,
     DiagnosticSnapshot,
@@ -37,7 +37,6 @@ from e87canbus.runners.simulation.commands import (
 from e87canbus.runners.simulation.protocol import SimulationProtocolRouter
 from e87canbus.runners.simulation.vehicle_source import SyntheticVehicleSource
 from e87canbus.service import (
-    ControllerAdapterSnapshot,
     RuntimeExecution,
     RuntimeInputSink,
 )
@@ -59,6 +58,7 @@ CONTROLLER_INPUT_TYPES = (
     ActivateButtonProfile,
     ActivateSteeringCurve,
     ExecuteOperatorIntent,
+    ButtonPressed,
 )
 VEHICLE_COMMAND_TYPES = (
     SetVehicleSignal,
@@ -192,7 +192,7 @@ class LiveControllerRuntime:
             self._close_buses()
             raise
 
-        execution = self._dispatch(KernelStarted(self._clock()))
+        execution = self._dispatch(KernelStarted())
         if execution is None:
             raise RuntimeError("live controller kernel did not start")
 
@@ -224,8 +224,7 @@ class LiveControllerRuntime:
         if not isinstance(work, CONTROLLER_INPUT_TYPES):
             raise TypeError(f"unsupported live controller work: {work!r}")
         execution = self._dispatch(work)
-        completed = execution or self._current_execution(None)
-        return completed
+        return execution or RuntimeExecution()
 
     def timer(self, now: float) -> RuntimeExecution | None:
         executions: list[RuntimeExecution] = []
@@ -238,9 +237,9 @@ class LiveControllerRuntime:
             executions.append(timer_execution)
         return _merge_executions(executions)
 
-    def shutdown(self, now: float) -> RuntimeExecution | None:
+    def shutdown(self) -> RuntimeExecution | None:
         self._reader_stop.set()
-        execution = self._dispatch(ShutdownRequested(now)) if self._started else None
+        execution = self._dispatch(ShutdownRequested()) if self._started else None
         for reader in self._readers:
             reader.join(timeout=READER_JOIN_TIMEOUT_S)
         alive = tuple(reader.name for reader in self._readers if reader.is_alive())
@@ -254,10 +253,10 @@ class LiveControllerRuntime:
 
     def projection(
         self,
-    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]:
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, int | None]:
         diagnostics = self._kernel.diagnostics()
         application = self._kernel.snapshot()
-        return application, diagnostics, ControllerAdapterSnapshot(simulation_session_id=None)
+        return application, diagnostics, None
 
     @property
     def terminal(self) -> bool:
@@ -269,12 +268,6 @@ class LiveControllerRuntime:
             None
             if commit is None
             else RuntimeExecution(changed_topics=commit.changed_topics, commit_count=1)
-        )
-
-    def _current_execution(self, commit: Commit | None) -> RuntimeExecution:
-        return RuntimeExecution(
-            changed_topics=(frozenset() if commit is None else commit.changed_topics),
-            commit_count=0 if commit is None else 1,
         )
 
     def _dispatch_synthetic_frames(
@@ -307,7 +300,6 @@ def _merge_executions(executions: list[RuntimeExecution]) -> RuntimeExecution | 
     if not executions:
         return None
     return RuntimeExecution(
-        events=tuple(event for execution in executions for event in execution.events),
         changed_topics=frozenset(
             topic for execution in executions for topic in execution.changed_topics
         ),

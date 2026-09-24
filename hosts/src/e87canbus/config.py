@@ -65,12 +65,9 @@ class PlaceholderBmwIds:
 
 @dataclass(frozen=True)
 class SimulationConfig:
-    trace_capacity: int = 2_000
     synthetic_speed_network: CanNetwork = CanNetwork.FCAN
 
     def __post_init__(self) -> None:
-        if self.trace_capacity < 1:
-            raise ValueError("simulation trace capacity must be positive")
         if not isinstance(self.synthetic_speed_network, CanNetwork):
             raise ValueError("simulation synthetic speed network must be a CAN network")
 

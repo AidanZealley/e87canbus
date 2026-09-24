@@ -77,7 +77,6 @@ def test_bench_vehicle_api_injects_through_decoder_without_can_transmission(tmp_
         snapshot = service.snapshot()
         assert response.status_code == 200
         assert snapshot.application.vehicle_speed_kph == 42.5
-        assert snapshot.diagnostics.health.for_network(CanNetwork.KCAN).decoded_frames > 0
         assert client.post("/api/dev/simulation/reset").status_code == 404
     assert all(not bus.sent for bus in FakeSocketCanBus.instances)
 

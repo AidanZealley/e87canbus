@@ -1,7 +1,7 @@
 """Immutable service-owned projection and diagnostics DTOs.
 
-These describe what the controller service publishes: adapter observations, inbox
-and persistence/publisher health, and the boot-scoped composite snapshot. They
+These describe what the controller service publishes: inbox and
+persistence/publisher health, and the boot-scoped composite snapshot. They
 carry no behaviour and never mutate controller state.
 """
 
@@ -15,16 +15,8 @@ from e87canbus.kernel import DiagnosticSnapshot, StateTopic
 
 @dataclass(frozen=True)
 class RuntimeExecution:
-    events: tuple[dict[str, object], ...] = ()
     changed_topics: frozenset[StateTopic] = frozenset()
     commit_count: int = 0
-
-
-@dataclass(frozen=True)
-class ControllerAdapterSnapshot:
-    """Immutable adapter observations."""
-
-    simulation_session_id: int | None
 
 
 @dataclass(frozen=True)
@@ -46,7 +38,6 @@ class PersistenceDiagnostics:
 class PublisherDiagnostics:
     running: bool
     failures: int
-    trace_rows_dropped: int
     resource_changes_dropped: int
     transport_queue_saturations: int
     fault: str | None
@@ -69,5 +60,5 @@ class ControllerLoopSnapshot:
     topic_revisions: tuple[tuple[StateTopic, int], ...]
     application: ApplicationSnapshot
     diagnostics: DiagnosticSnapshot
-    adapter: ControllerAdapterSnapshot
+    simulation_session_id: int | None
     service: ServiceDiagnostics

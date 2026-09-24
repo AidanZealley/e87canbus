@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 from e87canbus.api.main import create_app
-from e87canbus.config import CanNetwork, simulator_config
+from e87canbus.config import simulator_config
 from e87canbus.runners.composition import build_simulated_controller_loop
 from fastapi.testclient import TestClient
 
@@ -49,7 +49,6 @@ def test_vehicle_speed_command_crosses_decoder_and_updates_application(client: T
     snapshot = client.app.state.controller_loop.snapshot()
     assert response.status_code == 200
     assert snapshot.application.vehicle_speed_kph == 42.5
-    assert snapshot.diagnostics.health.for_network(CanNetwork.FCAN).decoded_frames > 0
     assert snapshot.application.steering_mode.value == "auto"
     assert not hasattr(snapshot.application, "effective_assistance")
 
@@ -64,7 +63,7 @@ def test_reset_starts_new_vehicle_session(client: TestClient) -> None:
     response = client.post("/api/dev/simulation/reset")
     snapshot = client.app.state.controller_loop.snapshot()
     assert response.status_code == 200
-    assert snapshot.adapter.simulation_session_id == 2
+    assert snapshot.simulation_session_id == 2
     assert snapshot.application.vehicle_speed_kph == 0
 
 

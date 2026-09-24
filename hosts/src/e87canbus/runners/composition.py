@@ -134,7 +134,3 @@ def _validate_networks(config: AppConfig) -> None:
     networks = [item.network for item in config.can_networks]
     if len(networks) != len(set(networks)):
         raise ValueError("each CAN network may be configured at most once")
-
-
-def _network_enabled(config: AppConfig, network: CanNetwork) -> bool:
-    return any(item.network is network and item.enabled for item in config.can_networks)

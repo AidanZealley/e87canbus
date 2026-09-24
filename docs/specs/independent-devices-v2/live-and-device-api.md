@@ -84,8 +84,8 @@ Durable resource changes use the same stream:
 Live device registry state is not part of this contract. Device diagnostics come from ordinary admin
 HTTP endpoints.
 
-The live CAN trace, its subscription requests and its browser UI are removed. The simulation bus's
-internal trace buffer remains available to tests.
+The live CAN trace, its subscription requests and its browser UI are removed. Slice 1.5 also
+removed the simulator's internal trace buffer after its last consumer went away.
 
 ## Console-host stream
 

@@ -68,3 +68,9 @@ handlers rather than virtual project-device CAN peers.
 - The single-owner queue, typed inputs, immutable state, vehicle decoding and changed projections
   remain.
 - Future CAN transmission starts from a specific vehicle feature instead of a dormant framework.
+
+## Implementation note, 2026-09-24
+
+The kernel now retains vehicle observations, desired intents, profiles and complete projection
+diffs. The bounded controller service owns the only live revision and its per-topic revisions.
+Simulation uses vehicle buses without a peer topology or trace buffer.

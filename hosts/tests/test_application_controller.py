@@ -30,38 +30,32 @@ def projection(state: ApplicationState):
 
 @pytest.mark.parametrize(("at", "valid"), [(10.5, True), (11.0, True), (11.000001, False)])
 def test_speed_is_browser_telemetry_with_freshness(at: float, valid: bool) -> None:
-    state = transition(
-        ApplicationState(), SpeedObserved(SpeedSample(42.5, 10.0, CanNetwork.FCAN))
-    ).state
-    state = transition(state, ControlTimerElapsed(at)).state
+    state = transition(ApplicationState(), SpeedObserved(SpeedSample(42.5, 10.0, CanNetwork.FCAN)))
+    state = transition(state, ControlTimerElapsed(at))
     assert projection(state).vehicle_speed_kph == 42.5
     assert projection(state).speed_valid is valid
     assert not hasattr(transition(state, ControlTimerElapsed(at)), "effects")
 
 
 def test_regressing_timer_cannot_restore_stale_speed() -> None:
-    state = transition(
-        ApplicationState(), SpeedObserved(SpeedSample(42.5, 1.0, CanNetwork.FCAN))
-    ).state
-    state = transition(state, ControlTimerElapsed(5.0)).state
-    state = transition(state, ControlTimerElapsed(1.5)).state
+    state = transition(ApplicationState(), SpeedObserved(SpeedSample(42.5, 1.0, CanNetwork.FCAN)))
+    state = transition(state, ControlTimerElapsed(5.0))
+    state = transition(state, ControlTimerElapsed(1.5))
     assert state.speed_evaluated_at == 5.0
     assert not projection(state).speed_valid
 
 
 def test_speed_sample_clamps_negative_speed_and_retains_observation() -> None:
-    state = transition(
-        ApplicationState(), SpeedObserved(SpeedSample(-2.0, 12.5, CanNetwork.PTCAN))
-    ).state
+    state = transition(ApplicationState(), SpeedObserved(SpeedSample(-2.0, 12.5, CanNetwork.PTCAN)))
     assert state.speed_sample == SpeedSample(0.0, 12.5, CanNetwork.PTCAN)
 
 
 def test_engine_telemetry_ages_independently() -> None:
     state = transition(
         ApplicationState(), EngineRpmObserved(EngineRpmSample(3500, 10.0, CanNetwork.PTCAN))
-    ).state
+    )
     assert projection(state).engine.rpm == EngineTelemetryValue(3500, EngineTelemetryStatus.VALID)
-    state = transition(state, ControlTimerElapsed(11.000001)).state
+    state = transition(state, ControlTimerElapsed(11.000001))
     assert projection(state).engine.rpm == EngineTelemetryValue(None, EngineTelemetryStatus.STALE)
 
 
@@ -79,4 +73,4 @@ def test_transition_does_not_mutate_input() -> None:
     state = ApplicationState()
     changed = transition(state, SpeedObserved(SpeedSample(30.0, 2.0, CanNetwork.FCAN)))
     assert state.speed_sample is None
-    assert changed.state != state
+    assert changed != state

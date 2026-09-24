@@ -46,7 +46,7 @@ class SimulatedCoordinatorPanel:
             return CoordinatorStatus.STARTING, None
 
         snapshot = self._controller.snapshot()
-        session_id = snapshot.adapter.simulation_session_id
+        session_id = snapshot.simulation_session_id
         if snapshot.diagnostics.health.fatal:
             return CoordinatorStatus.FAULT, session_id
         if lifecycle is ControllerLoopLifecycle.STOPPED:

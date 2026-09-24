@@ -1,6 +1,6 @@
 """The kernel's output contract: commits, projection topics and their diff.
 
-A ``Commit`` is returned only after controller state is mutated. Its
+A ``Commit`` records an accepted input and its complete projection. Its
 ``changed_topics`` is a closed set derived purely from projection differences,
 so publication never depends on a runtime-registered event bus.
 """
@@ -45,16 +45,13 @@ class KernelLifecycle(StrEnum):
 class Commit:
     """One accepted state transition and its changed projections."""
 
-    revision: int
     snapshot: ApplicationSnapshot
     changed_topics: frozenset[StateTopic]
-    state_changed: bool
 
 
 @dataclass(frozen=True)
 class DiagnosticSnapshot:
     lifecycle: KernelLifecycle
-    revision: int
     health: RuntimeHealth
 
 

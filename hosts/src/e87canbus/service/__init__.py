@@ -5,7 +5,6 @@ between the service lifecycle and its diagnostics DTOs is an internal layout.
 """
 
 from e87canbus.service.diagnostics import (
-    ControllerAdapterSnapshot,
     ControllerLoopSnapshot,
     InboxDiagnostics,
     PersistenceDiagnostics,
@@ -26,7 +25,6 @@ from e87canbus.service.loop import (
 )
 
 __all__ = [
-    "ControllerAdapterSnapshot",
     "ControllerInboxFull",
     "ControllerRuntime",
     "ControllerLoop",

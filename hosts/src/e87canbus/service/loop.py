@@ -25,7 +25,6 @@ from e87canbus.kernel import (
     StateTopic,
 )
 from e87canbus.service.diagnostics import (
-    ControllerAdapterSnapshot,
     ControllerLoopSnapshot,
     InboxDiagnostics,
     PersistenceDiagnostics,
@@ -71,7 +70,7 @@ class ControllerRuntime(Protocol):
 
     - ``runners.live.LiveControllerRuntime`` - a kernel wired to real CAN sockets.
     - ``runners.simulation.SimulatedControllerRuntime`` - a kernel wired to in-memory
-      a virtual car.
+      vehicle frames on in-memory CAN buses.
 
     The service knows only this interface, so the lifecycle, threading and inbox code
     is identical in both cases and neither runner can grow its own idea of them.
@@ -91,13 +90,13 @@ class ControllerRuntime(Protocol):
 
     def timer(self, now: float) -> RuntimeExecution | None: ...
 
-    def shutdown(self, now: float) -> RuntimeExecution | None: ...
+    def shutdown(self) -> RuntimeExecution | None: ...
 
     def close(self) -> None: ...
 
     def projection(
         self,
-    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, ControllerAdapterSnapshot]: ...
+    ) -> tuple[ApplicationSnapshot, DiagnosticSnapshot, int | None]: ...
 
     @property
     def terminal(self) -> bool: ...
@@ -121,7 +120,7 @@ class ControllerLoop:
     outside world into the strictly serial one the kernel assumes.
 
     It also owns what "running" means: a CREATED -> RUNNING -> STOPPED lifecycle, the
-    timer schedule driven by the kernel's next deadline, and back-pressure when the
+    periodic telemetry timer and back-pressure when the
     inbox is full (rejecting work rather than growing without bound). It holds no
     application rules of its own - it decides *when* the kernel runs, never *what* it
     decides.
@@ -167,7 +166,6 @@ class ControllerLoop:
         self._publisher = PublisherDiagnostics(
             running=False,
             failures=0,
-            trace_rows_dropped=0,
             resource_changes_dropped=0,
             transport_queue_saturations=0,
             fault="not started",
@@ -426,7 +424,7 @@ class ControllerLoop:
             if self._runtime.terminal:
                 self._fatal_exit.set()
             try:
-                shutdown_execution = self._runtime.shutdown(self._clock())
+                shutdown_execution = self._runtime.shutdown()
                 if shutdown_execution is not None:
                     self._record(shutdown_execution, notify=False)
             except Exception as exc:
@@ -450,7 +448,7 @@ class ControllerLoop:
         *,
         notify: bool = True,
     ) -> int:
-        application, diagnostics, adapter = self._runtime.projection()
+        application, diagnostics, simulation_session_id = self._runtime.projection()
         with self._lock:
             if self._latest_snapshot is None and not execution.changed_topics:
                 execution = replace(execution, changed_topics=frozenset(StateTopic))
@@ -467,7 +465,7 @@ class ControllerLoop:
                 topic_revisions=tuple(self._topic_revisions.items()),
                 application=application,
                 diagnostics=diagnostics,
-                adapter=adapter,
+                simulation_session_id=simulation_session_id,
                 service=self._service_diagnostics_locked(),
             )
             recorded_revision = self._revision

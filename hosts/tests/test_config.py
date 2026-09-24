@@ -6,7 +6,6 @@ from e87canbus.config import (
     EngineTelemetryConfig,
     LivePublicationConfig,
     NetworkConfigError,
-    SimulationConfig,
     SteeringConfig,
     configure_can_networks,
     default_config,
@@ -37,11 +36,6 @@ def test_default_can_network_configuration_is_ordered_and_receive_only() -> None
 def test_live_publication_bounds_reject_invalid_values(changes: dict[str, int | float]) -> None:
     with pytest.raises(ValueError, match="live"):
         LivePublicationConfig(**changes)
-
-
-def test_simulation_trace_capacity_must_be_positive() -> None:
-    with pytest.raises(ValueError, match="capacity"):
-        SimulationConfig(trace_capacity=0)
 
 
 @pytest.mark.parametrize("changes", [{"manual_level_count": 0}, {"speed_timeout_s": 0.0}])

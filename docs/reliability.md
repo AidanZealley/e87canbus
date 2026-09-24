@@ -28,9 +28,9 @@ unready.
 
 The `health` SSE projection contains readiness and fatal truth, per-network reader faults, bounded
 inbox depth, capacity and current latency, overflow truth, and persistence status. By default, health
-updates are coalesced to 1 Hz. The internal simulation trace remains limited to 2,000 rows for
-backend tests. Each SSE subscriber has a fixed pending-record capacity, and saturation cancels that
-request. Publisher diagnostics remain service-local rather than part of the browser health event.
+updates are coalesced to 1 Hz. Each SSE subscriber has a fixed pending-record capacity, and
+saturation cancels that request. Publisher diagnostics remain service-local rather than part of the
+browser health event.
 
 Startup validates authority, initializes SQLite, starts the controller and readers, starts the
 publisher, then marks ready. Shutdown marks the service not ready, stops the controller and readers,

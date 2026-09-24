@@ -8,18 +8,18 @@ from e87canbus.runners.simulation.protocol import SimulationProtocolRouter, enco
 
 def test_retired_button_can_id_is_ignored() -> None:
     kernel = CoordinatorKernel()
-    kernel.dispatch(KernelStarted(0.0))
+    kernel.dispatch(KernelStarted())
 
     result = kernel.dispatch(ReceivedCanFrame(CanNetwork.KCAN, CanFrame(0x700, b"\x00\x01"), 1.0))
 
     assert result is None
     assert kernel.snapshot().steering_mode is SteeringMode.AUTO
-    assert kernel.health.networks[0].ignored_frames == 1
+    assert not kernel.health.fatal
 
 
 def test_vehicle_can_still_updates_complete_projection() -> None:
     kernel = CoordinatorKernel(decoder=SimulationProtocolRouter().decode)
-    kernel.dispatch(KernelStarted(0.0))
+    kernel.dispatch(KernelStarted())
 
     commit = kernel.dispatch(ReceivedCanFrame(CanNetwork.FCAN, encode_simulated_speed(42.5), 1.0))
 
@@ -31,8 +31,8 @@ def test_vehicle_can_still_updates_complete_projection() -> None:
 
 def test_unassigned_direct_button_press_has_no_transient_feedback() -> None:
     kernel = CoordinatorKernel()
-    kernel.dispatch(KernelStarted(0.0))
+    kernel.dispatch(KernelStarted())
 
-    assert kernel.dispatch(ButtonPressed(0, 1.0)) is None
+    assert kernel.dispatch(ButtonPressed(0)) is None
     assert kernel.snapshot().steering_mode is SteeringMode.AUTO
     assert not hasattr(kernel.state, "button_feedback")

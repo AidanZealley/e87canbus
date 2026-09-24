@@ -18,7 +18,7 @@ Status: in progress.
 | 1 | [Remove the high-beam flash feature](01-remove-high-beam-flash.md) | Approved Slice 1.5 | Accepted |
 | 2 | [Retire button-pad CAN and coordinator feedback](02-retire-button-pad-can.md) | Workstream 1 | Accepted |
 | 3 | [Retire Servotronic and delete the device-CAN platform](03-retire-servotronic-control.md) | Workstream 2 | Accepted |
-| 4 | [Reduce the coordinator to its retained responsibilities](04-simplify-coordinator-core.md) | Workstream 3 | Not started |
+| 4 | [Reduce the coordinator to its retained responsibilities](04-simplify-coordinator-core.md) | Workstream 3 | Accepted |
 | Final | [Whole-feature review](final-review.md) | Workstreams 1-4 | Not started |
 
 Each lead updates its own row on each transition, using one of `Not started`, `Implementing`,

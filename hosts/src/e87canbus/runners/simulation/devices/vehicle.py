@@ -31,10 +31,3 @@ class SimulatedVehicleNode:
     def _send(self, frames: tuple[RoutedCanFrame, ...]) -> None:
         for routed in frames:
             self.buses[routed.network].send(routed.frame)
-
-    def drain_pending(self) -> None:
-        """Discard other nodes' frames so the simulated bus has no growing inbox."""
-
-        for bus in self.buses.values():
-            while bus.receive(timeout_s=0) is not None:
-                pass
