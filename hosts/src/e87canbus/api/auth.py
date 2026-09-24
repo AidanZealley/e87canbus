@@ -34,6 +34,12 @@ class PrincipalKind(StrEnum):
     UNAUTHENTICATED = "unauthenticated"
     CONSOLE = "console"
     OPERATOR = "operator"
+    DEVICE = "device"
+
+
+class DeviceRole(StrEnum):
+    BUTTON_PAD = "button-pad"
+    SERVOTRONIC_CONTROLLER = "servotronic-controller"
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,10 +47,13 @@ class Principal:
     kind: PrincipalKind
     installation_id: str | None = None
     device_id: str | None = None
+    role: DeviceRole | None = None
 
 
 UNAUTHENTICATED = Principal(PrincipalKind.UNAUTHENTICATED)
-PUBLIC = frozenset(PrincipalKind)
+PUBLIC = frozenset(
+    {PrincipalKind.UNAUTHENTICATED, PrincipalKind.CONSOLE, PrincipalKind.OPERATOR}
+)
 CONSOLE_AND_OPERATOR = frozenset({PrincipalKind.CONSOLE, PrincipalKind.OPERATOR})
 OPERATOR_ONLY = frozenset({PrincipalKind.OPERATOR})
 
@@ -128,7 +137,7 @@ class ApplicationAuthenticator:
         if certificate is not None or verified == "SUCCESS":
             if client_address not in self._trusted_proxy_addresses or verified != "SUCCESS":
                 return UNAUTHENTICATED
-            return self._console_principal(certificate or "")
+            return self._certificate_principal(certificate or "")
 
         credentials = _basic_credentials(headers.get("authorization"))
         if credentials is None or credentials[0] != OPERATOR_USERNAME:
@@ -143,7 +152,7 @@ class ApplicationAuthenticator:
             return UNAUTHENTICATED
         return Principal(PrincipalKind.OPERATOR)
 
-    def _console_principal(self, encoded_certificate: str) -> Principal:
+    def _certificate_principal(self, encoded_certificate: str) -> Principal:
         try:
             certificate = x509.load_pem_x509_certificate(unquote(encoded_certificate).encode())
             identities = certificate.extensions.get_extension_for_class(
@@ -156,15 +165,19 @@ class ApplicationAuthenticator:
         match = DEVICE_IDENTITY_PATTERN.fullmatch(identities[0])
         if match is None or match["installation"] != self.installation_id:
             return UNAUTHENTICATED
-        if match["role"] != PrincipalKind.CONSOLE:
-            return UNAUTHENTICATED
         try:
             device_id = str(uuid.UUID(match["device"], version=4))
         except ValueError:
             return UNAUTHENTICATED
         if device_id != match["device"]:
             return UNAUTHENTICATED
-        return Principal(PrincipalKind.CONSOLE, match["installation"], device_id)
+        if match["role"] == PrincipalKind.CONSOLE:
+            return Principal(PrincipalKind.CONSOLE, match["installation"], device_id)
+        try:
+            role = DeviceRole(match["role"])
+        except ValueError:
+            return UNAUTHENTICATED
+        return Principal(PrincipalKind.DEVICE, match["installation"], device_id, role)
 
 
 class AuthorizationMiddleware(BaseHTTPMiddleware):
@@ -174,6 +187,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         principal = await self._authenticator.authenticate_request(request)
+        request.state.principal = principal
         permissions = http_permissions(request.method, request.url.path)
         if principal.kind not in permissions:
             status = 403 if principal.kind is not PrincipalKind.UNAUTHENTICATED else 401

@@ -15,7 +15,7 @@ Status: implementation in progress.
 | # | Workstream | Depends on | Status |
 |---:|---|---|---|
 | 1 | [Define the independent button-pad scene](01-define-button-pad-scene.md) | Completed Slice 1.5 | Accepted |
-| 2 | [Authenticate role-bearing devices](02-authenticate-role-bearing-devices.md) | Workstream 1 | Not started |
+| 2 | [Authenticate role-bearing devices](02-authenticate-role-bearing-devices.md) | Workstream 1 | Accepted |
 | 3 | [Persist device configuration and status](03-persist-device-state.md) | Workstream 2 | Not started |
 | 4 | [Accept device status and button presses](04-device-http-inputs.md) | Workstream 3 | Not started |
 | 5 | [Deliver durable device configuration over SSE](05-device-configuration-stream.md) | Workstream 4 | Not started |
