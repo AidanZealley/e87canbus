@@ -6,6 +6,7 @@ import asyncio
 import os
 import time
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -21,7 +22,7 @@ from e87canbus.api.auth import ApplicationAuthenticator, AuthorizationMiddleware
 from e87canbus.api.errors import install_exception_handlers
 from e87canbus.api.internal.coordinator_sse import CoordinatorSsePublisher
 from e87canbus.api.internal.lifecycle import create_lifespan
-from e87canbus.api.routes import button_profiles, health, live, settings, steering, system
+from e87canbus.api.routes import button_profiles, devices, health, live, settings, steering, system
 from e87canbus.api.routes.system import PROVISIONING_STATUS_PATH
 from e87canbus.config import AppConfig
 from e87canbus.deployment import DeploymentProfile, SimulationApiScope
@@ -46,12 +47,17 @@ DEFAULT_CORS_ORIGINS = (
 )
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 def create_app(
     *,
     controller_loop: ControllerLoop | None = None,
     profile: DeploymentProfile | None = None,
     config: AppConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
+    utc_clock: Callable[[], datetime] = utc_now,
     profile_database_path: str | Path = DEFAULT_PROFILE_DATABASE,
     profile_repository: SteeringProfileRepository | None = None,
     button_profile_repository: ButtonProfileRepository | None = None,
@@ -100,7 +106,7 @@ def create_app(
         settings_repository = SqliteApplicationSettingsRepository(database)
     if device_state_repository is None:
         assert database is not None
-        device_state_repository = SqliteDeviceStateRepository(database)
+        device_state_repository = SqliteDeviceStateRepository(database, clock=utc_clock)
 
     publisher = CoordinatorSsePublisher(service, service.config)
     coordinator_panel = (
@@ -148,6 +154,7 @@ def create_app(
     app.state.steering_profile_mutation_lock = asyncio.Lock()
 
     app.include_router(health.router)
+    app.include_router(devices.router)
     app.include_router(live.router)
     app.include_router(settings.router)
     app.include_router(steering.router)

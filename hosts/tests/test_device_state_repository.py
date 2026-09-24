@@ -11,8 +11,6 @@ import pytest
 from e87canbus.adapters.sqlite_button_profiles import SqliteButtonProfileRepository
 from e87canbus.adapters.sqlite_database import SqliteApplicationDatabase
 from e87canbus.adapters.sqlite_device_state import (
-    ButtonPadDeviceStatus,
-    ButtonPadStatus,
     DeviceRoleMismatchError,
     DeviceStateStorageError,
     SqliteDeviceStateRepository,
@@ -20,7 +18,12 @@ from e87canbus.adapters.sqlite_device_state import (
 from e87canbus.adapters.sqlite_settings import SqliteApplicationSettingsRepository
 from e87canbus.api.auth import DeviceRole
 from e87canbus.api.main import create_app
-from e87canbus.api.models.button_pad import ButtonPadScene, SceneButton
+from e87canbus.api.models.button_pad import (
+    ButtonPadDeviceStatus,
+    ButtonPadScene,
+    ButtonPadStatus,
+    SceneButton,
+)
 from e87canbus.domain.buttons.profiles import BUILT_IN_BUTTON_PROFILE
 from e87canbus.domain.settings.values import DEFAULT_APPLICATION_SETTINGS, SpeedUnit
 from migration_test_support import rewind_application_database

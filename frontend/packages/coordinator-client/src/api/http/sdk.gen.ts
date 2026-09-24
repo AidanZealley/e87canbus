@@ -67,6 +67,9 @@ import type {
   PreviewSimulationCoordinatorStatusData,
   PreviewSimulationCoordinatorStatusErrors,
   PreviewSimulationCoordinatorStatusResponses,
+  ReportDeviceStatusData,
+  ReportDeviceStatusErrors,
+  ReportDeviceStatusResponses,
   ResetSimulationData,
   ResetSimulationErrors,
   ResetSimulationResponses,
@@ -109,6 +112,9 @@ import type {
   StreamCoordinatorLiveApiLiveGetData,
   StreamCoordinatorLiveApiLiveGetResponse,
   StreamCoordinatorLiveApiLiveGetResponses,
+  SubmitButtonPadPressData,
+  SubmitButtonPadPressErrors,
+  SubmitButtonPadPressResponses,
   UpdateApplicationSettingsData,
   UpdateApplicationSettingsErrors,
   UpdateApplicationSettingsResponses,
@@ -140,6 +146,7 @@ import {
   zListButtonProfilesResponse,
   zListSteeringProfilesResponse,
   zPreviewSimulationCoordinatorStatusResponse,
+  zReportDeviceStatusResponse,
   zResetSimulationResponse,
   zSetCoolantTemperatureResponse,
   zSetEngineRpmResponse,
@@ -154,6 +161,7 @@ import {
   zSilenceOilTemperatureResponse,
   zSilenceVehicleSpeedResponse,
   zStreamCoordinatorLiveApiLiveGetResponse,
+  zSubmitButtonPadPressResponse,
   zUpdateApplicationSettingsResponse,
   zUpdateButtonProfileResponse,
   zUpdateSteeringProfileResponse,
@@ -638,6 +646,62 @@ export const setVehicleSweep = <ThrowOnError extends boolean = true>(
       await zSetVehicleSweepResponse.parseAsync(data),
     responseStyle: "data",
     url: "/api/dev/simulation/vehicle/sweep",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Submit Button Pad Press
+ */
+export const submitButtonPadPress = <ThrowOnError extends boolean = true>(
+  options: Options<SubmitButtonPadPressData, ThrowOnError>
+): RequestResult<
+  SubmitButtonPadPressResponses,
+  SubmitButtonPadPressErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    SubmitButtonPadPressResponses,
+    SubmitButtonPadPressErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zSubmitButtonPadPressResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/devices/button-pad/presses",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  })
+
+/**
+ * Report Status
+ */
+export const reportDeviceStatus = <ThrowOnError extends boolean = true>(
+  options: Options<ReportDeviceStatusData, ThrowOnError>
+): RequestResult<
+  ReportDeviceStatusResponses,
+  ReportDeviceStatusErrors,
+  ThrowOnError,
+  "data"
+> =>
+  (options.client ?? client).post<
+    ReportDeviceStatusResponses,
+    ReportDeviceStatusErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseValidator: async (data) =>
+      await zReportDeviceStatusResponse.parseAsync(data),
+    responseStyle: "data",
+    url: "/api/devices/status",
     ...options,
     headers: {
       "Content-Type": "application/json",

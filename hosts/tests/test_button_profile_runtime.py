@@ -44,8 +44,8 @@ def test_direct_button_input_uses_active_profile_with_no_can_producer() -> None:
     )
     kernel.dispatch(ActivateButtonProfile(profile))
 
-    assert kernel.dispatch(ButtonPressed(0)) is None
-    commit = kernel.dispatch(ButtonPressed(5))
+    assert kernel.dispatch(ButtonPressed(0, observed_at=1.0)) is None
+    commit = kernel.dispatch(ButtonPressed(5, observed_at=1.0))
 
     assert commit is not None
     assert kernel.snapshot().steering_mode is SteeringMode.MANUAL
@@ -68,7 +68,7 @@ def test_runtime_dispatches_button_input(simulated: bool) -> None:
     runtime.configure_initial_button_profile(profile)
     runtime.start(lambda _: True)
 
-    execution = runtime.execute(ButtonPressed(5))
+    execution = runtime.execute(ButtonPressed(5, observed_at=1.0))
 
     assert execution.changed_topics == {StateTopic.STEERING}
     assert runtime.projection()[0].steering_mode is SteeringMode.MANUAL
@@ -92,5 +92,5 @@ def test_press_ignores_a_saved_command_rejected_by_current_configuration() -> No
     )
     kernel.dispatch(ActivateButtonProfile(profile))
 
-    assert kernel.dispatch(ButtonPressed(5)) is None
+    assert kernel.dispatch(ButtonPressed(5, observed_at=1.0)) is None
     assert kernel.snapshot().steering_mode is SteeringMode.AUTO

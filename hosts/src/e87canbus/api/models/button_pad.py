@@ -24,6 +24,21 @@ from e87canbus.domain.state import ApplicationState
 RgbChannel = Annotated[int, Field(ge=0, le=RGB_CHANNEL_MAX)]
 
 
+class ButtonPadDeviceStatus(StrictRequest):
+    """The first button-pad status document has no role-specific fields."""
+
+
+class ButtonPadStatus(StrictRequest):
+    status_version: Literal[1]
+    applied_configuration_generation: int = Field(ge=0, le=9_007_199_254_740_991)
+    configuration_error: str | None
+    device: ButtonPadDeviceStatus
+
+
+class ButtonPadPressRequest(StrictRequest):
+    button_index: int = Field(ge=0, lt=BUTTON_LED_COUNT)
+
+
 class BreatheSceneAnimation(StrictRequest):
     type: Literal["breathe"]
     period_ms: int = Field(ge=BREATHE_PERIOD_MIN_MS, le=BREATHE_PERIOD_MAX_MS)
